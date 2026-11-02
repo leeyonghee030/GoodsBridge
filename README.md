@@ -11,6 +11,7 @@
 - Spring AI (`spring-ai-starter-model-google-genai`, Gemini) — `@Tool` function calling
 - PortOne 카드결제
 - Docker Compose (로컬 MySQL)
+- Mustache (서버사이드 뷰 — 핵심 유저 화면 + 관리자 페이지만, 나머지는 REST API만)
 
 ## 빠른 시작
 
@@ -37,6 +38,9 @@ docker ps   # goodsbridge-mysql 떠 있으면 성공
 ```
 
 MySQL 컨테이너는 한 번 띄워두면 계속 켜둬도 됩니다. 다음에 작업할 땐 `./gradlew bootRun`만 하면 됩니다.
+
+## 화면 (Mustache)
+각 도메인 API가 아직 완성 전이라, 화면은 전부 `/test/{도메인}` 경로의 placeholder 상태입니다 (예: `/test/item`, `/test/admin`). 백엔드 완성 순서대로 실제 화면으로 교체됩니다 — 자세한 건 [#24 화면 전환 체크리스트](../../issues/24) 참고. 담당자가 직접 만들 필요는 없습니다.
 
 ## 협업 규칙
 - **Git 전략**: `main`(배포/데모) / `develop`(기본, 작업 베이스) / `feature/{이슈번호}-{영문명}`. `main`·`develop` 직접 push 불가, PR + 리뷰 승인 1개 이상 필요, Squash merge만 허용
