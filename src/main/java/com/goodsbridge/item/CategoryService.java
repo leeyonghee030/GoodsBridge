@@ -18,14 +18,14 @@ public class CategoryService {
     private final CategoryJpaRepository categoryRepository;
 
     @Transactional
-    public Long createCategory(CategoryCreateRequest request) {
+    public Long create(CategoryCreateRequest request) {
         Category category = Category.builder()
             .name(request.getName())
             .build();
         return categoryRepository.save(category).getId();
     }
 
-    public List<CategoryResponse> getCategories() {
+    public List<CategoryResponse> findAll() {
         return categoryRepository.findAll().stream()
             .map(CategoryResponse::from)
             .toList();

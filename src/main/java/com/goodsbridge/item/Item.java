@@ -1,10 +1,7 @@
 package com.goodsbridge.item;
 
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Data;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.checkerframework.checker.index.qual.Positive;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -12,9 +9,9 @@ import java.sql.Timestamp;
 
 
 @Entity
-@Table(name = "items")
+@Table(name = "item_tb")
 @Getter
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Item {
 
     @Id

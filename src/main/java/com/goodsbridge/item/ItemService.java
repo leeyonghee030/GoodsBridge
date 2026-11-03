@@ -9,7 +9,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import java.util.List;
 
 @Service
@@ -20,8 +19,10 @@ public class ItemService {
     private final ItemJpaRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
 
+
+    // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
     @Transactional
-    public Long createItem(Long userId, ItemCreateRequest request) {
+    public Long create(Long userId, ItemCreateRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND));
 
@@ -40,23 +41,32 @@ public class ItemService {
         return itemRepository.save(item).getId();
     }
 
-    public Page<ItemResponse> getItems(Long categoryId, String region, SaleType saleType, Pageable pageable) {
+    // 전체 상품 목록 조회 필터링 검색
+    public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, Pageable pageable) {
         Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
         return itemPage.map(ItemResponse::from);
     }
 
-    public ItemResponse getItem(Long id) {
+    // 상품 단건 상세 조회
+    public ItemResponse findById(Long id) {
         Item item = itemRepository.findById(id)
             .orElseThrow(() -> new NotFoundException(ErrorCode.ITEM_NOT_FOUND));
         return ItemResponse.from(item);
     }
 
+    // 내 상품 목록 조회
+    public List<ItemResponse> findAllByUserId(Long userId) {
+        return itemRepository.findBySellerUserId(userId).stream()
+            .map(ItemResponse::from)
+            .toList();
+    }
+
+    // 상품 정보 수정
     @Transactional
-    public void updateItem(Long userId, Long itemId, ItemUpdateRequest request) {
+    public void update(Long userId, Long itemId, ItemUpdateRequest request) {
         Item item = itemRepository.findById(itemId)
             .orElseThrow(() -> new NotFoundException(ErrorCode.ITEM_NOT_FOUND));
 
-        // 권한 없음: 403 Forbidden
         if (!item.isOwner(userId)) {
             throw new ForbiddenException(ErrorCode.FORBIDDEN_ITEM_ACCESS);
         }
@@ -75,22 +85,16 @@ public class ItemService {
         );
     }
 
+    // 상품 삭제
     @Transactional
-    public void deleteItem(Long userId, Long itemId) {
+    public void delete(Long userId, Long itemId) {
         Item item = itemRepository.findById(itemId)
             .orElseThrow(() -> new NotFoundException(ErrorCode.ITEM_NOT_FOUND));
 
-        // 권한 없음: 403 Forbidden
         if (!item.isOwner(userId)) {
             throw new ForbiddenException(ErrorCode.FORBIDDEN_ITEM_ACCESS);
         }
 
         itemRepository.delete(item);
-    }
-
-    public List<ItemResponse> getMyItems(Long userId) {
-        return itemRepository.findBySellerUserId(userId).stream()
-            .map(ItemResponse::from)
-            .toList();
     }
 }
