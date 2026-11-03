@@ -42,7 +42,7 @@ public class UserViewController {
     }
 
     // 카카오 로그인 콜백
-    @GetMapping("/oauth/kakao")
+    @GetMapping("/oauth2/kakao")
     public String kakaoCallback(
         @RequestParam("code") String code,
         HttpServletResponse response
