@@ -103,25 +103,28 @@ function deleteExchangeComment(id) {
   renderAll();
 }
 
+function hasActiveRequestAsOffer(db, exchangeItemId) {
+  return db.exchangeRequests.some(r => r.exchangeItemBId === exchangeItemId && (r.status === 'PENDING' || r.status === 'CONFIRMED'));
+}
+
 function proposeExchange(targetId) {
   const db = loadDB();
   const myOfferId = Number(document.getElementById('offer_' + targetId).value);
   if (!myOfferId) { alert('제안할 내 교환게시글을 먼저 등록/선택하세요'); return; }
+  if (hasActiveRequestAsOffer(db, myOfferId)) { alert('이 게시글은 이미 다른 제안에 사용중입니다 (그 제안이 끝나야 다시 쓸 수 있어요)'); return; }
   const target = db.exchangeItems.find(e => e.id === targetId);
   const myOffer = db.exchangeItems.find(e => e.id === myOfferId);
   const myItem = db.items.find(i => i.id === myOffer.itemId);
   const depositB = Math.round(myItem.price * 0.2);
   const paymentId = 'pay_dep_' + Date.now();
   db.payments.push({ id: nextId(db, 'payments'), paymentId, userId: currentUserId(), amount: depositB, purpose: 'EXCHANGE_DEPOSIT', status: 'PAID' });
-  apiLog('POST', `/api/exchange-items/${targetId}/propose`, `제안자 보증금 ${won(depositB)} 결제, deadline=+3일, 교환장소=게시글의 shopId 그대로 사용`);
+  apiLog('POST', `/api/exchange-items/${targetId}/propose`, `제안자 보증금 ${won(depositB)} 결제, deadline=+3일, 교환장소=게시글의 shopId 그대로 사용 (게시글 상태는 OPEN 유지 — 다른 사람도 제안 가능)`);
   const id = nextId(db, 'exchangeRequests');
   db.exchangeRequests.push({
     id, exchangeItemAId: targetId, exchangeItemBId: myOfferId, shopId: target.shopId,
     status: 'PENDING', depositAmountA: null, depositAmountB: depositB,
     userAShowed: false, userBShowed: false, deadline: new Date(Date.now() + 3 * 86400000).toISOString(),
   });
-  target.status = 'MATCHED';
-  myOffer.status = 'MATCHED';
   addNotification(db, target.userId, `새 교환 제안이 도착했어요 (요청 #${id})`);
   saveDB(db);
   renderAll();
@@ -139,9 +142,24 @@ function acceptRequest(reqId) {
   req.status = 'CONFIRMED';
   req.deadline = new Date(Date.now() + 5 * 86400000).toISOString();
   const exB = db.exchangeItems.find(e => e.id === req.exchangeItemBId);
+  exA.status = 'MATCHED';
+  exB.status = 'MATCHED';
   addNotification(db, exB.userId, `제안이 수락됐어요 (요청 #${reqId}) — 가게 방문기한 내에 방문해주세요`);
+
+  // 같은 게시글/아이템을 참조하는 다른 PENDING 제안은 자동취소 + 100% 환불
+  const competitors = db.exchangeRequests.filter(r =>
+    r.id !== reqId && r.status === 'PENDING' &&
+    (r.exchangeItemAId === exA.id || r.exchangeItemBId === exA.id || r.exchangeItemAId === exB.id || r.exchangeItemBId === exB.id)
+  );
+  competitors.forEach(r => {
+    r.status = 'REJECTED';
+    const loserEx = db.exchangeItems.find(e => e.id === r.exchangeItemBId);
+    addNotification(db, loserEx.userId, `다른 제안이 먼저 수락되어 내 제안은 자동취소됐어요 (요청 #${r.id}) — 보증금 100% 환불됨`);
+    apiLog('POST', `/api/exchange-requests/${r.id}/reject`, `경쟁 제안 자동취소, B 보증금 ${won(r.depositAmountB)} 100% 환불`);
+  });
+
   saveDB(db);
-  apiLog('POST', `/api/exchange-requests/${reqId}/accept`, `A 보증금 ${won(depositA)} 결제 → CONFIRMED`);
+  apiLog('POST', `/api/exchange-requests/${reqId}/accept`, `A 보증금 ${won(depositA)} 결제 → CONFIRMED, ExchangeItemA/B → MATCHED`);
   renderAll();
 }
 function rejectRequest(reqId) {
@@ -197,6 +215,8 @@ function checkIn(reqId) {
   req._settleNote = note; req._refundA = refundA; req._refundB = refundB; req._shopFee = shopFee;
   const exA2 = db.exchangeItems.find(e => e.id === req.exchangeItemAId);
   const exB2 = db.exchangeItems.find(e => e.id === req.exchangeItemBId);
+  exA2.status = 'CLOSED';
+  exB2.status = 'CLOSED';
   addNotification(db, exA2.userId, `교환 정산이 끝났어요 (요청 #${reqId}) — 환불 ${won(refundA)}`);
   addNotification(db, exB2.userId, `교환 정산이 끝났어요 (요청 #${reqId}) — 환불 ${won(refundB)}`);
   saveDB(db);
@@ -213,7 +233,7 @@ function renderAll() {
     const item = db.items.find(i => i.id === ex.itemId);
     const shop = db.shops.find(s => s.id === ex.shopId);
     const mine = ex.userId === me;
-    const myOffers = db.exchangeItems.filter(e => e.userId === me && e.status === 'OPEN' && e.id !== ex.id);
+    const myOffers = db.exchangeItems.filter(e => e.userId === me && e.status === 'OPEN' && e.id !== ex.id && !hasActiveRequestAsOffer(db, e.id));
     return `
       <div class="card">
         <div class="row between">
