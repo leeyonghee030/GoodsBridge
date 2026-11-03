@@ -3,8 +3,7 @@ package com.goodsbridge.item;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.sql.Timestamp;
-
+import java.time.LocalDateTime; // 변경
 
 @Getter
 @AllArgsConstructor
@@ -19,7 +18,7 @@ public class ItemResponse {
     private SaleType saleType;
     private ItemStatus status;
     private String imageUrl;
-    private Timestamp createdAt;
+    private LocalDateTime createdAt; // 변경
 
     public static ItemResponse from(Item item) {
         return new ItemResponse(

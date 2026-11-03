@@ -33,7 +33,7 @@ public class ItemController {
         @RequestParam(required = false) String region,
         @RequestParam(required = false) SaleType saleType,
         Pageable pageable) {
-        Page<ItemResponse> items = itemService.findAll(category, region, saleType, pageable);
+        Page<ItemResponse> items = itemService.findAll(category, saleType, pageable);
         return ResponseEntity.ok(items);
     }
 

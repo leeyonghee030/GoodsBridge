@@ -2,16 +2,17 @@ package com.goodsbridge.item;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.checkerframework.checker.index.qual.Positive;
-import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.CreationTimestamp; // 제거 가능
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import java.sql.Timestamp;
-
+import java.time.LocalDateTime; // 변경
 
 @Entity
 @Table(name = "item_tb")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EntityListeners(AuditingEntityListener.class) // ⭐ 추가
 public class Item {
 
     @Id
@@ -22,7 +23,7 @@ public class Item {
     private Long sellerUserId;
 
     @Column(name = "shop_id")
-    private Long shopId; // null이면 개인 판매
+    private Long shopId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
@@ -34,24 +35,23 @@ public class Item {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Positive
     @Column(nullable = false)
     private Integer price;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private SaleType saleType; // NORMAL, EVENT, AUCTION
+    private SaleType saleType;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private ItemStatus status; // ON_SALE, SOLD, CLOSED
+    private ItemStatus status;
 
     @Column(name = "image_url")
     private String imageUrl;
 
-    @CreationTimestamp
-    @Column(name = "created_at", updatable = false)
-    private Timestamp createdAt;
+    @CreatedDate // ⭐ 변경 (JPA Auditing이 자동 주입)
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private LocalDateTime createdAt; // ⭐ 타입 변경
 
     @Builder
     public Item(Long sellerUserId, Long shopId, Category category, String title,
