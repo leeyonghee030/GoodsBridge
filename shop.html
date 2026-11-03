@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>가게 입점/구독 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>가게 입점 → 관리자 승인 → 구독(SaaS)</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>입점 신청</h3>
+    <label>지점명</label><input id="shopName" placeholder="예: OO굿즈샵 강남점">
+    <label>지역</label><input id="shopRegion" placeholder="예: 서울 강남">
+    <label>주소</label><input id="shopAddress" placeholder="예: 서울 강남구 ...">
+    <button class="btn" onclick="applyShop()">입점 신청하기 (POST /api/shops)</button>
+  </div>
+
+  <div class="card">
+    <h3>가게 목록</h3>
+    <div id="shopList"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('shop.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([6, 16], '입점신청→승인→구독');
+
+function applyShop() {
+  const name = document.getElementById('shopName').value.trim();
+  const region = document.getElementById('shopRegion').value.trim();
+  const address = document.getElementById('shopAddress').value.trim();
+  if (!name || !region || !address) { alert('지점명/지역/주소를 모두 입력하세요'); return; }
+  const db = loadDB();
+  const id = nextId(db, 'shops');
+  db.shops.push({ id, ownerUserId: currentUserId(), name, region, address, status: 'PENDING' });
+  saveDB(db);
+  apiLog('POST', '/api/shops', `"${name}" 입점 신청 (status=PENDING)`);
+  renderShops();
+  document.getElementById('shopName').value = '';
+  document.getElementById('shopRegion').value = '';
+  document.getElementById('shopAddress').value = '';
+}
+
+function approveShop(id) {
+  const db = loadDB();
+  const shop = db.shops.find(s => s.id === id);
+  shop.status = 'APPROVED';
+  saveDB(db);
+  apiLog('PATCH', `/api/admin/shops/${id}/approve`, `관리자 승인: ${shop.name}`);
+  renderShops();
+}
+function rejectShop(id) {
+  const db = loadDB();
+  const shop = db.shops.find(s => s.id === id);
+  shop.status = 'REJECTED';
+  saveDB(db);
+  apiLog('PATCH', `/api/admin/shops/${id}/reject`, `관리자 거절: ${shop.name}`);
+  renderShops();
+}
+function startSubscription(shopId) {
+  const db = loadDB();
+  const paymentId = 'pay_sub_' + Date.now();
+  apiLog('POST', '/api/payments(mock PG)', `구축비+연간구독료 결제, paymentId=${paymentId}`);
+  let sub = db.subscriptions.find(s => s.shopId === shopId);
+  const today = new Date();
+  const end = new Date(today); end.setFullYear(end.getFullYear() + 1);
+  if (sub) {
+    sub.setupFeePaid = true; sub.status = 'ACTIVE';
+    sub.startDate = today.toISOString().slice(0, 10);
+    sub.endDate = end.toISOString().slice(0, 10);
+  } else {
+    sub = { id: nextId(db, 'subscriptions'), shopId, setupFeePaid: true, startDate: today.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10), status: 'ACTIVE' };
+    db.subscriptions.push(sub);
+  }
+  saveDB(db);
+  apiLog('POST', `/api/shops/${shopId}/subscription`, `구독 시작/갱신 → ACTIVE, ~${sub.endDate}`);
+  renderShops();
+}
+
+function renderShops() {
+  const db = loadDB();
+  const admin = isAdmin();
+  const me = currentUserId();
+  document.getElementById('shopList').innerHTML = db.shops.length ? db.shops.map(shop => {
+    const sub = db.subscriptions.find(s => s.shopId === shop.id);
+    const owner = shop.ownerUserId === me;
+    return `
+      <div class="card">
+        <div class="row between">
+          <div><b>${shop.name}</b> <span class="muted">(${shop.region})</span></div>
+          <span class="badge ${shop.status.toLowerCase()}">${shop.status}</span>
+        </div>
+        <p class="muted">주인: ${userName(db, shop.ownerUserId)} ${owner ? '(나)' : ''} · ${shop.address}</p>
+        <p class="muted">구독: ${sub ? `${sub.status} (${sub.startDate} ~ ${sub.endDate})` : '없음'}</p>
+        <div class="row">
+          ${shop.status === 'PENDING' && admin ? `
+            <button class="btn" onclick="approveShop(${shop.id})">승인</button>
+            <button class="btn danger" onclick="rejectShop(${shop.id})">거절</button>` : ''}
+          ${shop.status === 'APPROVED' && owner && (!sub || sub.status !== 'ACTIVE') ? `
+            <button class="btn" onclick="startSubscription(${shop.id})">구독 결제(구축비+연간)</button>` : ''}
+          ${shop.status === 'APPROVED' && owner && sub && sub.status === 'ACTIVE' ? `
+            <span class="muted">구독 활성 상태 — 상품/이벤트/경매 개설 가능</span>` : ''}
+        </div>
+      </div>`;
+  }).join('') : '<div class="empty">아직 신청된 가게가 없습니다.</div>';
+}
+renderShops();
+</script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>상품/구매 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>상품(Item) & 일반판매 — 안전결제</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>상품 등록</h3>
+    <label>카테고리</label><select id="itemCategory" class="field"></select>
+    <label>제목</label><input id="itemTitle" placeholder="예: 민지 포카">
+    <label>설명</label><input id="itemDesc" placeholder="상태 설명">
+    <label>가격</label><input id="itemPrice" type="number" placeholder="15000">
+    <label>이미지 URL (선택)</label><input id="itemImageUrl" placeholder="https://... (Tier1은 URL만, 실제 업로드는 Tier2)">
+    <button class="btn" onclick="createItem()">상품 등록 (POST /api/items)</button>
+  </div>
+
+  <div class="card">
+    <h3>상품 목록</h3>
+    <label>카테고리 필터</label>
+    <select id="itemCategoryFilter" class="field" onchange="renderAll()"></select>
+    <div id="itemList"></div>
+  </div>
+
+  <div class="card">
+    <h3>내 구매내역 (구매자 시점)</h3>
+    <div id="myPurchases"></div>
+  </div>
+
+  <div class="card">
+    <h3>발송관리 (판매자/가게 시점)</h3>
+    <div id="shipManage"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('items.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([7, 9], '상품 CRUD(+imageUrl) + 안전결제 구매/발송');
+
+function initCategorySelect() {
+  const db = loadDB();
+  document.getElementById('itemCategory').innerHTML = db.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  const filterEl = document.getElementById('itemCategoryFilter');
+  const prev = filterEl.value;
+  filterEl.innerHTML = '<option value="">전체</option>' + db.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  if (prev) filterEl.value = prev;
+}
+initCategorySelect();
+
+function createItem() {
+  const db = loadDB();
+  const title = document.getElementById('itemTitle').value.trim();
+  const description = document.getElementById('itemDesc').value.trim();
+  const price = Number(document.getElementById('itemPrice').value);
+  const categoryId = Number(document.getElementById('itemCategory').value);
+  const imageUrl = document.getElementById('itemImageUrl').value.trim() || null;
+  if (!title || !price) { alert('제목과 가격을 입력하세요'); return; }
+  const id = nextId(db, 'items');
+  db.items.push({ id, sellerUserId: currentUserId(), shopId: null, categoryId, title, description, price, imageUrl, saleType: 'NORMAL', status: 'ON_SALE' });
+  saveDB(db);
+  apiLog('POST', '/api/items', `"${title}" 등록 (${won(price)})`);
+  document.getElementById('itemTitle').value = '';
+  document.getElementById('itemDesc').value = '';
+  document.getElementById('itemPrice').value = '';
+  document.getElementById('itemImageUrl').value = '';
+  renderAll();
+}
+
+function buyItem(itemId) {
+  const addr = document.getElementById('addr_' + itemId).value.trim();
+  if (!addr) { alert('배송지를 입력하세요'); return; }
+  const db = loadDB();
+  const item = db.items.find(i => i.id === itemId);
+  const paymentId = 'pay_' + Date.now();
+  db.payments.push({ id: nextId(db, 'payments'), paymentId, pgTxId: 'pg_' + Date.now(), userId: currentUserId(), amount: item.price, refundedAmount: 0, purpose: 'PURCHASE', status: 'PAID' });
+  apiLog('POST', `/api/items/${itemId}/purchase`, `paymentId=${paymentId} 검증 → 대금 HOLD`);
+  const purchase = { id: nextId(db, 'purchases'), itemId, buyerUserId: currentUserId(), paymentId, deliveryAddress: addr, trackingNumber: null, deliveryStatus: 'PREPARING', status: 'PAID' };
+  db.purchases.push(purchase);
+  item.status = 'SOLD';
+  saveDB(db);
+  renderAll();
+}
+
+function setTracking(purchaseId) {
+  const num = document.getElementById('track_' + purchaseId).value.trim();
+  if (!num) { alert('운송장번호를 입력하세요'); return; }
+  const db = loadDB();
+  const p = db.purchases.find(x => x.id === purchaseId);
+  p.trackingNumber = num;
+  p.deliveryStatus = 'SHIPPED';
+  saveDB(db);
+  apiLog('PATCH', `/api/purchases/${purchaseId}/shipping`, `운송장 ${num} 등록 → SHIPPED`);
+  renderAll();
+}
+
+function confirmReceipt(purchaseId) {
+  const db = loadDB();
+  const p = db.purchases.find(x => x.id === purchaseId);
+  p.status = 'CONFIRMED';
+  p.deliveryStatus = 'DELIVERED';
+  saveDB(db);
+  apiLog('POST', `/api/purchases/${purchaseId}/confirm`, '구매자 수령확인 → 판매자에게 RELEASE');
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  if (!db.purchases) db.purchases = [];
+  const me = currentUserId();
+
+  const categoryFilter = Number(document.getElementById('itemCategoryFilter').value) || null;
+  const filteredItems = categoryFilter ? db.items.filter(i => i.categoryId === categoryFilter) : db.items;
+  document.getElementById('itemList').innerHTML = filteredItems.length ? filteredItems.map(item => {
+    const cat = db.categories.find(c => c.id === item.categoryId);
+    const isMine = item.sellerUserId === me;
+    const canBuy = item.status === 'ON_SALE' && !isMine && item.saleType === 'NORMAL';
+    return `
+      <div class="card">
+        ${item.imageUrl ? `<img src="${item.imageUrl}" style="max-width:100%;max-height:160px;object-fit:cover;border-radius:6px;margin-bottom:8px" onerror="this.style.display='none'">` : '<div class="muted" style="margin-bottom:6px">(이미지 없음)</div>'}
+        <div class="row between">
+          <div><b>${item.title}</b> <span class="muted">[${cat ? cat.name : '-'}] · ${item.saleType}</span></div>
+          <span class="badge ${item.status.toLowerCase()}">${item.status}</span>
+        </div>
+        <p class="muted">${item.description} · 판매자: ${userName(db, item.sellerUserId)}${isMine ? ' (나)' : ''}</p>
+        <div class="row between"><b>${won(item.price)}</b></div>
+        ${canBuy ? `
+          <div class="row" style="margin-top:8px">
+            <input id="addr_${item.id}" placeholder="배송지 주소 입력" style="flex:1;margin-bottom:0">
+            <button class="btn" onclick="buyItem(${item.id})">구매하기(안전결제)</button>
+          </div>` : ''}
+        ${item.saleType !== 'NORMAL' ? `<p class="muted">※ ${item.saleType} 상품은 이벤트/경매 화면에서 처리합니다.</p>` : ''}
+      </div>`;
+  }).join('') : '<div class="empty">해당 카테고리에 상품이 없습니다.</div>';
+
+  const myP = db.purchases.filter(p => p.buyerUserId === me);
+  document.getElementById('myPurchases').innerHTML = myP.length ? `
+    <table><tr><th>상품</th><th>배송지</th><th>배송상태</th><th>구매상태</th><th></th></tr>
+    ${myP.map(p => {
+      const item = db.items.find(i => i.id === p.itemId);
+      return `<tr>
+        <td>${item ? item.title : '-'}</td>
+        <td>${p.deliveryAddress}</td>
+        <td><span class="badge ${p.deliveryStatus.toLowerCase()}">${p.deliveryStatus}</span></td>
+        <td><span class="badge ${p.status.toLowerCase()}">${p.status}</span></td>
+        <td>${p.deliveryStatus === 'SHIPPED' && p.status === 'PAID' ? `<button class="btn" onclick="confirmReceipt(${p.id})">수령확인</button>` : ''}</td>
+      </tr>`;
+    }).join('')}</table>` : '<div class="empty">구매내역이 없습니다.</div>';
+
+  const mySales = db.purchases.filter(p => {
+    const item = db.items.find(i => i.id === p.itemId);
+    return item && item.sellerUserId === me;
+  });
+  document.getElementById('shipManage').innerHTML = mySales.length ? `
+    <table><tr><th>상품</th><th>구매자</th><th>배송지</th><th>운송장</th><th>상태</th><th></th></tr>
+    ${mySales.map(p => {
+      const item = db.items.find(i => i.id === p.itemId);
+      return `<tr>
+        <td>${item ? item.title : '-'}</td>
+        <td>${userName(db, p.buyerUserId)}</td>
+        <td>${p.deliveryAddress}</td>
+        <td>${p.trackingNumber || '-'}</td>
+        <td><span class="badge ${p.deliveryStatus.toLowerCase()}">${p.deliveryStatus}</span></td>
+        <td>${p.deliveryStatus === 'PREPARING' ? `
+          <input id="track_${p.id}" placeholder="운송장번호" style="width:110px;display:inline-block;margin:0">
+          <button class="btn secondary" onclick="setTracking(${p.id})">등록</button>` : ''}</td>
+      </tr>`;
+    }).join('')}</table>` : '<div class="empty">판매/발송 건이 없습니다.</div>';
+}
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>경매 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>경매 (입찰 동시성 + 보증금)</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>경매 개설 (가게 주인)</h3>
+    <label>내 가게</label><select id="aucShop" class="field"></select>
+    <label>상품</label><select id="aucItem" class="field"></select>
+    <label>시작가</label><input id="aucStart" type="number" placeholder="50000">
+    <label>보증금 (최초입찰 시 예치할 금액 — 시작가의 10%~20% 범위 내에서 가게가 직접 정함)</label><input id="aucDeposit" type="number" placeholder="5000">
+    <label>마감시간</label><input id="aucDeadline" type="datetime-local">
+    <button class="btn" onclick="createAuction()">경매 개설 (POST /api/shops/{id}/auctions)</button>
+  </div>
+
+  <div class="card">
+    <h3>경매 목록</h3>
+    <div id="aucList"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('auction.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([12, 20, 34], '경매 개설 + 입찰(비관적 락) + 보증금(시작가의 10~20%, 가게가 직접 정함) + 알림');
+
+function myShops() { return loadDB().shops.filter(s => s.ownerUserId === currentUserId() && s.status === 'APPROVED'); }
+function initForm() {
+  const db = loadDB();
+  const shops = myShops();
+  document.getElementById('aucShop').innerHTML = shops.length ? shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '<option value="">승인된 내 가게 없음</option>';
+  document.getElementById('aucItem').innerHTML = db.items.filter(i => shops.some(s => s.id === i.shopId)).map(i => `<option value="${i.id}">${i.title}</option>`).join('') || '<option value="">가게 소속 상품 없음</option>';
+}
+initForm();
+
+function createAuction() {
+  const db = loadDB();
+  const shopId = Number(document.getElementById('aucShop').value);
+  const itemId = Number(document.getElementById('aucItem').value);
+  const startPrice = Number(document.getElementById('aucStart').value);
+  const depositAmount = Number(document.getElementById('aucDeposit').value);
+  const deadline = document.getElementById('aucDeadline').value || '미지정';
+  if (!shopId || !itemId || !startPrice || !depositAmount) { alert('가게/상품/시작가/보증금을 확인하세요'); return; }
+  const minDeposit = Math.round(startPrice * 0.1);
+  const maxDeposit = Math.round(startPrice * 0.2);
+  if (depositAmount < minDeposit || depositAmount > maxDeposit) {
+    alert(`보증금은 시작가의 10%~20% 범위여야 합니다 (${won(minDeposit)} ~ ${won(maxDeposit)})`);
+    return;
+  }
+  const id = nextId(db, 'auctions');
+  db.auctions.push({ id, shopId, itemId, startPrice, currentPrice: startPrice, depositAmount, currentWinnerUserId: null, deadline, status: 'ACTIVE' });
+  saveDB(db);
+  apiLog('POST', `/api/shops/${shopId}/auctions`, `경매 #${id} 개설 (시작가 ${won(startPrice)}, 보증금 ${won(depositAmount)})`);
+  renderAll();
+}
+
+function placeBid(aucId) {
+  const amountInput = document.getElementById('bidAmt_' + aucId);
+  const amount = Number(amountInput.value);
+  const db = loadDB();
+  const auc = db.auctions.find(a => a.id === aucId);
+  if (auc.status !== 'ACTIVE') { toast('이미 마감된 경매'); return; }
+  if (!amount || amount <= auc.currentPrice) { toast('현재가보다 높은 금액을 입력하세요'); return; }
+  const me = currentUserId();
+  const firstBid = !db.bids.some(b => b.auctionId === aucId && b.userId === me);
+  if (firstBid) {
+    const deposit = auc.depositAmount;
+    const paymentId = 'pay_aucdep_' + Date.now();
+    db.payments.push({ id: nextId(db, 'payments'), paymentId, userId: me, amount: deposit, purpose: 'AUCTION_DEPOSIT', status: 'PAID' });
+    apiLog('POST', `/api/auctions/${aucId}/bids`, `최초입찰 보증금 ${won(deposit)} 결제 (경매 개설 시 가게가 정한 금액)`);
+  } else {
+    apiLog('POST', `/api/auctions/${aucId}/bids`, `재입찰, 보증금 추가없음`);
+  }
+  db.bids.push({ id: nextId(db, 'bids'), auctionId: aucId, userId: me, bidAmount: amount, createdAt: new Date().toISOString() });
+  auc.currentPrice = amount;
+  auc.currentWinnerUserId = me;
+  saveDB(db);
+  amountInput.value = '';
+  renderAll();
+}
+
+function endAuction(aucId) {
+  const db = loadDB();
+  const auc = db.auctions.find(a => a.id === aucId);
+  const bids = db.bids.filter(b => b.auctionId === aucId);
+  if (!bids.length) {
+    auc.status = 'ENDED_FAIL';
+    apiLog('POST', '/api/scheduler(mock)', `경매 #${aucId} 마감 - 입찰 없음 → ENDED_FAIL`);
+  } else {
+    auc.status = 'ENDED_SUCCESS';
+    const fee = Math.round(auc.currentPrice * 0.1);
+    db.settlements.push({ id: nextId(db, 'settlements'), shopId: auc.shopId, amount: fee, type: 'AUCTION_FEE' });
+    apiLog('POST', '/api/scheduler(mock)', `경매 #${aucId} 마감 - 낙찰자=${userName(db, auc.currentWinnerUserId)}, 가게수수료 ${won(fee)}(10%), 패찰자 보증금 환불`);
+    addNotification(db, auc.currentWinnerUserId, `경매 #${aucId}에 낙찰됐어요! (${won(auc.currentPrice)})`);
+    const losers = [...new Set(bids.map(b => b.userId))].filter(uid => uid !== auc.currentWinnerUserId);
+    losers.forEach(uid => addNotification(db, uid, `경매 #${aucId}에서 패찰됐어요 — 보증금 환불됨`));
+  }
+  saveDB(db);
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const me = currentUserId();
+  initForm();
+  document.getElementById('aucList').innerHTML = db.auctions.length ? db.auctions.map(auc => {
+    const shop = db.shops.find(s => s.id === auc.shopId);
+    const item = db.items.find(i => i.id === auc.itemId);
+    const bids = db.bids.filter(b => b.auctionId === auc.id).sort((a, b) => b.id - a.id);
+    const owner = shop && shop.ownerUserId === me;
+    return `
+      <div class="card">
+        <div class="row between">
+          <div><b>${item ? item.title : '-'}</b> <span class="muted">${shop ? shop.name : '-'}</span></div>
+          <span class="badge ${auc.status.toLowerCase()}">${auc.status}</span>
+        </div>
+        <p class="muted">시작가 ${won(auc.startPrice)} · 현재가 <b>${won(auc.currentPrice)}</b> · 보증금 ${won(auc.depositAmount)} · 현재 최고입찰자: ${auc.currentWinnerUserId ? userName(db, auc.currentWinnerUserId) : '없음'} · 마감 ${auc.deadline}
+          <span class="badge" data-deadline="${auc.deadline}"></span></p>
+        ${auc.status === 'ACTIVE' && !owner ? `
+          <div class="row">
+            <input id="bidAmt_${auc.id}" type="number" placeholder="입찰금액 (현재가보다 높게)" style="flex:1;margin-bottom:0">
+            <button class="btn" onclick="placeBid(${auc.id})">입찰하기</button>
+          </div>` : ''}
+        ${auc.status === 'ACTIVE' && owner ? `<button class="btn danger" onclick="endAuction(${auc.id})">마감 처리 (스케줄러 대신 수동)</button>` : ''}
+        <details style="margin-top:8px"><summary class="muted">입찰내역 (${bids.length})</summary>
+          <table><tr><th>유저</th><th>금액</th></tr>
+          ${bids.map(b => `<tr><td>${userName(db, b.userId)}</td><td>${won(b.bidAmount)}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">없음</td></tr>'}
+          </table>
+        </details>
+      </div>`;
+  }).join('') : '<div class="empty">개설된 경매가 없습니다.</div>';
+  tickCountdowns();
+}
+renderAll();
+</script>
+</body>
+</html>

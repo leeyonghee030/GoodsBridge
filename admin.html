@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>관리자 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>관리자 페이지</h1></div>
+  <div id="issueBadges"></div>
+  <p class="muted">기획서 8절: 플랫폼 관리자(운영자)는 화면 제공, 가게 관리자(샵어드민)는 별도 화면 없이 API로 처리 — 여기선 비교를 위해 둘 다 화면으로 보여줍니다.</p>
+
+  <div class="card">
+    <h3>🛡 플랫폼 관리자 — 입점 대기 목록</h3>
+    <div id="pendingShops"></div>
+  </div>
+
+  <div class="card">
+    <h3>🛡 플랫폼 관리자 — 환불 승인/거절</h3>
+    <div id="pendingRefunds"></div>
+  </div>
+
+  <div class="card">
+    <h3>🛡 플랫폼 관리자 — 가게 구독(SaaS) 현황 목록</h3>
+    <div id="subscriptionList"></div>
+  </div>
+
+  <div class="card">
+    <h3>🛡 플랫폼 관리자 — 대시보드</h3>
+    <div id="dashboard"></div>
+  </div>
+
+  <div class="card">
+    <h3>🏪 가게 관리자 — 내 가게 정산/매출 내역</h3>
+    <div id="myShopSettlements"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('admin.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([6, 16, 17, 21, 34], '입점승인 + 환불승인 + 구독현황목록 + 대시보드 + 가게 정산조회 + 알림');
+
+function approveShop(id) {
+  const db = loadDB();
+  const shop = db.shops.find(s => s.id === id);
+  shop.status = 'APPROVED';
+  addNotification(db, shop.ownerUserId, `"${shop.name}" 입점이 승인됐어요`);
+  saveDB(db);
+  apiLog('PATCH', `/api/admin/shops/${id}/approve`, `관리자 승인: ${shop.name}`);
+  renderAll();
+}
+function rejectShop(id) {
+  const db = loadDB();
+  const shop = db.shops.find(s => s.id === id);
+  shop.status = 'REJECTED';
+  addNotification(db, shop.ownerUserId, `"${shop.name}" 입점이 거절됐어요`);
+  saveDB(db);
+  apiLog('PATCH', `/api/admin/shops/${id}/reject`, `관리자 거절: ${shop.name}`);
+  renderAll();
+}
+function approveRefund(id) {
+  const db = loadDB();
+  const refund = db.refunds.find(r => r.id === id);
+  const payment = db.payments.find(p => p.paymentId === refund.paymentId);
+  payment.refundedAmount = (payment.refundedAmount || 0) + refund.requestedAmount;
+  payment.status = payment.refundedAmount >= payment.amount ? 'CANCELLED' : 'PARTIAL_CANCELLED';
+  refund.status = 'APPROVED';
+  addNotification(db, refund.requesterUserId, `환불 요청이 승인됐어요 (${won(refund.requestedAmount)})`);
+  saveDB(db);
+  apiLog('PATCH', `/api/admin/refunds/${id}/approve`, `PortOne 부분취소 ${won(refund.requestedAmount)} 실행`);
+  renderAll();
+}
+function rejectRefund(id) {
+  const db = loadDB();
+  const refund = db.refunds.find(r => r.id === id);
+  refund.status = 'REJECTED';
+  addNotification(db, refund.requesterUserId, '환불 요청이 거절됐어요');
+  saveDB(db);
+  apiLog('PATCH', `/api/admin/refunds/${id}/reject`, '환불 거절');
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const admin = isAdmin();
+  const me = currentUserId();
+
+  if (!admin) {
+    document.getElementById('pendingShops').innerHTML = '<p class="muted">관리자(ADMIN) 계정으로 로그인해야 볼 수 있습니다. 상단에서 "운영자"로 바꿔보세요.</p>';
+    document.getElementById('pendingRefunds').innerHTML = '';
+    document.getElementById('subscriptionList').innerHTML = '';
+    document.getElementById('dashboard').innerHTML = '';
+  } else {
+    document.getElementById('subscriptionList').innerHTML = db.shops.length ? `
+      <table><tr><th>가게</th><th>구축비 결제</th><th>기간</th><th>상태</th></tr>
+      ${db.shops.map(s => {
+        const sub = db.subscriptions.find(x => x.shopId === s.id);
+        return `<tr>
+          <td>${s.name}</td>
+          <td>${sub ? (sub.setupFeePaid ? '완료' : '미완료') : '-'}</td>
+          <td>${sub ? `${sub.startDate} ~ ${sub.endDate}` : '-'}</td>
+          <td>${sub ? `<span class="badge ${sub.status.toLowerCase()}">${sub.status}</span>` : '<span class="muted">구독없음</span>'}</td>
+        </tr>`;
+      }).join('')}</table>` : '<div class="empty">등록된 가게가 없습니다.</div>';
+    const pending = db.shops.filter(s => s.status === 'PENDING');
+    document.getElementById('pendingShops').innerHTML = pending.length ? pending.map(s => `
+      <div class="row between card">
+        <div>${s.name} <span class="muted">(${s.region}, 신청자: ${userName(db, s.ownerUserId)})</span></div>
+        <div><button class="btn" onclick="approveShop(${s.id})">승인</button> <button class="btn danger" onclick="rejectShop(${s.id})">거절</button></div>
+      </div>`).join('') : '<div class="empty">대기중인 입점 신청이 없습니다.</div>';
+
+    const pendingR = db.refunds.filter(r => r.status === 'REQUESTED');
+    document.getElementById('pendingRefunds').innerHTML = pendingR.length ? pendingR.map(r => `
+      <div class="row between card">
+        <div>${r.paymentId} · ${won(r.requestedAmount)} · "${r.reason}" (${userName(db, r.requesterUserId)})</div>
+        <div><button class="btn" onclick="approveRefund(${r.id})">승인(부분취소)</button> <button class="btn danger" onclick="rejectRefund(${r.id})">거절</button></div>
+      </div>`).join('') : '<div class="empty">대기중인 환불 요청이 없습니다.</div>';
+
+    const userCount = db.users.length;
+    const txCount = db.payments.length;
+    const totalAmount = db.payments.reduce((s, p) => s + p.amount, 0);
+    const revenue = db.settlements.reduce((s, x) => s + x.amount, 0);
+    document.getElementById('dashboard').innerHTML = `
+      <div class="row">
+        <div class="card" style="flex:1"><div class="muted">가입자 수</div><b style="font-size:20px">${userCount}명</b></div>
+        <div class="card" style="flex:1"><div class="muted">거래량(결제건수)</div><b style="font-size:20px">${txCount}건 / ${won(totalAmount)}</b></div>
+        <div class="card" style="flex:1"><div class="muted">가게 수수료 매출(SettlementHistory 합)</div><b style="font-size:20px">${won(revenue)}</b></div>
+      </div>
+      <p class="muted">GET /api/admin/dashboard 호출 결과를 흉내낸 집계입니다.</p>`;
+  }
+
+  const myShops = db.shops.filter(s => s.ownerUserId === me);
+  if (!myShops.length) {
+    document.getElementById('myShopSettlements').innerHTML = '<p class="muted">소유한 가게가 없습니다. shop.html에서 입점 신청해보세요.</p>';
+  } else {
+    document.getElementById('myShopSettlements').innerHTML = myShops.map(s => {
+      const rows = db.settlements.filter(x => x.shopId === s.id);
+      const sum = rows.reduce((a, b) => a + b.amount, 0);
+      return `
+        <div class="card">
+          <b>${s.name}</b> <span class="muted">총 정산 수령액 ${won(sum)}</span>
+          <table><tr><th>유형</th><th>금액</th></tr>
+          ${rows.map(r => `<tr><td>${r.type}</td><td>${won(r.amount)}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">정산 내역 없음</td></tr>'}
+          </table>
+        </div>`;
+    }).join('');
+  }
+}
+if (isAdmin()) apiLog('GET', '/api/admin/subscriptions', '전체 가게 구독 현황 목록 조회');
+renderAll();
+</script>
+</body>
+</html>

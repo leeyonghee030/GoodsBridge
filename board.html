@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>게시판 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>게시판 / 댓글</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>글쓰기</h3>
+    <label>제목</label><input id="boardTitle" placeholder="제목">
+    <label>내용</label><textarea id="boardContent" rows="3" placeholder="내용"></textarea>
+    <button class="btn" onclick="createBoard()">등록 (POST /api/boards)</button>
+  </div>
+
+  <div class="card">
+    <h3>게시글 목록</h3>
+    <div id="boardList"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('board.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([8], '공지/게시판 + 댓글 CRUD');
+
+function createBoard() {
+  const db = loadDB();
+  const title = document.getElementById('boardTitle').value.trim();
+  const content = document.getElementById('boardContent').value.trim();
+  if (!title || !content) { alert('제목/내용을 입력하세요'); return; }
+  const id = nextId(db, 'boards');
+  db.boards.push({ id, authorId: currentUserId(), title, content, createdAt: new Date().toISOString().slice(0, 10) });
+  saveDB(db);
+  apiLog('POST', '/api/boards', `"${title}" 게시글 등록`);
+  document.getElementById('boardTitle').value = '';
+  document.getElementById('boardContent').value = '';
+  renderAll();
+}
+
+function deleteBoard(id) {
+  const db = loadDB();
+  db.boards = db.boards.filter(b => b.id !== id);
+  db.replies = db.replies.filter(r => r.boardId !== id);
+  saveDB(db);
+  apiLog('DELETE', `/api/boards/${id}`, '게시글 삭제');
+  renderAll();
+}
+
+function addReply(boardId) {
+  const input = document.getElementById('reply_' + boardId);
+  const content = input.value.trim();
+  if (!content) return;
+  const db = loadDB();
+  const id = nextId(db, 'replies');
+  db.replies.push({ id, boardId, authorId: currentUserId(), content });
+  saveDB(db);
+  apiLog('POST', `/api/boards/${boardId}/replies`, '댓글 작성');
+  input.value = '';
+  renderAll();
+}
+function deleteReply(id) {
+  const db = loadDB();
+  db.replies = db.replies.filter(r => r.id !== id);
+  saveDB(db);
+  apiLog('DELETE', `/api/replies/${id}`, '댓글 삭제');
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const me = currentUserId();
+  document.getElementById('boardList').innerHTML = db.boards.length ? db.boards.slice().reverse().map(b => {
+    const replies = db.replies.filter(r => r.boardId === b.id);
+    return `
+      <div class="card">
+        <div class="row between"><b>${b.title}</b><span class="muted">${b.createdAt}</span></div>
+        <p>${b.content}</p>
+        <p class="muted">작성자: ${userName(db, b.authorId)}${b.authorId === me ? ' (나)' : ''}</p>
+        ${b.authorId === me ? `<button class="btn danger" onclick="deleteBoard(${b.id})">삭제</button>` : ''}
+        <hr style="border:none;border-top:1px solid #eee;margin:10px 0">
+        <div>
+          ${replies.map(r => `
+            <div class="row between" style="margin-bottom:4px">
+              <span>💬 ${r.content} <span class="muted">- ${userName(db, r.authorId)}</span></span>
+              ${r.authorId === me ? `<button class="btn secondary" style="padding:2px 8px" onclick="deleteReply(${r.id})">삭제</button>` : ''}
+            </div>`).join('') || '<div class="muted">댓글 없음</div>'}
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="reply_${b.id}" placeholder="댓글 입력" style="flex:1;margin-bottom:0">
+          <button class="btn secondary" onclick="addReply(${b.id})">댓글 등록</button>
+        </div>
+      </div>`;
+  }).join('') : '<div class="empty">게시글이 없습니다.</div>';
+}
+renderAll();
+</script>
+</body>
+</html>

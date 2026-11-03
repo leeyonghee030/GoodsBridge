@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>가게 이벤트 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>가게 이벤트 (선착순 모집) — ★ 동시성 핵심 지점</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>이벤트 생성 (가게 주인)</h3>
+    <label>내 가게</label><select id="evShop" class="field"></select>
+    <label>상품</label><select id="evItem" class="field"></select>
+    <label>모집인원</label><input id="evCapacity" type="number" placeholder="3">
+    <label>참가비</label><input id="evFee" type="number" placeholder="5000">
+    <label>마감시간</label><input id="evDeadline" type="datetime-local">
+    <button class="btn" onclick="createEvent()">이벤트 생성 (POST /api/shops/{id}/events)</button>
+  </div>
+
+  <div class="card">
+    <h3>이벤트 목록</h3>
+    <div id="eventList"></div>
+  </div>
+
+  <div class="card">
+    <h3>★ 동시성 제어 데모</h3>
+    <p class="muted">정원이 1자리 남았을 때 두 유저가 동시에 신청하면 한쪽만 성공해야 합니다 (비관적 락으로 보호되는 지점).
+    아래 버튼은 실제 멀티스레드 요청은 아니지만, "정원 체크 → 증가"를 원자적으로 처리했다고 가정하고 순차 시뮬레이션합니다.</p>
+    <button class="btn secondary" onclick="simulateRace()">마지막 자리 동시신청 시뮬레이션 (유저A+유저B)</button>
+    <div id="raceResult"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('event.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([11, 19, 34], '이벤트 생성 + 선착순 참가(비관적 락) + 알림');
+
+function myShops() { return loadDB().shops.filter(s => s.ownerUserId === currentUserId() && s.status === 'APPROVED'); }
+function initForm() {
+  const db = loadDB();
+  const shops = myShops();
+  document.getElementById('evShop').innerHTML = shops.length ? shops.map(s => `<option value="${s.id}">${s.name}</option>`).join('') : '<option value="">승인된 내 가게 없음</option>';
+  document.getElementById('evItem').innerHTML = db.items.filter(i => shops.some(s => s.id === i.shopId)).map(i => `<option value="${i.id}">${i.title}</option>`).join('') || '<option value="">가게 소속 상품 없음</option>';
+}
+initForm();
+
+function createEvent() {
+  const db = loadDB();
+  const shopId = Number(document.getElementById('evShop').value);
+  const itemId = Number(document.getElementById('evItem').value);
+  const capacity = Number(document.getElementById('evCapacity').value);
+  const feeAmount = Number(document.getElementById('evFee').value || 0);
+  const deadline = document.getElementById('evDeadline').value || '미지정';
+  if (!shopId || !itemId || !capacity) { alert('가게/상품/모집인원을 확인하세요'); return; }
+  const id = nextId(db, 'shopEvents');
+  db.shopEvents.push({ id, shopId, itemId, capacity, currentCount: 0, feeAmount, deadline, status: 'OPEN' });
+  saveDB(db);
+  apiLog('POST', `/api/shops/${shopId}/events`, `이벤트 #${id} 생성 (정원 ${capacity})`);
+  renderAll();
+}
+
+function joinEvent(eventId, userId) {
+  userId = userId || currentUserId();
+  const db = loadDB();
+  const ev = db.shopEvents.find(e => e.id === eventId);
+  if (!ev || ev.status !== 'OPEN') return { ok: false, msg: '이벤트 종료됨' };
+  if (db.eventParticipations.some(p => p.shopEventId === eventId && p.userId === userId && p.status === 'JOINED')) {
+    return { ok: false, msg: '이미 참가중' };
+  }
+  if (ev.currentCount >= ev.capacity) return { ok: false, msg: '정원 초과' };
+  ev.currentCount += 1;
+  const ticketNumber = ev.currentCount;
+  const paymentId = 'pay_ev_' + Date.now() + '_' + userId;
+  db.payments.push({ id: nextId(db, 'payments'), paymentId, userId, amount: ev.feeAmount, purpose: 'EVENT_FEE', status: 'PAID' });
+  db.eventParticipations.push({ id: nextId(db, 'eventParticipations'), shopEventId: eventId, userId, ticketNumber, paymentId, status: 'JOINED' });
+  saveDB(db);
+  apiLog('POST', `/api/events/${eventId}/join`, `userId=${userId} 참가, 번호표 ${ticketNumber}/${ev.capacity}`);
+  return { ok: true, ticketNumber };
+}
+
+function joinClick(eventId) {
+  const r = joinEvent(eventId);
+  if (!r.ok) toast('참가 실패: ' + r.msg);
+  renderAll();
+}
+function leaveEvent(eventId) {
+  const db = loadDB();
+  const p = db.eventParticipations.find(x => x.shopEventId === eventId && x.userId === currentUserId() && x.status === 'JOINED');
+  if (!p) return;
+  p.status = 'CANCELLED';
+  const ev = db.shopEvents.find(e => e.id === eventId);
+  ev.currentCount -= 1;
+  saveDB(db);
+  apiLog('DELETE', `/api/events/${eventId}/join`, '참가취소 + 정원 복구');
+  renderAll();
+}
+function cancelEventAll(eventId) {
+  const db = loadDB();
+  const ev = db.shopEvents.find(e => e.id === eventId);
+  ev.status = 'CANCELLED';
+  const joined = db.eventParticipations.filter(p => p.shopEventId === eventId && p.status === 'JOINED');
+  joined.forEach(p => { p.status = 'REFUNDED'; addNotification(db, p.userId, `참가하신 이벤트 #${eventId}가 취소되어 전액 환불됐어요`); });
+  saveDB(db);
+  apiLog('POST', `/api/events/${eventId}/cancel`, '가게가 이벤트 취소 → 참가자 전원 환불');
+  renderAll();
+}
+
+function simulateRace() {
+  const db = loadDB();
+  let ev = db.shopEvents.find(e => e.status === 'OPEN' && e.capacity - e.currentCount === 1);
+  if (!ev) {
+    ev = db.shopEvents.find(e => e.status === 'OPEN');
+    if (ev) { ev.currentCount = ev.capacity - 1; saveDB(db); }
+  }
+  if (!ev) { document.getElementById('raceResult').innerHTML = '<p class="muted">열려있는 이벤트가 없습니다. 먼저 이벤트를 생성하세요.</p>'; return; }
+  const r1 = joinEvent(ev.id, 1); // 유저A
+  const r2 = joinEvent(ev.id, 2); // 유저B, 거의 동시
+  document.getElementById('raceResult').innerHTML = `
+    <p>이벤트 #${ev.id} 마지막 1자리에 유저A, 유저B가 거의 동시 신청:</p>
+    <ul>
+      <li>유저A: ${r1.ok ? `성공 (번호표 ${r1.ticketNumber})` : '실패 - ' + r1.msg}</li>
+      <li>유저B: ${r2.ok ? `성공 (번호표 ${r2.ticketNumber})` : '실패 - ' + r2.msg}</li>
+    </ul>
+    <p class="muted">실제 서버에서는 <code>@Lock(PESSIMISTIC_WRITE)</code> + <code>WHERE currentCount &lt; capacity</code> 조건부 업데이트로 정확히 한쪽만 성공해야 합니다.</p>`;
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const me = currentUserId();
+  initForm();
+  document.getElementById('eventList').innerHTML = db.shopEvents.length ? db.shopEvents.map(ev => {
+    const shop = db.shops.find(s => s.id === ev.shopId);
+    const item = db.items.find(i => i.id === ev.itemId);
+    const joined = db.eventParticipations.some(p => p.shopEventId === ev.id && p.userId === me && p.status === 'JOINED');
+    const owner = shop && shop.ownerUserId === me;
+    const myTicket = db.eventParticipations.find(p => p.shopEventId === ev.id && p.userId === me && p.status === 'JOINED');
+    return `
+      <div class="card">
+        <div class="row between">
+          <div><b>${item ? item.title : '-'}</b> <span class="muted">${shop ? shop.name : '-'}</span></div>
+          <span class="badge ${ev.status.toLowerCase()}">${ev.status}</span>
+        </div>
+        <p class="muted">정원 ${ev.currentCount}/${ev.capacity}
+          <span class="badge ${ev.capacity - ev.currentCount <= 0 ? 'cancelled' : (ev.capacity - ev.currentCount <= 2 ? 'pending' : 'open')}">남은 자리 ${Math.max(ev.capacity - ev.currentCount, 0)}명</span>
+          · 참가비 ${won(ev.feeAmount)} · 마감 ${ev.deadline}
+          <span class="badge" data-deadline="${ev.deadline}"></span></p>
+        <div class="row">
+          ${ev.status === 'OPEN' && !joined && !owner ? `<button class="btn" onclick="joinClick(${ev.id})" ${ev.currentCount >= ev.capacity ? 'disabled' : ''}>참가신청</button>` : ''}
+          ${joined ? `<span class="badge joined">참가중 (번호표 ${myTicket.ticketNumber})</span> <button class="btn secondary" onclick="leaveEvent(${ev.id})">참가취소</button>` : ''}
+          ${owner && ev.status === 'OPEN' ? `<button class="btn danger" onclick="cancelEventAll(${ev.id})">이벤트 취소(전원환불)</button>` : ''}
+        </div>
+      </div>`;
+  }).join('') : '<div class="empty">생성된 이벤트가 없습니다.</div>';
+  tickCountdowns();
+}
+renderAll();
+</script>
+</body>
+</html>

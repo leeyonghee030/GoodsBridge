@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>로그인 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>로그인 (카카오 소셜 로그인)</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="step-flow" id="stepFlow"></div>
+
+  <div class="card">
+    <h3>1. 카카오 로그인 시작</h3>
+    <p class="muted">아이디/비밀번호 회원가입 없음 — 카카오 로그인만 지원 (기획서 3.1절)</p>
+    <button class="btn" style="background:#fee500;color:#222;font-weight:bold" onclick="startKakaoLogin()">카카오로 로그인</button>
+  </div>
+
+  <div class="card" id="callbackCard" style="display:none">
+    <h3>2. 카카오 콜백 → User 자동 생성/조회 → JWT 발급</h3>
+    <p class="muted">kakaoId 기준으로 User가 없으면 생성, 있으면 조회. 이후 Access/Refresh JWT 발급.</p>
+    <pre id="meResult" style="background:#111722;color:#9ae6b4;padding:10px;border-radius:6px;font-size:12px;overflow:auto"></pre>
+  </div>
+
+  <div class="card">
+    <h3>3. 로그인 이후 계정 관리</h3>
+    <p class="muted">아래는 지금 상단에서 선택된 "현재 로그인" 유저 기준으로 동작합니다.</p>
+    <div id="accountStatus" class="muted" style="margin-bottom:10px"></div>
+
+    <div class="row between" style="margin-bottom:14px">
+      <div>
+        <b>로그아웃</b>
+        <p class="muted" style="margin:2px 0">refreshToken 무효화 + 토큰 삭제</p>
+      </div>
+      <button class="btn secondary" onclick="doLogout()">로그아웃</button>
+    </div>
+
+    <div class="row between" style="margin-bottom:14px">
+      <div style="flex:1">
+        <b>회원정보 수정</b>
+        <input id="newNickname" placeholder="새 닉네임" style="margin-top:6px">
+      </div>
+      <button class="btn" onclick="updateProfile()">닉네임 수정</button>
+    </div>
+
+    <div class="row between">
+      <div>
+        <b>회원탈퇴</b>
+        <p class="muted" style="margin:2px 0">하드삭제 아님 — status=WITHDRAWN 소프트 삭제</p>
+      </div>
+      <button class="btn danger" onclick="withdraw()">회원탈퇴</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>참고</h3>
+    <p class="muted">
+      이 목업에서는 실제 카카오 인증을 하지 않고, 상단 "현재 로그인" 셀렉트로 고른 유저로 바로 로그인된 것처럼 시뮬레이션합니다.<br>
+      실제 구현에서는 <code>/oauth2/authorization/kakao</code> → 카카오 동의화면 → <code>/login/oauth2/code/kakao</code> 콜백 순서입니다.
+    </p>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('login.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([5, 15, 32], '카카오 로그인 + JWT 발급 + 로그아웃/정보수정/탈퇴');
+
+function renderSteps(step) {
+  const steps = ['로그인 클릭', '카카오 동의화면(생략)', '콜백/User 생성·조회', 'JWT 발급 완료'];
+  document.getElementById('stepFlow').innerHTML = steps.map((s, i) =>
+    (i > 0 ? '<span class="arrow">→</span>' : '') + `<span class="step ${i <= step ? 'done' : ''}">${s}</span>`
+  ).join('');
+}
+renderSteps(-1);
+
+function startKakaoLogin() {
+  apiLog('GET', '/oauth2/authorization/kakao', '카카오 동의화면으로 리다이렉트(목업에서는 생략)');
+  renderSteps(1);
+  setTimeout(() => {
+    apiLog('GET', '/login/oauth2/code/kakao', '카카오 콜백 → findOrCreateByKakao 호출');
+    renderSteps(2);
+    setTimeout(() => {
+      const me = currentUser();
+      apiLog('GET', '/api/users/me', `JWT 발급 완료, 로그인 유저=${me.nickname}`);
+      renderSteps(3);
+      document.getElementById('callbackCard').style.display = 'block';
+      document.getElementById('meResult').textContent = JSON.stringify(
+        { id: me.id, kakaoId: me.kakaoId, nickname: me.nickname, role: me.role }, null, 2
+      );
+    }, 500);
+  }, 500);
+}
+
+function renderAccountStatus() {
+  const me = currentUser();
+  document.getElementById('accountStatus').innerHTML =
+    `현재 유저: <b>${me.nickname}</b> (${me.role}) · 상태: <span class="badge ${(me.status || 'ACTIVE').toLowerCase()}">${me.status || 'ACTIVE'}</span>`;
+}
+renderAccountStatus();
+
+function doLogout() {
+  apiLog('POST', '/api/auth/logout', `userId=${currentUserId()} refreshToken 무효화`);
+  toast('로그아웃 처리됨 (이 목업에서는 "현재 로그인" 셀렉트가 곧 로그인 상태라 화면은 그대로 유지됩니다)');
+}
+
+function updateProfile() {
+  const nickname = document.getElementById('newNickname').value.trim();
+  if (!nickname) { alert('새 닉네임을 입력하세요'); return; }
+  const db = loadDB();
+  const me = db.users.find(u => u.id === currentUserId());
+  me.nickname = nickname;
+  saveDB(db);
+  apiLog('PATCH', '/api/users/me', `닉네임 → "${nickname}"`);
+  document.getElementById('newNickname').value = '';
+  renderNav('login.html');
+  renderAccountStatus();
+}
+
+function withdraw() {
+  const me = currentUser();
+  if (me.status === 'WITHDRAWN') { toast('이미 탈퇴한 계정입니다'); return; }
+  if (!confirm(`${me.nickname} 계정을 탈퇴 처리할까요? (소프트 삭제)`)) return;
+  const db = loadDB();
+  const target = db.users.find(u => u.id === currentUserId());
+  target.status = 'WITHDRAWN';
+  saveDB(db);
+  apiLog('DELETE', '/api/users/me', `userId=${target.id} status=WITHDRAWN`);
+  renderNav('login.html');
+  renderAccountStatus();
+}
+</script>
+</body>
+</html>

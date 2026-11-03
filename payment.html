@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>결제/환불 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>결제 내역 / 환불 요청</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>내 결제 내역 (Payment)</h3>
+    <div id="myPayments"></div>
+  </div>
+
+  <div class="card">
+    <h3>환불 요청</h3>
+    <label>환불할 결제 선택</label>
+    <select id="refundPayment" class="field"></select>
+    <label>이유</label><input id="refundReason" placeholder="예: 상품 하자">
+    <label>요청 금액</label><input id="refundAmount" type="number">
+    <button class="btn" onclick="requestRefund()">환불 요청 (POST /api/refunds)</button>
+  </div>
+
+  <div class="card">
+    <h3>내 환불 요청 현황</h3>
+    <div id="myRefunds"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('payment.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([9, 17], '결제내역(GET /api/payments/me) + 환불 요청/승인/거절(부분취소)');
+
+function myPaymentOptions() {
+  const db = loadDB();
+  return db.payments.filter(p => p.userId === currentUserId() && p.status !== 'CANCELLED')
+    .map(p => `<option value="${p.paymentId}">${p.paymentId} - ${p.purpose} ${won(p.amount)}</option>`).join('');
+}
+function initRefundForm() { document.getElementById('refundPayment').innerHTML = myPaymentOptions() || '<option value="">환불 가능한 결제 없음</option>'; }
+initRefundForm();
+
+function requestRefund() {
+  const db = loadDB();
+  const paymentId = document.getElementById('refundPayment').value;
+  const reason = document.getElementById('refundReason').value.trim();
+  const requestedAmount = Number(document.getElementById('refundAmount').value);
+  const payment = db.payments.find(p => p.paymentId === paymentId);
+  if (!payment) { alert('환불할 결제를 선택하세요'); return; }
+  if (!reason || !requestedAmount) { alert('이유와 금액을 입력하세요'); return; }
+  const already = payment.refundedAmount || 0;
+  if (requestedAmount > payment.amount - already) { alert('이미 환불된 금액보다 더 많이 요청할 수 없습니다'); return; }
+  const id = nextId(db, 'refunds');
+  db.refunds.push({ id, paymentId, requesterUserId: currentUserId(), reason, requestedAmount, status: 'REQUESTED' });
+  saveDB(db);
+  apiLog('POST', '/api/refunds', `${paymentId} 환불 ${won(requestedAmount)} 요청`);
+  document.getElementById('refundReason').value = '';
+  document.getElementById('refundAmount').value = '';
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const me = currentUserId();
+  initRefundForm();
+  const myP = db.payments.filter(p => p.userId === me);
+  document.getElementById('myPayments').innerHTML = myP.length ? `
+    <table><tr><th>paymentId</th><th>목적</th><th>금액</th><th>환불액</th><th>상태</th></tr>
+    ${myP.map(p => `<tr><td>${p.paymentId}</td><td>${p.purpose}</td><td>${won(p.amount)}</td><td>${won(p.refundedAmount || 0)}</td><td><span class="badge ${p.status.toLowerCase()}">${p.status}</span></td></tr>`).join('')}
+    </table>` : '<div class="empty">결제 내역이 없습니다. 상품구매/교환/이벤트/경매 화면에서 결제를 발생시켜보세요.</div>';
+
+  const myR = db.refunds.filter(r => r.requesterUserId === me);
+  document.getElementById('myRefunds').innerHTML = myR.length ? `
+    <table><tr><th>결제</th><th>이유</th><th>요청금액</th><th>상태</th></tr>
+    ${myR.map(r => `<tr><td>${r.paymentId}</td><td>${r.reason}</td><td>${won(r.requestedAmount)}</td><td><span class="badge ${r.status.toLowerCase()}">${r.status}</span></td></tr>`).join('')}
+    </table>` : '<div class="empty">환불 요청 내역이 없습니다.</div>';
+}
+apiLog('GET', '/api/payments/me', `userId=${currentUserId()} 전체 결제내역 조회 (#9 추가분)`);
+renderAll();
+</script>
+</body>
+</html>

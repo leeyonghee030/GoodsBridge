@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>교환 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>교환 (보증금 20% + 노쇼 3케이스 정산)</h1></div>
+  <div id="issueBadges"></div>
+
+  <div class="card">
+    <h3>교환 게시글 등록 (내가 가진 것 → 원하는 것)</h3>
+    <label>내가 가진 상품</label>
+    <select id="exItemSelect" class="field"></select>
+    <label>원하는 것 (자유 텍스트)</label>
+    <input id="wantDesc" placeholder="예: 카리나 포카로 교환 원해요">
+    <label>교환장소 (가게 이름검색으로 지금 미리 정해둡니다 — 제안자가 보고 판단할 수 있게)</label>
+    <input id="exShopSearch" placeholder="가게 이름으로 검색 (예: 민지)" oninput="searchShopsForPost()">
+    <div id="exShopResults" class="muted" style="margin-bottom:6px"></div>
+    <div id="exShopPicked" class="muted" style="margin-bottom:8px"></div>
+    <button class="btn" onclick="registerExchangeItem()">게시글 등록 (POST /api/exchange-items)</button>
+  </div>
+
+  <div class="card">
+    <h3>교환 게시글 탐색</h3>
+    <div id="exItemList"></div>
+  </div>
+
+  <div class="card">
+    <h3>내 교환 현황 (ExchangeRequest)</h3>
+    <div id="exRequestList"></div>
+  </div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('exchange.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([10, 18, 33, 34, 6], '제안→수락/거절→보증금→체크인→정산, 교환장소 이름검색(#6), 댓글(#33), 알림(#34)');
+
+function myItemsOptions() {
+  const db = loadDB();
+  return db.items.filter(i => i.sellerUserId === currentUserId())
+    .map(i => `<option value="${i.id}">${i.title} (${won(i.price)})</option>`).join('');
+}
+document.getElementById('exItemSelect').innerHTML = myItemsOptions() || '<option>등록된 내 상품 없음</option>';
+
+let pendingShopId = null;
+function searchShopsForPost() {
+  const q = document.getElementById('exShopSearch').value.trim();
+  const resultsEl = document.getElementById('exShopResults');
+  if (!q) { resultsEl.innerHTML = ''; return; }
+  const db = loadDB();
+  const matches = db.shops.filter(s => s.status === 'APPROVED' && s.name.includes(q));
+  apiLog('GET', `/api/shops?name=${q}`, `가게 이름검색 "${q}" → ${matches.length}건`);
+  resultsEl.innerHTML = matches.length
+    ? matches.map(s => `<button class="btn secondary" style="margin:2px" onclick="pickShop(${s.id})">${s.name} (${s.region})</button>`).join('')
+    : '검색 결과 없음';
+}
+function pickShop(id) {
+  const db = loadDB();
+  const shop = db.shops.find(s => s.id === id);
+  pendingShopId = id;
+  document.getElementById('exShopPicked').innerHTML = `✅ 선택됨: <b>${shop.name}</b>`;
+  document.getElementById('exShopResults').innerHTML = '';
+  document.getElementById('exShopSearch').value = '';
+}
+
+function registerExchangeItem() {
+  const db = loadDB();
+  const itemId = Number(document.getElementById('exItemSelect').value);
+  const wantDescription = document.getElementById('wantDesc').value.trim();
+  if (!itemId || !wantDescription) { alert('내 상품과 원하는 것을 입력하세요'); return; }
+  if (!pendingShopId) { alert('교환장소(가게)를 이름검색으로 먼저 선택하세요'); return; }
+  const id = nextId(db, 'exchangeItems');
+  db.exchangeItems.push({ id, userId: currentUserId(), itemId, wantDescription, shopId: pendingShopId, status: 'OPEN' });
+  saveDB(db);
+  apiLog('POST', '/api/exchange-items', `교환게시글 #${id} 등록 (교환장소 shopId=${pendingShopId})`);
+  document.getElementById('wantDesc').value = '';
+  document.getElementById('exShopPicked').innerHTML = '';
+  pendingShopId = null;
+  renderAll();
+}
+
+function addExchangeComment(exchangeItemId) {
+  const input = document.getElementById('exComment_' + exchangeItemId);
+  const content = input.value.trim();
+  if (!content) return;
+  const db = loadDB();
+  const id = nextId(db, 'exchangeComments');
+  db.exchangeComments.push({ id, exchangeItemId, authorId: currentUserId(), content, createdAt: new Date().toISOString() });
+  saveDB(db);
+  apiLog('POST', `/api/exchange-items/${exchangeItemId}/comments`, '댓글 작성 (※ 기획서/이슈엔 없는 목업 전용 기능, gaps.html 참고)');
+  input.value = '';
+  renderAll();
+}
+function deleteExchangeComment(id) {
+  const db = loadDB();
+  db.exchangeComments = db.exchangeComments.filter(c => c.id !== id);
+  saveDB(db);
+  apiLog('DELETE', `/api/exchange-comments/${id}`, '댓글 삭제');
+  renderAll();
+}
+
+function proposeExchange(targetId) {
+  const db = loadDB();
+  const myOfferId = Number(document.getElementById('offer_' + targetId).value);
+  if (!myOfferId) { alert('제안할 내 교환게시글을 먼저 등록/선택하세요'); return; }
+  const target = db.exchangeItems.find(e => e.id === targetId);
+  const myOffer = db.exchangeItems.find(e => e.id === myOfferId);
+  const myItem = db.items.find(i => i.id === myOffer.itemId);
+  const depositB = Math.round(myItem.price * 0.2);
+  const paymentId = 'pay_dep_' + Date.now();
+  db.payments.push({ id: nextId(db, 'payments'), paymentId, userId: currentUserId(), amount: depositB, purpose: 'EXCHANGE_DEPOSIT', status: 'PAID' });
+  apiLog('POST', `/api/exchange-items/${targetId}/propose`, `제안자 보증금 ${won(depositB)} 결제, deadline=+3일, 교환장소=게시글의 shopId 그대로 사용`);
+  const id = nextId(db, 'exchangeRequests');
+  db.exchangeRequests.push({
+    id, exchangeItemAId: targetId, exchangeItemBId: myOfferId, shopId: target.shopId,
+    status: 'PENDING', depositAmountA: null, depositAmountB: depositB,
+    userAShowed: false, userBShowed: false, deadline: new Date(Date.now() + 3 * 86400000).toISOString(),
+  });
+  target.status = 'MATCHED';
+  myOffer.status = 'MATCHED';
+  addNotification(db, target.userId, `새 교환 제안이 도착했어요 (요청 #${id})`);
+  saveDB(db);
+  renderAll();
+}
+
+function acceptRequest(reqId) {
+  const db = loadDB();
+  const req = db.exchangeRequests.find(r => r.id === reqId);
+  const exA = db.exchangeItems.find(e => e.id === req.exchangeItemAId);
+  const itemA = db.items.find(i => i.id === exA.itemId);
+  const depositA = Math.round(itemA.price * 0.2);
+  const paymentId = 'pay_dep_' + Date.now();
+  db.payments.push({ id: nextId(db, 'payments'), paymentId, userId: currentUserId(), amount: depositA, purpose: 'EXCHANGE_DEPOSIT', status: 'PAID' });
+  req.depositAmountA = depositA;
+  req.status = 'CONFIRMED';
+  req.deadline = new Date(Date.now() + 5 * 86400000).toISOString();
+  const exB = db.exchangeItems.find(e => e.id === req.exchangeItemBId);
+  addNotification(db, exB.userId, `제안이 수락됐어요 (요청 #${reqId}) — 가게 방문기한 내에 방문해주세요`);
+  saveDB(db);
+  apiLog('POST', `/api/exchange-requests/${reqId}/accept`, `A 보증금 ${won(depositA)} 결제 → CONFIRMED`);
+  renderAll();
+}
+function rejectRequest(reqId) {
+  const db = loadDB();
+  const req = db.exchangeRequests.find(r => r.id === reqId);
+  req.status = 'REJECTED';
+  const exB = db.exchangeItems.find(e => e.id === req.exchangeItemBId);
+  addNotification(db, exB.userId, `제안이 거절됐어요 (요청 #${reqId}) — 보증금 100% 환불됨`);
+  saveDB(db);
+  apiLog('POST', `/api/exchange-requests/${reqId}/reject`, `B 보증금 ${won(req.depositAmountB)} 100% 환불`);
+  renderAll();
+}
+function cancelRequest(reqId) {
+  const db = loadDB();
+  const req = db.exchangeRequests.find(r => r.id === reqId);
+  req.status = 'CANCELLED';
+  const exA = db.exchangeItems.find(e => e.id === req.exchangeItemAId);
+  addNotification(db, exA.userId, `상대가 제안을 취소했어요 (요청 #${reqId})`);
+  saveDB(db);
+  apiLog('POST', `/api/exchange-requests/${reqId}/cancel`, `B 보증금 ${won(req.depositAmountB)} 100% 환불 (LLM도 이 메서드 재사용)`);
+  renderAll();
+}
+
+function checkIn(reqId) {
+  const db = loadDB();
+  const req = db.exchangeRequests.find(r => r.id === reqId);
+  req.userAShowed = document.getElementById('showA_' + reqId).checked;
+  req.userBShowed = document.getElementById('showB_' + reqId).checked;
+  const dA = req.depositAmountA, dB = req.depositAmountB;
+  let refundA, refundB, shopFee, note;
+  if (req.userAShowed && req.userBShowed) {
+    refundA = Math.round(dA * 0.75); refundB = Math.round(dB * 0.75);
+    shopFee = (dA - refundA) + (dB - refundB);
+    req.status = 'COMPLETED'; note = '둘 다 옴 → 각 75% 환불, 가게는 양쪽 25%씩';
+  } else if (!req.userAShowed && !req.userBShowed) {
+    refundA = Math.round(dA * 0.5); refundB = Math.round(dB * 0.5);
+    shopFee = (dA - refundA) + (dB - refundB);
+    req.status = 'EXPIRED_BOTH'; note = '둘 다 노쇼 → 각 50% 환불, 가게는 양쪽 50%씩';
+  } else {
+    const showerIsA = req.userAShowed;
+    const showDeposit = showerIsA ? dA : dB;
+    const noShowDeposit = showerIsA ? dB : dA;
+    const bonus = Math.round(noShowDeposit * 0.5);
+    const shopTake = noShowDeposit - bonus;
+    if (showerIsA) { refundA = dA + bonus; refundB = 0; } else { refundB = dB + bonus; refundA = 0; }
+    shopFee = shopTake;
+    req.status = 'EXPIRED_PARTIAL';
+    note = `${showerIsA ? 'A만' : 'B만'} 옴 → 온 사람 100%+10%보너스(${won(bonus)}), 안 온 사람 보증금 소멸`;
+  }
+  if (shopFee > 0) {
+    db.settlements.push({ id: nextId(db, 'settlements'), shopId: req.shopId, amount: shopFee, type: 'EXCHANGE_FEE' });
+  }
+  req._settleNote = note; req._refundA = refundA; req._refundB = refundB; req._shopFee = shopFee;
+  const exA2 = db.exchangeItems.find(e => e.id === req.exchangeItemAId);
+  const exB2 = db.exchangeItems.find(e => e.id === req.exchangeItemBId);
+  addNotification(db, exA2.userId, `교환 정산이 끝났어요 (요청 #${reqId}) — 환불 ${won(refundA)}`);
+  addNotification(db, exB2.userId, `교환 정산이 끝났어요 (요청 #${reqId}) — 환불 ${won(refundB)}`);
+  saveDB(db);
+  apiLog('PATCH', `/api/shops/${req.shopId}/exchange-requests/${reqId}/check-in`, note);
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const me = currentUserId();
+  document.getElementById('exItemSelect').innerHTML = myItemsOptions() || '<option value="">등록된 내 상품 없음</option>';
+
+  document.getElementById('exItemList').innerHTML = db.exchangeItems.length ? db.exchangeItems.map(ex => {
+    const item = db.items.find(i => i.id === ex.itemId);
+    const shop = db.shops.find(s => s.id === ex.shopId);
+    const mine = ex.userId === me;
+    const myOffers = db.exchangeItems.filter(e => e.userId === me && e.status === 'OPEN' && e.id !== ex.id);
+    return `
+      <div class="card">
+        <div class="row between">
+          <div><b>${item ? item.title : '-'}</b> <span class="muted">(${userName(db, ex.userId)}${mine ? ' · 나' : ''})</span></div>
+          <span class="badge ${ex.status.toLowerCase()}">${ex.status}</span>
+        </div>
+        <p class="muted">원하는 것: ${ex.wantDescription} · 교환장소: <b>${shop ? shop.name : '-'}</b> (게시글 작성 시 확정됨)</p>
+        ${!mine && ex.status === 'OPEN' ? `
+          <div class="row">
+            <select id="offer_${ex.id}" class="field" style="width:auto">
+              <option value="">— 내 교환게시글 선택 —</option>
+              ${myOffers.map(o => {
+                const oi = db.items.find(i => i.id === o.itemId);
+                return `<option value="${o.id}">${oi ? oi.title : o.id}</option>`;
+              }).join('')}
+            </select>
+            <button class="btn" onclick="proposeExchange(${ex.id})">교환 제안하기</button>
+          </div>` : ''}
+        <hr style="border:none;border-top:1px solid #eee;margin:10px 0">
+        <div>
+          ${db.exchangeComments.filter(c => c.exchangeItemId === ex.id).map(c => `
+            <div class="row between" style="margin-bottom:4px">
+              <span>💬 ${c.content} <span class="muted">- ${userName(db, c.authorId)}</span></span>
+              ${c.authorId === me ? `<button class="btn secondary" style="padding:2px 8px" onclick="deleteExchangeComment(${c.id})">삭제</button>` : ''}
+            </div>`).join('') || '<div class="muted">댓글 없음</div>'}
+        </div>
+        <div class="row" style="margin-top:8px">
+          <input id="exComment_${ex.id}" placeholder="댓글 입력 (예: 상태 더 자세히 알 수 있나요?)" style="flex:1;margin-bottom:0">
+          <button class="btn secondary" onclick="addExchangeComment(${ex.id})">댓글 등록</button>
+        </div>
+      </div>`;
+  }).join('') : '<div class="empty">등록된 교환 게시글이 없습니다.</div>';
+
+  document.getElementById('exRequestList').innerHTML = db.exchangeRequests.length ? db.exchangeRequests.map(req => {
+    const exA = db.exchangeItems.find(e => e.id === req.exchangeItemAId);
+    const exB = db.exchangeItems.find(e => e.id === req.exchangeItemBId);
+    const itemA = db.items.find(i => i.id === exA.itemId);
+    const itemB = db.items.find(i => i.id === exB.itemId);
+    const shop = db.shops.find(s => s.id === req.shopId);
+    const isA = exA.userId === me, isB = exB.userId === me;
+    const isShopOwnerHere = isShopOwner(db, req.shopId);
+    return `
+      <div class="card">
+        <div class="row between">
+          <div><b>#${req.id}</b> ${itemA ? itemA.title : '-'} (${userName(db, exA.userId)}) ↔ ${itemB ? itemB.title : '-'} (${userName(db, exB.userId)})</div>
+          <span class="badge ${req.status.toLowerCase()}">${req.status}</span>
+        </div>
+        <p class="muted">중개 가게: ${shop ? shop.name : '-'} · 보증금 A=${req.depositAmountA != null ? won(req.depositAmountA) : '-'} / B=${won(req.depositAmountB)}
+          ${req.status === 'PENDING' ? ` · A 응답기한 <span class="badge" data-deadline="${req.deadline}"></span>` : ''}
+          ${req.status === 'CONFIRMED' ? ` · 가게 방문기한 <span class="badge" data-deadline="${req.deadline}"></span>` : ''}
+        </p>
+        ${req.status === 'PENDING' && isA ? `
+          <div class="row"><button class="btn" onclick="acceptRequest(${req.id})">수락 (보증금 결제)</button>
+          <button class="btn danger" onclick="rejectRequest(${req.id})">거절</button></div>` : ''}
+        ${req.status === 'PENDING' && isB ? `<button class="btn secondary" onclick="cancelRequest(${req.id})">제안 취소</button>` : ''}
+        ${req.status === 'CONFIRMED' && isShopOwnerHere ? `
+          <div class="card" style="background:#f8f9fb">
+            <p class="muted">가게 현장 출석 체크</p>
+            <label><input type="checkbox" id="showA_${req.id}" style="width:auto;display:inline"> 유저A(${userName(db, exA.userId)}) 왔음</label>
+            <label><input type="checkbox" id="showB_${req.id}" style="width:auto;display:inline"> 유저B(${userName(db, exB.userId)}) 왔음</label>
+            <button class="btn" onclick="checkIn(${req.id})">출석 확정 → 정산 처리</button>
+          </div>` : ''}
+        ${req.status === 'CONFIRMED' && !isShopOwnerHere ? `<p class="muted">가게(${shop ? shop.name : '-'}) 주인만 출석 체크 가능합니다. 상단에서 로그인 유저를 가게주인으로 바꿔보세요.</p>` : ''}
+        ${req._settleNote ? `<div class="card" style="background:#f8f9fb"><b>정산 결과</b>: ${req._settleNote}<br>A 환불 ${won(req._refundA)} · B 환불 ${won(req._refundB)} · 가게 수수료 ${won(req._shopFee)}</div>` : ''}
+      </div>`;
+  }).join('') : '<div class="empty">진행중인 교환 요청이 없습니다.</div>';
+  tickCountdowns();
+}
+renderAll();
+</script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>알림 - GoodsBridge 뷰단 목업</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="nav"></div>
+<main>
+  <div class="page-title"><h1>🔔 알림</h1></div>
+  <div id="issueBadges"></div>
+  <p class="muted">기획서에는 없던 신규 제안 기능입니다. 교환/이벤트/경매/환불/입점승인 상태가 바뀔 때 이 목록에 쌓입니다. (지금은 인앱 전용 — 푸시/이메일 없음)</p>
+
+  <div class="row" style="margin-bottom:10px">
+    <button class="btn secondary" onclick="markAllRead()">전체 읽음 처리</button>
+  </div>
+
+  <div id="notifList"></div>
+</main>
+<script src="js/app.js"></script>
+<script>
+mountCommon('notifications.html');
+document.getElementById('issueBadges').innerHTML = renderIssueBadges([34], '인앱 알림 (Notification)');
+
+function markRead(id) {
+  const db = loadDB();
+  const n = db.notifications.find(x => x.id === id);
+  n.read = true;
+  saveDB(db);
+  apiLog('PATCH', `/api/notifications/${id}/read`, '읽음 처리');
+  renderAll();
+}
+function markAllRead() {
+  const db = loadDB();
+  const me = currentUserId();
+  db.notifications.filter(n => n.userId === me).forEach(n => n.read = true);
+  saveDB(db);
+  apiLog('PATCH', '/api/notifications/read-all', '전체 읽음 처리');
+  renderAll();
+}
+
+function renderAll() {
+  const db = loadDB();
+  const me = currentUserId();
+  const mine = db.notifications.filter(n => n.userId === me).slice().reverse();
+  document.getElementById('notifList').innerHTML = mine.length ? mine.map(n => `
+    <div class="card row between">
+      <div>
+        ${!n.read ? '<b>●</b> ' : ''}${n.content}
+        <div class="muted">${new Date(n.createdAt).toLocaleString('ko-KR')}</div>
+      </div>
+      ${!n.read ? `<button class="btn secondary" onclick="markRead(${n.id})">읽음</button>` : '<span class="muted">읽음</span>'}
+    </div>`).join('') : '<div class="empty">알림이 없습니다. exchange/event/auction 화면에서 상태를 바꿔보면 여기 쌓입니다.</div>';
+}
+apiLog('GET', '/api/notifications/me', `userId=${currentUserId()} 알림 목록 조회`);
+renderAll();
+</script>
+</body>
+</html>
