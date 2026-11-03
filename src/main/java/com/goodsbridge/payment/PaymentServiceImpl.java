@@ -62,6 +62,7 @@ public class PaymentServiceImpl implements PaymentService {
         // 검증 통과 + 결제 기록
         User user = entityManager.getReference(User.class, userId);
         Payment payment = Payment.builder()
+            .pgTxId(portOnePayment.getPgTxId())
             .paymentId(paymentId)
             .user(user)
             .amount(expectedAmount)

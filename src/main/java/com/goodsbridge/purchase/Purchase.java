@@ -43,12 +43,11 @@ public class Purchase {
     private PurchaseStatus status;  // 구매 상태
 
     @Builder
-    public Purchase(Item item, User user, String paymentId, String deliveryAddress, String trackingNumber, DeliveryStatus deliveryStatus, PurchaseStatus status) {
+    public Purchase(Item item, User user, String paymentId, String deliveryAddress) {
         this.item = item;
         this.user = user;
         this.paymentId = paymentId;
         this.deliveryAddress = deliveryAddress;
-        this.trackingNumber = trackingNumber;
         this.deliveryStatus = DeliveryStatus.PREPARING;
         this.status = PurchaseStatus.PAID;
     }
