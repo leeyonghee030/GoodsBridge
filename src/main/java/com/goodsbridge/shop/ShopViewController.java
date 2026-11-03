@@ -19,6 +19,7 @@ public class ShopViewController {
     // request.setAttribute("userId", userId);
     @PostMapping("api/shops")
     public ResponseEntity<ShopResponse> createShop(
+        // TODO - 테스트용 - 로그인확인용 인터셉터 등록후 @RequestAttribute("userId")로 변경
         @RequestParam(defaultValue = "1") Long userId,
         @RequestBody ShopCreateRequest requestDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(shopService.create(userId, requestDto));

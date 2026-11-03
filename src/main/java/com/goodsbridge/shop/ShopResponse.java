@@ -3,6 +3,7 @@ package com.goodsbridge.shop;
 import lombok.Getter;
 
 import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Getter
 public class ShopResponse {
@@ -12,7 +13,7 @@ public class ShopResponse {
     private final String region;
     private final String address;
     private final ShopStatus status;
-    private final Timestamp createdAt;
+    private final LocalDateTime createdAt;
 
     public ShopResponse(Shop shop) {
         this.id = shop.getId();

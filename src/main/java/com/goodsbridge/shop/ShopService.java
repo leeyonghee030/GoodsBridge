@@ -9,6 +9,7 @@ import org.hibernate.annotations.NotFound;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -27,7 +28,10 @@ public class ShopService {
             .name(requestDto.getName())
             .region(requestDto.getRegion())
             .address(requestDto.getAddress())
+            .status(ShopStatus.PENDING)
+            .createdAt(LocalDateTime.now()) // 👈 서비스 레이어에서 명시적으로 현재 시간 주입
             .build();
+
         return new ShopResponse(shopRepository.save(shop));
     }
 
