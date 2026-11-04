@@ -11,6 +11,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -52,9 +55,15 @@ class AuctionControllerTest {
 
     @Test
     void close_mapsServiceResponseToOk() throws Exception {
-        when(auctionService.close(1L)).thenReturn(null);
+        when(auctionService.close(1L, 1L)).thenReturn(null);
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(1L, null, List.of()));
 
-        mockMvc.perform(patch("/api/auctions/1/close"))
-            .andExpect(status().isOk());
+        try {
+            mockMvc.perform(patch("/api/auctions/1/close"))
+                .andExpect(status().isOk());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
     }
 }

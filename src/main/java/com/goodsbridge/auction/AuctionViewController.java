@@ -44,7 +44,8 @@ public class AuctionViewController {
     // 경매 마감
     @PatchMapping("/api/auctions/{id}/close")
     public ResponseEntity<AuctionResponse> closeAuction(@PathVariable Long id) {
-        AuctionResponse auctionResponse = auctionService.close(id);
+        Long userId = SecurityUtil.getCurrentUserId();
+        AuctionResponse auctionResponse = auctionService.close(userId, id);
         return ResponseEntity.ok(auctionResponse);
     }
 }

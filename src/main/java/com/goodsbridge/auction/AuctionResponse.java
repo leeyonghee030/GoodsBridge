@@ -1,8 +1,7 @@
 package com.goodsbridge.auction;
 
 import lombok.Getter;
-
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Getter
 public class AuctionResponse {
@@ -13,7 +12,7 @@ public class AuctionResponse {
     private Integer startPrice;
     private Integer currentPrice;
     private Long currentWinnerUserId;
-    private Timestamp deadline;
+    private LocalDateTime deadline;
     private Integer depositAmount;
     private Status status;
 
@@ -23,8 +22,8 @@ public class AuctionResponse {
         this.itemId = auction.getItem().getId();
         this.startPrice = auction.getStartPrice();
         this.currentPrice = auction.getCurrentPrice();
-        this.currentWinnerUserId = auction.getCurrentWinnerUserId() != null
-            ? auction.getCurrentWinnerUserId().getId() : null;
+        this.currentWinnerUserId = auction.getCurrentWinner() != null
+            ? auction.getCurrentWinner().getId() : null;
         this.deadline = auction.getDeadline();
         this.depositAmount = auction.getDepositAmount();
         this.status = auction.getStatus();

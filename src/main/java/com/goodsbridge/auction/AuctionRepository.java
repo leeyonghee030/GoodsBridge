@@ -5,8 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface AuctionRepository extends JpaRepository<Auction, Long> {
@@ -19,5 +18,5 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
     Page<Auction> findAllByStatus(@Param("status") Status status, Pageable pageable);
 
     // 경매 마감 시간이 지난 경매 조회
-    List<Auction> findByStatusAndDeadlineBefore(Status status, Timestamp deadline);
+    List<Auction> findByStatusAndDeadlineBefore(Status status, LocalDateTime deadline);
 }

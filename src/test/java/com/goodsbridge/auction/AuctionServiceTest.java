@@ -13,8 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Timestamp;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -86,20 +85,20 @@ class AuctionServiceTest {
             shopRepository.findById(1L).orElseThrow(),
             itemRepository.findById(1L).orElseThrow(),
             50_000,
-            Timestamp.from(Instant.now().plusSeconds(600)),
+            LocalDateTime.now().plusSeconds(600),
             5_000));
 
-        assertThatThrownBy(() -> auctionService.close(future.getId()))
+        assertThatThrownBy(() -> auctionService.close(1L, future.getId()))
             .isInstanceOf(BadRequestException.class);
 
         Auction expired = auctionRepository.save(new Auction(
             shopRepository.findById(1L).orElseThrow(),
             itemRepository.findById(1L).orElseThrow(),
             50_000,
-            Timestamp.from(Instant.now().minusSeconds(60)),
+            LocalDateTime.now().minusSeconds(60),
             5_000));
 
-        AuctionResponse response = auctionService.close(expired.getId());
+        AuctionResponse response = auctionService.close(1L, expired.getId());
 
         assertThat(response.getStatus()).isEqualTo(Status.ENDED_FAIL);
     }
@@ -110,11 +109,11 @@ class AuctionServiceTest {
             shopRepository.findById(1L).orElseThrow(),
             itemRepository.findById(1L).orElseThrow(),
             50_000,
-            Timestamp.from(Instant.now().minusSeconds(60)),
+            LocalDateTime.now().minusSeconds(60),
             5_000));
-        auctionService.close(auction.getId());
+        auctionService.close(1L, auction.getId());
 
-        assertThatThrownBy(() -> auctionService.close(auction.getId()))
+        assertThatThrownBy(() -> auctionService.close(1L, auction.getId()))
             .isInstanceOf(BadRequestException.class);
     }
 
@@ -124,7 +123,7 @@ class AuctionServiceTest {
         ReflectionTestUtils.setField(request, "startPrice", startPrice);
         ReflectionTestUtils.setField(request, "depositAmount", depositAmount);
         ReflectionTestUtils.setField(request, "deadline",
-            Timestamp.from(Instant.now().plusSeconds(deadlineOffsetSeconds)));
+            LocalDateTime.now().plusSeconds(deadlineOffsetSeconds));
         return request;
     }
 }

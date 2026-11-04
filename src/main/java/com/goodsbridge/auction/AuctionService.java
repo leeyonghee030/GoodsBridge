@@ -7,6 +7,9 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.user.Role;
+import com.goodsbridge.user.User;
+import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -17,7 +20,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -28,7 +31,7 @@ public class AuctionService {
     private final AuctionRepository auctionRepository;
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
-    private final BidRepository bidRepository;
+    private final UserRepository userRepository;
 
     // 경매 개설
     @Transactional
@@ -77,28 +80,42 @@ public class AuctionService {
 
     // 경매 마감
     @Transactional
-    public AuctionResponse close(Long id) {
+    public AuctionResponse close(Long userId, Long id) {
         Auction auction = auctionRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
+
+        boolean isOwner = auction.getShop().isOwner(userId);
+        boolean isAdmin = user.getRole() == Role.ADMIN;
+        if (!isOwner && !isAdmin) {
+            throw new ForbiddenException("경매를 마감할 권한이 없습니다.");
+        }
+
+        closeInternal(auction);
+        return new AuctionResponse(auction);
+    }
+
+    private void closeInternal(Auction auction) {
         if (auction.getStatus() != Status.ACTIVE) {
             throw new BadRequestException("진행 중인 경매만 마감할 수 있습니다.");
         }
-        Timestamp now = new Timestamp(System.currentTimeMillis());
-        if (auction.getDeadline().after(now)) {
+        LocalDateTime now = LocalDateTime.now();
+        if (auction.getDeadline().isAfter(now)) {
             throw new BadRequestException("아직 마감 시간이 지나지 않았습니다.");
         }
         auction.end();
-        return new AuctionResponse(auction);
     }
 
     // 경매 마감시간 지나면 자동 종료
     @Scheduled(fixedDelay = 60000)
     @Transactional
     public void autoCloseAuctions() {
-        Timestamp now = new Timestamp(System.currentTimeMillis());
+        LocalDateTime now = LocalDateTime.now();
         List<Auction> auctions = auctionRepository.findByStatusAndDeadlineBefore(Status.ACTIVE, now);
         for (Auction auction : auctions) {
-            close(auction.getId());
+            closeInternal(auction);
         }
     }
 }

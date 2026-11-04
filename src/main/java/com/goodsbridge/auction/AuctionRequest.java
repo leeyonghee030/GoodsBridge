@@ -2,14 +2,13 @@ package com.goodsbridge.auction;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import lombok.Getter;
-
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Getter
 public class AuctionRequest {
     private Long itemId;
     private Integer startPrice;
-    private Timestamp deadline;
+    private LocalDateTime deadline;
     private Integer depositAmount;
 
     public void validate() {
@@ -22,7 +21,7 @@ public class AuctionRequest {
         if (depositAmount == null || depositAmount <= 0) {
             throw new BadRequestException("보증금은 0보다 커야합니다.");
         }
-        if (deadline == null || !deadline.after(new Timestamp(System.currentTimeMillis()))) {
+        if (deadline == null || !deadline.isAfter(LocalDateTime.now())) {
             throw new BadRequestException("마감 시간은 미래 시간이어야 합니다.");
         }
         long startPriceValue = startPrice;

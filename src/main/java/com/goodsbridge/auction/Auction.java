@@ -7,8 +7,9 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
-import java.sql.Timestamp;
+import java.time.LocalDateTime;
 
 @Getter
 @Entity
@@ -32,9 +33,9 @@ public class Auction {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_winner_user_id")
-    private User currentWinnerUserId; // 현재 입찰자
+    private User currentWinner; // 현재 입찰자
 
-    private Timestamp deadline; // 마감 시간
+    private LocalDateTime deadline; // 마감 시간
 
     private Integer depositAmount;  // 보증금
 
@@ -42,14 +43,18 @@ public class Auction {
     @Column(nullable = false)
     private Status status;
 
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private LocalDateTime createdAt;
+
     @Builder
     public Auction(Shop shop, Item item, Integer startPrice,
-                   Timestamp deadline, Integer depositAmount) {
+                   LocalDateTime deadline, Integer depositAmount) {
         this.shop = shop;
         this.item = item;
         this.startPrice = startPrice;
         this.currentPrice = startPrice;
-        this.currentWinnerUserId = null;
+        this.currentWinner = null;
         this.deadline = deadline;
         this.depositAmount = depositAmount;
         this.status = Status.ACTIVE;
@@ -58,12 +63,12 @@ public class Auction {
     // 경매 입찰자
     public void updateCurrentBid(Integer bidAmount, User bidder) {
         this.currentPrice = bidAmount;
-        this.currentWinnerUserId = bidder;
+        this.currentWinner = bidder;
     }
 
     // 경매 마감 상태
     public void end() {
-        this.status = currentWinnerUserId == null
+        this.status = currentWinner == null
             ? Status.ENDED_FAIL : Status.ENDED_SUCCESS;
     }
 }
