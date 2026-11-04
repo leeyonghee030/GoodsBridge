@@ -105,9 +105,8 @@ public class AuthService {
     public static class TokenResponse {
 
         private String accessToken;
-
         private String refreshToken;
-
+        private User user;
         @Builder.Default
         private String tokenType = "Bearer";
     }

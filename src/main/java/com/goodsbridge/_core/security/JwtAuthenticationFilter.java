@@ -28,16 +28,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // 1. Authorization 헤더 가져오기
-        String authorization = request.getHeader("Authorization");
+        // 1. 쿠키에서 Access Token 추출
+        String token = null;
 
-        // 2. Bearer 토큰 확인
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        if (request.getCookies() != null) {
+            for (var cookie : request.getCookies()) {
+                if ("accessToken".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        // 2. 토큰이 없으면 다음 필터로 이동
+        if (token == null || token.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        String token = authorization.substring(7);
 
         try {
             // 3. Access Token 검증
@@ -64,7 +71,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 .setAuthentication(authentication);
 
         } catch (JwtException | IllegalArgumentException e) {
-            // 유효하지 않은 토큰이면 인증 정보 제거
             SecurityContextHolder.clearContext();
         }
 

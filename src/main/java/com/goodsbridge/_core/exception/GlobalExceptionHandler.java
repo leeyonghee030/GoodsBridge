@@ -6,10 +6,18 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<?> handleNoResourceFound(
+        NoResourceFoundException e
+    ) {
+        return ResponseEntity.notFound().build();
+    }
 
     @ExceptionHandler(CustomException.class)
     public ResponseEntity<ErrorResponse> handleCustomException(CustomException e) {
@@ -49,7 +57,8 @@ public class GlobalExceptionHandler {
             .status(ErrorCode.INTERNAL_ERROR.getStatus())
             .body(ErrorResponse.of(
                 ErrorCode.INTERNAL_ERROR,
-                "서버 내부 오류가 발생했습니다."
+//                "서버 내부 오류가 발생했습니다."
+                e.getMessage()
             ));
     }
 }

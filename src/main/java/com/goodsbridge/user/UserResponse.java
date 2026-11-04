@@ -1,9 +1,12 @@
 package com.goodsbridge.user;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.Builder;
 import lombok.Data;
+import lombok.Getter;
 
 public class UserResponse {
+
     // 카카오 액세스 토큰 응답 DTO
     @Data
     public static class OauthToken {

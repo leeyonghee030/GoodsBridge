@@ -7,9 +7,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.time.Duration;
 
@@ -35,6 +37,20 @@ public class UserViewController {
         return "user/index";
     }
 
+    @GetMapping("/")
+    @ResponseBody
+    public String home() {
+        return "GoodsBridge 서버 정상 작동!";
+    }
+
+    @GetMapping("/test/auth")
+    @ResponseBody
+    public String testAuth(
+        @AuthenticationPrincipal Long userId
+    ) {
+        return "인증 성공! userId = " + userId;
+    }
+
     // 카카오 로그인 페이지 이동
     @GetMapping("/kakao-login")
     public String kakaoLogin() {
@@ -49,10 +65,10 @@ public class UserViewController {
     ) {
 
         // 1. 카카오 사용자 조회 및 우리 서비스 회원 조회/가입
-        User user = kakaoLoginService.login(code);
+        AuthService.TokenResponse tokenResponse = kakaoLoginService.login(code);
 
         // 2. 우리 서비스 JWT 발급
-        TokenResponse tokens = authService.login(user);
+        TokenResponse tokens = authService.login(tokenResponse.getUser());
 
         // 3. Access Token 쿠키 저장
         ResponseCookie accessCookie = ResponseCookie
@@ -77,6 +93,8 @@ public class UserViewController {
         response.addHeader("Set-Cookie", accessCookie.toString());
         response.addHeader("Set-Cookie", refreshCookie.toString());
 
+        log.info("accessCookie = {}",accessCookie.toString());
+        log.info("refreshCookie = {}",refreshCookie.toString());
         // 5. 메인 페이지 이동
         return "redirect:/";
     }

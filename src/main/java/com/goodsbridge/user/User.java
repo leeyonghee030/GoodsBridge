@@ -2,6 +2,7 @@
 package com.goodsbridge.user;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
@@ -49,6 +50,7 @@ public class User {
     private Status status = Status.ACTIVE;
 
     // 카카오 회원가입 생성자
+    @Builder
     public User(String kakaoId, String email,
                 String nickname, Role role) {
         this.kakaoId = kakaoId;

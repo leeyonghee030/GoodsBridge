@@ -3,6 +3,8 @@ package com.goodsbridge.user;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ServiceUnavailableException;
 import com.goodsbridge._core.exception.UnauthorizedException;
+import com.goodsbridge._core.security.AuthService;
+import com.goodsbridge._core.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,12 +19,13 @@ public class KakaoLoginService {
 
     private final KakaoApiClient kakaoApiClient;
     private final UserRepository userRepository;
+    private final JwtProvider jwtProvider;
 
     public String getAuthorizeUrl() {
         return kakaoApiClient.getAuthorizeUrl();
     }
 
-    public User login(String code) {
+    public AuthService.TokenResponse login(String code) {
 
         if (code == null || code.isBlank()) {
             throw new BadRequestException(
@@ -50,7 +53,24 @@ public class KakaoLoginService {
                 .orElseGet(() -> userRepository.save(
                     new User(kakaoId, null, nickname, Role.USER)
                 ));
-            return user;
+
+            // 5. JWT 발급
+            String accessToken = jwtProvider.createAccessToken(
+                user.getId(),
+                user.getRole().name()
+            );
+
+            String refreshToken = jwtProvider.createRefreshToken(
+                user.getId()
+            );
+
+            // 6. 로그인 응답 생성
+            return AuthService.TokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .user(user)
+                .build();
+
         } catch (HttpClientErrorException e) {
             // 카카오 API 4xx 오류
             log.warn("카카오 인증 요청 실패: status={}", e.getStatusCode());

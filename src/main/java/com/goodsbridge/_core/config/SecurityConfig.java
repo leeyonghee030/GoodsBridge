@@ -20,16 +20,14 @@ public class SecurityConfig {
     private final JwtProvider jwtProvider;
 
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter() {
-        return new JwtAuthenticationFilter(jwtProvider);
-    }
-
-    @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http)
         throws Exception {
 
+        JwtAuthenticationFilter jwtFilter =
+            new JwtAuthenticationFilter(jwtProvider);
+
         http
-            // CSRF 비활성화
+            // CSRF 설정
             .csrf(csrf -> csrf.disable())
 
             // 기본 로그인 방식 비활성화
@@ -59,13 +57,12 @@ public class SecurityConfig {
                     "/login",
                     "/items"
                 ).permitAll()
-
                 .anyRequest().authenticated()
             )
 
             // JWT 필터 등록
             .addFilterBefore(
-                jwtAuthenticationFilter(),
+                jwtFilter,
                 UsernamePasswordAuthenticationFilter.class
             );
 
