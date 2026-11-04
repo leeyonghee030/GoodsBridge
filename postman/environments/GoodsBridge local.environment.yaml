@@ -1,0 +1,10 @@
+name: GoodsBridge local
+values:
+  - key: baseUrl
+    value: 'http://localhost:8080'
+  - key: token
+    value: ''
+  - key: shopId
+    value: '1'
+  - key: itemId
+    value: '1'

@@ -1,0 +1,28 @@
+$kind: http-request
+url: "{{baseUrl}}/api/shops/{{shopId}}/auctions"
+method: POST
+headers:
+  Authorization: Bearer {{token}}
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "itemId": {{itemId}},
+      "startPrice": 50000,
+      "deadline": "{{auctionDeadline}}",
+      "depositAmount": 5000
+    }
+scripts:
+  - type: beforeRequest
+    code: pm.variables.set('auctionDeadline', new Date(Date.now() + 3600000).toISOString());
+    language: text/javascript
+  - type: afterResponse
+    code: |-
+      pm.test('created', function () { pm.response.to.have.status(201); });
+      var body = pm.response.json();
+      pm.expect(body.currentPrice).to.eql(body.startPrice);
+      pm.expect(body.status).to.eql('ACTIVE');
+      pm.collectionVariables.set('auctionId', body.id);
+    language: text/javascript
+order: 1000
