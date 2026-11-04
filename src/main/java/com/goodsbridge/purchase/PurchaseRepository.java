@@ -28,7 +28,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     // 전체 상품 조회
     @Query("""
             select p from Purchase p join fetch p.item i
-            where i.shop.id = :shopId
+            where i.shopId = :shopId
               and (:ds is null or p.deliveryStatus = :ds)
             order by p.id desc
         """)
