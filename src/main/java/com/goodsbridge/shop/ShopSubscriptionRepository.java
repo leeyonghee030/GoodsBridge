@@ -11,6 +11,8 @@ import java.util.Optional;
 public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscription, Long> {
     Optional<ShopSubscription> findByShopId(Long shopId);
 
+    // 구독 기간이 만료시 상태가 ACTIVE로 남아있는 가게 찾아내서 만료 처리 -> 상품들을 판매 중지 변경위해 만듬
+    // TODO - 스케줄러 통해서 자동으로 변경하지 않을거면 추후 삭제
     @Query("""
 SELECT s FROM ShopSubscription s
 WHERE s.endDate < :today AND s.status = 'ACTIVE'

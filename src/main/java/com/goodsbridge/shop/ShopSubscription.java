@@ -69,6 +69,7 @@ public class ShopSubscription {
         }
     }
 
+    // TODO - 만료 자동 처리 스케줄러나 구독 취소 API 시 사용 예정
     public void updateStatus(ShopSubscriptionStatus status) {
         if (status != null) {
             this.status = status;
