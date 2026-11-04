@@ -26,7 +26,7 @@ class ItemServiceTest {
     private CategoryJpaRepository categoryJpaRepository;
 
     @Autowired
-    private ItemJpaRepository itemJpaRepository;
+    private ItemRepository itemRepository;
 
     @Test
     @DisplayName("유효한 카테고리 ID로 상품 등록(create)을 요청하면 상품이 정상적으로 생성된다")
@@ -46,7 +46,7 @@ class ItemServiceTest {
 
         // then
         assertThat(savedId).isNotNull();
-        Item foundItem = itemJpaRepository.findById(savedId).orElseThrow();
+        Item foundItem = itemRepository.findById(savedId).orElseThrow();
         assertThat(foundItem.getTitle()).isEqualTo("새로운 상품");
         assertThat(foundItem.getPrice()).isEqualTo(15000);
         assertThat(foundItem.getCreatedAt()).isNotNull(); // 생성일자(Auditing) 검증
