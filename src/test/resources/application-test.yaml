@@ -1,14 +1,18 @@
 spring:
     datasource:
-        url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
+        url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1
+        driver-class-name: org.h2.Driver
         username: sa
         password:
-        driver-class-name: org.h2.Driver
-
     jpa:
         hibernate:
             ddl-auto: create-drop
+        show-sql: true
         properties:
             hibernate:
+                format_sql: true
                 dialect: org.hibernate.dialect.MySQLDialect
-        show-sql: true
+        defer-datasource-initialization: true # ⭐ JPA 테이블 생성 후 data.sql 실행 보장
+    sql:
+        init:
+            mode: always # 항상 data.sql 실행
