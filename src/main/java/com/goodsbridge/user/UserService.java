@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -67,6 +68,20 @@ public class UserService {
 
         // 트랜잭션 안에서 SessionUserDto 생성
         return new SessionUserDto(user);
+    }
+
+    private User joinKakaoUser(String email, UserResponse.KakaoUserInfo kakaoUserInfo) {
+//        User newUser = User.builder()
+//            .email(email)
+//            // 카카오 사용자는 비밀번호로 로그인하지 않으므로 아무도 알 수 없는 값을 넣음
+//            .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+//            .profileImage(kakaoUserInfo.getProperties().getProfileImage())
+//            .provider(OAuthProvider.KAKAO)
+//            .build();
+//        newUser.addRole(Role.USER);
+//        return userJpaRepository.save(newUser);
+//        TODO - 카카오 로그인 미완
+        return null;
     }
 
 }
