@@ -2,12 +2,15 @@ package com.goodsbridge.auction;
 
 import jakarta.persistence.*;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
 @Getter
 @Entity
+@Table(name = "bid_tb")
+@NoArgsConstructor
 public class Bid {
 
     @Id
