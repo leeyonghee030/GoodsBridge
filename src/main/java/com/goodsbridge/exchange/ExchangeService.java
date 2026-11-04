@@ -17,6 +17,7 @@ import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,6 +38,7 @@ public class ExchangeService {
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
     private final PaymentService paymentService;
+    private final EntityManager entityManager;
 
     @Transactional
     public ExchangeItemResponse save(ExchangeItemCreateRequest request, Long userId) {
@@ -64,6 +66,8 @@ public class ExchangeService {
             .wantDescription(request.getWantDescription())
             .build();
         exchangeItemRepository.save(exchangeItem);
+        exchangeItemRepository.flush();
+        entityManager.refresh(exchangeItem);
         return ExchangeItemResponse.from(exchangeItem);
     }
 
@@ -120,7 +124,10 @@ public class ExchangeService {
             .shop(exchangeItem.getShop())
             .depositAmountB(depositAmount)
             .build();
-        return ExchangeRequestResponse.from(exchangeRequestRepository.save(exchangeRequest));
+        exchangeRequestRepository.save(exchangeRequest);
+        exchangeRequestRepository.flush();
+        entityManager.refresh(exchangeRequest);
+        return ExchangeRequestResponse.from(exchangeRequest);
     }
 
 

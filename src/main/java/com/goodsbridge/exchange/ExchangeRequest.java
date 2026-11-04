@@ -68,6 +68,8 @@ public class ExchangeRequest {
         this.shop = shop;
         this.status = ExchangeRequestStatus.PENDING;
         this.depositAmountB = depositAmountB < 2000 ? 2000 : depositAmountB;
+        this.userAShowed = false;
+        this.userBShowed = false;
         this.deadline = LocalDateTime.now().plusDays(3);
     }
 
