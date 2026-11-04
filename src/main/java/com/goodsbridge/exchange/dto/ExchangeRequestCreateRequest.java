@@ -1,7 +1,6 @@
 package com.goodsbridge.exchange.dto;
 
 import com.goodsbridge._core.exception.BadRequestException;
-import com.goodsbridge._core.exception.ErrorCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -16,13 +15,13 @@ public class ExchangeRequestCreateRequest {
 
     public void validate() {
         if (itemBId == null) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("아이템을 지정해 주세요.");
         }
         if (message == null || message.isBlank()) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("제안 메시지가 필요합니다.");
         }
         if (paymentId == null || paymentId.isBlank()) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("결제 정보가 확인되지 않습니다.");
         }
     }
 }

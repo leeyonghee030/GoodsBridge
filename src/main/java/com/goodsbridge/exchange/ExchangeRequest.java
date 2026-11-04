@@ -30,6 +30,9 @@ public class ExchangeRequest {
 
     private String message; // B가 A에게 보내는 짧은 제안 메시지
 
+    @Column(nullable = false)
+    private String paymentIdB; // B 보증금 결제 식별자 (환불 시 사용)
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shopId", nullable = false)
     private Shop shop;
@@ -56,11 +59,12 @@ public class ExchangeRequest {
     private LocalDateTime createdAt;
 
     @Builder
-    public ExchangeRequest(ExchangeItem exchangeItemA, Item itemB, String message, Shop shop, Integer depositAmountB) {
+    public ExchangeRequest(ExchangeItem exchangeItemA, Item itemB, String message, String paymentIdB, Shop shop, Integer depositAmountB) {
 
         this.exchangeItemA = exchangeItemA;
         this.itemB = itemB;
         this.message = message;
+        this.paymentIdB = paymentIdB;
         this.shop = shop;
         this.status = ExchangeRequestStatus.PENDING;
         this.depositAmountB = depositAmountB < 2000 ? 2000 : depositAmountB;
@@ -75,9 +79,9 @@ public class ExchangeRequest {
     }
 
     // 제안자(B)인지 확인
-//    public boolean isProposer(Long userId) {
-//        return this.itemB.getSellerUserId().equals(userId);
-//    }
+    public boolean isProposer(Long userId) {
+        return this.itemB.getSellerUserId().equals(userId);
+    }
 
     // 교환 수락시 depositAmountA 보증금 업데이트
     public void updateDepositAmountA(Integer depositAmountA) {
