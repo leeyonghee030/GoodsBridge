@@ -16,23 +16,21 @@ import java.time.Duration;
 @RequiredArgsConstructor
 @Slf4j
 @Controller
-public class UserViewController {
+public class UserController {
 
     private final KakaoLoginService kakaoLoginService;
     private final AuthService authService;
+    private final UserService userService;
 
-    @Value("${jwt.access-token-expiration-ms}")
-    private long accessExpiration;
-
-    @Value("${jwt.refresh-token-expiration-ms}")
-    private long refreshExpiration;
-
-    @Value("${app.cookie.secure:false}")
-    private boolean cookieSecure;
 
     @GetMapping("/test/user")
     public String index() {
         return "user/index";
+    }
+
+    @GetMapping("/login-form")
+    public String loginForm() {
+        return "/login";
     }
 
     // 카카오 로그인 페이지 이동
@@ -55,24 +53,10 @@ public class UserViewController {
         TokenResponse tokens = authService.login(user);
 
         // 3. Access Token 쿠키 저장
-        ResponseCookie accessCookie = ResponseCookie
-            .from("accessToken", tokens.getAccessToken())
-            .httpOnly(true)
-            .secure(cookieSecure)
-            .path("/")
-            .sameSite("Lax")
-            .maxAge(Duration.ofMillis(accessExpiration))
-            .build();
+        ResponseCookie accessCookie = userService.getaccessCookie(tokens);
 
         // 4. Refresh Token 쿠키 저장
-        ResponseCookie refreshCookie = ResponseCookie
-            .from("refreshToken", tokens.getRefreshToken())
-            .httpOnly(true)
-            .secure(cookieSecure)
-            .path("/")
-            .sameSite("Lax")
-            .maxAge(Duration.ofMillis(refreshExpiration))
-            .build();
+        ResponseCookie refreshCookie = userService.getRefreshToken(tokens);
 
         response.addHeader("Set-Cookie", accessCookie.toString());
         response.addHeader("Set-Cookie", refreshCookie.toString());

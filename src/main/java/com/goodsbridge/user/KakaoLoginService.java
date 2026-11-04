@@ -16,7 +16,7 @@ import org.springframework.web.client.ResourceAccessException;
 public class KakaoLoginService {
 
     private final KakaoApiClient kakaoApiClient;
-    private final UserRepository userRepository;
+    private final UserService userService;
 
     public String getAuthorizeUrl() {
         return kakaoApiClient.getAuthorizeUrl();
@@ -39,18 +39,7 @@ public class KakaoLoginService {
             UserResponse.KakaoUserInfo profile =
                 kakaoApiClient.requestProfile(oAuthToken.getAccessToken());
 
-            // 3. 카카오 사용자 정보 추출
-            // 기존 DTO에 맞춰 kakaoId, nickname 추출
-            String kakaoId = String.valueOf(profile.getId());
-            String nickname = profile.getProperties().getNickname();
-
-
-            // 4. 기존 회원 조회 또는 신규 회원 가입
-            User user = userRepository.findByKakaoId(kakaoId)
-                .orElseGet(() -> userRepository.save(
-                    new User(kakaoId, null, nickname, Role.USER)
-                ));
-            return user;
+            return userService.kakaoLogin(kakaoUserInfo);
         } catch (HttpClientErrorException e) {
             // 카카오 API 4xx 오류
             log.warn("카카오 인증 요청 실패: status={}", e.getStatusCode());
