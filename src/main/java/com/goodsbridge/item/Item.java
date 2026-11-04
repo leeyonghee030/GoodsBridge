@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class Item {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(name = "seller_user_id", nullable = false)
@@ -53,6 +53,20 @@ public class Item {
     @Builder
     public Item(Long sellerUserId, Long shopId, Category category, String title,
                 String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
+        // 엔티티 생성 시점 방어 로직
+        if (sellerUserId == null) {
+            throw new IllegalArgumentException("판매자 ID는 필수입니다.");
+        }
+        if (category == null) {
+            throw new IllegalArgumentException("카테고리는 필수입니다.");
+        }
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("상품 제목은 필수입니다.");
+        }
+        if (price == null || price <= 0) {
+            throw new IllegalArgumentException("가격은 0보다 커야 합니다.");
+        }
+
         this.sellerUserId = sellerUserId;
         this.shopId = shopId;
         this.category = category;
@@ -65,6 +79,17 @@ public class Item {
     }
 
     public void update(Category category, String title, String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
+        // 수정 시점 방어 로직
+        if (category == null) {
+            throw new IllegalArgumentException("카테고리는 필수입니다.");
+        }
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("상품 제목은 필수입니다.");
+        }
+        if (price == null || price <= 0) {
+            throw new IllegalArgumentException("가격은 0보다 커야 합니다.");
+        }
+
         this.category = category;
         this.title = title;
         this.description = description;

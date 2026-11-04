@@ -19,6 +19,8 @@ public class CategoryService {
 
     @Transactional
     public Long create(CategoryCreateRequest request) {
+        request.validate();
+
         Category category = Category.builder()
             .name(request.getName())
             .build();

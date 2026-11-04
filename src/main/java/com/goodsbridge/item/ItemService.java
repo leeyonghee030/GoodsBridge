@@ -22,6 +22,8 @@ public class ItemService {
     // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
+        request.validate();
+
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
@@ -48,6 +50,8 @@ public class ItemService {
 
     // 상품 단건 상세 조회
     public ItemResponse findById(Long id) {
+        validateId(id);
+
         Item item = itemRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
         return ItemResponse.from(item);
@@ -63,6 +67,9 @@ public class ItemService {
     // 상품 정보 수정
     @Transactional
     public void update(Long userId, Long itemId, ItemUpdateRequest request) {
+        validateId(itemId);
+        request.validate();
+
         Item item = itemRepository.findById(itemId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
 
@@ -87,6 +94,8 @@ public class ItemService {
     // 상품 삭제
     @Transactional
     public void delete(Long userId, Long itemId) {
+        validateId(itemId);
+
         Item item = itemRepository.findById(itemId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
 
@@ -95,5 +104,12 @@ public class ItemService {
         }
 
         itemRepository.delete(item);
+    }
+
+    // 공통 ID 검증 메서드
+    private void validateId(Long id) {
+        if (id == null || id <= 0) {
+            throw new IllegalArgumentException("유효하지 않은 ID 값입니다.");
+        }
     }
 }
