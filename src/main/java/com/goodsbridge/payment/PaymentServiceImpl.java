@@ -1,7 +1,6 @@
 package com.goodsbridge.payment;
 
 import com.goodsbridge._core.exception.BadRequestException;
-import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge.user.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -27,36 +26,36 @@ public class PaymentServiceImpl implements PaymentService {
     public String verify(String paymentId, int expectedAmount, PaymentPurpose purpose, Long userId) {
         // 결제 Id 조회
         if (paymentId == null || paymentId.isBlank()) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("paymentId가 필요합니다.");
         }
 
         // 예상 금액, 목적, 사용자 Id 조회
         if (expectedAmount <= 0 || purpose == null || userId == null) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("결제 검증에 필요한 값이 올바르지 않습니다.");
         }
 
         // 이미 처리된 결제인지 확인
         if (paymentRepository.existsByPaymentId(paymentId)) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("이미 처리된 결제입니다.");
         }
 
         // PortOne 결제 조회
         PaymentResponse.PortOnePayment portOnePayment =
             portOneClient.getPayment(paymentId);
         if (portOnePayment == null) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("PortOne에서 결제 내역을 찾을 수 없습니다.");
         }
 
         // 결제 상태 확인
         if (!"PAID".equals(portOnePayment.getStatus())) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("결제가 승인된 상태가 아닙니다.");
         }
 
         // 금액 위 변조 확인
         if (portOnePayment.getAmount() == null
             || portOnePayment.getAmount().getTotal() == null
             || !portOnePayment.getAmount().getTotal().equals(expectedAmount)) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("결제 금액이 일치하지 않습니다.");
         }
 
         // 검증 통과 + 결제 기록

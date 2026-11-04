@@ -1,7 +1,6 @@
 package com.goodsbridge.purchase;
 
 import com.goodsbridge._core.exception.BadRequestException;
-import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.user.User;
 import jakarta.persistence.*;
@@ -55,10 +54,10 @@ public class Purchase {
     // 배송
     public void ship(String trackingNumber) {
         if (status != PurchaseStatus.PAID) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("결제 완료 상태에서만 배송을 시작할 수 있습니다.");
         }
         if (trackingNumber == null || trackingNumber.isBlank()) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("운송장 번호가 필요합니다.");
         }
         this.trackingNumber = trackingNumber;
         this.deliveryStatus = DeliveryStatus.SHIPPED;
@@ -66,14 +65,14 @@ public class Purchase {
 
     // 배송 상태
     public void markDelivered() {
-        if (deliveryStatus != DeliveryStatus.SHIPPED) throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+        if (deliveryStatus != DeliveryStatus.SHIPPED) throw new BadRequestException("배송중 상태에서만 배송완료로 변경할 수 있습니다.");
         this.deliveryStatus = DeliveryStatus.DELIVERED;
     }
 
     // 수령확인
     public void confirm() {
         if (status != PurchaseStatus.PAID || deliveryStatus == DeliveryStatus.PREPARING) {
-            throw new BadRequestException(ErrorCode.INVALID_REQUEST);
+            throw new BadRequestException("배송이 완료되기 전에는 수령 확인을 할 수 없습니다.");
         }
         this.status = PurchaseStatus.CONFIRMED;
     }
