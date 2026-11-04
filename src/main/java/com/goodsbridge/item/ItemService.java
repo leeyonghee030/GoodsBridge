@@ -43,8 +43,8 @@ public class ItemService {
     }
 
     // 전체 상품 목록 조회 필터링 검색
-    public Page<ItemResponse> findAll(Long categoryId, SaleType saleType, Pageable pageable) {
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId,  saleType, pageable);
+    public Page<ItemResponse> findAll(Long categoryId,String region,SaleType saleType, Pageable pageable) {
+        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
         return itemPage.map(ItemResponse::from);
     }
 

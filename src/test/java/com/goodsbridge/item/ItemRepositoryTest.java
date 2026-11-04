@@ -60,7 +60,7 @@ class ItemRepositoryTest {
         Pageable pageable = PageRequest.of(0, 10);
 
         // when
-        Page<Item> result = itemRepository.searchItemsWithFilter(1L, SaleType.NORMAL, pageable);
+        Page<Item> result = itemRepository.searchItemsWithFilter(1L, null,SaleType.NORMAL, pageable);
 
         // then
         assertThat(result).isNotNull();

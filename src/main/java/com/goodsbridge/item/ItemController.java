@@ -31,7 +31,18 @@ public class ItemController {
         @RequestParam(required = false) String region,
         @RequestParam(required = false) SaleType saleType,
         Pageable pageable) {
-        Page<ItemResponse> items = itemService.findAll(category, saleType, pageable);
+        Page<ItemResponse> items = itemService.findAll(category, region, saleType, pageable);
+        return ResponseEntity.ok(items);
+    }
+
+    // 카테고리별 상품 조회
+    public ResponseEntity<Page<ItemResponse>> getItemsByCategory(
+        @PathVariable Long categoryId,
+        @RequestParam(required = false) String region,
+        @RequestParam(required = false) SaleType saleType,
+        Pageable pageable) {
+
+        Page<ItemResponse> items = itemService.findAll(categoryId, region , saleType, pageable);
         return ResponseEntity.ok(items);
     }
 

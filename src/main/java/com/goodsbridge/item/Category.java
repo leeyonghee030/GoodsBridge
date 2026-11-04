@@ -29,4 +29,9 @@ public class Category {
         }
         this.name = name;
     }
+
+    // 카테고리 이름 수정 메서드
+    public void updateName(String name) {
+        this.name = name;
+    }
 }
