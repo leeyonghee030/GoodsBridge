@@ -59,8 +59,8 @@ class ItemRepositoryTest {
         // given: 카테고리 ID 1번('굿즈/피규어'), NORMAL 타입
         Pageable pageable = PageRequest.of(0, 10);
 
-        // when
-        Page<Item> result = itemRepository.searchItemsWithFilter(1L, SaleType.NORMAL, pageable);
+        // when : region 자리에 null 또는 특정 지역 문자열 전달
+        Page<Item> result = itemRepository.searchItemsWithFilter(1L, null  ,SaleType.NORMAL, pageable);
 
         // then
         assertThat(result).isNotNull();

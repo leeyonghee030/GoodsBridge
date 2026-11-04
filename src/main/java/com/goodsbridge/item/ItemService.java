@@ -2,9 +2,11 @@ package com.goodsbridge.item;
 
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.shop.ShopSubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,11 +19,16 @@ public class ItemService {
 
     private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
+    private final ShopSubscriptionService shopSubscriptionService;
 
 
     // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
+        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+        }
+
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
@@ -41,8 +48,8 @@ public class ItemService {
     }
 
     // 전체 상품 목록 조회 필터링 검색
-    public Page<ItemResponse> findAll(Long categoryId, SaleType saleType, Pageable pageable) {
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId,  saleType, pageable);
+    public Page<ItemResponse> findAll(Long categoryId,String region ,SaleType saleType, Pageable pageable) {
+        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
         return itemPage.map(ItemResponse::from);
     }
 
@@ -68,6 +75,10 @@ public class ItemService {
 
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
+        }
+
+        if (!shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
+            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정 할 수 있습니다.");
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
