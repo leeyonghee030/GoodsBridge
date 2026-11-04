@@ -56,16 +56,14 @@ public class ExchangeRequest {
     private LocalDateTime createdAt;
 
     @Builder
-    public ExchangeRequest(ExchangeItem exchangeItemA, Item itemB, String message, Shop shop, ExchangeRequestStatus status, Integer depositAmountB, Boolean userAShowed, Boolean userBShowed) {
+    public ExchangeRequest(ExchangeItem exchangeItemA, Item itemB, String message, Shop shop, Integer depositAmountB) {
 
         this.exchangeItemA = exchangeItemA;
         this.itemB = itemB;
         this.message = message;
         this.shop = shop;
-        this.status = status;
+        this.status = ExchangeRequestStatus.PENDING;
         this.depositAmountB = depositAmountB < 2000 ? 2000 : depositAmountB;
-        this.userAShowed = userAShowed;
-        this.userBShowed = userBShowed;
         this.deadline = LocalDateTime.now().plusDays(3);
     }
 
@@ -77,9 +75,9 @@ public class ExchangeRequest {
     }
 
     // 제안자(B)인지 확인
-    public boolean isProposer(Long userId) {
-        return this.itemB.getSellerUserId().equals(userId);
-    }
+//    public boolean isProposer(Long userId) {
+//        return this.itemB.getSellerUserId().equals(userId);
+//    }
 
     // 교환 수락시 depositAmountA 보증금 업데이트
     public void updateDepositAmountA(Integer depositAmountA) {

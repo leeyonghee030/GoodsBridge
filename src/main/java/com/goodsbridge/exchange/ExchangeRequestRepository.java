@@ -11,11 +11,11 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
     @Query("""
     select e from ExchangeRequest e
     join fetch e.exchangeItemA
-    join fetch e.exchangeItemB
+    join fetch e.itemB
     join fetch e.shop
-    where e.exchangeItemA.user.id = :userId or e.exchangeItemB.user.id = :userId
+    where e.exchangeItemA.user.id = :userId or e.itemB.sellerUserId = :userId
 """)
-    public List<ExchangeRequest> findByExchangeItemA_User_IdOrExchangeItemB_User_Id(@Param("userId") Long userId);
+    public List<ExchangeRequest> findByExchangeItemA_User_IdOrItemB_SellerUserId(@Param("userId") Long userId);
 
 
     //existsByItemBAndStatusIn 내 아이템으로 다른 PENDING/CONFIRMED 제안에 이미 쓰이고 있으면 중복 제안 불가
