@@ -6,6 +6,7 @@ import com.goodsbridge._core.security.JwtProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -59,6 +60,10 @@ public class SecurityConfig {
                     "/login",
                     "/items"
                 ).permitAll()
+
+                // 목록/상세 조회는 비로그인도 가능하게 (CLAUDE.md 권한 규칙)
+                .requestMatchers(HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
 
                 .anyRequest().authenticated()
             )
