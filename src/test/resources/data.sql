@@ -14,7 +14,14 @@ VALUES (1L, null, 2L, '후드티 A', '편안한 후드티', 30000, 'NORMAL', 'ON
 INSERT INTO item_tb (seller_user_id, shop_id, category_id, title, description, price, sale_type, status, image_url, created_at)
 VALUES (2L, null, 3L, '자바의 정석', '상태 깨끗합니다.', 30000, 'NORMAL', 'ON_SALE', 'https://example.com/book.jpg', NOW());
 
--- 3. 가게 데이터 삽입
+-- 3. 유저 데이터 삽입 (가게 소유주/관리자 권한 테스트용)
+INSERT INTO user_tb (kakao_id, nickname, role, status, created_at)
+VALUES ('owner-test-kakao-id', '가게사장', 'USER', 'ACTIVE', NOW());
+
+INSERT INTO user_tb (kakao_id, nickname, role, status, created_at)
+VALUES ('admin-test-kakao-id', '관리자', 'ADMIN', 'ACTIVE', NOW());
+
+-- 4. 가게 데이터 삽입
 INSERT INTO shop_tb (owner_user_id, name, region, address, status, created_at)
 VALUES (1, '홍대 굿즈샵', '서울', '서울특별시 마포구 양화로', 'APPROVED', NOW());
 

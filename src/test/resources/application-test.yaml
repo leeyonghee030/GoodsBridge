@@ -11,7 +11,6 @@ spring:
         properties:
             hibernate:
                 format_sql: true
-                dialect: org.hibernate.dialect.MySQLDialect
         defer-datasource-initialization: true # ⭐ JPA 테이블 생성 후 data.sql 실행 보장
     sql:
         init:

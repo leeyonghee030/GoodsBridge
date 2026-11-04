@@ -6,7 +6,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
-public interface ShopJpaRepository extends JpaRepository<Shop, Long> {
+public interface ShopRepository extends JpaRepository<Shop, Long> {
     // 디렉토리 조회 (이름 부분일치, 지역, 카테고리/상태 등 필터 확장 가능)
     @Query("""
         SELECT s FROM Shop s WHERE (:name IS NULL OR s.name LIKE %:name%)

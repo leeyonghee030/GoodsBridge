@@ -1,15 +1,14 @@
 package com.goodsbridge.shop;
 
-import com.goodsbridge._core.exception.CustomException;
-import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.user.Role;
+import com.goodsbridge.user.User;
+import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.hibernate.annotations.NotFound;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -18,7 +17,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class ShopService {
 
-    private final ShopJpaRepository shopRepository;
+    private final ShopRepository shopRepository;
+    private final UserRepository userRepository;
 
     // 입점 신청
     @Transactional
@@ -29,7 +29,6 @@ public class ShopService {
             .region(requestDto.getRegion())
             .address(requestDto.getAddress())
             .status(ShopStatus.PENDING)
-            .createdAt(LocalDateTime.now()) // 👈 서비스 레이어에서 명시적으로 현재 시간 주입
             .build();
 
         return new ShopResponse(shopRepository.save(shop));
@@ -44,9 +43,7 @@ public class ShopService {
 
     // 가게 단건 상세 조회 - ID로 조회
     public ShopResponse findById(Long id) {
-        Shop shop = shopRepository.findById(id)
-            .orElseThrow(() -> new CustomException(ErrorCode.SHOP_NOT_FOUND) {});
-        return new ShopResponse(shop);
+        return new ShopResponse(findShopEntity(id));
     }
 
     // 내 가게 목록 조회 - 로그인한 가게사장이 운영하는 지점 목록 조회
@@ -75,20 +72,23 @@ public class ShopService {
 
     // 관리자 입점 승인
     @Transactional
-    public void approve(Long shopId) {
+    public void approve(Long adminUserId, Long shopId) {
+        validateAdmin(adminUserId);
         Shop shop = findShopEntity(shopId);
         shop.updateStatus(ShopStatus.APPROVED);
     }
 
     // 관리자 입점 거절
     @Transactional
-    public void reject(Long shopId) {
+    public void reject(Long adminUserId, Long shopId) {
+        validateAdmin(adminUserId);
         Shop shop = findShopEntity(shopId);
         shop.updateStatus(ShopStatus.REJECTED);
     }
 
     // 관리자 입점 대기 목록 조회 - 상태별로 가게 목록 조회
-    public List<ShopResponse> findAllByStatus(ShopStatus status) {
+    public List<ShopResponse> findAllByStatus(Long adminUserId, ShopStatus status) {
+        validateAdmin(adminUserId);
         return shopRepository.findAllByStatus(status).stream()
             .map(ShopResponse::new)
             .collect(Collectors.toList());
@@ -99,13 +99,22 @@ public class ShopService {
     // 엔티티 가져오기
     private Shop findShopEntity(Long shopId) {
         return shopRepository.findById(shopId)
-            .orElseThrow(() -> new NotFoundException(ErrorCode.SHOP_NOT_FOUND));
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
     }
 
-    //유효성 검사
+    // 본인 가게인지 검증
     private void validateOwner(Shop shop, Long userId) {
         if (!shop.isOwner(userId)) {
-            throw new ForbiddenException(ErrorCode.FORBIDDEN_SHOP_ACCESS);
+            throw new ForbiddenException("본인의 가게만 수정 및 삭제할 수 있습니다.");
+        }
+    }
+
+    // 관리자 권한 검증
+    private void validateAdmin(Long userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
+        if (user.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("관리자 권한이 없습니다.");
         }
     }
 }

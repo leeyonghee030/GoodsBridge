@@ -1,5 +1,6 @@
 package com.goodsbridge.shop;
 
+import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,13 +16,9 @@ public class ShopViewController {
     private final ShopService shopService;
 
     // 입점 신청
-    // 나중에 인터셉터에 로그인 구현되면 인터셉터에서 HttpServletRequest에 해당 속성(userId)을 세팅
-    // request.setAttribute("userId", userId);
     @PostMapping("api/shops")
-    public ResponseEntity<ShopResponse> createShop(
-        // TODO - 테스트용 - 로그인확인용 인터셉터 등록후 @RequestAttribute("userId")로 변경
-        @RequestParam(defaultValue = "1") Long userId,
-        @RequestBody ShopCreateRequest requestDto) {
+    public ResponseEntity<ShopResponse> createShop(@RequestBody ShopCreateRequest requestDto) {
+        Long userId = SecurityUtil.getCurrentUserId();
         return ResponseEntity.status(HttpStatus.CREATED).body(shopService.create(userId, requestDto));
     }
 
@@ -35,8 +32,8 @@ public class ShopViewController {
 
     // 내 가게 목록 조회
     @GetMapping("/api/shops/me")
-    public ResponseEntity<List<ShopResponse>> getMyShops(
-        @RequestAttribute("userId") Long userId) {
+    public ResponseEntity<List<ShopResponse>> getMyShops() {
+        Long userId = SecurityUtil.getCurrentUserId();
         return ResponseEntity.ok(shopService.findAllByOwnerUserId(userId));
     }
 
@@ -49,17 +46,16 @@ public class ShopViewController {
     // 가게 수정
     @PatchMapping("/api/shops/{id}")
     public ResponseEntity<ShopResponse> updateShop(
-        @RequestAttribute("userId") Long userId,
         @PathVariable Long id,
         @RequestBody ShopUpdateRequest requestDto) {
+        Long userId = SecurityUtil.getCurrentUserId();
         return ResponseEntity.ok(shopService.update(userId, id, requestDto));
     }
 
     // 가게 삭제
     @DeleteMapping("/api/shops/{id}")
-    public ResponseEntity<Void> deleteShop(
-        @RequestAttribute("userId") Long userId,
-        @PathVariable Long id) {
+    public ResponseEntity<Void> deleteShop(@PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
         shopService.delete(userId, id);
         return ResponseEntity.noContent().build();
     }
@@ -70,20 +66,23 @@ public class ShopViewController {
     @GetMapping("/api/admin/shops")
     public ResponseEntity<List<ShopResponse>> getAdminShops(
         @RequestParam(required = false) ShopStatus status) {
-        return ResponseEntity.ok(shopService.findAllByStatus(status));
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(shopService.findAllByStatus(adminUserId, status));
     }
 
     // 관리자 입점 승인
     @PatchMapping("/api/admin/shops/{id}/approve")
     public ResponseEntity<Void> approveShop(@PathVariable Long id) {
-        shopService.approve(id);
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        shopService.approve(adminUserId, id);
         return ResponseEntity.ok().build();
     }
 
     // 관리자 입점 거절
     @PatchMapping("/api/admin/shops/{id}/reject")
     public ResponseEntity<Void> rejectShop(@PathVariable Long id) {
-        shopService.reject(id);
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        shopService.reject(adminUserId, id);
         return ResponseEntity.ok().build();
     }
 }
