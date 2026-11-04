@@ -18,8 +18,8 @@ class GlobalExceptionHandlerTest {
 
     // 테스트용 구체 클래스
     private static class TestCustomException extends CustomException {
-        public TestCustomException(ErrorCode errorCode) {
-            super(errorCode);
+        public TestCustomException(ErrorCode errorCode, String message) {
+            super(errorCode, message);
         }
     }
 
@@ -34,7 +34,7 @@ class GlobalExceptionHandlerTest {
 
         // given
         CustomException exception =
-            new TestCustomException(ErrorCode.NOT_FOUND);
+            new TestCustomException(ErrorCode.NOT_FOUND, "테스트 메시지");
 
         // when
         ResponseEntity<ErrorResponse> response =
@@ -44,7 +44,7 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(ErrorCode.NOT_FOUND.name(), response.getBody().getCode());
-        assertEquals(ErrorCode.NOT_FOUND.getMessage(), response.getBody().getMessage());
+        assertEquals("테스트 메시지", response.getBody().getMessage());
     }
 
     @Test
@@ -62,6 +62,6 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(ErrorCode.INTERNAL_ERROR.name(), response.getBody().getCode());
-        assertEquals(ErrorCode.INTERNAL_ERROR.getMessage(), response.getBody().getMessage());
+        assertEquals("서버 내부 오류가 발생했습니다.", response.getBody().getMessage());
     }
 }
