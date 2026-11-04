@@ -36,10 +36,11 @@ public class KakaoLoginService {
                 kakaoApiClient.requestAccessToken(code);
 
             // 2. Access Token으로 사용자 정보 요청
-            UserResponse.KakaoUserInfo profile =
+            UserResponse.KakaoUserInfo kakaoUserInfo =
                 kakaoApiClient.requestProfile(oAuthToken.getAccessToken());
 
-            return userService.kakaoLogin(kakaoUserInfo);
+//            return userService.kakaoLogin(kakaoUserInfo);
+            return null;
         } catch (HttpClientErrorException e) {
             // 카카오 API 4xx 오류
             log.warn("카카오 인증 요청 실패: status={}", e.getStatusCode());

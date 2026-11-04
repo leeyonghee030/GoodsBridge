@@ -8,7 +8,14 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User,Long> {
 
-    @Query("SELECT u FROM User u where u.kakaoId = :kakaoId")
-    Optional<User> findByKakaoId(@Param("kakaoId") String kakaoId);
+    // 사용자명과 비밀번호로 조회 (로그인 용)
+    @Query("""
+        select DISTINCT u from User u Left Join Fetch u.roles where u.username = :username
+    """)
+    Optional<User> findByUsernameWithRoles(@Param("username") String username);
+
+    // 이메일 중복 체크
+    @Query("select u from User u where u.email = :email")
+    Optional<User> findByEmail(@Param("email") String email);
 
 }
