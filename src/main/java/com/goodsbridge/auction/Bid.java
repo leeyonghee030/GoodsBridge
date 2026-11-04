@@ -1,8 +1,6 @@
 package com.goodsbridge.auction;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
 
 @Getter
@@ -12,4 +10,8 @@ public class Bid {
     @Id
     @GeneratedValue
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "auction_id", nullable = false)
+    private Auction auction;
 }
