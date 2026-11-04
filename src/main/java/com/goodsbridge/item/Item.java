@@ -2,17 +2,14 @@ package com.goodsbridge.item;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.CreationTimestamp; // 제거 가능
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime; // 변경
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "item_tb")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@EntityListeners(AuditingEntityListener.class) // ⭐ 추가
 public class Item {
 
     @Id
@@ -49,9 +46,9 @@ public class Item {
     @Column(name = "image_url")
     private String imageUrl;
 
-    @CreatedDate // ⭐ 변경 (JPA Auditing이 자동 주입)
+    @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
-    private LocalDateTime createdAt; // ⭐ 타입 변경
+    private LocalDateTime createdAt;
 
     @Builder
     public Item(Long sellerUserId, Long shopId, Category category, String title,

@@ -1,6 +1,5 @@
 package com.goodsbridge.item;
 
-import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,7 @@ import java.util.List;
 @Transactional(readOnly = true)
 public class ItemService {
 
-    private final ItemJpaRepository itemRepository;
+    private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
 
 
@@ -24,7 +23,7 @@ public class ItemService {
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
         Category category = categoryRepository.findById(request.getCategoryId())
-            .orElseThrow(() -> new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND));
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
         Item item = Item.builder()
             .sellerUserId(userId)
@@ -50,7 +49,7 @@ public class ItemService {
     // 상품 단건 상세 조회
     public ItemResponse findById(Long id) {
         Item item = itemRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException(ErrorCode.ITEM_NOT_FOUND));
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
         return ItemResponse.from(item);
     }
 
@@ -65,14 +64,14 @@ public class ItemService {
     @Transactional
     public void update(Long userId, Long itemId, ItemUpdateRequest request) {
         Item item = itemRepository.findById(itemId)
-            .orElseThrow(() -> new NotFoundException(ErrorCode.ITEM_NOT_FOUND));
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
 
         if (!item.isOwner(userId)) {
-            throw new ForbiddenException(ErrorCode.FORBIDDEN_ITEM_ACCESS);
+            throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
-            .orElseThrow(() -> new NotFoundException(ErrorCode.CATEGORY_NOT_FOUND));
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
         item.update(
             category,
@@ -89,10 +88,10 @@ public class ItemService {
     @Transactional
     public void delete(Long userId, Long itemId) {
         Item item = itemRepository.findById(itemId)
-            .orElseThrow(() -> new NotFoundException(ErrorCode.ITEM_NOT_FOUND));
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
 
         if (!item.isOwner(userId)) {
-            throw new ForbiddenException(ErrorCode.FORBIDDEN_ITEM_ACCESS);
+            throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
         itemRepository.delete(item);
