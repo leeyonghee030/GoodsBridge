@@ -1,4 +1,47 @@
 {{> fragments/header}}
-<h1>Payment (테스트용)</h1>
-<p class="todo">TODO: #9/#17(결제/구매, 정산/환불) 완성 후 실제 화면으로 교체</p>
+<section class="page-head">
+    <p class="eyebrow">ISSUE #9 · PAYMENT</p>
+    <h1>결제내역</h1>
+    <p>PortOne 결제 검증 결과와 결제 상태를 확인합니다.</p>
+</section>
+
+<section class="panel">
+    <div class="section-title">
+        <h2>내 결제내역</h2>
+        <span class="status paid">결제 검증 완료</span>
+    </div>
+    <div class="payment-row">
+        <div>
+            <strong>결제 #1001</strong>
+            <small>paymentId: payment_demo_001 · 구매 결제</small>
+        </div>
+        <span class="status paid">PAID</span>
+        <strong>20,000원</strong>
+    </div>
+    <div class="payment-row">
+        <div>
+            <strong>결제 #1000</strong>
+            <small>paymentId: payment_demo_000 · 구매 결제</small>
+        </div>
+        <span class="status cancelled">CANCELLED</span>
+        <strong>15,000원</strong>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="section-title">
+        <div>
+            <p class="eyebrow">PAYMENT FLOW</p>
+            <h2>결제 검증 흐름</h2>
+        </div>
+        <span class="tag">paymentId → PortOne → Payment</span>
+    </div>
+    <div class="steps">
+        <span class="active">결제 요청</span>
+        <span class="active">PortOne 검증</span>
+        <span class="active">금액 일치 확인</span>
+        <span>결제내역 저장</span>
+    </div>
+    <p class="empty">실제 API 연동 시 GET /api/payments/me에서 로그인 사용자의 결제내역을 조회합니다.</p>
+</section>
 {{> fragments/footer}}
