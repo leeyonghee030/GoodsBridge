@@ -1,0 +1,39 @@
+{{> fragments/header}}
+<section class="page-head">
+    <p class="eyebrow">ISSUE #9 · PURCHASE</p>
+    <h1>구매 상세</h1>
+    <p>검증된 결제와 연결된 구매 상태, 배송정보를 확인합니다.</p>
+</section>
+
+<section class="panel detail-card">
+    <div class="item-image">상품 이미지</div>
+    <div>
+        <span class="tag">PAID · PREPARING</span>
+        <h2>뉴진스 다니엘 포카</h2>
+        <p>결제번호: payment_demo_001</p>
+        <p>배송지: 서울시 마포구 GoodsBridge로 10</p>
+        <strong>20,000원</strong>
+    </div>
+</section>
+
+<section class="panel">
+    <div class="section-title">
+        <h2>배송 상태</h2>
+        <span class="status paid">구매 완료</span>
+    </div>
+    <div class="steps">
+        <span class="active">결제완료</span>
+        <span class="active">상품준비</span>
+        <span>배송중</span>
+        <span>배송완료</span>
+    </div>
+    <button type="button">수령확인</button>
+    <button type="button" class="secondary">내 구매내역 보기</button>
+</section>
+
+<section class="panel">
+    <p class="eyebrow">PURCHASE API</p>
+    <h2>구매 흐름</h2>
+    <p class="empty">결제 검증이 성공하면 구매가 생성되고, 배송 완료 후 수령확인으로 상태를 변경합니다.</p>
+</section>
+{{> fragments/footer}}
