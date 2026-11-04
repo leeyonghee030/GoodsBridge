@@ -18,7 +18,7 @@ public class SecurityUtil {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getPrincipal())) {
-            throw new UnauthorizedException(ErrorCode.UNAUTHORIZED);
+            throw new UnauthorizedException("로그인이 필요한 서비스입니다.");
         }
         return (Long) authentication.getPrincipal();
     }

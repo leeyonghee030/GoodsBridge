@@ -13,10 +13,10 @@ public class ErrorResponse {
     private final String message;
     private final LocalDateTime timestamp;
 
-    public static ErrorResponse of(ErrorCode errorCode) {
+    public static ErrorResponse of(ErrorCode errorCode, String message) {
         return ErrorResponse.builder()
                 .code(errorCode.name())
-                .message(errorCode.getMessage())
+                .message(message)
                 .timestamp(LocalDateTime.now())
                 .build();
     }

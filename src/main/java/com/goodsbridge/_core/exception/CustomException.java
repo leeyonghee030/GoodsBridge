@@ -3,12 +3,12 @@ package com.goodsbridge._core.exception;
 import lombok.Getter;
 
 @Getter
-public abstract class CustomException extends RuntimeException {
+public class CustomException extends RuntimeException {
 
     private final ErrorCode errorCode;
 
-    protected CustomException(ErrorCode errorCode) {
-        super(errorCode.getMessage());
+    public CustomException(ErrorCode errorCode, String msg) {
+        super(msg);
         this.errorCode = errorCode;
     }
 }
