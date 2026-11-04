@@ -1,49 +1,43 @@
+
 spring:
-  application:
-    name: GoodsBridge
+    config:
+        import: optional:file:.env[.properties]
 
-  datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:goodsbridge}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useUnicode=true
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    application:
+        name: GoodsBridge
 
-  jpa:
-    hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
-    open-in-view: false
+    datasource:
+        url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:goodsbridge}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&useUnicode=true
+        username: ${DB_USERNAME}
+        password: ${DB_PASSWORD}
+        driver-class-name: com.mysql.cj.jdbc.Driver
 
-  ai:
-    google:
-      genai:
-        api-key: ${GEMINI_API_KEY}
-        chat:
-          model: gemini-2.5-flash
+    jpa:
+        hibernate:
+            ddl-auto: ${JPA_DDL_AUTO:update}
+        open-in-view: false
 
-  security:
-    oauth2:
-      client:
-        registration:
-          kakao:
-            client-id: ${KAKAO_CLIENT_ID}
-            client-secret: ${KAKAO_CLIENT_SECRET}
-            redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/login/oauth2/code/kakao}
-            authorization-grant-type: authorization_code
-            client-authentication-method: client_secret_post
-            scope:
-              - profile_nickname
-        provider:
-          kakao:
-            authorization-uri: https://kauth.kakao.com/oauth/authorize
-            token-uri: https://kauth.kakao.com/oauth/token
-            user-info-uri: https://kapi.kakao.com/v2/user/me
-            user-name-attribute: id
+    ai:
+        google:
+            genai:
+                api-key: ${GEMINI_API_KEY}
+                chat:
+                    model: gemini-2.5-flash
+
+oauth2:
+    kakao:
+        client-id: ${KAKAO_CLIENT_ID}
+        client-secret: ${KAKAO_CLIENT_SECRET}
+        redirect-uri: ${KAKAO_REDIRECT_URI}
+        authorization-uri: https://kauth.kakao.com/oauth/authorize
+        token-uri: https://kauth.kakao.com/oauth/token
+        user-info-uri: https://kapi.kakao.com/v2/user/me
 
 jwt:
-  secret: ${JWT_SECRET}
-  access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS:3600000}
-  refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:1209600000}
+    secret: ${JWT_SECRET}
+    access-token-expiration-ms: ${JWT_ACCESS_EXPIRATION_MS}
+    refresh-token-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS}
 
 portone:
-  api-secret: ${PORTONE_API_SECRET}
-  store-id: ${PORTONE_STORE_ID}
+    api-secret: ${PORTONE_API_SECRET}
+    store-id: ${PORTONE_STORE_ID}
