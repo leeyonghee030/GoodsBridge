@@ -48,6 +48,7 @@ public class SecurityConfig {
                     "/error",
                     "/oauth2/**",
                     "/login/**",
+                    "/kakao-login",
                     "/api/auth/**",
                     "/api/shops",
                     "/api/items",
