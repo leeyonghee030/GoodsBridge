@@ -2,6 +2,7 @@ package com.goodsbridge._core.exception;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -51,5 +52,18 @@ public class GlobalExceptionHandler {
                 ErrorCode.INTERNAL_ERROR,
                 "서버 내부 오류가 발생했습니다."
             ));
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> handleOptimisticLockingFailureException(
+        ObjectOptimisticLockingFailureException e) {
+
+        log.warn("[OptimisticLock] 동시 수정 충돌 발생: {}", e.getMessage());
+
+        ErrorCode errorCode = ErrorCode.CONFLICT;
+
+        return ResponseEntity
+            .status(errorCode.getStatus())
+            .body(ErrorResponse.of(errorCode, "다시 시도해주세요."));
     }
 }
