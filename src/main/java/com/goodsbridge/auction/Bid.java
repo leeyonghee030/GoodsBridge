@@ -36,10 +36,14 @@ public class Bid {
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "deposit_payment_id", nullable = false)
+    private String depositPaymentId;
+
     @Builder
-    public Bid(Auction auction, User user, Integer bidAmount) {
+    public Bid(Auction auction, User user, Integer bidAmount, String depositPaymentId) {
         this.auction = auction;
         this.user = user;
         this.bidAmount = bidAmount;
+        this.depositPaymentId = depositPaymentId;
     }
 }

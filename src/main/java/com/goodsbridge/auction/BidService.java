@@ -58,13 +58,18 @@ public class BidService {
 
         // 5. 최초 입찰 시에만 보증금 검증 (금액 = Auction.depositAmount)
         boolean firstBid = !bidRepository.existsByAuctionIdAndUserId(auctionId, userId);
+        String depositPaymentId;
+
         if (firstBid) {
             if (request.getPaymentId() == null || request.getPaymentId().isBlank()) {
                 throw new BadRequestException("최초 입찰에는 보증금 결제 ID가 필요합니다.");
             }
-            String paymentId = paymentService.verify(request.getPaymentId(), auction.getDepositAmount(),
-                PaymentPurpose.AUCTION_DEPOSIT, userId);
-            auction.setWinningPaymentId(paymentId);
+            depositPaymentId = paymentService.verify(request.getPaymentId(),
+                auction.getDepositAmount(), PaymentPurpose.AUCTION_DEPOSIT, userId);
+        } else {
+            Bid previousBid = bidRepository.findTopByAuctionIdAndUserId(auctionId, userId)
+                .orElseThrow(() -> new NotFoundException("기존 입찰 보증금을 찾을 수 없습니다."));
+            depositPaymentId = previousBid.getDepositPaymentId();
         }
 
         // 6. 저장 및 현재가 갱신
@@ -72,8 +77,13 @@ public class BidService {
             .auction(auction)
             .user(user)
             .bidAmount(request.getBidAmount())
+            .depositPaymentId(depositPaymentId)
             .build());
+
         auction.updateCurrentBid(request.getBidAmount(), user);
+
+        // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
+        auction.setWinningPaymentId(depositPaymentId);
         return BidResponse.from(bid);
     }
 

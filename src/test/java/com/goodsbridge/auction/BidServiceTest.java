@@ -65,12 +65,32 @@ class BidServiceTest {
     @Test
     void placeBid_doesNotVerifyDepositAgainForReturningBidder() {
         when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(true);
+        Bid previousBid = mock(Bid.class);
+        when(previousBid.getDepositPaymentId()).thenReturn("payment-1");
+        when(bidRepository.findTopByAuctionIdAndUserId(1L, 2L))
+            .thenReturn(Optional.of(previousBid));
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         bidService.placeBid(1L, 2L, new BidRequest(12_000, null));
 
         verifyNoInteractions(paymentService);
         verify(auction).updateCurrentBid(12_000, user);
+        verify(auction).setWinningPaymentId("payment-1");
+    }
+
+    @Test
+    void placeBid_updatesWinningPaymentIdToReturningBidderWhenTheyTakeTheLead() {
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(true);
+        Bid previousBid = mock(Bid.class);
+        when(previousBid.getDepositPaymentId()).thenReturn("payment-a");
+        when(bidRepository.findTopByAuctionIdAndUserId(1L, 2L))
+            .thenReturn(Optional.of(previousBid));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bidService.placeBid(1L, 2L, new BidRequest(20_000, null));
+
+        verify(auction).setWinningPaymentId("payment-a");
+        verifyNoInteractions(paymentService);
     }
 
     @Test

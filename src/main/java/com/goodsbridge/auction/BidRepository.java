@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
+
 public interface BidRepository extends JpaRepository<Bid, Long> {
     // 최초 입찰 여부 판단
     @Query("""
@@ -24,6 +26,16 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
         """,
         countQuery = "select count(b) from Bid b where b.auction.id = :auctionId")
     Page<Bid> findBidsByAuctionId(@Param("auctionId") Long auctionId, Pageable pageable);
+
+    // 입찰자의 최초 보증금 결제 ID 조회
+    @Query("""
+        select b from Bid b
+        where b.auction.id = :auctionId
+          and b.user.id = :userId
+        order by b.createdAt asc
+        """)
+    Optional<Bid> findTopByAuctionIdAndUserId(@Param("auctionId") Long auctionId,
+                                              @Param("userId") Long userId);
 
     // 내가 참여한 경매 ID 목록
     @Query(value = """
