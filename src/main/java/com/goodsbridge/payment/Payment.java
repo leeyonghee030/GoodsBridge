@@ -5,6 +5,9 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "payment_tb")
@@ -36,6 +39,9 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status;   // 결제 상태
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
 
     @Builder
     public Payment(String paymentId, String pgTxId, User user, Integer amount, PaymentPurpose purpose) {

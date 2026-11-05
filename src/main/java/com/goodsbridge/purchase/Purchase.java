@@ -7,6 +7,9 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -40,6 +43,9 @@ public class Purchase {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PurchaseStatus status;  // 구매 상태
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
 
     @Builder
     public Purchase(Item item, User user, String paymentId, String deliveryAddress) {
