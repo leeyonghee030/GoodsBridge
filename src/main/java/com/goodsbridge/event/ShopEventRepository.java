@@ -1,10 +1,14 @@
 package com.goodsbridge.event;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ShopEventRepository extends JpaRepository<ShopEvent, Long> {
 
@@ -19,6 +23,16 @@ public interface ShopEventRepository extends JpaRepository<ShopEvent, Long> {
 """)
     List<ShopEvent> getShopEventAll(@Param("shopId") Long shopId,@Param("status") ShopEventStatus status);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from ShopEvent s where s.id = :id")
+    Optional<ShopEvent> findByIdForUpdate(@Param("id") Long id);
 
+
+    @Query("""
+    select s from ShopEvent s
+    where s.status = :status and s.deadline < :deadline
+""")
+    List<ShopEvent> findByStatusAndDeadlineBefore(@Param("status") ShopEventStatus status
+        , @Param("deadline") LocalDateTime deadline);
 
 }
