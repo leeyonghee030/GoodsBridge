@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 class PaymentServiceImplTest {
 
     @Mock PaymentRepository paymentRepository;
-    @Mock PortOneClient portOneClient;
+    @Mock PortOnePaymentService portOnePaymentService;
     @Mock EntityManager entityManager;
     @InjectMocks PaymentServiceImpl paymentService;
 
@@ -32,7 +32,7 @@ class PaymentServiceImplTest {
 
         User user = mock(User.class);
         when(paymentRepository.existsByPaymentId("payment-1")).thenReturn(false);
-        when(portOneClient.getPayment("payment-1")).thenReturn(portOnePayment);
+        when(portOnePaymentService.getPayment("payment-1")).thenReturn(portOnePayment);
         when(entityManager.getReference(User.class, 3L)).thenReturn(user);
 
         String result = paymentService.verify("payment-1", 10_000, PaymentPurpose.PURCHASE, 3L);
@@ -48,7 +48,7 @@ class PaymentServiceImplTest {
         assertThrows(BadRequestException.class,
             () -> paymentService.verify("payment-1", 10_000, PaymentPurpose.PURCHASE, 3L));
 
-        verifyNoInteractions(portOneClient, entityManager);
+        verifyNoInteractions(portOnePaymentService, entityManager);
         verify(paymentRepository, never()).save(any());
     }
 
@@ -67,7 +67,7 @@ class PaymentServiceImplTest {
 
         when(paymentRepository.existsByPaymentId("payment-1"))
             .thenReturn(false);
-        when(portOneClient.getPayment("payment-1"))
+        when(portOnePaymentService.getPayment("payment-1"))
             .thenReturn(portOnePayment);
 
         assertThrows(
@@ -81,5 +81,30 @@ class PaymentServiceImplTest {
         );
 
         verify(paymentRepository, never()).save(any());
+    }
+
+    @Test
+    void release_marksPaidPaymentAsReleased() {
+        Payment payment = Payment.builder().paymentId("payment-1")
+            .user(mock(User.class)).amount(10_000).purpose(PaymentPurpose.PURCHASE).build();
+        when(paymentRepository.findByPaymentIdLock("payment-1")).thenReturn(java.util.Optional.of(payment));
+
+        paymentService.release("payment-1");
+
+        org.junit.jupiter.api.Assertions.assertEquals(PaymentStatus.RELEASED, payment.getStatus());
+        verifyNoInteractions(portOnePaymentService);
+    }
+
+    @Test
+    void release_isIdempotentForAlreadyReleasedPayment() {
+        Payment payment = Payment.builder().paymentId("payment-1")
+            .user(mock(User.class)).amount(10_000).purpose(PaymentPurpose.PURCHASE).build();
+        payment.release();
+        when(paymentRepository.findByPaymentIdLock("payment-1")).thenReturn(java.util.Optional.of(payment));
+
+        paymentService.release("payment-1");
+
+        org.junit.jupiter.api.Assertions.assertEquals(PaymentStatus.RELEASED, payment.getStatus());
+        verifyNoInteractions(portOnePaymentService);
     }
 }
