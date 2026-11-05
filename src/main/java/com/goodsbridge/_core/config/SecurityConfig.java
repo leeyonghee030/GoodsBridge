@@ -52,7 +52,10 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
 
-                // 인증이 필요한 경로를 여기에 추가
+                // 목록/상세 조회는 비로그인도 가능 (CLAUDE.md 권한 규칙)
+                .requestMatchers(HttpMethod.GET, "/api/shops/**", "/api/items/**", "/api/boards/**").permitAll()
+
+                // 인증이 필요한 경로를 여기에 추가 (조회 외 나머지 메서드)
                 .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**")
                 .authenticated()
 
