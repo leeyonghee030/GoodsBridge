@@ -1,0 +1,13 @@
+# Use this workspace to collaborate
+workspace:
+  id: 06faa4bd-0f68-4a92-8b76-0d339c87fd18
+
+cloudResources:
+  collections:
+    ../postman/collections/GoodsBridge - Auction Issue 12: ab12722d-b0ae-4112-9871-26b105bc6df8
+
+# All resources in the `postman/` folder are automatically registered in Local View.
+# Point to additional files outside the `postman/` folder to register them individually. Example:
+#localResources:
+#  collections:
+#    - ../tests/E2E Test Collection/

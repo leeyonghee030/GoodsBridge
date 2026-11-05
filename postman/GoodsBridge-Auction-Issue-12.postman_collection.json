@@ -1,0 +1,76 @@
+{
+  "info": {
+    "name": "GoodsBridge - Auction Issue 12",
+    "description": "Auction CRUD smoke tests: create, list, detail, and close.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "auctionId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Create auction",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"itemId\": {{itemId}},\n  \"startPrice\": 50000,\n  \"deadline\": \"{{auctionDeadline}}\",\n  \"depositAmount\": 5000\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/shops/{{shopId}}/auctions", "host": [ "{{baseUrl}}" ], "path": [ "api", "shops", "{{shopId}}", "auctions" ] }
+      },
+      "event": [
+        { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+          "pm.variables.set('auctionDeadline', new Date(Date.now() + 3600000).toISOString());"
+        ] } },
+        { "listen": "test", "script": { "type": "text/javascript", "exec": [
+          "pm.test('created', function () { pm.response.to.have.status(201); });",
+          "var body = pm.response.json();",
+          "pm.expect(body.currentPrice).to.eql(body.startPrice);",
+          "pm.expect(body.status).to.eql('ACTIVE');",
+          "pm.collectionVariables.set('auctionId', body.id);"
+        ] } }
+      ]
+    },
+    {
+      "name": "List active auctions",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/api/auctions?page=1&size=10&status=ACTIVE", "host": [ "{{baseUrl}}" ], "path": [ "api", "auctions" ], "query": [ { "key": "page", "value": "1" }, { "key": "size", "value": "10" }, { "key": "status", "value": "ACTIVE" } ] }
+      },
+      "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('listed', function () { pm.response.to.have.status(200); });",
+        "var body = pm.response.json();",
+        "pm.expect(body.content).to.be.an('array');"
+      ] } } ]
+    },
+    {
+      "name": "Get auction detail",
+      "request": {
+        "method": "GET",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/api/auctions/{{auctionId}}", "host": [ "{{baseUrl}}" ], "path": [ "api", "auctions", "{{auctionId}}" ] }
+      },
+      "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('detail returned', function () { pm.response.to.have.status(200); });",
+        "pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('auctionId')));"
+      ] } } ]
+    },
+    {
+      "name": "Close auction",
+      "request": {
+        "method": "PATCH",
+        "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+        "url": { "raw": "{{baseUrl}}/api/auctions/{{auctionId}}/close", "host": [ "{{baseUrl}}" ], "path": [ "api", "auctions", "{{auctionId}}", "close" ] }
+      },
+      "event": [ { "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('close request handled', function () { pm.expect([200, 400]).to.include(pm.response.code); });",
+        "if (pm.response.code === 200) { pm.expect(['ENDED_SUCCESS', 'ENDED_FAIL']).to.include(pm.response.json().status); }"
+      ] } } ]
+    }
+  ]
+}
