@@ -6,7 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.security.core.parameters.P;
 
 import java.util.List;
 import java.util.Optional;
@@ -27,23 +26,23 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
 
     //조건(카테고리, 지역, 판매 유형)에 맞는 상품을 페이징 처리하여 검색
     @Query(value = """
-               SELECT i FROM Item i
-               JOIN FETCH i.category c
-               LEFT JOIN Shop s ON i.shopId = s.id
-               WHERE (:categoryId IS NULL OR c.id = :categoryId)
-                 AND (:region IS NULL OR s.region = :region)
-                 AND (:saleType IS NULL OR i.saleType = :saleType)
-                 AND i.deleted = false
-               """,
+        SELECT i FROM Item i
+        JOIN FETCH i.category c
+        LEFT JOIN Shop s ON i.shopId = s.id
+        WHERE (:categoryId IS NULL OR c.id = :categoryId)
+          AND (:region IS NULL OR s.region = :region)
+          AND (:saleType IS NULL OR i.saleType = :saleType)
+          AND i.deleted = false
+        """,
         countQuery = """
-                    SELECT COUNT(i) FROM Item i
-                    JOIN i.category c
-                    LEFT JOIN Shop s ON i.shopId = s.id
-                    WHERE (:categoryId IS NULL OR c.id = :categoryId)
-                      AND (:region IS NULL OR s.region = :region)
-                      AND (:saleType IS NULL OR i.saleType = :saleType)
-                      AND i.deleted = false
-                    """)
+            SELECT COUNT(i) FROM Item i
+            JOIN i.category c
+            LEFT JOIN Shop s ON i.shopId = s.id
+            WHERE (:categoryId IS NULL OR c.id = :categoryId)
+              AND (:region IS NULL OR s.region = :region)
+              AND (:saleType IS NULL OR i.saleType = :saleType)
+              AND i.deleted = false
+            """)
     Page<Item> searchItemsWithFilter(@Param("categoryId") Long categoryId,
                                      @Param("region") String region,
                                      @Param("saleType") SaleType saleType,
@@ -60,8 +59,8 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     // 특정 가게의 특정 상태인 상품들을 다른 상태로 일괄 변경 (구독 갱신 시 CLOSED -> ON_SALE 복구용)
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-UPDATE Item i SET i.status = :toStatus WHERE i.shopId = :shopId AND i.status = :fromStatus
-""")
+        UPDATE Item i SET i.status = :toStatus WHERE i.shopId = :shopId AND i.status = :fromStatus
+        """)
     void updateStatusByShopIdAndStatus(@Param("shopId") Long shopId,
                                        @Param("fromStatus") ItemStatus fromStatus,
                                        @Param("toStatus") ItemStatus toStatus);
