@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.parameters.P;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,9 +51,6 @@ public class ItemService {
         return itemRepository.save(item).getId();
     }
 
-    // 전체 상품 목록 조회 필터링 검색
-    public Page<ItemResponse> findAll(Long categoryId,String region ,SaleType saleType, Pageable pageable) {
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
     // 전체 상품 목록 조회 필터링 검색 (페이징 크기 제한 및 최신순 기본 정렬 적용)
     public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, Pageable pageable) {
         int pageSize = pageable.getPageSize();
