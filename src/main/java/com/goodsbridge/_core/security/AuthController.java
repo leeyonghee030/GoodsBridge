@@ -1,11 +1,11 @@
 package com.goodsbridge._core.security;
 
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import lombok.NoArgsConstructor;
+import jakarta.servlet.http.HttpServletResponse;
+import com.goodsbridge._core.exception.CustomException;
+import com.goodsbridge._core.exception.ErrorCode;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,23 +17,21 @@ public class AuthController {
 
     // 토큰 재발급
     @PostMapping("/reissue")
-    public AuthService.TokenResponse reissue(
-        @Valid @RequestBody RefreshTokenRequest request
+    public void reissue(
+        @CookieValue(name = "refreshToken", required = false) String refreshToken,
+        HttpServletResponse response
     ) {
-        return authService.reissue(request.getRefreshToken());
+        if (refreshToken == null || refreshToken.isBlank()) {
+            throw new CustomException(ErrorCode.UNAUTHORIZED, "Refresh Token 쿠키가 없습니다.");
+        }
+        AuthService.TokenResponse tokens = authService.reissue(refreshToken);
+        authService.addAuthCookies(response, tokens);
     }
 
     // 로그아웃
     @PostMapping("/logout")
-    public void logout(@AuthenticationPrincipal Long userId) {
+    public void logout(@AuthenticationPrincipal Long userId, HttpServletResponse response) {
         authService.logout(userId);
-    }
-
-    @Getter
-    @NoArgsConstructor
-    public static class RefreshTokenRequest {
-
-        @NotBlank
-        private String refreshToken;
+        authService.clearAuthCookies(response);
     }
 }

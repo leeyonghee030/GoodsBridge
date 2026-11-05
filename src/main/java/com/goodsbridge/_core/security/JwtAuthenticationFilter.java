@@ -28,16 +28,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         FilterChain filterChain
     ) throws ServletException, IOException {
 
-        // 1. Authorization 헤더 가져오기
+        // 1. Access Token은 우선 HttpOnly 쿠키에서 읽고, 헤더 방식도 허용
         String authorization = request.getHeader("Authorization");
+        String token = null;
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            token = authorization.substring(7);
+        } else if (request.getCookies() != null) {
+            for (var cookie : request.getCookies()) {
+                if ("accessToken".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
 
-        // 2. Bearer 토큰 확인
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+        if (token == null || token.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
-
-        String token = authorization.substring(7);
 
         try {
             // 3. Access Token 검증

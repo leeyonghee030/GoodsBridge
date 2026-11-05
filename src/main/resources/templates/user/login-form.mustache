@@ -1,0 +1,22 @@
+{{> fragments/header}}
+
+<h1>로그인</h1>
+
+<form action="/api/login" method="post">
+    <p>
+        <label for="email">이메일</label>
+        <input id="email" type="email" name="email" required>
+    </p>
+
+    <p>
+        <label for="password">비밀번호</label>
+        <input id="password" type="password" name="password" required>
+    </p>
+
+    <button type="submit">로그인</button>
+</form>
+
+<p><a href="/join">회원가입</a></p>
+<p><a href="/api/kakao-login">카카오 로그인</a></p>
+
+{{> fragments/footer}}
