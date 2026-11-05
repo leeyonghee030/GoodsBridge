@@ -4,13 +4,14 @@
 
 {{#userId}}
     <p>로그인 상태입니다. 사용자 ID: {{userId}}</p>
+    <p><a href="/api/logout">로그아웃</a></p>
+    <p><a href="/update">회원 정보 수정</a></p>
 {{/userId}}
 
 {{^userId}}
     <p>로그인되지 않았습니다.</p>
+    <p><a href="/login">로그인</a></p>
+    <p><a href="/join">회원가입</a></p>
 {{/userId}}
-
-<p><a href="/login">로그인</a></p>
-<p><a href="/join">회원가입</a></p>
 
 {{> fragments/footer}}

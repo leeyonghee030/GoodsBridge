@@ -91,4 +91,8 @@ public class UserService {
         log.info("로그인 성공 - 사용자 이메일: {}", loginDto.getEmail());
         return user;
     }
+
+    public UserResponse.UpdateFormDto findUpdateForm(Long userId) {
+        return new UserResponse.UpdateFormDto(findById(userId));
+    }
 }

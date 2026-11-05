@@ -46,7 +46,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
-                    "/oauth2/**", "/login/**", "/api/join", "/api/login",
+                    "/oauth2/**", "/login/**", "/api/join", "/api/login", "/api/logout",
                     "/css/**", "/js/**", "/favicon.ico"
                 ).permitAll()
 

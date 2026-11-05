@@ -1,0 +1,52 @@
+{{> fragments/header}}
+
+<h1>회원 정보 수정</h1>
+
+<div>
+    <!--   프로필 이미지 있을 경우              -->
+    {{#user.profileImage}}
+        <img src="{{user.profileImage}}" alt="" class="rounded-circle border">
+        <form action="/user/profile-image/delete" method="post">
+            <button type="submit"
+                    onclick="return confirm('사진을 삭제하시겠습니까?');">프로필 사진 삭제</button>
+        </form>
+    {{/user.profileImage}}
+    <!--   프로필 이미지 없을 경우              -->
+    {{^user.profileImage}}
+        <div style="width: 200px; height: 200px;">
+            <span>프로필 사진 없음</span>
+        </div>
+    {{/user.profileImage}}
+</div>
+
+<form action="/api/user/update" method="post" enctype="multipart/form-data">>
+    <p>
+        <input type="text" value="{{user.email}}" readonly>
+    </p>
+    <p>
+        <label for="nickname">닉네임</label>
+        <input
+            id="nickname"
+            type="text"
+            name="nickname"
+            value="{{user.nickname}}"
+            required
+        >
+    </p>
+
+    <p>
+        <label for="profileImage">프로필 이미지 경로</label>
+        <input
+            id="profileImage"
+            type="file"
+            name="profileImage"
+            accept="image/**"
+        >
+    </p>
+
+    <button type="submit">수정하기</button>
+</form>
+
+<p><a href="/">메인으로</a></p>
+
+{{> fragments/footer}}
