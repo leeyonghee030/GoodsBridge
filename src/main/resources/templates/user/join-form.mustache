@@ -1,0 +1,27 @@
+{{> fragments/header}}
+
+<h1>회원가입</h1>
+
+<form action="/api/join" method="post">
+    <p>
+        <label for="email">이메일</label>
+        <input id="email" type="email" name="email" required>
+    </p>
+
+    <p>
+        <label for="nickname">닉네임</label>
+        <input id="nickname" type="text" name="nickname" required>
+    </p>
+
+    <p>
+        <label for="password">비밀번호 (8~20자)</label>
+        <input id="password" type="password" name="password"
+               minlength="8" maxlength="20" required>
+    </p>
+
+    <button type="submit">가입하기</button>
+</form>
+
+<p><a href="/login">로그인</a></p>
+
+{{> fragments/footer}}

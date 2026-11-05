@@ -5,6 +5,18 @@ import lombok.Data;
 
 public class UserResponse {
     // 카카오 액세스 토큰 응답 DTO
+
+    @Data
+    public static class JoinDto {
+        private Long id;
+        private String email;
+
+        public JoinDto(User user) {
+            this.id = user.getId();
+            this.email = user.getEmail();
+        }
+    }
+
     @Data
     public static class OauthToken {
         @JsonProperty("access_token")
