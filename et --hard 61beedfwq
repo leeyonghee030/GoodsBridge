@@ -1,0 +1,47 @@
+[33m61beedf[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/7-item-crud[m[33m)[m feat:동시성 제어&소프트삭제 적용
+[33me661e1e[m feat:동시성제어 낙관적 락&소프트 삭제 추가
+[33mbbbc612[m[33m ([m[1;31morigin/feature/7-item-crud[m[33m)[m 카테고리 추가 기증 테스트 코드 통과
+[33md42921f[m feat:카테고리 상품 조회 기능 추가& 카테고리 기능 추가
+[33m0cc9373[m Merge remote-tracking branch 'origin/feature/16-shop-subscription' into feature/7-item-crud
+[33m47363fa[m feat:페이징 크지 제한
+[33m7ad1627[m Merge remote-tracking branch 'origin/develop' into feature/7-item-crud
+[33mebf42d0[m docs: ErrorCode 가이드를 실제 구현 방식에 맞게 수정 (#52)
+[33m871b3fd[m fix: 교환 제안 플로우 버그 수정 (#51)
+[33m2f1af1b[m Merge remote-tracking branch 'origin/develop' into feature/7-item-crud
+[33m917e588[m[33m ([m[1;31morigin/feature/16-shop-subscription[m[33m)[m Merge remote-tracking branch 'origin/develop' into feature/16-shop-subscription
+[33m64c09de[m feat: 일 단위 구독 정책 도입 및 결제 검증/중복 방지 방어 로직 구현
+[33mf99a5dd[m[33m ([m[1;31morigin/feature/46-user-login[m[33m)[m feat: ShopEvent 생성/조회/취소 API (#11) (#48)
+[33m932bec1[m feat:카테고리 상품 조회 기능 추가& 카테고리 기능 추가
+[33m97830d7[m fix: 경매/이벤트 목록·상세 조회 permitAll 추가 (#49)
+[33mc9677b4[m feat: 경매 CRUD 작업 완료 / 포스트맨 나중에 진행 예정 (#44)
+[33m3fa9834[m Merge remote-tracking branch 'origin/develop' into feature/7-item-crud
+[33mab2826c[m Merge remote-tracking branch 'origin/develop' into feature/16-shop-subscription
+[33m0835d50[m 구독기능 구현
+[33m384b807[m feat:구독기능 구현
+[33m8588449[m fix: PortOneClient 예외처리 수정 (#45)
+[33m1313490[m[33m ([m[1;31morigin/feature/17-payment-settlement[m[33m)[m feat: 교환(Exchange) CRUD + 제안/거절/취소 (#10) (#42)
+[33m8c13ebb[m Merge remote-tracking branch 'origin/develop' into feature/7-item-crud
+[33m959fc22[m fix: develop 컴파일 후 런타임 에러 수정 — PurchaseRepository의 Item.shop 참조 오류 (#41)
+[33ma73056b[m[33m ([m[1;31morigin/feature/logout-user-update-delete[m[33m)[m feat: 결제/구매 - 테스트 작동 O. 포트원 로그인 되지 않아 로그인 후 검증 확인할 예정 (#37)
+[33mb53a34f[m feat:유효성 검사 추가
+[33ma588b27[m Feature/6 shop crud (#39)
+[33m21deb7f[m Merge remote-tracking branch 'origin/develop' into feature/7-item-crud
+[33m74b79ff[m Feature/7 item crud (#38)
+[33m22d5714[m fix: develop 컴파일 깨짐 긴급 수정 — GlobalExceptionHandlerTest 예외 시그니처 불일치 (#40)
+[33mf2e71ad[m feat:로그인 및 JWT 코드작성 - 아직 테스트 안됨 (#36)
+[33m00dbc5b[m feat: #4 예외 처리 테스트 테스트 코드 작성 (#35)
+[33mff35cbc[m docs:미구현된shop-region 제외&createdAt타입 변경&테스트코드 통과
+[33m843f08f[m feat:item&category CRUD 완성
+[33mc4ec3e4[m feat:item&category CRUD 완성
+[33m09a1ae7[m docs: 이슈 전체 로직 정리 (LLM 질문용) (#31)
+[33m479ef2d[m feat: 18개 도메인 엔티티 빈 스켈레톤 추가 (#30)
+[33mf438340[m feat: Payment 인터페이스 초안 선제공 (C/D 상의 전 임시) (#29)
+[33m7308e32[m[33m ([m[1;31morigin/4-feat-공통-예외처리-체계-exception-5종-errorcode-globalexceptionhandler[m[33m)[m docs: 작업 분배 문서 추가 (#28)
+[33m65f876a[m feat: 공통 예외처리 + 현재유저 유틸 스켈레톤 선제공 (#27)
+[33m2fd83e5[m feat: 카카오 소셜 로그인으로 전환 (OAuth2 Client 세팅) (#25)
+[33m9fdf493[m docs/feat: README + 이슈 템플릿 + Mustache 화면 뼈대 (#23)
+[33mc710f74[m[33m ([m[1;32mfeature/exchange[m[33m)[m chore: .editorconfig 추가 (#3)
+[33ma31bda1[m chore: 프로젝트 기본 설정 + 도메인 패키지 스켈레톤 (#2)
+[33m5dbfc8a[m docs: 기획서 추가 (#1)
+[33m5506476[m chore: PR 템플릿 추가
+[33me52b373[m[33m ([m[1;31morigin/main[m[33m)[m init: 프로젝트 초기 생성

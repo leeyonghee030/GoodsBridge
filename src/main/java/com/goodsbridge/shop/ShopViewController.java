@@ -2,12 +2,13 @@ package com.goodsbridge.shop;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Controller
 @RequiredArgsConstructor
@@ -15,35 +16,32 @@ public class ShopViewController {
 
     private final ShopService shopService;
 
-    // 입점 신청
-    @PostMapping("api/shops")
+    @PostMapping("/api/shops")
     public ResponseEntity<ShopResponse> createShop(@RequestBody ShopCreateRequest requestDto) {
         Long userId = SecurityUtil.getCurrentUserId();
         return ResponseEntity.status(HttpStatus.CREATED).body(shopService.create(userId, requestDto));
     }
 
-    // 디렉터리 조회
     @GetMapping("/api/shops")
-    public ResponseEntity<List<ShopResponse>> getShops(
+    public ResponseEntity<Page<ShopResponse>> getShops(
         @RequestParam(required = false) String name,
-        @RequestParam(required = false) String region) {
-        return ResponseEntity.ok(shopService.findAll(name, region));
+        @RequestParam(required = false) String region,
+        @PageableDefault(size = 10, sort = "createdAt") Pageable pageable) {
+        return ResponseEntity.ok(shopService.findAll(name, region, pageable));
     }
 
-    // 내 가게 목록 조회
     @GetMapping("/api/shops/me")
-    public ResponseEntity<List<ShopResponse>> getMyShops() {
+    public ResponseEntity<Page<ShopResponse>> getMyShops(
+        @PageableDefault(size = 10, sort = "createdAt") Pageable pageable) {
         Long userId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.ok(shopService.findAllByOwnerUserId(userId));
+        return ResponseEntity.ok(shopService.findAllByOwnerUserId(userId, pageable));
     }
 
-    // 가게 단건 상세 조회
     @GetMapping("/api/shops/{id}")
     public ResponseEntity<ShopResponse> getShop(@PathVariable Long id) {
         return ResponseEntity.ok(shopService.findById(id));
     }
 
-    // 가게 수정
     @PatchMapping("/api/shops/{id}")
     public ResponseEntity<ShopResponse> updateShop(
         @PathVariable Long id,
@@ -52,7 +50,6 @@ public class ShopViewController {
         return ResponseEntity.ok(shopService.update(userId, id, requestDto));
     }
 
-    // 가게 삭제
     @DeleteMapping("/api/shops/{id}")
     public ResponseEntity<Void> deleteShop(@PathVariable Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -62,15 +59,17 @@ public class ShopViewController {
 
     // --- 관리자 전용 API ---
 
-    // 관리자 입점 대기 목록 조회
-    @GetMapping("/api/admin/shops")
-    public ResponseEntity<List<ShopResponse>> getAdminShops(
-        @RequestParam(required = false) ShopStatus status) {
+    @GetMapping("/api/admin/shops/search")
+    public ResponseEntity<Page<ShopResponse>> searchShopsByAdmin(
+        @RequestParam(required = false) String name,
+        @RequestParam(required = false) String region,
+        @RequestParam(required = false) ShopStatus status,
+        @PageableDefault(size = 10, sort = "createdAt") Pageable pageable) {
+
         Long adminUserId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.ok(shopService.findAllByStatus(adminUserId, status));
+        return ResponseEntity.ok(shopService.searchShopsByAdmin(adminUserId, name, region, status, pageable));
     }
 
-    // 관리자 입점 승인
     @PatchMapping("/api/admin/shops/{id}/approve")
     public ResponseEntity<Void> approveShop(@PathVariable Long id) {
         Long adminUserId = SecurityUtil.getCurrentUserId();
@@ -78,11 +77,17 @@ public class ShopViewController {
         return ResponseEntity.ok().build();
     }
 
-    // 관리자 입점 거절
     @PatchMapping("/api/admin/shops/{id}/reject")
     public ResponseEntity<Void> rejectShop(@PathVariable Long id) {
         Long adminUserId = SecurityUtil.getCurrentUserId();
         shopService.reject(adminUserId, id);
+        return ResponseEntity.ok().build();
+    }
+
+    @PatchMapping("/api/admin/shops/{id}/close")
+    public ResponseEntity<Void> closeShop(@PathVariable Long id) {
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        shopService.close(adminUserId, id);
         return ResponseEntity.ok().build();
     }
 }

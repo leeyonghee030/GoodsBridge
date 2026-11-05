@@ -1,5 +1,6 @@
 package com.goodsbridge.item;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -21,6 +22,23 @@ public class Category {
 
     @Builder
     public Category(String name) {
+        if (name == null || name.isBlank()) {
+            throw new BadRequestException("카테고리 이름은 필수입니다.");
+        }
+        if (name.length() > 50) {
+            throw new BadRequestException("카테고리 이름은 50자를 초과할 수 없습니다.");
+        }
+        this.name = name;
+    }
+
+    // 카테고리 이름 수정 메서드
+    public void updateName(String name) {
+        if (name == null || name.isBlank()) {
+            throw new BadRequestException("카테고리 이름은 필수입니다.");
+        }
+        if (name.length() > 50) {
+            throw new BadRequestException("카테고리 이름은 50자를 초과할 수 없습니다.");
+        }
         this.name = name;
     }
 }
