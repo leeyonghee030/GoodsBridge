@@ -5,6 +5,10 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.payment.Payment;
+import com.goodsbridge.payment.PaymentRepository;
+import com.goodsbridge.settlement.SettlementHistoryService;
+import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.Role;
@@ -32,6 +36,8 @@ public class AuctionService {
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
+    private final PaymentRepository paymentRepository;
+    private final SettlementHistoryService settlementHistoryService;
 
     // 경매 개설
     @Transactional
@@ -106,6 +112,18 @@ public class AuctionService {
             throw new BadRequestException("아직 마감 시간이 지나지 않았습니다.");
         }
         auction.end();
+
+        if (auction.getStatus() == Status.ENDED_SUCCESS
+            && auction.getWinningPaymentId() != null) {
+            Payment payment = paymentRepository.findByPaymentId(auction.getWinningPaymentId())
+                .orElseThrow(() -> new NotFoundException("낙찰 결제를 찾을 수 없습니다."));
+            settlementHistoryService.calculate(
+                auction.getShop(),
+                payment,
+                auction.getCurrentPrice(),
+                SettlementHistoryType.AUCTION_FEE
+            );
+        }
     }
 
     // 경매 마감시간 지나면 자동 종료

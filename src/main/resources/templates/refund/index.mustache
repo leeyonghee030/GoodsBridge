@@ -1,0 +1,48 @@
+{{> fragments/header}}
+<style>
+    .refund-page { display: grid; gap: 1.5rem; }
+    .refund-hero, .refund-panel { border: 1px solid #e8e8e8; border-radius: 22px; padding: 1.5rem; background: #fff; box-shadow: 0 12px 35px rgba(30,30,30,.06); }
+    .refund-hero { background: linear-gradient(135deg, #eff6ff, #f5f3ff); }
+    .refund-kicker, .refund-muted { color: #777; font-size: .85rem; }
+    .refund-tabs { display: flex; gap: .5rem; margin: 1rem 0; }
+    .refund-tabs button { border: 1px solid #ddd; border-radius: 999px; background: #fff; padding: .65rem 1rem; cursor: pointer; }
+    .refund-tabs button.active { background: #222; color: #fff; border-color: #222; }
+    .refund-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-bottom: 1rem; }
+    .refund-stat { padding: 1rem; background: #fafafa; border-radius: 16px; } .refund-stat strong { display: block; font-size: 1.4rem; margin-top: .25rem; }
+    .refund-list { display: grid; gap: .75rem; }
+    .refund-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #eee; border-radius: 16px; }
+    .refund-row h3 { margin: 0 0 .35rem; font-size: 1rem; }
+    .refund-badge { display: inline-flex; width: fit-content; padding: .3rem .6rem; border-radius: 999px; font-size: .75rem; background: #f1f1f1; }
+    .refund-badge.REQUESTED { background: #fff7ed; color: #9a3412; }.refund-badge.APPROVED { background: #dcfce7; color: #166534; }.refund-badge.REJECTED { background: #fee2e2; color: #991b1b; }
+    .refund-actions { display: flex; gap: .4rem; }.refund-actions button { border: 1px solid #ddd; border-radius: 9px; background: #fff; padding: .45rem .65rem; cursor: pointer; }.refund-actions .approve { background: #166534; color: white; border-color: #166534; }
+    .refund-empty, .refund-error { text-align: center; padding: 2rem; color: #777; }.refund-error { color: #b42318; }
+    @media (max-width: 640px) { .refund-hero, .refund-panel { padding: 1rem; }.refund-summary { grid-template-columns: 1fr; }.refund-row { grid-template-columns: 1fr; }.refund-actions { justify-content: flex-start; } }
+</style>
+
+<div class="refund-page" id="refund-page">
+    <section class="refund-hero"><p class="refund-kicker">GOODBRIDGE · REFUND</p><h1>환불 관리</h1><p>환불 요청 상태와 처리 결과를 확인합니다.</p></section>
+    <section class="refund-panel">
+        <div class="refund-tabs"><button type="button" class="active" data-refund-view="mine">내 환불 내역</button><button type="button" data-refund-view="admin">관리자 처리함</button></div>
+        <div class="refund-summary"><div class="refund-stat"><span class="refund-muted">전체</span><strong id="refund-total">-</strong></div><div class="refund-stat"><span class="refund-muted">처리 대기</span><strong id="refund-requested">-</strong></div><div class="refund-stat"><span class="refund-muted">승인 완료</span><strong id="refund-approved">-</strong></div></div>
+        <div class="refund-list" id="refund-list"><div class="refund-empty">환불 내역을 불러오는 중입니다.</div></div>
+    </section>
+</div>
+
+<script>
+(() => {
+    let view = 'mine'; const $ = (id) => document.getElementById(id); const labels = { REQUESTED: '처리 대기', APPROVED: '승인', REJECTED: '거절' };
+    const money = (value) => Number(value || 0).toLocaleString('ko-KR') + '원'; const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    let refunds = [];
+    async function loadRefunds() {
+        const list = $('refund-list'); list.innerHTML = '<div class="refund-empty">환불 내역을 불러오는 중입니다.</div>';
+        try { const response = await apiFetch(view === 'admin' ? '/api/admin/refunds' : '/api/refunds/me'); if (!response.ok) throw new Error(view === 'admin' ? '관리자 권한이 필요합니다.' : '환불 내역을 불러오지 못했습니다.'); refunds = await response.json(); render(); }
+        catch (error) { list.innerHTML = `<div class="refund-error">${esc(error.message)}</div>`; updateSummary([]); }
+    }
+    function updateSummary(items) { $('refund-total').textContent = items.length; $('refund-requested').textContent = items.filter((item) => item.status === 'REQUESTED').length; $('refund-approved').textContent = items.filter((item) => item.status === 'APPROVED').length; }
+    function render() { updateSummary(refunds); if (!refunds.length) { $('refund-list').innerHTML = '<div class="refund-empty">아직 환불 내역이 없습니다.</div>'; return; } $('refund-list').innerHTML = refunds.map((item) => `<article class="refund-row"><div><h3>결제 ${esc(item.paymentId)}</h3><span class="refund-muted">${esc(item.reason || '사유 없음')} · ${esc(item.requestedAt || '')}</span>${item.rejectReason ? `<p class="refund-muted">거절 사유: ${esc(item.rejectReason)}</p>` : ''}</div><div><span class="refund-badge ${esc(item.status)}">${esc(labels[item.status] || item.status)}</span><strong>${money(item.requestedAmount)}</strong></div>${view === 'admin' && item.status === 'REQUESTED' ? `<div class="refund-actions"><button class="approve" data-approve="${item.id}" type="button">승인</button><button data-reject="${item.id}" type="button">거절</button></div>` : ''}</article>`).join(''); bindActions(); }
+    function bindActions() { document.querySelectorAll('[data-approve]').forEach((button) => button.addEventListener('click', async () => { if (!confirm('이 환불 요청을 승인할까요?')) return; const response = await apiFetch('/api/admin/refunds/' + button.dataset.approve + '/approve', { method: 'PATCH' }); if (!response.ok) { alert('환불 승인에 실패했습니다.'); return; } loadRefunds(); })); document.querySelectorAll('[data-reject]').forEach((button) => button.addEventListener('click', async () => { const reason = prompt('거절 사유를 입력하세요.'); if (!reason) return; const response = await apiFetch('/api/admin/refunds/' + button.dataset.reject + '/reject?rejectReason=' + encodeURIComponent(reason), { method: 'PATCH' }); if (!response.ok) { alert('환불 거절에 실패했습니다.'); return; } loadRefunds(); })); }
+    document.querySelectorAll('[data-refund-view]').forEach((button) => button.addEventListener('click', () => { view = button.dataset.refundView; document.querySelectorAll('[data-refund-view]').forEach((item) => item.classList.toggle('active', item === button)); loadRefunds(); }));
+    loadRefunds();
+})();
+</script>
+{{> fragments/footer}}
