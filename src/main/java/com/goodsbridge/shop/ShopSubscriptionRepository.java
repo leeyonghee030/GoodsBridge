@@ -18,4 +18,7 @@ SELECT s FROM ShopSubscription s
 WHERE s.endDate < :today AND s.status = 'ACTIVE'
 """)
     List<ShopSubscription> findAllExpiredActiveSubscriptions(@Param("today")LocalDate today);
+
+    // [중복 방어] 이미 사용된 paymentId가 있는지 확인하기 위한 메서드
+    boolean existsByPaymentId(String paymentId);
 }

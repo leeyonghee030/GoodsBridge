@@ -23,6 +23,9 @@ public class ShopSubscription {
     @Column(name = "shop_id", nullable = false)
     private Long shopId;
 
+    @Column(name = "payment_id", unique = true)
+    private String paymentId; // [추가] 결제 ID 저장 필드
+
     @Column(name = "setup_fee_paid", nullable = false)
     private Boolean setupFeePaid;
 
@@ -41,24 +44,31 @@ public class ShopSubscription {
     private LocalDateTime createdAt;
 
     @Builder
-    public ShopSubscription(Long id, Long shopId, Boolean setupFeePaid, LocalDate startDate, LocalDate endDate,ShopSubscriptionStatus status) {
+    public ShopSubscription(Long id, Long shopId, String paymentId, Boolean setupFeePaid, LocalDate startDate, LocalDate endDate, ShopSubscriptionStatus status) {
+        this.id = id;
         this.shopId = shopId;
+        this.paymentId = paymentId; // [추가] 빌더에 paymentId 반영
         this.setupFeePaid = setupFeePaid != null ? setupFeePaid : false;
         this.startDate = startDate;
         this.endDate = endDate;
         this.status = status;
     }
 
-    public void extendSubscription(LocalDate startDate, LocalDate newEndDate ,Boolean setupFeePaid) {
+    // [수정] 기간 연장 시 최신 paymentId도 함께 갱신되도록 반영
+    public void extendSubscription(LocalDate startDate, LocalDate newEndDate, Boolean setupFeePaid, String paymentId) {
         this.startDate = startDate;
         this.endDate = newEndDate;
         if (setupFeePaid != null) {
             this.setupFeePaid = setupFeePaid;
         }
+        if (paymentId != null && !paymentId.isBlank()) {
+            this.paymentId = paymentId;
+        }
         this.status = ShopSubscriptionStatus.ACTIVE;
     }
 
-    public void update(LocalDate startDate, LocalDate endDate, Boolean setupFeePaid, ShopSubscriptionStatus status) {
+    // [수정] 상태 업데이트 시 paymentId도 함께 갱신되도록 반영
+    public void update(LocalDate startDate, LocalDate endDate, Boolean setupFeePaid, ShopSubscriptionStatus status, String paymentId) {
         this.startDate = startDate;
         this.endDate = endDate;
         if (setupFeePaid != null) {
@@ -66,6 +76,9 @@ public class ShopSubscription {
         }
         if (status != null) {
             this.status = status;
+        }
+        if (paymentId != null && !paymentId.isBlank()) {
+            this.paymentId = paymentId;
         }
     }
 

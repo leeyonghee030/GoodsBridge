@@ -1,10 +1,10 @@
 package com.goodsbridge.shop;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
-import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +19,7 @@ import java.time.LocalDate;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
@@ -40,13 +41,14 @@ class ShopSubscriptionServiceTest {
     private ShopSubscriptionService subscriptionService;
 
     @Test
-    @DisplayName("신규 구독 생성 성공 테스트 (기존 구독 이력이 없는 경우)")
+    @DisplayName("일 단위(30일) 신규 구독 생성 성공 테스트")
     void create_new_subscription_success() {
-        // given
         Long userId = 1L;
         Long shopId = 1L;
 
         ShopSubscriptionRequest request = createRequest("payment_123", 30000, 30);
+
+        given(subscriptionRepository.existsByPaymentId("payment_123")).willReturn(false);
 
         Shop shop = mock(Shop.class);
         given(shop.isOwner(userId)).willReturn(true);
@@ -55,40 +57,37 @@ class ShopSubscriptionServiceTest {
         User user = mock(User.class);
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
-        // 기존 구독 이력 없음
         given(subscriptionRepository.findByShopId(shopId)).willReturn(Optional.empty());
 
-        // 저장 시 모킹
         ShopSubscription savedSubscription = ShopSubscription.builder()
             .shopId(shopId)
             .setupFeePaid(true)
             .startDate(LocalDate.now())
             .endDate(LocalDate.now().plusDays(30))
             .status(ShopSubscriptionStatus.ACTIVE)
+            .paymentId("payment_123")
             .build();
         ReflectionTestUtils.setField(savedSubscription, "id", 100L);
 
         given(subscriptionRepository.save(any(ShopSubscription.class))).willReturn(savedSubscription);
 
-        // when
         Long subscriptionId = subscriptionService.create(userId, shopId, request);
 
-        // then
         assertThat(subscriptionId).isEqualTo(100L);
         then(paymentService).should(times(1)).verify(eq("payment_123"), eq(30000), eq(PaymentPurpose.SHOP_SUBSCRIPTION), eq(userId));
         then(subscriptionRepository).should(times(1)).save(any(ShopSubscription.class));
-        // 신규/만료 가입 시 CLOSED 상품 복구 로직 실행 확인
         then(itemRepository).should(times(1)).updateStatusByShopIdAndStatus(eq(shopId), eq(ItemStatus.CLOSED), eq(ItemStatus.ON_SALE));
     }
 
     @Test
-    @DisplayName("활성 상태 구독 연장 성공 테스트 (기간 누적)")
+    @DisplayName("활성 상태 구독에 60일 일 단위 기간 누적 연장 성공 테스트")
     void extend_active_subscription_success() {
-        // given
         Long userId = 1L;
         Long shopId = 1L;
 
-        ShopSubscriptionRequest request = createRequest("payment_456", 30000, 30);
+        ShopSubscriptionRequest request = createRequest("payment_456", 60000, 60);
+
+        given(subscriptionRepository.existsByPaymentId("payment_456")).willReturn(false);
 
         Shop shop = mock(Shop.class);
         given(shop.isOwner(userId)).willReturn(true);
@@ -97,7 +96,6 @@ class ShopSubscriptionServiceTest {
         User user = mock(User.class);
         given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
-        // 이미 미래까지 유효한 ACTIVE 상태의 기존 구독 존재
         LocalDate futureEndDate = LocalDate.now().plusDays(10);
         ShopSubscription existingSubscription = ShopSubscription.builder()
             .shopId(shopId)
@@ -105,23 +103,54 @@ class ShopSubscriptionServiceTest {
             .startDate(LocalDate.now().minusDays(20))
             .endDate(futureEndDate)
             .status(ShopSubscriptionStatus.ACTIVE)
+            .paymentId("old_payment")
             .build();
         ReflectionTestUtils.setField(existingSubscription, "id", 50L);
 
         given(subscriptionRepository.findByShopId(shopId)).willReturn(Optional.of(existingSubscription));
         given(subscriptionRepository.save(any(ShopSubscription.class))).willReturn(existingSubscription);
 
-        // when
         Long subscriptionId = subscriptionService.create(userId, shopId, request);
 
-        // then
         assertThat(subscriptionId).isEqualTo(50L);
-        // 기존 종료일(futureEndDate)에서 30일이 연장되었는지 검증
-        assertThat(existingSubscription.getEndDate()).isEqualTo(futureEndDate.plusDays(30));
+        assertThat(existingSubscription.getEndDate()).isEqualTo(futureEndDate.plusDays(60));
         then(subscriptionRepository).should(times(1)).save(existingSubscription);
     }
 
-    // 테스트용 Request 객체 생성 헬퍼 메서드 (setter가 없는 DTO 대응)
+    @Test
+    @DisplayName("이미 사용된 paymentId로 구독을 요청하면 BadRequestException이 발생한다")
+    void create_fail_duplicate_paymentId() {
+        Long userId = 1L;
+        Long shopId = 1L;
+        String duplicatedPaymentId = "payment_duplicated_123";
+
+        ShopSubscriptionRequest request = createRequest(duplicatedPaymentId, 30000, 30);
+
+        given(subscriptionRepository.existsByPaymentId(duplicatedPaymentId)).willReturn(true);
+
+        assertThatThrownBy(() -> subscriptionService.create(userId, shopId, request))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessage("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
+
+        then(paymentService).should(never()).verify(anyString(), anyInt(), any(), anyLong());
+        then(subscriptionRepository).should(never()).save(any(ShopSubscription.class));
+    }
+
+    @Test
+    @DisplayName("구독 신청 시 선택한 일수(30일)에 비해 결제 금액이 다르면 BadRequestException 발생")
+    void create_fail_invalid_amount() {
+        Long userId = 1L;
+        Long shopId = 1L;
+
+        given(subscriptionRepository.existsByPaymentId("payment_hack")).willReturn(false);
+
+        ShopSubscriptionRequest request = createRequest("payment_hack", 15000, 30);
+
+        assertThatThrownBy(() -> subscriptionService.create(userId, shopId, request))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("결제 금액 정보가 올바르지 않습니다.");
+    }
+
     private ShopSubscriptionRequest createRequest(String paymentId, Integer amount, int days) {
         ShopSubscriptionRequest request = new ShopSubscriptionRequest();
         ReflectionTestUtils.setField(request, "paymentId", paymentId);

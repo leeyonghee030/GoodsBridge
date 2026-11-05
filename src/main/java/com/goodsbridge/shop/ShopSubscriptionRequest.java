@@ -10,5 +10,5 @@ import java.time.LocalDate;
 public class ShopSubscriptionRequest {
     private String paymentId;
     private Integer amount;
-    private int days; // 구독할 일수 (예: 30, 90, 365)
+    private Integer days; // 구독할 일수 (예: 30, 90, 365)
 }

@@ -25,7 +25,7 @@ public class ItemService {
     // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
-        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+        if (request.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
         }
 
@@ -77,7 +77,7 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        if (!shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
+        if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정 할 수 있습니다.");
         }
 
