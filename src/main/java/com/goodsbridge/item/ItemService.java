@@ -130,7 +130,7 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        itemRepository.delete(item);
+        item.deleteItem();
     }
 
     // 공통 ID 검증 메서드

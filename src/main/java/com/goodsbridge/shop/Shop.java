@@ -32,10 +32,11 @@ public class Shop {
     @Column(nullable = false)
     private ShopStatus status;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean deleted = false; // 소프트 삭제 플래그
 
     @Version // 동시성 제어(낙관적 락)를 위한 버전 필드
+    @Column(nullable = false, columnDefinition = "integer default 0")
     private Long version;
 
     @CreationTimestamp

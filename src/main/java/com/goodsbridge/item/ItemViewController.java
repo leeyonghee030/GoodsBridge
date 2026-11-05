@@ -27,15 +27,16 @@ public class ItemViewController {
     // 상품 목록 조회 및 검색
     @GetMapping("/api/items")
     public ResponseEntity<Page<ItemResponse>> getItems(
-        @RequestParam(required = false) Long category,
+        @RequestParam(required = false) Long categoryId,
         @RequestParam(required = false) String region,
         @RequestParam(required = false) SaleType saleType,
         Pageable pageable) {
-        Page<ItemResponse> items = itemService.findAll(category, region, saleType, pageable);
+        Page<ItemResponse> items = itemService.findAll(categoryId, region, saleType, pageable);
         return ResponseEntity.ok(items);
     }
 
     // 카테고리별 상품 조회
+    @GetMapping("/api/categories/{categoryId}/items")
     public ResponseEntity<Page<ItemResponse>> getItemsByCategory(
         @PathVariable Long categoryId,
         @RequestParam(required = false) String region,

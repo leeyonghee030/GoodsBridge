@@ -41,7 +41,8 @@ public class CategoryService {
 
         return categories.stream()
             .map(category -> {
-                Long itemCount = itemRepository.countByCategoryId(category.getId());
+                // 삭제되지 않은 유효한 상품 개수만 카운트
+                Long itemCount = itemRepository.countByCategoryIdAndDeletedFalse(category.getId());
                 return CategoryResponse.of(category, itemCount);
             }).toList();
     }
@@ -68,8 +69,8 @@ public class CategoryService {
         Category category = categoryRepository.findById(categoryId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
-        // 상품이 등록된 카테코리 삭제 불가
-        Long itemCount = itemRepository.countByCategoryId(categoryId);
+        // 삭제되지 않은 상품이 남아있는 경우 카테고리 삭제 불가
+        Long itemCount = itemRepository.countByCategoryIdAndDeletedFalse(categoryId);
         if (itemCount > 0) {
             throw new BadRequestException("상품이 등록되어 있는 카테고리는 삭제할 수 없습니다.");
         }

@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.security.core.parameters.P;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
     // 특정 판매자(사용자) ID에 해당하는 모든 상품 목록을 조회
@@ -16,6 +17,13 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
 
     // 특정 카테고리에 속한 상품 개수 조회
     Long countByCategoryId(Long categoryId);
+
+
+    // 삭제되지 않은 특정 카테고리에 속한 상품 개수 조회
+    Long countByCategoryIdAndDeletedFalse(Long categoryId);
+
+    // 단건 조회 시 삭제되지 않은 것만 탐색
+    Optional<Item> findByIdAndDeletedFalse(Long id);
 
     //조건(카테고리, 지역, 판매 유형)에 맞는 상품을 페이징 처리하여 검색
     @Query(value = """
@@ -25,6 +33,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                WHERE (:categoryId IS NULL OR c.id = :categoryId)
                  AND (:region IS NULL OR s.region = :region)
                  AND (:saleType IS NULL OR i.saleType = :saleType)
+                 AND i.deleted = false
                """,
         countQuery = """
                     SELECT COUNT(i) FROM Item i
@@ -33,6 +42,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                     WHERE (:categoryId IS NULL OR c.id = :categoryId)
                       AND (:region IS NULL OR s.region = :region)
                       AND (:saleType IS NULL OR i.saleType = :saleType)
+                      AND i.deleted = false
                     """)
     Page<Item> searchItemsWithFilter(@Param("categoryId") Long categoryId,
                                      @Param("region") String region,

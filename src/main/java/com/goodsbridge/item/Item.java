@@ -46,6 +46,13 @@ public class Item {
     @Column(name = "image_url")
     private String imageUrl;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean deleted = false; // 소프트 삭제 플래그
+
+    @Version // 동시성 제어 (낙관적 락)
+    @Column(nullable = false, columnDefinition = "integer default 0")
+    private Long version;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
@@ -101,6 +108,11 @@ public class Item {
             this.status = status;
         }
         this.imageUrl = imageUrl;
+    }
+
+    public void deleteItem() {
+        this.deleted = true;
+        this.status = ItemStatus.CLOSED; // 삭제 시 판매 마감 처리
     }
 
     public boolean isOwner(Long userId) {
