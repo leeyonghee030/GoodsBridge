@@ -1,5 +1,6 @@
 package com.goodsbridge.shop;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -53,9 +54,9 @@ public class Shop {
     }
 
     public void update(String name, String region, String address) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("가게 이름은 필수입니다.");
-        if (region == null || region.isBlank()) throw new IllegalArgumentException("지역은 필수입니다.");
-        if (address == null || address.isBlank()) throw new IllegalArgumentException("주소는 필수입니다.");
+        if (name == null || name.isBlank()) throw new BadRequestException("가게 이름은 필수입니다.");
+        if (region == null || region.isBlank()) throw new BadRequestException("지역은 필수입니다.");
+        if (address == null || address.isBlank()) throw new BadRequestException("주소는 필수입니다.");
 
         if (this.name.equals(name) && this.region.equals(region) && this.address.equals(address)) {
             return;

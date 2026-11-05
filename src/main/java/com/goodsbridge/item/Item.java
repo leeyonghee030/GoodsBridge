@@ -1,5 +1,6 @@
 package com.goodsbridge.item;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -62,16 +63,16 @@ public class Item {
                 String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
         // 엔티티 생성 시점 방어 로직
         if (sellerUserId == null) {
-            throw new IllegalArgumentException("판매자 ID는 필수입니다.");
+            throw new BadRequestException("판매자 ID는 필수입니다.");
         }
         if (category == null) {
-            throw new IllegalArgumentException("카테고리는 필수입니다.");
+            throw new BadRequestException("카테고리는 필수입니다.");
         }
         if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("상품 제목은 필수입니다.");
+            throw new BadRequestException("상품 제목은 필수입니다.");
         }
         if (price == null || price <= 0) {
-            throw new IllegalArgumentException("가격은 0보다 커야 합니다.");
+            throw new BadRequestException("가격은 0보다 커야 합니다.");
         }
 
         this.sellerUserId = sellerUserId;
@@ -88,13 +89,13 @@ public class Item {
     public void update(Category category, String title, String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
         // 수정 시점 방어 로직
         if (category == null) {
-            throw new IllegalArgumentException("카테고리는 필수입니다.");
+            throw new BadRequestException("카테고리는 필수입니다.");
         }
         if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("상품 제목은 필수입니다.");
+            throw new BadRequestException("상품 제목은 필수입니다.");
         }
         if (price == null || price <= 0) {
-            throw new IllegalArgumentException("가격은 0보다 커야 합니다.");
+            throw new BadRequestException("가격은 0보다 커야 합니다.");
         }
 
         this.category = category;
