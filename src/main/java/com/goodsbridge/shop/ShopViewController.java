@@ -14,6 +14,7 @@ import java.util.List;
 public class ShopViewController {
 
     private final ShopService shopService;
+    private final ShopSubscriptionService shopSubscriptionService;
 
     // 입점 신청
     @PostMapping("api/shops")
@@ -84,5 +85,34 @@ public class ShopViewController {
         Long adminUserId = SecurityUtil.getCurrentUserId();
         shopService.reject(adminUserId, id);
         return ResponseEntity.ok().build();
+    }
+
+    // --- B2B 구독 API ---
+
+    // 구독 시작 / 갱신 (가게 사장 본인)
+    @PostMapping("/api/shops/{id}/subscription")
+    public ResponseEntity<Long> createOrUpdateSubscription(
+        @PathVariable Long id,
+        @RequestBody ShopSubscriptionRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        Long subscriptionId = shopSubscriptionService.create(userId, id, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(subscriptionId);
+    }
+
+    // 가게 구독 정보 단건 조회 (가게 사장 본인)
+    @GetMapping("/api/shops/{id}/subscription")
+    public ResponseEntity<ShopSubscriptionResponse> findSubscription(
+        @PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        ShopSubscriptionResponse response = shopSubscriptionService.findById(userId, id);
+        return ResponseEntity.ok(response);
+    }
+
+    // (관리자) 전체 가게 구독 현황 목록 조회
+    @GetMapping("/api/admin/subscriptions")
+    public ResponseEntity<List<ShopSubscriptionResponse>> findAllSubscriptions() {
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        List<ShopSubscriptionResponse> subscriptions = shopSubscriptionService.findAllSubscriptions(adminUserId);
+        return ResponseEntity.ok(subscriptions);
     }
 }
