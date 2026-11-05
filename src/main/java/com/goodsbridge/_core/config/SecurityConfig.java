@@ -45,23 +45,17 @@ public class SecurityConfig {
             // API 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/",
-                    "/error",
-                    "/oauth2/**",
-                    "/login/**",
-                    "/kakao-login",
-                    "/api/auth/**",
-                    "/api/shops",
-                    "/api/items",
-                    "/api/boards",
-                    "/css/**",
-                    "/js/**",
-                    "/test/**",
-                    "/login",
-                    "/items"
+                    "/", "/error", "/kakao-login",
+                    "/oauth2/**", "/login/**", "/api/**",
+                    "/css/**", "/js/**", "/favicon.ico"
                 ).permitAll()
 
-                // 목록/상세 조회는 비로그인도 가능하게 (CLAUDE.md 권한 규칙)
+                .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+
+                // 인증이 필요한 경로를 여기에 추가
+                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**")
+                .authenticated()
+
                 .requestMatchers(HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
 

@@ -2,8 +2,11 @@
 package com.goodsbridge.user;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.sql.Timestamp;
@@ -18,43 +21,72 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 카카오 로그인 식별자
-    @Column(unique = true)
-    private String kakaoId;
-
     // 로그인 및 회원 정보
     @Column(unique = true)
     private String email;
 
-    // 추후 일반 로그인 구현용
+    @Setter
     private String password;
 
     @Column(unique = true)
     private String nickname;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
-
-    // JWT Refresh Token 해시값
-    @Column(name = "refresh_token_hash", length = 64)
-    private String refreshTokenHash;
+    private String profileImage;
 
     @CreationTimestamp
     @Column(updatable = false)
     private Timestamp createdAt;
 
+    // 일반 유저, 관리자 구분
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status = Status.ACTIVE;
+    @ColumnDefault("'USER'")
+    private Role role;
 
-    // 카카오 회원가입 생성자
-    public User(String kakaoId, String email,
-                String nickname, Role role) {
-        this.kakaoId = kakaoId;
+    // 활동 가능 계정인지 비활성화 된 계정인지 구분
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @ColumnDefault("'ACTIVE'")
+    private Status status;
+
+    // 가입 경로 구분
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @ColumnDefault("'EMAIL'")   // 문자열이므로 안에 작은 따옴표 필수 !
+    private LoginType loginType;
+
+    // JWT Refresh Token 해시값
+    @Column(name = "refresh_token_hash", length = 64)
+    private String refreshTokenHash;
+
+    @Builder
+    public User(String email, String password, String nickname, LoginType loginType, String profileImage) {
         this.email = email;
+        this.password = password;
         this.nickname = nickname;
-        this.role = role;
+        this.profileImage = profileImage;
+        this.loginType = (loginType == null)? LoginType.EMAIL : loginType;
+        this.role = Role.USER;
+        this.status = Status.ACTIVE;
+    }
+
+    public void updateProfileImage(String profileImage) {
+        this.profileImage = profileImage;
+    }
+
+    public void update(String password) {
+        this.password = password;
+    }
+
+    public String getProfilePath() {
+        if(this.profileImage == null){
+            return null;
+        }
+        if (this.profileImage.startsWith("http")){
+            return this.profileImage;
+        }
+        return  "/images/" + this.profileImage;
+
     }
 
     // Refresh Token 갱신
