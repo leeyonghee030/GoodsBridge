@@ -45,7 +45,7 @@ public class SecurityConfig {
             // API 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/", "/error", "/kakao-login",
+                    "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/api/login",
                     "/css/**", "/js/**", "/favicon.ico"
                 ).permitAll()
