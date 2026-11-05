@@ -1,4 +1,93 @@
 {{> fragments/header}}
-<h1>Auction (테스트용)</h1>
-<p class="todo">TODO: #12/#20(경매 CRUD+입찰) 완성 후 실제 화면으로 교체</p>
+<style>
+    .auction-page { display: grid; gap: 1.5rem; }
+    .auction-hero, .auction-panel { border: 1px solid #e8e8e8; border-radius: 22px; padding: 1.5rem; background: #fff; box-shadow: 0 12px 35px rgba(30, 30, 30, .06); }
+    .auction-hero { background: linear-gradient(135deg, #fff7ed, #fef2f2); }
+    .auction-kicker, .auction-muted { color: #777; font-size: .85rem; }
+    .auction-toolbar { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; justify-content: space-between; margin: 1rem 0; }
+    .auction-toolbar select, .auction-toolbar button, .auction-action { border: 1px solid #ddd; border-radius: 999px; background: #fff; padding: .65rem 1rem; cursor: pointer; }
+    .auction-toolbar button, .auction-action.primary { background: #222; color: #fff; border-color: #222; }
+    .auction-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+    .auction-card { border: 1px solid #eee; border-radius: 18px; padding: 1rem; display: grid; gap: .7rem; }
+    .auction-card h3 { margin: 0; }
+    .auction-card-top, .auction-card-bottom, .auction-detail-head { display: flex; justify-content: space-between; align-items: center; gap: .75rem; }
+    .auction-badge { display: inline-flex; width: fit-content; padding: .3rem .6rem; border-radius: 999px; background: #f1f1f1; font-size: .75rem; }
+    .auction-badge.active { background: #dcfce7; color: #166534; }
+    .auction-badge.success { background: #dbeafe; color: #1d4ed8; }
+    .auction-price { font-size: 1.25rem; font-weight: 800; }
+    .auction-empty, .auction-error { padding: 2rem; text-align: center; color: #777; }
+    .auction-error { color: #b42318; }
+    .auction-pagination { display: flex; justify-content: center; align-items: center; gap: .75rem; margin-top: 1.25rem; }
+    .auction-pagination button { padding: .5rem .9rem; border: 1px solid #ddd; border-radius: 10px; background: #fff; cursor: pointer; }
+    .auction-pagination button:disabled { opacity: .45; cursor: not-allowed; }
+    .auction-detail { margin-top: 1rem; padding: 1rem; border-radius: 16px; background: #fafafa; }
+    @media (max-width: 560px) { .auction-hero, .auction-panel { padding: 1rem; } .auction-card-bottom { align-items: flex-start; flex-direction: column; } }
+</style>
+
+<div class="auction-page" id="auction-page">
+    <section class="auction-hero">
+        <p class="auction-kicker">GOODBRIDGE · AUCTION</p>
+        <h1>경매 마켓</h1>
+        <p>진행 중인 경매를 확인하고 낙찰 상태를 한눈에 관리하세요.</p>
+    </section>
+
+    <section class="auction-panel">
+        <div class="auction-toolbar">
+            <div><h2>경매 목록</h2><span class="auction-muted" id="auction-count">불러오는 중...</span></div>
+            <label>상태 <select id="auction-status"><option value="">전체</option><option value="ACTIVE">경매 중</option><option value="ENDED_SUCCESS">낙찰 성공</option><option value="ENDED_FAIL">낙찰 실패</option><option value="CANCELLED">취소</option></select></label>
+        </div>
+        <div class="auction-grid" id="auction-list"><div class="auction-empty">경매 목록을 불러오는 중입니다.</div></div>
+        <div class="auction-pagination"><button id="auction-prev" type="button">이전</button><span id="auction-page-number">1 / 1</span><button id="auction-next" type="button">다음</button></div>
+        <div class="auction-detail" id="auction-detail" hidden></div>
+    </section>
+</div>
+
+<script>
+(() => {
+    const state = { page: 1, size: 6, status: '', totalPages: 1 };
+    const $ = (id) => document.getElementById(id);
+    const money = (value) => value == null ? '-' : Number(value).toLocaleString('ko-KR') + '원';
+    const label = (status) => ({ACTIVE:'경매 중', ENDED_SUCCESS:'낙찰 성공', ENDED_FAIL:'낙찰 실패', CANCELLED:'취소'})[status] || status || '-';
+    const badgeClass = (status) => status === 'ACTIVE' ? 'active' : status === 'ENDED_SUCCESS' ? 'success' : '';
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+
+    async function loadAuctions() {
+        const list = $('auction-list');
+        list.innerHTML = '<div class="auction-empty">경매 목록을 불러오는 중입니다.</div>';
+        try {
+            const query = new URLSearchParams({ page: state.page, size: state.size });
+            if (state.status) query.set('status', state.status);
+            const response = await apiFetch('/api/auctions?' + query);
+            if (!response.ok) throw new Error('경매 목록을 불러오지 못했습니다.');
+            const data = await response.json();
+            state.totalPages = Math.max(data.totalPages || 1, 1);
+            $('auction-count').textContent = `총 ${data.totalElements || 0}건`;
+            $('auction-page-number').textContent = `${state.page} / ${state.totalPages}`;
+            $('auction-prev').disabled = state.page <= 1;
+            $('auction-next').disabled = state.page >= state.totalPages;
+            if (!data.content?.length) { list.innerHTML = '<div class="auction-empty">조건에 맞는 경매가 없습니다.</div>'; return; }
+            list.innerHTML = data.content.map((auction) => `<article class="auction-card">
+                <div class="auction-card-top"><span class="auction-badge ${badgeClass(auction.status)}">${escapeHtml(label(auction.status))}</span><span class="auction-muted">#${escapeHtml(auction.id)}</span></div>
+                <h3>상품 #${escapeHtml(auction.itemId)}</h3><span class="auction-muted">가게 #${escapeHtml(auction.shopId)} · 마감 ${escapeHtml(auction.deadline || '-')}</span>
+                <div class="auction-card-bottom"><div><small>현재가</small><div class="auction-price">${money(auction.currentPrice ?? auction.startPrice)}</div></div><button class="auction-action" type="button" data-detail="${auction.id}">상세 보기</button></div>
+            </article>`).join('');
+            list.querySelectorAll('[data-detail]').forEach((button) => button.addEventListener('click', () => loadDetail(button.dataset.detail)));
+        } catch (error) { list.innerHTML = `<div class="auction-error">${escapeHtml(error.message)}</div>`; $('auction-count').textContent = '조회 실패'; }
+    }
+
+    async function loadDetail(id) {
+        const detail = $('auction-detail'); detail.hidden = false; detail.innerHTML = '상세 정보를 불러오는 중입니다.';
+        try {
+            const response = await apiFetch('/api/auctions/' + id); if (!response.ok) throw new Error('경매 상세를 불러오지 못했습니다.');
+            const auction = await response.json();
+            detail.innerHTML = `<div class="auction-detail-head"><div><strong>상품 #${escapeHtml(auction.itemId)}</strong><p class="auction-muted">현재가 ${money(auction.currentPrice)} · 보증금 ${money(auction.depositAmount)}</p></div>${auction.status === 'ACTIVE' ? `<button class="auction-action primary" id="close-auction" type="button">경매 마감</button>` : ''}</div>`;
+            $('close-auction')?.addEventListener('click', async () => { const result = await apiFetch('/api/auctions/' + id + '/close', { method: 'PATCH' }); if (!result.ok) { alert('경매 마감에 실패했습니다.'); return; } await loadAuctions(); await loadDetail(id); });
+        } catch (error) { detail.innerHTML = `<div class="auction-error">${escapeHtml(error.message)}</div>`; }
+    }
+    $('auction-status').addEventListener('change', (event) => { state.status = event.target.value; state.page = 1; loadAuctions(); });
+    $('auction-prev').addEventListener('click', () => { if (state.page > 1) { state.page--; loadAuctions(); } });
+    $('auction-next').addEventListener('click', () => { if (state.page < state.totalPages) { state.page++; loadAuctions(); } });
+    loadAuctions();
+})();
+</script>
 {{> fragments/footer}}
