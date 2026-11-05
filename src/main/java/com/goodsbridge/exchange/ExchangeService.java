@@ -4,10 +4,7 @@ package com.goodsbridge.exchange;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
-import com.goodsbridge.exchange.dto.ExchangeItemCreateRequest;
-import com.goodsbridge.exchange.dto.ExchangeItemResponse;
-import com.goodsbridge.exchange.dto.ExchangeRequestCreateRequest;
-import com.goodsbridge.exchange.dto.ExchangeRequestResponse;
+import com.goodsbridge.exchange.dto.*;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.payment.PaymentPurpose;
@@ -15,6 +12,8 @@ import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
+import com.goodsbridge.user.Role;
+import com.goodsbridge.user.Status;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -22,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.xml.crypto.dsig.keyinfo.KeyInfoFactory;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +39,75 @@ public class ExchangeService {
     private final ItemRepository itemRepository;
     private final PaymentService paymentService;
     private final EntityManager entityManager;
+    private final ExchangeCommentRepository exchangeCommentRepository;
 
+    //교환 댓글 service--------------
+    @Transactional
+    public ExchangeCommentResponse saveComment(Long id, Long userId, ExchangeCommentRequest request) {
+    //조회하기
+         ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글 입니다."));
+         User user = userRepository.findById(userId)
+             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자 입니다."));
+         if (user.getStatus() != Status.ACTIVE){
+             throw new ForbiddenException("활성화된 유저만 댓글 작성 가능합니다");
+         }
+
+         //entity만들기
+        ExchangeComment exchangeComment = ExchangeComment.builder()
+            .exchangeItem(exchangeItem)
+            .user(user)
+            .content(request.getContent())
+            .build();
+        exchangeCommentRepository.save(exchangeComment);
+        exchangeCommentRepository.flush();
+        entityManager.refresh(exchangeComment);
+        return new ExchangeCommentResponse(exchangeComment);
+    }
+
+    public List<ExchangeCommentResponse> getExchangeCommentList(Long id) {
+        List<ExchangeComment> exchangeComments = exchangeCommentRepository.getCommentList(id);
+        return exchangeComments.stream().map(ExchangeCommentResponse::new).toList();
+    }
+
+    @Transactional
+    public ExchangeCommentResponse updateComment(Long id, Long userId, ExchangeCommentRequest request) {
+         ExchangeComment exchangeComment = exchangeCommentRepository.findById(id)
+            .orElseThrow(()->{
+                throw new NotFoundException("존재하지 않는 댓글입니다");});
+         if (!exchangeComment.getUser().getId().equals(userId)){
+             throw new ForbiddenException("작성자만 수정 할수있습니다");
+         }
+        if (exchangeComment.getUser().getStatus() != Status.ACTIVE){
+            throw new ForbiddenException("활성화된 유저만 댓글 작성 가능합니다");
+        }
+         exchangeComment.updateContent(request.getContent());
+        return new ExchangeCommentResponse(exchangeComment);
+    }
+
+    @Transactional
+    public void deleteComment(Long id, Long userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자 입니다."));
+
+        ExchangeComment exchangeComment = exchangeCommentRepository.findById(id)
+            .orElseThrow(()->{
+                throw new NotFoundException("존재하지 않는 댓글입니다");});
+
+        if (user.getStatus() != Status.ACTIVE){
+            throw new ForbiddenException("활성화된 유저만 댓글 삭제 가능합니다");
+        }
+
+        if (!exchangeComment.getUser().getId().equals(userId) && user.getRole() != Role.ADMIN){
+            throw new ForbiddenException("작성자 또는 관리자만 삭제할수있습니다");
+        }
+        exchangeCommentRepository.delete(exchangeComment);
+    }
+
+
+    //------------------
+
+    //---- 교환 service
     @Transactional
     public ExchangeItemResponse save(ExchangeItemCreateRequest request, Long userId) {
         //게시글 생성
@@ -174,4 +242,8 @@ public class ExchangeService {
         return exchangeRequestList.stream()
             .map(ExchangeRequestResponse::from).toList();
     }
+
+
+
+    // -------------------------
 }
