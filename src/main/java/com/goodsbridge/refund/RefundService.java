@@ -116,12 +116,18 @@ public class RefundService {
     }
 
     private void createSettlementIfNeeded(Refund refund, Payment payment) {
-        if (refund.getType() != RefundType.NO_SHOW) {return;}
-        if (refund.getRequestedAmount() == null || refund.getRequestedAmount() <= 0) {return;}
+        if (refund.getType() != RefundType.NO_SHOW) {
+            return;
+        }
+        if (refund.getRequestedAmount() == null || refund.getRequestedAmount() <= 0) {
+            return;
+        }
         Purchase purchase = purchaseRepository.findByPaymentId(payment.getPaymentId())
             .orElseThrow(() -> new NotFoundException("구매 내역을 찾을 수 없습니다."));
         Long shopId = purchase.getItem().getShopId();
-        if (shopId == null) {return;}
+        if (shopId == null) {
+            return;
+        }
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("정산 대상 가게를 찾을 수 없습니다."));
         settlementHistoryService.calculate(shop, payment, refund.getRequestedAmount(),

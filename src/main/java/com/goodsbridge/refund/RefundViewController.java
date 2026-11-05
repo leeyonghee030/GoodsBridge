@@ -34,7 +34,7 @@ public class RefundViewController {
     @PatchMapping("/api/admin/refunds/{id}/approve")
     public ResponseEntity<Void> approve(@PathVariable Long id) {
         Long adminUserId = SecurityUtil.getCurrentUserId();
-        refundService.approve(adminUserId, id);
+        refundService.approve(id, adminUserId);
         return ResponseEntity.ok().build();
     }
 
