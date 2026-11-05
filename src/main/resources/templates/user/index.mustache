@@ -1,4 +1,16 @@
 {{> fragments/header}}
-<h1>User (테스트용)</h1>
-<p class="todo">TODO: #5(회원가입/로그인 API) 완성 후 실제 로그인 화면으로 교체</p>
+
+<h1>GoodsBridge 테스트</h1>
+
+{{#userId}}
+    <p>로그인 상태입니다. 사용자 ID: {{userId}}</p>
+{{/userId}}
+
+{{^userId}}
+    <p>로그인되지 않았습니다.</p>
+{{/userId}}
+
+<p><a href="/login">로그인</a></p>
+<p><a href="/join">회원가입</a></p>
+
 {{> fragments/footer}}

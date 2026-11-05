@@ -27,9 +27,9 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/")
-    @ResponseBody
-    public Long currentUserId(@AuthenticationPrincipal Long userId) {
-        return userId;
+    public String index(@AuthenticationPrincipal Long userId, Model model) {
+        model.addAttribute("userId", userId);
+        return "user/index";
     }
 
     // 카카오 로그인 페이지 이동
