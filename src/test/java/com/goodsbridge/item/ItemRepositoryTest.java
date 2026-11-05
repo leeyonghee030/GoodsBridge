@@ -43,7 +43,7 @@ class ItemRepositoryTest {
     @Test
     @DisplayName("판매자 회원 ID(sellerUserId)로 내 상품 목록을 조회하면 해당 유저의 상품들만 반환된다")
     void findBySellerUserId_test() {
-        List<Item> myItems = itemRepository.findBySellerUserId(1L);
+        List<Item> myItems = itemRepository.findBySellerUserIdAndDeletedFalse(1L);
 
         // 개수 고정값 검증 대신 소유주 일치 여부만 검증하여 확장성 확보
         assertThat(myItems).isNotEmpty();

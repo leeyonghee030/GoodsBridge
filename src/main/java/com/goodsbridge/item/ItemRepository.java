@@ -11,8 +11,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
-    // 특정 판매자(사용자) ID에 해당하는 모든 상품 목록을 조회
-    List<Item> findBySellerUserId(Long sellerUserId);
+    // 삭제되지 않은 특정 판매자의 상품 목록 조회
+    @Query("SELECT i FROM Item i WHERE i.sellerUserId = :sellerUserId AND i.deleted = false")
+    List<Item> findBySellerUserIdAndDeletedFalse(@Param("sellerUserId") Long sellerUserId);
 
     // 특정 카테고리에 속한 상품 개수 조회
     Long countByCategoryId(Long categoryId);

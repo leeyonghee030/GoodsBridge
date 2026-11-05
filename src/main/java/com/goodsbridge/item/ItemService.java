@@ -75,14 +75,15 @@ public class ItemService {
     public ItemResponse findById(Long id) {
         validateId(id);
 
-        Item item = itemRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
+        // 삭제되지 않은 상품만 조회해야 함
+        Item item = itemRepository.findByIdAndDeletedFalse(id)
+            .orElseThrow(() -> new NotFoundException("존재하지 않거나 삭제된 상품입니다."));
         return ItemResponse.from(item);
     }
 
-    // 내 상품 목록 조회
+    // 내 상품 목록 조회 (삭제된 상품 제외)
     public List<ItemResponse> findAllByUserId(Long userId) {
-        return itemRepository.findBySellerUserId(userId).stream()
+        return itemRepository.findBySellerUserIdAndDeletedFalse(userId).stream()
             .map(ItemResponse::from)
             .toList();
     }
@@ -93,8 +94,8 @@ public class ItemService {
         validateId(itemId);
         request.validate();
 
-        Item item = itemRepository.findById(itemId)
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
+        Item item = itemRepository.findByIdAndDeletedFalse(itemId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않거나 삭제된 상품입니다."));
 
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
@@ -123,13 +124,14 @@ public class ItemService {
     public void delete(Long userId, Long itemId) {
         validateId(itemId);
 
-        Item item = itemRepository.findById(itemId)
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
+        Item item = itemRepository.findByIdAndDeletedFalse(itemId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않거나 삭제된 상품입니다."));
 
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
+        // 하드 삭제(delete) 대신 소프트 삭제 메서드 호출
         item.deleteItem();
     }
 
