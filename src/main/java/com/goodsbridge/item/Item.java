@@ -94,7 +94,9 @@ public class Item {
         this.title = title;
         this.description = description;
         this.price = price;
-        this.saleType = saleType;
+        if (saleType != null) {
+            this.saleType = saleType;
+        }
         if (status != null) {
             this.status = status;
         }

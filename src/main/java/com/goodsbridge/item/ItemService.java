@@ -4,7 +4,9 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ public class ItemService {
     private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
 
+    private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
 
     // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
     @Transactional
@@ -42,9 +45,23 @@ public class ItemService {
         return itemRepository.save(item).getId();
     }
 
-    // 전체 상품 목록 조회 필터링 검색
-    public Page<ItemResponse> findAll(Long categoryId,String region,SaleType saleType, Pageable pageable) {
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
+    // 전체 상품 목록 조회 필터링 검색 (페이징 크기 제한 및 최신순 기본 정렬 적용)
+    public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, Pageable pageable) {
+        int pageSize = pageable.getPageSize();
+
+        // 1. 페이징 사이즈 방어 로직 (최대 100개 제한)
+        if (pageSize > MAX_PAGE_SIZE) {
+            pageSize = MAX_PAGE_SIZE;
+        }
+
+        // 2. 정렬 조건이 지정되지 않았다면 기본적으로 최신 등록순(createdAt DESC) 부여
+        Sort sort = pageable.getSort().isUnsorted()
+            ? Sort.by(Sort.Direction.DESC, "createdAt")
+            : pageable.getSort();
+
+        pageable = PageRequest.of(pageable.getPageNumber(), pageSize, sort);
+
+        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region , saleType, pageable);
         return itemPage.map(ItemResponse::from);
     }
 
