@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auctions?page=1&size=10&status=ACTIVE"
+method: GET
+headers:
+  Authorization: Bearer {{token}}
+queryParams:
+  page: "1"
+  size: "10"
+  status: ACTIVE
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('listed', function () { pm.response.to.have.status(200); });
+      var body = pm.response.json();
+      pm.expect(body.content).to.be.an('array');
+    language: text/javascript
+order: 2000
