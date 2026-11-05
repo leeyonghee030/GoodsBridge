@@ -13,4 +13,5 @@ public class ShopCreateRequest {
     private String name;
     private String region;
     private String address;
+
 }
