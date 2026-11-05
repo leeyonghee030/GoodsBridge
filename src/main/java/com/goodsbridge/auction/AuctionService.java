@@ -131,9 +131,19 @@ public class AuctionService {
     @Transactional
     public void autoCloseAuctions() {
         LocalDateTime now = LocalDateTime.now();
-        List<Auction> auctions = auctionRepository.findByStatusAndDeadlineBefore(Status.ACTIVE, now);
-        for (Auction auction : auctions) {
-            closeInternal(auction);
-        }
+        int pageSize = 100;
+
+        // 종료 처리할 때 ACTIVE 목록에서 빠지므로 항상 첫 페이지를 다시 조회한다.
+        Page<Auction> auctions;
+        do {
+            auctions = auctionRepository.findByStatusAndDeadlineBefore(
+                Status.ACTIVE,
+                now,
+                PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "id"))
+            );
+            for (Auction auction : auctions.getContent()) {
+                closeInternal(auction);
+            }
+        } while (!auctions.isEmpty());
     }
 }

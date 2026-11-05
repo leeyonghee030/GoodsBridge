@@ -76,4 +76,8 @@ public class Auction {
         this.status = currentWinner == null
             ? Status.ENDED_FAIL : Status.ENDED_SUCCESS;
     }
+
+    public void updateCurrentPrice(Integer bidAmount) {
+        this.currentPrice = bidAmount;
+    }
 }
