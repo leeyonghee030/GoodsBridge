@@ -10,11 +10,11 @@ INSERT INTO category_tb (name) VALUES ('가전');
 -- ==========================================
 -- 1. 유저 데이터 (공통)
 -- ==========================================
-INSERT INTO user_tb (kakao_id, nickname, role, status, created_at)
-VALUES ('owner-test-kakao-id', '가게사장', 'USER', 'ACTIVE', NOW());
+INSERT INTO user_tb (email, password, nickname, role, status, login_type, created_at)
+VALUES ('owner-test@test.com', 'test-password', '가게사장', 'USER', 'ACTIVE', 'EMAIL', NOW());
 
-INSERT INTO user_tb (kakao_id, nickname, role, status, created_at)
-VALUES ('admin-test-kakao-id', '관리자', 'ADMIN', 'ACTIVE', NOW());
+INSERT INTO user_tb (email, password, nickname, role, status, login_type, created_at)
+VALUES ('admin-test@test.com', 'test-password', '관리자', 'ADMIN', 'ACTIVE', 'EMAIL', NOW());
 
 
 -- ==========================================
