@@ -13,7 +13,7 @@ import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
-import com.goodsbridge.user.Role;
+import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -88,7 +88,7 @@ class EventParticipationConcurrencyTest {
         Category category = categoryRepository.save(Category.builder().name("동시성테스트-" + UUID.randomUUID()).build());
 
         User owner = userRepository.save(new User(
-            "owner-" + UUID.randomUUID(), null, "사장-" + UUID.randomUUID(), Role.USER));
+            "owner-" + UUID.randomUUID() + "@test.com", "pw", "사장-" + UUID.randomUUID(), LoginType.EMAIL, null));
 
         Shop shop = shopRepository.save(Shop.builder()
             .ownerUserId(owner.getId())
@@ -117,7 +117,7 @@ class EventParticipationConcurrencyTest {
         List<User> participants = new ArrayList<>();
         for (int i = 0; i < threadCount; i++) {
             participants.add(userRepository.save(new User(
-                "participant-" + UUID.randomUUID(), null, "참가자-" + UUID.randomUUID(), Role.USER)));
+                "participant-" + UUID.randomUUID() + "@test.com", "pw", "참가자-" + UUID.randomUUID(), LoginType.EMAIL, null)));
         }
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
