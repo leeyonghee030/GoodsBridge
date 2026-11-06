@@ -35,10 +35,8 @@ public class ShopSubscriptionService {
     private final PaymentService paymentService;
     private final ShopSubscriptionProcessor subscriptionProcessor;
 
-    // 일 단위 표준 요금 정책 (1일 = 1,000원)
     private static final int PRICE_PER_DAY = 1000;
 
-    // 일 단위 구독 시작 및 기간 연장(누적)
     @Transactional
     public Long create(Long userId, Long shopId, ShopSubscriptionRequest request) {
         if (request.getDays() == null || request.getDays() <= 0) {
@@ -49,12 +47,10 @@ public class ShopSubscriptionService {
             throw new BadRequestException("결제 ID가 필요합니다.");
         }
 
-        // [방어 1: 중복 결제 방지] 이미 사용된 paymentId 사전 검증
         if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
 
-        // [방어 2: 위변조 방지] 서버 단 결제 금액 검증
         int expectedAmount = request.getDays() * PRICE_PER_DAY;
         if (request.getAmount() == null || !request.getAmount().equals(expectedAmount)) {
             throw new BadRequestException("결제 금액 정보가 올바르지 않습니다.");
@@ -73,7 +69,6 @@ public class ShopSubscriptionService {
         ShopSubscription existingSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
         boolean isActive = existingSubscription != null && existingSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
 
-        // [외부 연동] 결제 검증 연동
         paymentService.verify(
             request.getPaymentId(),
             request.getAmount(),
@@ -121,7 +116,6 @@ public class ShopSubscriptionService {
         try {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
-            // 만료되었던 가게가 구독을 재개한 경우 CLOSED 상품들을 ON_SALE로 복구
             if (isExpiredOrCancelled || existingSubscription == null) {
                 itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
                 log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 판매 중단 상품들이 ON_SALE로 전환되었습니다.", shopId);
@@ -135,7 +129,6 @@ public class ShopSubscriptionService {
         }
     }
 
-    // 가게 단건 구독 조회
     public ShopSubscriptionResponse findById(Long userId, Long shopId) {
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
@@ -178,8 +171,7 @@ public class ShopSubscriptionService {
     }
 
     /**
-     심플 청크 배치] Page 0 반복 조회 방식
-     * - 이미 처리된 항목은 ACTIVE 상태를 벗어나므로 0번 페이지만 조회해도 모든 데이터를 안전하게 순회합니다.
+     * [심플 청크 배치] Page 0 반복 조회 방식 (실패 격리 적용)
      */
     @Transactional(readOnly = true)
     public int processExpiredSubscriptions() {
@@ -190,19 +182,17 @@ public class ShopSubscriptionService {
         log.info("[청크 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
 
         while (true) {
-            // 항상 0번 페이지를 조회 (처리된 데이터는 쿼리 조건에서 제외되므로 다음 데이터가 0번으로 당겨짐)
             Pageable pageable = PageRequest.of(0, pageSize);
             List<ShopSubscription> expiredSubscriptions =
                 subscriptionRepository.findExpiredActiveSubscriptions(today, pageable);
 
             if (expiredSubscriptions.isEmpty()) {
-                break; // 더 이상 조회되는 데이터가 없으면 루프 탈출
+                break;
             }
 
             for (ShopSubscription subscription : expiredSubscriptions) {
                 try {
-                    // 개별 독립 트랜잭션(REQUIRES_NEW)으로 실행하여 실패 격리
-                    boolean success = subscriptionProcessor.processSingleSubscription(subscription);
+                    boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
                     if (success) {
                         totalProcessedCount++;
                     }
