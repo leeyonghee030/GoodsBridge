@@ -1,7 +1,6 @@
 package com.goodsbridge.shop;
 
 import com.goodsbridge.item.ItemRepository;
-import com.goodsbridge.item.ItemStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -9,7 +8,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -17,11 +15,12 @@ import java.util.List;
 public class ShopSubscriptionProcessor {
 
     private final ItemRepository itemRepository;
+    private final ShopSubscriptionRepository subscriptionRepository;
 
     /**
      * 개별 구독 만료 처리 (독립된 트랜잭션으로 실행)
-     * REQUIRES_NEW: 호출한 곳의 트랜잭션과 무관하게 새로운 트랜잭션을 열어 실행하므로,
-     * 이 메서드 내에서 예외가 나도 호출부의 전체 루프나 다른 건에 영향을 주지 않습니다.
+     * - REQUIRES_NEW: 호출한 곳의 트랜잭션과 무관하게 새로운 트랜잭션을 열어 실행하므로,
+     *   이 메서드 내에서 예외가 발생해도 호출부의 전체 루프나 다른 데이터에 영향을 주지 않고 개별 격리됩니다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean processSingleSubscription(ShopSubscription subscription) {
@@ -29,8 +28,9 @@ public class ShopSubscriptionProcessor {
             LocalDateTime now = LocalDateTime.now();
             Long shopId = subscription.getShopId();
 
-            // 1. 구독 소프트 삭제 및 paymentId 유니크 충돌 방지 변형
+            // 1. 구독 소프트 삭제 수행 (paymentId 유니크 제약 충돌 방지 변형 포함)
             subscription.delete();
+            subscriptionRepository.save(subscription); // 영속성 반영 보장
 
             // 2. 해당 가게의 모든 연관 상품 일괄 소프트 삭제 및 상태 마감 처리 (CLOSED)
             itemRepository.softDeleteByShopId(shopId, now);
@@ -39,7 +39,7 @@ public class ShopSubscriptionProcessor {
             return true;
         } catch (Exception e) {
             log.error("[구독 만료 처리 실패] subscriptionId: {}, error: {}", subscription.getId(), e.getMessage(), e);
-            // 개별 실패 시 예외를 던져 현재 트랜잭션만 롤백시키고, 상위 루프에서 캐치하여 전체 배치는 계속 진행
+            // 예외를 던져 현재 개별 트랜잭션만 롤백시키고, 상위 루프에서 catch하여 전체 배치는 계속 진행
             throw e;
         }
     }
