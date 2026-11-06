@@ -14,4 +14,4 @@ spring:
         defer-datasource-initialization: true # ⭐ JPA 테이블 생성 후 data.sql 실행 보장
     sql:
         init:
-            mode: update # 항상 data.sql always 실행
+            mode: always # 항상 data.sql 실행

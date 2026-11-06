@@ -171,38 +171,48 @@ public class ShopSubscriptionService {
     }
 
     /**
-     * [심플 청크 배치] Page 0 반복 조회 방식 (실패 격리 적용)
+     * [ID 커서 페이징 기반 만료 구독 일괄 처리 배치]
+     * - OFFSET 방식의 성능 저하 및 데이터 밀림 현상(무한 루프)을 원천 차단합니다.
+     * - 개별 건 처리 중 예외가 발생해도 트랜잭션이 분리되어 있어 전체 배치가 멈추지 않고 안전하게 격리됩니다.
      */
     @Transactional(readOnly = true)
     public int processExpiredSubscriptions() {
         int pageSize = 100;
+        Long lastId = 0L; // 💡 첫 조회는 0번 ID 초과부터 시작
         int totalProcessedCount = 0;
         LocalDate today = LocalDate.now();
 
-        log.info("[청크 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
+        log.info("[커서 페이징 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
 
         while (true) {
+            // 💡 커서 페이징을 위해 0번 페이지 크기만 100개로 지정하여 조회
             Pageable pageable = PageRequest.of(0, pageSize);
             List<ShopSubscription> expiredSubscriptions =
-                subscriptionRepository.findExpiredActiveSubscriptions(today, pageable);
+                subscriptionRepository.findExpiredActiveSubscriptionsAfterId(lastId, today, pageable);
 
+            // 💡 더 이상 처리할 만료 구독이 없으면 확실하게 루프 탈출
             if (expiredSubscriptions.isEmpty()) {
                 break;
             }
 
             for (ShopSubscription subscription : expiredSubscriptions) {
+                // 💡 현재 순회 중인 엔티티의 ID로 커서를 무조건 갱신 (실패/스킵되어도 다음 ID로 전진하여 무한 루프 방지)
+                lastId = subscription.getId();
+
                 try {
+                    // 💡 개별 프로세서 호출 (REQUIRES_NEW 트랜잭션으로 독립 실행)
                     boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
                     if (success) {
                         totalProcessedCount++;
                     }
                 } catch (Exception e) {
+                    // 💡 개별 실패 격리: 특정 건에 에러가 나도 로그만 남기고 다음 건으로 정상 진행
                     log.error("[배치 개별 실패 격리] subscriptionId: {}, 사유: {}", subscription.getId(), e.getMessage());
                 }
             }
         }
 
-        log.info("[청크 배치 완료] 총 {}건의 만료 구독 처리 완료", totalProcessedCount);
+        log.info("[커서 페이징 배치 완료] 총 {}건의 만료 구독 처리 완료", totalProcessedCount);
         return totalProcessedCount;
     }
 

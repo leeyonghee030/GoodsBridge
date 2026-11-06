@@ -16,17 +16,19 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
     Optional<ShopSubscription> findByShopId(Long shopId);
 
     /**
-     * [심플 청크 배치 쿼리] 만료된 활성 구독 조회
-     * - 항상 정렬(ORDER BY id ASC)을 보장하여 순서가 꼬이지 않도록 합니다.
+     * 💡 [ID 커서 페이징 쿼리]
+     * 마지막으로 처리한 subscription ID보다 큰 데이터 중 만료된 ACTIVE 구독을 조회합니다.
      */
     @Query("""
         SELECT s FROM ShopSubscription s
-        WHERE s.endDate < :today
+        WHERE s.id > :lastId
+          AND s.endDate < :today
           AND s.status = 'ACTIVE'
           AND s.deletedAt IS NULL
         ORDER BY s.id ASC
         """)
-    List<ShopSubscription> findExpiredActiveSubscriptions(
+    List<ShopSubscription> findExpiredActiveSubscriptionsAfterId(
+        @Param("lastId") Long lastId,
         @Param("today") LocalDate today,
         Pageable pageable
     );

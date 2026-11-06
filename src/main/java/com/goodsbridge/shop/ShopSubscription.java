@@ -65,7 +65,8 @@ public class ShopSubscription {
         this.setupFeePaid = setupFeePaid != null ? setupFeePaid : false;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.status = status;
+        // 💡 status가 null로 들어오면 기본값으로 ACTIVE를 부여하여 방어
+        this.status = status != null ? status : ShopSubscriptionStatus.ACTIVE;
     }
 
 
