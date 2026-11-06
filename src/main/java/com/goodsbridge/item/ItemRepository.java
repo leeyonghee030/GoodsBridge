@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
 
 
     // 삭제되지 않은 특정 카테고리에 속한 상품 개수 조회
+    @Query("SELECT COUNT(i) FROM Item i WHERE i.category.id = :categoryId AND i.deleted = false")
     Long countByCategoryIdAndDeletedFalse(Long categoryId);
 
     // 단건 조회 시 삭제되지 않은 것만 탐색
@@ -50,12 +52,27 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
                                      Pageable pageable);
 
     // 특정 가게 ID 리스트에 속한 상품들의 상태를 일괄 변경 (구독 만료 시 CLOSED 처리용)
-    // TODO - 스케줄러 등록해서 구독 만료된 가게들 일괄처리 시킬려고 만들어둠 일단 보류
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
-        UPDATE Item i SET i.status = :status WHERE i.shopId IN :shopIds
+        UPDATE Item i SET i.status = :status WHERE i.shopId IN :shopIds AND i.deleted = false
         """)
     void updateStatusByShopIds(@Param("shopIds") List<Long> shopIds, @Param("status") ItemStatus status);
+
+    // [추가] 가게 ID들에 속한 모든 상품을 소프트 삭제 처리
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        UPDATE Item i
+        SET i.deleted = true,
+            i.deletedAt = :now,
+            i.status = 'CLOSED'
+        WHERE i.shopId = :shopId AND i.deleted = false
+        """)
+    void softDeleteByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
+
+    // [추가] 특정 가게의 소프트 삭제된 모든 상품 조회 (복구용)
+    @Query("SELECT i FROM Item i WHERE i.shopId = :shopId AND i.deleted = true")
+    List<Item> findAllDeletedByShopId(@Param("shopId") Long shopId);
+
 
     // 특정 가게의 특정 상태인 상품들을 다른 상태로 일괄 변경 (구독 갱신 시 CLOSED -> ON_SALE 복구용)
     @Modifying(clearAutomatically = true, flushAutomatically = true)

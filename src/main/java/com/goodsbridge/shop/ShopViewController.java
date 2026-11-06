@@ -2,6 +2,8 @@ package com.goodsbridge.shop;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -10,11 +12,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class ShopViewController {
 
     private final ShopService shopService;
+    private final ShopSubscriptionService shopSubscriptionService;
 
     @PostMapping("/api/shops")
     public ResponseEntity<ShopResponse> createShop(@RequestBody ShopCreateRequest requestDto) {
@@ -92,4 +96,24 @@ public class ShopViewController {
         shopService.close(adminUserId, id);
         return ResponseEntity.ok().build();
     }
+
+    // --- 관리자 전용 스케줄러 수동 트리거 API ---
+
+    @Profile({"local", "dev"})
+    @PostMapping("/api/admin/scheduler/subscriptions")
+    public ResponseEntity<SchedulerResponse> triggerExpiredSubscriptionBatch() {
+        log.info("[관리자 API] 수동 스케줄러 트리거 요청 수신: 만료 구독 일괄 처리");
+
+        int processedCount = shopSubscriptionService.processExpiredSubscriptionsByAdmin();
+
+        log.info("[관리자 API] 수동 스케줄러 실행 완료: 총 {}건 처리됨", processedCount);
+
+        return ResponseEntity.ok(new SchedulerResponse(true, processedCount, "만료 구독 배치가 성공적으로 수동 실행되었습니다."));
+    }
+
+    public record SchedulerResponse(
+        boolean success,
+        int processedCount,
+        String message
+    ) {}
 }

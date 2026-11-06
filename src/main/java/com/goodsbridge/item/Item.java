@@ -58,6 +58,9 @@ public class Item {
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @Builder
     public Item(Long sellerUserId, Long shopId, Category category, String title,
                 String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
@@ -113,7 +116,14 @@ public class Item {
 
     public void deleteItem() {
         this.deleted = true;
+        this.deletedAt = LocalDateTime.now();
         this.status = ItemStatus.CLOSED; // 삭제 시 판매 마감 처리
+    }
+
+    // 상품 복구 메서드 (삭제 전 상태로 원복)
+    public void restore(ItemStatus previousStatus) {
+        this.deletedAt = null;
+        this.status = previousStatus != null ? previousStatus : ItemStatus.ON_SALE;
     }
 
     public boolean isOwner(Long userId) {

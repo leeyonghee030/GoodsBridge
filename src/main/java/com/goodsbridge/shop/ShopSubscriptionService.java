@@ -3,6 +3,7 @@ package com.goodsbridge.shop;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
@@ -13,6 +14,8 @@ import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +33,7 @@ public class ShopSubscriptionService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final ShopSubscriptionProcessor subscriptionProcessor;
 
     // 일 단위 표준 요금 정책 (예: 1일 = 1,000원 -> 30일 = 30,000원)
     private static final int PRICE_PER_DAY = 1000;
@@ -159,12 +163,88 @@ public class ShopSubscriptionService {
         return ShopSubscriptionResponse.from(subscription);
     }
 
+    @Transactional
+    public void restoreSubscriptionAndItems(Long shopId, String originalPaymentId) {
+        // 1. Native Query로 삭제된 구독 정보 조회
+        ShopSubscription subscription = subscriptionRepository.findDeletedByShopId(shopId)
+            .orElseThrow(() -> new NotFoundException("복구할 삭제된 구독 정보를 찾을 수 없습니다."));
+
+        // 2. 구독 복구 (paymentId 원본 복원 및 status ACTIVE로 전환)
+        subscription.restore(originalPaymentId);
+
+        // 3. 해당 가게의 소프트 삭제된 상품들 모두 조회 후 ON_SALE로 일괄 복구
+        List<Item> deletedItems = itemRepository.findAllDeletedByShopId(shopId);
+        for (Item item : deletedItems) {
+            item.restore(ItemStatus.ON_SALE);
+        }
+
+        log.info("[구독 및 상품 복구 완료] 가게 ID: {} | 복구된 상품 수: {}개", shopId, deletedItems.size());
+    }
+
     // (관리자) 전체 가게 구독 현황 목록 조회
     public List<ShopSubscriptionResponse> findAllSubscriptions(Long adminUserId) {
         validateAdmin(adminUserId);
         return subscriptionRepository.findAll().stream()
             .map(ShopSubscriptionResponse::from)
             .toList();
+    }
+
+    /**
+     * 관리자 수동 실행용 메서드 (관리자 권한 검증 포함)
+     */
+    public int processExpiredSubscriptionsByAdmin() {
+        log.info("[관리자 수동 트리거] 만료 구독 배치 강제 실행");
+        return processExpiredSubscriptions();
+    }
+
+    /**
+     * 스케줄러 및 공통 공통 비즈니스 로직 (페이징 기반)
+     */
+    @Transactional(readOnly = true)
+    public int processExpiredSubscriptions() {
+        int pageSize = 100;
+        int totalProcessedCount = 0;
+        LocalDate today = LocalDate.now();
+
+        log.info("[배치 시작] 만료 구독 청크 단위 일괄 처리 시작 (PageSize: {})", pageSize);
+
+        while (true) {
+            // 항상 Page 0을 조회 (처리된 데이터는 조회 조건에서 제외되므로 자연스럽게 다음 데이터가 Page 0으로 올라옴)
+            Pageable pageable = PageRequest.of(0, pageSize);
+            List<ShopSubscription> expiredSubscriptions = subscriptionRepository.findAllExpiredActiveSubscriptions(today, pageable);
+
+            if (expiredSubscriptions.isEmpty()) {
+                break; // 더 이상 처리할 만료 구독이 없으면 루프 탈출
+            }
+
+            log.info("[청크 페치] 현재 청크 대상 건수: {}건", expiredSubscriptions.size());
+
+            for (ShopSubscription subscription : expiredSubscriptions) {
+                try {
+                    // 개별 프로세서는 REQUIRES_NEW 트랜잭션으로 동작하므로 예외가 발생해도 격리됨
+                    boolean success = subscriptionProcessor.processSingleSubscription(subscription);
+                    if (success) {
+                        totalProcessedCount++;
+                    }
+                } catch (Exception e) {
+                    // 개별 건 실패 시 로그만 남기고 다음 건 계속 진행 (배치 중단 방지)
+                    log.error("[청크 배치 개별 실패] subscriptionId: {}, 사유: {}", subscription.getId(), e.getMessage());
+                }
+            }
+        }
+
+        log.info("[배치 완료] 총 {}건의 만료 구독 처리 완료", totalProcessedCount);
+        return totalProcessedCount;
+    }
+
+    @Transactional
+    public void extendSubscription(Long shopId, LocalDate newEndDate, String paymentId) {
+        // 비관적 락을 걸어 조회하므로, 다른 트랜잭션이 동시에 이 가게의 구독을 수정/연장할 수 없고 대기하게 됨
+        ShopSubscription subscription = subscriptionRepository.findActiveByShopIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("활성화된 구독 정보를 찾을 수 없습니다."));
+
+        // 구독 연장 비즈니스 로직 수행
+        // subscription.extend(newEndDate, paymentId);
     }
 
     // 가게 구독 활성 여부 확인 (상품 등록/수정 제한용)
