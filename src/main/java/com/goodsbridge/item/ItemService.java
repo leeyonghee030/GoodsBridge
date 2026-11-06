@@ -24,7 +24,7 @@ public class ItemService {
 
     private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
 
-    // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
+    // 상품 등록 : 구독 여부 검증 -> 카테고리 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
         if (request.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
@@ -67,7 +67,7 @@ public class ItemService {
 
         pageable = PageRequest.of(pageable.getPageNumber(), pageSize, sort);
 
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region , saleType, pageable);
+        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
         return itemPage.map(ItemResponse::from);
     }
 
@@ -75,7 +75,6 @@ public class ItemService {
     public ItemResponse findById(Long id) {
         validateId(id);
 
-        // 삭제되지 않은 상품만 조회해야 함
         Item item = itemRepository.findByIdAndDeletedFalse(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않거나 삭제된 상품입니다."));
         return ItemResponse.from(item);
@@ -102,7 +101,7 @@ public class ItemService {
         }
 
         if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정 할 수 있습니다.");
+            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
@@ -131,7 +130,7 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        // 하드 삭제(delete) 대신 소프트 삭제 메서드 호출
+        // 소프트 삭제 메서드 호출
         item.deleteItem();
     }
 

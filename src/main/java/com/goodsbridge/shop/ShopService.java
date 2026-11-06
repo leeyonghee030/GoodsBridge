@@ -2,6 +2,7 @@ package com.goodsbridge.shop;
 
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -11,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -18,6 +21,8 @@ public class ShopService {
 
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
+    private final ItemRepository itemRepository;
+    private final ShopSubscriptionRepository subscriptionRepository;
 
     @Transactional
     public ShopResponse create(Long userId, ShopCreateRequest requestDto) {
@@ -64,10 +69,19 @@ public class ShopService {
         Shop shop = findActiveShopEntity(shopId);
         validateOwner(shop, userId);
 
-        // 하드 삭제 대신 소프트 삭제 수행 (데이터 보존 및 연관관계 무결성 유지)
-        shop.deleteShop();
-    }
+        LocalDateTime now = LocalDateTime.now();
 
+        // 1. 가게 본인 소프트 삭제 (폐점 상태 전환)
+        shop.deleteShop();
+
+        // 2. 해당 가게에 속한 모든 상품 일괄 소프트 삭제 및 판매 마감 (CLOSED)
+        itemRepository.softDeleteByShopId(shopId, now);
+
+        // 3. 해당 가게의 활성화된(ACTIVE) 구독이 있다면 함께 소프트 삭제 및 유니크 충돌 방지 처리
+        subscriptionRepository.findActiveByShopIdWithLock(shopId).ifPresent(subscription -> {
+            subscription.delete(); // paymentId 변형 및 status = EXPIRED, deletedAt 설정
+        });
+    }
     @Transactional
     public void approve(Long adminUserId, Long shopId) {
         validateAdmin(adminUserId);
