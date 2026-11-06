@@ -2,6 +2,9 @@ package com.goodsbridge.user;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge._core.security.AuthService;
+import com.goodsbridge._core.util.FileUtil;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,6 +22,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final KakaoApiClient kakaoApiClient;
+    private final AuthService authService;
 
     @Transactional
     public UserResponse.JoinDto join(UserRequest.JoinDto joinDto) {
@@ -57,11 +61,15 @@ public class UserService {
     @Transactional
     public User kakaoLogin(UserResponse.KakaoUserInfo kakaoUserInfo) {
         // 1. 카카오 회원번호로 우리 서비스의 사용자명 만들기
-        String userId =kakaoUserInfo.getId() + "@kakao.com";
+        String userId = kakaoUserInfo.getId() + "@kakao.com";
 
         // 2. 이미 가입 했는지 확인, 없으면 자동 회원가입
         User user = userRepository.findByEmail(userId)
             .orElseGet(() -> joinKakaoUser(userId, kakaoUserInfo));
+
+        if (!user.isActive()) {
+            throw new BadRequestException("해당 계정은 정지된 계정입니다");
+        }
 
         // 3. 같은 이름의 일반 회원이 있다면 카카오 사용자로 로그인 시키지 않음
         if (user.getLoginType() != LoginType.KAKAO) {
@@ -82,6 +90,10 @@ public class UserService {
                 return new BadRequestException("사용자명 또는 비밀번호가 올바르지 않습니다");
             });
 
+        if (!user.isActive()) {
+            throw new BadRequestException("해당 계정은 정지된 계정입니다");
+        }
+
         // 2. 비밀번호 비교 : matchs(입력한 평문, DB에 저장된 해쉬)
         if (!passwordEncoder.matches(loginDto.getPassword(), user.getPassword())) {
             log.warn("로그인 실패 - 사용자명 : {}, 원인 : 인증정보 불일치", loginDto.getEmail());
@@ -94,5 +106,42 @@ public class UserService {
 
     public UserResponse.UpdateFormDto findUpdateForm(Long userId) {
         return new UserResponse.UpdateFormDto(findById(userId));
+    }
+
+    @Transactional
+    public void updateById(Long userId, UserRequest.UpdateDto updateDto) {
+        User user = findById(userId);
+
+        if (updateDto.hasPassword()) {
+            user.updatePassword(passwordEncoder.encode(updateDto.getPassword()));
+        }
+
+        if (updateDto.hasNickname()) {
+            user.updateNickname(updateDto.getNickname());
+        }
+
+        if (updateDto.hasProfileImage()) {
+            String newImage = FileUtil.saveImage(updateDto.getProfileImage());
+            String oldImage = user.getProfileImage();
+            user.updateProfileImage(newImage); // DB에는 새 파일 이름 (변경 감지)
+            FileUtil.deleteFile(oldImage);
+        }
+    }
+
+    @Transactional
+    public void deleteProfileImage(Long userId) {
+        User user = findById(userId);
+        String oldImage = user.getProfileImage();
+        user.updateProfileImage(null);
+        FileUtil.deleteFile(oldImage);
+    }
+
+    @Transactional
+    public void withdraw(Long userId, HttpServletResponse response) {
+        User user = findById(userId);
+        user.withdraw();
+        authService.logout(userId);
+        authService.clearAuthCookies(response);
+
     }
 }

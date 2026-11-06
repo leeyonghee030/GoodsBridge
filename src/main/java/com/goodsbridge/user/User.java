@@ -74,8 +74,12 @@ public class User {
         this.profileImage = profileImage;
     }
 
-    public void update(String password) {
+    public void updatePassword(String password) {
         this.password = password;
+    }
+
+    public void updateNickname(String nickname){
+        this.nickname = nickname;
     }
 
     public String getProfilePath() {
@@ -97,5 +101,15 @@ public class User {
     // 로그아웃
     public void clearRefreshToken() {
         this.refreshTokenHash = null;
+    }
+
+    // 회원 탈퇴
+    public void withdraw() {
+        this.status = Status.WITHDRAWN;
+    }
+
+    // 활동중인 계정인지 확인
+    public boolean isActive(){
+        return this.status == Status.ACTIVE;
     }
 }

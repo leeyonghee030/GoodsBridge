@@ -3,6 +3,7 @@ package com.goodsbridge._core.config;
 
 import com.goodsbridge._core.security.JwtAuthenticationFilter;
 import com.goodsbridge._core.security.JwtProvider;
+import com.goodsbridge._core.util.FileUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -47,7 +48,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/api/login", "/api/logout",
-                    "/css/**", "/js/**", "/favicon.ico"
+                    "/css/**", "/js/**", "/favicon.ico", "/images/**"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()

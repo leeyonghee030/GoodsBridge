@@ -59,6 +59,19 @@ public class UserController {
         return "user/update-form";
     }
 
+    @PostMapping("/api/update")
+    public String update(@AuthenticationPrincipal Long userId, UserRequest.UpdateDto updateDto){
+        updateDto.validate();
+        userService.updateById(userId, updateDto);
+        return "redirect:/";
+    }
+
+    @PostMapping("/user/profile-image/delete")
+    public String deleteProfileImage(@AuthenticationPrincipal Long userId) {
+        userService.deleteProfileImage(userId);
+        return "redirect:/user/detail";
+    }
+
     // GET http://localhost:8080/login
     @GetMapping("/login")
     public String loginForm() {
@@ -86,13 +99,17 @@ public class UserController {
         return "redirect:/login";
     }
 
-    @PostMapping("/api/logout")
-    public String logout(
-        @AuthenticationPrincipal Long userId,
-        HttpServletResponse response
-    ) {
+    @GetMapping("/api/logout")
+    public String logout(@AuthenticationPrincipal Long userId, HttpServletResponse response) {
         authService.logout(userId);          // DB에서 Refresh Token 해시 제거
         authService.clearAuthCookies(response); // accessToken, refreshToken 쿠키 만료
         return "redirect:/";
     }
+
+    @GetMapping("/api/withdraw")
+    public String withdraw(@AuthenticationPrincipal Long userId, HttpServletResponse response){
+        userService.withdraw(userId, response);
+        return "redirect:/";
+    }
+
 }
