@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.checkerframework.common.returnsreceiver.qual.This;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ public class ExchangeRequest {
 
     private String message; // B가 A에게 보내는 짧은 제안 메시지
 
+    private String paymentIdA; // B 보증금 결제 식별자 (환불 시 사용)
     @Column(nullable = false)
     private String paymentIdB; // B 보증금 결제 식별자 (환불 시 사용)
 
@@ -96,8 +98,11 @@ public class ExchangeRequest {
     }
 
     // 가게 체크인 시 출석여부 기록
-    public void checkIn(boolean userAShowed, boolean userBShowed) {
+    public void checkInA(boolean userAShowed) {
         this.userAShowed = userAShowed;
+    }
+
+    public void checkInB(boolean userBShowed) {
         this.userBShowed = userBShowed;
     }
 
@@ -126,6 +131,26 @@ public class ExchangeRequest {
         return this.status == ExchangeRequestStatus.COMPLETED
             || this.status == ExchangeRequestStatus.EXPIRED_PARTIAL
             || this.status == ExchangeRequestStatus.EXPIRED_BOTH;
+    }
+
+    //스케줄러가 데드라인 지난 뒤, a,b가 왔었는지 보고 최종 상태값 바꾸는 메서드
+    public void isUserShowed() {
+        if (userAShowed && userBShowed) {
+            this.status = ExchangeRequestStatus.COMPLETED;
+        } else if (userAShowed || userBShowed) {
+            this.status = ExchangeRequestStatus.EXPIRED_PARTIAL;
+        } else {
+            this.status = ExchangeRequestStatus.EXPIRED_BOTH;
+        }
+    }
+
+    // 체크인 시점에 둘 다 왔는지 (데드라인 기다릴 필요 없이 바로 완료 처리할지 판단용)
+    public boolean isBothShowed() {
+        return userAShowed && userBShowed;
+    }
+
+    public void updatePaymentIdA(String paymentIdA){
+        this.paymentIdA = paymentIdA;
     }
 
 }
