@@ -119,4 +119,8 @@ public class Item {
     public boolean isOwner(Long userId) {
         return this.sellerUserId.equals(userId);
     }
+
+    public void updateStatus(ItemStatus status) {
+        this.status = status;
+    }
 }

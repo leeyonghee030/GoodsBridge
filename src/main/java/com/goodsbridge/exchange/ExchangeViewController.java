@@ -16,6 +16,30 @@ public class ExchangeViewController {
 
     private final ExchangeService exchangeService;
 
+    //   교환 보증금 정산( 교환 수락, 가게(check-in))
+    //교환수락
+    @PostMapping("/api/exchange-requests/{id}/accept")
+    public ResponseEntity<ExchangeRequestResponse> accept(@PathVariable Long id,
+                                                          @RequestBody ExchangeAcceptRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        ExchangeRequestResponse response = exchangeService.accept(id, userId, request);
+        return ResponseEntity.ok().body(response);
+    }
+
+    @PatchMapping("/api/shops/{shopId}/exchange-requests/{id}/check-in")
+    public ResponseEntity<ExchangeRequestResponse> checkIn(@PathVariable Long id,
+                            @RequestBody ExchangeCheckInRequest request){
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        ExchangeRequestResponse response = exchangeService.checkIn(id,userId,request);
+        return ResponseEntity.ok().body(response);
+    }
+
+
+
+    //--
+
 
     //-------교환 게시글 댓글
     @PostMapping("/api/exchange-items/{id}/comments")
@@ -43,13 +67,12 @@ public class ExchangeViewController {
     }
 
     @DeleteMapping("/api/exchange-comments/{id}")
-    public ResponseEntity<?> deleteComment(@PathVariable Long id){
+    public ResponseEntity<?> deleteComment(@PathVariable Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         exchangeService.deleteComment(id, userId);
         return ResponseEntity.noContent().build();
     }
 // -----------------------
-
 
 
     //-------------교환 -------------------

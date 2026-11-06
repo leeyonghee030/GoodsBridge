@@ -40,8 +40,12 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
     //기한 지난 것 찾기
     @Query("""
     select e from ExchangeRequest e
-    where e.status = 'PENDING' and e.deadline < CURRENT_TIMESTAMP
+    where e.status in ('PENDING','CONFIRMED') and e.deadline < CURRENT_TIMESTAMP
 """)
     public List<ExchangeRequest> findByStatusAndDeadlineBefore();
+
+
+
+
 
 }
