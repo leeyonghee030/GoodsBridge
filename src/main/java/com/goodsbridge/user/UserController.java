@@ -2,20 +2,16 @@ package com.goodsbridge.user;
 
 import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.security.AuthService.TokenResponse;
-import com.goodsbridge._core.util.Define;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
 
 
 @RequiredArgsConstructor
@@ -99,14 +95,14 @@ public class UserController {
         return "redirect:/login";
     }
 
-    @GetMapping("/api/logout")
+    @PostMapping("/api/logout")
     public String logout(@AuthenticationPrincipal Long userId, HttpServletResponse response) {
         authService.logout(userId);          // DB에서 Refresh Token 해시 제거
         authService.clearAuthCookies(response); // accessToken, refreshToken 쿠키 만료
         return "redirect:/";
     }
 
-    @GetMapping("/api/withdraw")
+    @PostMapping("/api/withdraw")
     public String withdraw(@AuthenticationPrincipal Long userId, HttpServletResponse response){
         userService.withdraw(userId, response);
         return "redirect:/";

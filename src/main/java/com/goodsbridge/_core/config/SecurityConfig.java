@@ -3,7 +3,6 @@ package com.goodsbridge._core.config;
 
 import com.goodsbridge._core.security.JwtAuthenticationFilter;
 import com.goodsbridge._core.security.JwtProvider;
-import com.goodsbridge._core.util.FileUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
