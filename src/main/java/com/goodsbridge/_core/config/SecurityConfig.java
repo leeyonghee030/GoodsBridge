@@ -48,7 +48,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/api/login",
-                    "/css/**", "/js/**", "/favicon.ico"
+                    "/css/**", "/js/**", "/favicon.ico", "/images/**"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()

@@ -5,14 +5,19 @@ import com.goodsbridge._core.exception.CustomException;
 import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import com.goodsbridge.user.UserResponse;
+import com.goodsbridge.user.UserService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -117,6 +122,7 @@ public class AuthService {
             .refreshToken(newRefreshToken)
             .build();
     }
+
 
     // 로그아웃
     @Transactional

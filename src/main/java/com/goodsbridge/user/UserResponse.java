@@ -54,4 +54,18 @@ public class UserResponse {
         }
     }
 
+    @Data
+    public static class UpdateFormDto {
+        private Long id;
+        private String nickname;
+        private String email;
+        private String profileImage;
+
+        public UpdateFormDto(User user) {
+            this.id = user.getId();
+            this.nickname = user.getNickname();
+            this.email = user.getEmail();
+            this.profileImage = user.getProfilePath();
+        }
+    }
 }
