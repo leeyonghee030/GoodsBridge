@@ -1,3 +1,4 @@
+### Build ###
 HELP.md
 .gradle
 build/
@@ -5,36 +6,19 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
 ### IntelliJ IDEA ###
 .idea
 *.iws
 *.iml
 *.ipr
 out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
 
 ### VS Code ###
 .vscode/
+
+### OS ###
+.DS_Store
+Thumbs.db
 
 ### 환경변수 / 시크릿 ###
 .env
@@ -42,27 +26,28 @@ out/
 !*.env.example
 application-secret.yml
 application-local.yml
-*.pem
-*.key
-*.p12
-*secrets*
 
 ### 로그 ###
 *.log
-
-### OS 잡파일 ###
-.DS_Store
-Thumbs.db
-[Dd]esktop.ini
-$RECYCLE.BIN/
-*.lnk
-.AppleDouble
-._*
 
 ### Claude Code / AI 도구 흔적 ###
 .claude/
 .claude.json
 CLAUDE.md
-AGENTS.md
 .mcp.json
 .omc/
+### Claude Code / AI 도구 흔적 (추가) ###
+AGENTS.md
+
+### 키/인증서 ###
+*.pem
+*.key
+*.p12
+*secrets*
+
+### OS 잡파일 (추가) ###
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+.AppleDouble
+._*
