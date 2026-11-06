@@ -37,11 +37,11 @@ class ShopSubscriptionBatchIntegrationTest {
     private CategoryJpaRepository categoryRepository;
 
     @Test
-    @DisplayName("만료일이 지난 활성 구독들을 배치가 순회하며 소프트 삭제 및 연관 상품 판매 마감 처리한다.")
+    @DisplayName("만료일이 지난 활성 구독들을 배치가 순회하며 소프트 삭제 및 연관 상품 판매 마감 처리한다 (Page 0 청크 배치 검증)")
     void processExpiredSubscriptions_success() {
-        // given
+        // given: 테스트용 사용자, 가게, 카테고리, 상품 생성
         User owner = userRepository.save(User.builder()
-            .email("batch_owner@goodsbridge.com")
+            .email("batch_test_owner@goodsbridge.com")
             .password("password123!")
             .nickname("배치사장님")
             .loginType(LoginType.EMAIL)
@@ -55,40 +55,42 @@ class ShopSubscriptionBatchIntegrationTest {
             .status(ShopStatus.APPROVED)
             .build());
 
-        Category category = categoryRepository.save(Category.builder().name("디지털").build());
+        Category category = categoryRepository.save(Category.builder().name("디지털/가전").build());
 
         Item item = itemRepository.save(Item.builder()
             .sellerUserId(owner.getId())
             .shopId(shop.getId())
             .category(category)
-            .title("무선 키보드")
-            .price(35000)
+            .title("게이밍 키보드")
+            .price(45000)
             .saleType(SaleType.NORMAL)
             .status(ItemStatus.ON_SALE)
             .build());
 
-        // 확실하게 과거 날짜로 설정 (배치 쿼리가 인식할 수 있도록 며칠 전으로 지정)
+        // 과거 날짜로 설정된 만료 구독 데이터 생성 (배치 조회 조건 충족)
         LocalDate pastDate = LocalDate.now().minusDays(5);
         ShopSubscription expiredSubscription = subscriptionRepository.save(ShopSubscription.builder()
             .shopId(shop.getId())
-            .paymentId("PAY_EXPIRED_999")
+            .paymentId("PAY_BATCH_EXPIRED_001")
             .setupFeePaid(true)
             .startDate(pastDate.minusDays(30))
-            .endDate(pastDate) // 명확히 과거 날짜
+            .endDate(pastDate) // 오늘보다 이전 (만료됨)
             .status(ShopSubscriptionStatus.ACTIVE)
             .build());
 
-        // when: 배치 실행 전 플러시를 통해 DB에 쿼리를 즉시 반영하여 락 충돌 방지
+        // when: 심플 청크 배치 서비스 실행 (Page 0 반복 조회 방식)
         int processedCount = subscriptionService.processExpiredSubscriptions();
 
-        // then
+        // then: 정확히 1건이 처리되었는지 검증
         assertThat(processedCount).isEqualTo(1);
 
+        // 1. 구독 상태 및 소프트 삭제 검증
         ShopSubscription updatedSub = subscriptionRepository.findDeletedByShopId(shop.getId()).get();
         assertThat(updatedSub.getStatus()).isEqualTo(ShopSubscriptionStatus.EXPIRED);
         assertThat(updatedSub.getDeletedAt()).isNotNull();
         assertThat(updatedSub.getPaymentId()).contains("_DELETED_");
 
+        // 2. 연관 상품 마감(CLOSED) 및 소프트 삭제 검증
         Item updatedItem = itemRepository.findById(item.getId()).get();
         assertThat(updatedItem.isDeleted()).isTrue();
         assertThat(updatedItem.getStatus()).isEqualTo(ItemStatus.CLOSED);

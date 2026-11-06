@@ -13,20 +13,21 @@ import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
-    // 1. 단건 상세 조회 (삭제되지 않은 상품만)
     Optional<Item> findByIdAndDeletedFalse(Long id);
 
-    // 2. 내 상품 목록 조회 (삭제되지 않은 상품만)
     List<Item> findBySellerUserIdAndDeletedFalse(Long userId);
 
-    // 3. 필터링 조건 검색 쿼리 (카테고리, 지역, 판매 타입 등)
+    // 💡 누락된 메서드 추가 (CategoryService에서 사용)
+    Long countByCategoryIdAndDeletedFalse(Long categoryId);
+
+    // 💡 오타 수정: IS NULL C -> IS NULL
     @Query("""
         SELECT i FROM Item i
         JOIN FETCH i.category c
         JOIN Shop s ON i.shopId = s.id
         WHERE (:categoryId IS NULL OR c.id = :categoryId)
           AND (:region IS NULL OR s.region = :region)
-          AND (:saleType IS NULL C OR i.saleType = :saleType)
+          AND (:saleType IS NULL OR i.saleType = :saleType)
           AND i.deleted = false
         """)
     Page<Item> searchItemsWithFilter(
@@ -36,7 +37,6 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         Pageable pageable
     );
 
-    // 벌크 연산: 특정 가게의 모든 상품 일괄 마감 처리
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
         UPDATE Item i
@@ -45,7 +45,6 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         """)
     void softDeleteByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
 
-    // 벌크 연산: 상품 상태 일괄 변경
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
         UPDATE Item i
@@ -58,7 +57,6 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         @Param("targetStatus") ItemStatus targetStatus
     );
 
-    // 소프트 삭제된 상품 목록 조회 (구독 복구용)
     @Query(value = "SELECT * FROM item_tb WHERE shop_id = :shopId AND deleted_at IS NOT NULL", nativeQuery = true)
     List<Item> findAllDeletedByShopId(@Param("shopId") Long shopId);
 }

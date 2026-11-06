@@ -70,7 +70,7 @@ public class ShopSubscriptionService {
             throw new ForbiddenException("본인의 가게만 구독을 시작하거나 갱신할 수 있습니다.");
         }
 
-        ShopSubscription existingSubscription = subscriptionRepository.findByShopId(shopId).orElse(null);
+        ShopSubscription existingSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
         boolean isActive = existingSubscription != null && existingSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
 
         // [외부 연동] 결제 검증 연동

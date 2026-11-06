@@ -1,6 +1,7 @@
 package com.goodsbridge.item;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,4 +18,17 @@ public interface CategoryJpaRepository extends JpaRepository<Category, Long> {
 
     // 카테고리 목록을 이름 오름차순(가나다순)으로 정렬하여 조회
     List<Category> findAllByOrderByNameAsc();
+
+    /**
+     * [N+1 최적화 쿼리] 모든 카테고리와 삭제되지 않은 상품 개수를 한 번의 쿼리로 조회
+     * - LEFT JOIN을 사용하여 상품이 없는 빈 카테고리도 결과에 포함시킵니다.
+     */
+    @Query("""
+        SELECT new com.goodsbridge.item.CategoryResponse(c.id, c.name, COUNT(i.id))
+        FROM Category c
+        LEFT JOIN Item i ON i.category.id = c.id AND i.deleted = false
+        GROUP BY c.id, c.name
+        ORDER BY c.name ASC
+        """)
+    List<CategoryResponse> findAllWithItemCount();
 }
