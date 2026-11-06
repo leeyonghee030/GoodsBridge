@@ -5,6 +5,7 @@ import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.user.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +15,7 @@ import java.util.List;
  * #9(결제/구매), #17(정산/환불)에서 실제 로직을 채웁니다.
  * 지금은 다른 도메인이 컴파일/개발을 먼저 시작할 수 있게 자리만 잡아둔 상태입니다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
@@ -68,6 +70,18 @@ public class PaymentServiceImpl implements PaymentService {
             .amount(expectedAmount)
             .purpose(purpose)
             .build();
+
+        User existingUser = entityManager.find(User.class, userId);
+
+        log.info(
+            "결제 저장 직전 - paymentId={}, userId={}, userExists={}, amount={}, purpose={}",
+            paymentId,
+            userId,
+            existingUser != null,
+            expectedAmount,
+            purpose
+        );
+
         paymentRepository.save(payment);
         return paymentId;
     }
