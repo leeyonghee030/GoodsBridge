@@ -77,4 +77,8 @@ public class ShopEvent {
     public void updateStatus(ShopEventStatus shopEventStatus){
         this.status = shopEventStatus;
     }
+
+    public Integer  increaseCurrentCount() {
+        return ++this.currentCount;
+    }
 }
