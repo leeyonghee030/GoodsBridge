@@ -5,6 +5,7 @@ import com.goodsbridge.exchange.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,6 +38,13 @@ public class ExchangeViewController {
     }
 
 
+
+    //-------교환 게시글 목록 (디자인 확인용 화면)
+    @GetMapping("/exchange")
+    public String exchangeList(Model model) {
+        model.addAttribute("items", exchangeService.getExchangeItemList(null));
+        return "exchange/index";
+    }
 
     //--
 

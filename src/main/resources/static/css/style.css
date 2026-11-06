@@ -1,6 +1,302 @@
+/*
+  무채색 팔레트 - 흰색/검정/회색만 사용
+*/
+:root {
+    --color-bg: #FFFFFF;
+    --color-surface: #F5F5F5;
+    --color-text: #111111;
+    --color-muted: #767676;
+    --color-border: #DDDDDD;
+    --color-dark: #111111;
+    --color-dark-hover: #000000;
+
+    --font-sans: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    --fw-regular: 400;
+    --fw-medium: 500;
+    --fw-semibold: 600;
+    --fw-bold: 700;
+}
+
 * { box-sizing: border-box; }
-body { font-family: sans-serif; margin: 0; color: #222; }
-.nav { display: flex; gap: 1rem; padding: 1rem; background: #f5f5f5; }
-.nav a { text-decoration: none; color: #333; }
-.container { max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
-.todo { color: #b60205; font-size: 0.9rem; }
+
+body {
+    font-family: var(--font-sans);
+    font-weight: var(--fw-regular);
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+.nav {
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    padding: 1rem 1.5rem;
+    background: var(--color-bg);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.logo {
+    font-weight: var(--fw-bold);
+    font-size: 1.05rem;
+    letter-spacing: -0.02em;
+    margin-right: 0.5rem;
+    color: var(--color-text);
+}
+
+.nav a {
+    text-decoration: none;
+    color: var(--color-text);
+    font-weight: var(--fw-medium);
+    font-size: 0.92rem;
+}
+
+.nav a:hover { color: var(--color-muted); }
+
+/* ===== 로그인/회원가입: 작고 압축된 카드 ===== */
+.container {
+    max-width: 360px;
+    margin: 4rem auto;
+    padding: 2rem 1.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+}
+
+h1 {
+    color: var(--color-text);
+    font-size: 1.25rem;
+    font-weight: var(--fw-bold);
+    text-align: center;
+    margin: 0 0 1.25rem;
+}
+
+form p { margin: 0 0 0.6rem; }
+
+label.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+}
+
+input[type="email"],
+input[type="password"],
+input[type="text"],
+input[type="file"] {
+    width: 100%;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 0.9rem;
+    color: var(--color-text);
+    background: var(--color-bg);
+}
+
+input::placeholder { color: #AAAAAA; }
+
+input:focus {
+    outline: none;
+    border-color: var(--color-text);
+}
+
+.checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.4rem 0 1rem;
+    font-size: 0.85rem;
+    color: var(--color-muted);
+}
+
+.checkbox-row input { width: auto; }
+
+button[type="submit"] {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--color-dark);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+}
+
+button[type="submit"]:hover { background: var(--color-dark-hover); }
+
+button.secondary {
+    width: 100%;
+    padding: 0.7rem;
+    margin-top: 0.75rem;
+    background: var(--color-surface);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: var(--fw-medium);
+    cursor: pointer;
+}
+
+.link-row {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 0.9rem;
+    font-size: 0.82rem;
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.1rem 0;
+    color: var(--color-muted);
+    font-size: 0.78rem;
+}
+
+.divider::before,
+.divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+}
+
+.container a {
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: var(--fw-medium);
+}
+
+.container a:hover { color: var(--color-muted); text-decoration: underline; }
+
+.page-title {
+    max-width: 1000px;
+    margin: 1.75rem auto 0;
+    padding: 0 1.5rem;
+    color: var(--color-text);
+    font-size: 1.5rem;
+    font-weight: var(--fw-bold);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.page-title small {
+    font-size: 0.85rem;
+    font-weight: var(--fw-medium);
+    color: var(--color-muted);
+}
+
+.card-grid {
+    max-width: 1000px;
+    margin: 1.25rem auto 3rem;
+    padding: 0 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.card {
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    overflow: hidden;
+    text-decoration: none;
+    color: var(--color-text);
+    display: block;
+    background: var(--color-bg);
+    position: relative;
+}
+
+.card-index {
+    position: absolute;
+    top: 0.6rem;
+    left: 0.6rem;
+    font-size: 0.7rem;
+    font-weight: var(--fw-bold);
+    color: #fff;
+    background: var(--color-dark);
+    padding: 0.1rem 0.45rem;
+    border-radius: 3px;
+}
+
+.card-image {
+    aspect-ratio: 1 / 1;
+    background: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-muted);
+    font-size: 0.78rem;
+}
+
+.card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-body { padding: 0.85rem 0.9rem; }
+
+.card-title {
+    color: var(--color-text);
+    font-weight: var(--fw-bold);
+    font-size: 0.95rem;
+    margin: 0 0 0.25rem;
+}
+
+.card-price {
+    font-weight: var(--fw-bold);
+    font-size: 0.95rem;
+    color: var(--color-text);
+    margin: 0 0 0.35rem;
+}
+
+.card-meta {
+    color: var(--color-muted);
+    font-size: 0.78rem;
+    margin: 0;
+    padding: 0.3rem 0;
+    border-top: 1px solid var(--color-border);
+}
+
+.empty-state {
+    max-width: 1000px;
+    margin: 1.5rem auto;
+    padding: 0 1.5rem;
+    color: var(--color-muted);
+}
+
+.badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    font-size: 0.68rem;
+    font-weight: var(--fw-bold);
+    color: var(--color-text);
+}
+
+.site-footer {
+    margin-top: 3rem;
+    padding: 2.5rem 1.5rem;
+    background: var(--color-dark);
+    color: #fff;
+    text-align: center;
+}
+
+.site-footer .logo { color: #fff; font-size: 1.2rem; }
+
+.site-footer p {
+    margin: 0.5rem 0 0;
+    color: #AAAAAA;
+    font-size: 0.85rem;
+}
+
+.todo { color: var(--color-muted); font-size: 0.9rem; font-style: italic; }

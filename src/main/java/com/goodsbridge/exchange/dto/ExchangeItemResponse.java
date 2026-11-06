@@ -15,17 +15,27 @@ public class ExchangeItemResponse {
 
     private Long id;
     private Long itemId;
+    private String itemTitle;
+    private Integer itemPrice;
+    private String itemImageUrl;
     private String wantDescription;
     private Long shopId;
+    private String shopName;
     private ExchangeItemStatus status;
     private LocalDateTime createdAt;
 
     @Builder
-    public ExchangeItemResponse(Long id, Long itemId, String wantDescription, Long shopId, ExchangeItemStatus status, LocalDateTime createdAt) {
+    public ExchangeItemResponse(Long id, Long itemId, String itemTitle, Integer itemPrice, String itemImageUrl,
+                                 String wantDescription, Long shopId, String shopName,
+                                 ExchangeItemStatus status, LocalDateTime createdAt) {
         this.id = id;
         this.itemId = itemId;
+        this.itemTitle = itemTitle;
+        this.itemPrice = itemPrice;
+        this.itemImageUrl = itemImageUrl;
         this.wantDescription = wantDescription;
         this.shopId = shopId;
+        this.shopName = shopName;
         this.status = status;
         this.createdAt = createdAt;
     }
@@ -34,8 +44,12 @@ public class ExchangeItemResponse {
         return ExchangeItemResponse.builder()
             .id(exchangeItem.getId())
             .itemId(exchangeItem.getItem().getId())
+            .itemTitle(exchangeItem.getItem().getTitle())
+            .itemPrice(exchangeItem.getItem().getPrice())
+            .itemImageUrl(exchangeItem.getItem().getImageUrl())
             .wantDescription(exchangeItem.getWantDescription())
             .shopId(exchangeItem.getShop().getId())
+            .shopName(exchangeItem.getShop().getName())
             .status(exchangeItem.getStatus())
             .createdAt(exchangeItem.getCreatedAt())
             .build();

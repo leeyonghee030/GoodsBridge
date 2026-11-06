@@ -1,4 +1,27 @@
 {{> fragments/header}}
-<h1>Exchange (테스트용)</h1>
-<p class="todo">TODO: #10/#18(교환 CRUD+보증금정산) 완성 후 실제 화면으로 교체</p>
+
+<h1 class="page-title">교환 게시판</h1>
+
+{{^items}}
+<p class="empty-state">아직 등록된 교환 게시글이 없습니다.</p>
+{{/items}}
+
+<div class="card-grid">
+{{#items}}
+    <a class="card" href="/exchange/{{id}}">
+        <span class="card-index">{{id}}</span>
+        <div class="card-image">
+            {{#itemImageUrl}}<img src="{{itemImageUrl}}" alt="{{itemTitle}}">{{/itemImageUrl}}
+            {{^itemImageUrl}}이미지 없음{{/itemImageUrl}}
+        </div>
+        <div class="card-body">
+            <p class="card-title">{{itemTitle}}</p>
+            <p class="card-price">{{itemPrice}}원</p>
+            <p class="card-meta">원하는 것: {{wantDescription}}</p>
+            <p class="card-meta">{{shopName}} · <span class="badge">{{status.displayName}}</span></p>
+        </div>
+    </a>
+{{/items}}
+</div>
+
 {{> fragments/footer}}
