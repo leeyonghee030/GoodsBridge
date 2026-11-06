@@ -40,6 +40,9 @@ public class PurchaseService {
     public PurchaseResponse.DetailDto purchase(Long itemId, Long userId, PurchaseRequest.CreateDto createDto) {
         createDto.validate();
 
+        log.info("구매 처리 시작 - itemId={}, userId={}, paymentId={}",
+            itemId, userId, createDto.getPaymentId());
+
         // 조회
         Item item = itemRepository.findById(itemId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
@@ -54,9 +57,14 @@ public class PurchaseService {
             throw new BadRequestException("이미 구매한 상품입니다.");
         }
 
-        // 구매 기록
         paymentService.verify(createDto.getPaymentId(), item.getPrice(), PaymentPurpose.PURCHASE, userId);
+
+        log.info("PortOne 결제 검증 및 Payment 저장 완료 - itemId={}, userId={}, paymentId={}",
+            itemId, userId, createDto.getPaymentId());
+
+        // 구매 기록
         User buyer = entityManager.getReference(User.class, userId);
+
         Purchase purchase = purchaseRepository.save(Purchase.builder()
             .item(item)
             .user(buyer)
@@ -64,6 +72,8 @@ public class PurchaseService {
             .deliveryAddress(createDto.getDeliveryAddress())
             .build());
 
+        log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
+            itemId, userId, createDto.getPaymentId());
         return new PurchaseResponse.DetailDto(purchase);
     }
 

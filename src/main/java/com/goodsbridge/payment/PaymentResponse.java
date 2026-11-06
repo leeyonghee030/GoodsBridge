@@ -24,6 +24,7 @@ public class PaymentResponse {
 
     // PortOne V2 결제 단건 조회 응답
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class PortOnePayment {
         private String id;
         private String status;
@@ -31,6 +32,7 @@ public class PaymentResponse {
         private Amount amount;
 
         @Data
+        @JsonIgnoreProperties(ignoreUnknown = true)
         public static class Amount {
             private Integer total;
         }

@@ -1,47 +1,27 @@
 {{> fragments/header}}
 <section class="page-head">
-    <p class="eyebrow">ISSUE #9 · PAYMENT</p>
-    <h1>결제내역</h1>
-    <p>PortOne 결제 검증 결과와 결제 상태를 확인합니다.</p>
+    <p class="eyebrow">GOODBRIDGE · PAYMENT</p>
+    <h1>내 결제내역</h1>
+    <p>포트원 결제 검증 결과와 환불 가능한 결제를 확인합니다.</p>
 </section>
-
 <section class="panel">
-    <div class="section-title">
-        <h2>내 결제내역</h2>
-        <span class="status paid">결제 검증 완료</span>
-    </div>
-    <div class="payment-row">
-        <div>
-            <strong>결제 #1001</strong>
-            <small>paymentId: payment_demo_001 · 구매 결제</small>
-        </div>
-        <span class="status paid">PAID</span>
-        <strong>20,000원</strong>
-    </div>
-    <div class="payment-row">
-        <div>
-            <strong>결제 #1000</strong>
-            <small>paymentId: payment_demo_000 · 구매 결제</small>
-        </div>
-        <span class="status cancelled">CANCELLED</span>
-        <strong>15,000원</strong>
-    </div>
+    <div class="section-title"><h2>결제 목록</h2><button id="reload-payments" type="button">새로고침</button></div>
+    <div id="payment-list"><p class="empty">결제내역을 불러오는 중입니다.</p></div>
 </section>
-
-<section class="panel">
-    <div class="section-title">
-        <div>
-            <p class="eyebrow">PAYMENT FLOW</p>
-            <h2>결제 검증 흐름</h2>
-        </div>
-        <span class="tag">paymentId → PortOne → Payment</span>
-    </div>
-    <div class="steps">
-        <span class="active">결제 요청</span>
-        <span class="active">PortOne 검증</span>
-        <span class="active">금액 일치 확인</span>
-        <span>결제내역 저장</span>
-    </div>
-    <p class="empty">실제 API 연동 시 GET /api/payments/me에서 로그인 사용자의 결제내역을 조회합니다.</p>
-</section>
+<section class="panel"><p class="eyebrow">PAYMENT FLOW</p><p>실제 결제는 <a href="/test/purchase">구매 화면</a>에서 포트원 테스트 결제를 진행할 수 있습니다.</p></section>
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const list = document.getElementById('payment-list');
+    const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    async function load() {
+        const response = await pageFetch('/api/payments/me');
+        if (!response.ok) { list.innerHTML = '<p class="error">로그인 후 결제내역을 확인할 수 있습니다.</p>'; return; }
+        const payments = await response.json();
+        list.innerHTML = payments.length ? payments.map(payment => `<article class="payment-row"><div><strong>${escapeHtml(payment.paymentId)}</strong><small>${escapeHtml(payment.paymentPurpose || '')}</small></div><span>${escapeHtml(payment.paymentStatus || '')}</span><div><strong>${money(payment.amount)}</strong><small>환불 ${money(payment.refundedAmount)}</small></div></article>`).join('') : '<p class="empty">결제내역이 없습니다.</p>';
+    }
+    document.getElementById('reload-payments').addEventListener('click', load); load();
+})();
+</script>
 {{> fragments/footer}}
