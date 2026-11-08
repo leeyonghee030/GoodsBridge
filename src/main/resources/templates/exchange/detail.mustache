@@ -131,7 +131,7 @@
         if (!res.ok) { list.innerHTML = '<p class="empty-state">제안을 불러오지 못했습니다.</p>'; return; }
         const requests = await res.json();
         list.innerHTML = requests.length
-            ? requests.map(r => `<div class="comment-row"><p>${esc(r.message)} · 보증금 ${money(r.depositAmountB)}</p><button type="button" data-accept="${r.id}">수락</button> <button type="button" data-reject="${r.id}">거절</button></div>`).join('')
+            ? requests.map(r => `<div class="comment-row"><p>${esc(r.message)} · 보증금 ${money(r.depositAmountB)}</p><div class="btn-row"><button type="button" data-accept="${r.id}">수락</button><button type="button" class="btn-secondary" data-reject="${r.id}">거절</button></div></div>`).join('')
             : '<p class="empty-state">아직 받은 제안이 없습니다.</p>';
         list.querySelectorAll('[data-reject]').forEach(button => button.addEventListener('click', async () => {
             const res = await pageFetch('/api/exchange-requests/' + button.dataset.reject + '/reject', { method: 'POST' });

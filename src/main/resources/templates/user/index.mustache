@@ -1,21 +1,73 @@
 {{> fragments/header}}
 
-<h1>GoodsBridge 테스트</h1>
+<a href="/exchange" class="main-hero">
+    <span class="main-hero-overlay">
+        <strong>GOODSBRIDGE</strong>
+        <span>안전한 굿즈 교환의 시작</span>
+        <span class="main-hero-cta">EXPLORE →</span>
+    </span>
+</a>
 
-{{#userId}}
-    <p>로그인 상태입니다. 사용자 ID: {{userId}}</p>
-    <div>
-        <form action="/api/logout" method="post">
-            <button type="submit">로그아웃</button>
-        </form>
+<section class="hero-grid">
+    <a href="/exchange" class="hero-block">
+        <div class="hero-mock">
+            <div class="mock-card"><div class="mock-img"></div><div class="mock-line"></div><div class="mock-line short"></div></div>
+            <div class="mock-card"><div class="mock-img"></div><div class="mock-line"></div><div class="mock-line short"></div></div>
+            <div class="mock-card"><div class="mock-img"></div><div class="mock-line"></div><div class="mock-line short"></div></div>
+        </div>
+        <span class="hero-overlay">
+            <span class="hero-label">EXCHANGE</span>
+            <span class="hero-title">교환 게시판</span>
+        </span>
+    </a>
+    <a href="/test/item" class="hero-block">
+        <div class="hero-mock mock-grid-2">
+            <div class="mock-card"><div class="mock-img"></div></div>
+            <div class="mock-card"><div class="mock-img"></div></div>
+            <div class="mock-card"><div class="mock-img"></div></div>
+            <div class="mock-card"><div class="mock-img"></div></div>
+        </div>
+        <span class="hero-overlay">
+            <span class="hero-label">SHOP</span>
+            <span class="hero-title">상품 둘러보기</span>
+        </span>
+    </a>
+</section>
+
+<section class="category-rank">
+    <div class="category-list">
+        <h2>인기 교환 카테고리</h2>
+        <ol>
+            <li><span>01</span>포토카드</li>
+            <li><span>02</span>앨범</li>
+            <li><span>03</span>피규어</li>
+            <li><span>04</span>응원봉</li>
+            <li><span>05</span>포스터</li>
+        </ol>
     </div>
-    <p><a href="/update">회원 정보 수정</a></p>
-{{/userId}}
+    <a href="/exchange" class="category-photo">
+        <span class="category-photo-overlay">
+            <strong>포토카드</strong>
+            <span>자세히 보기</span>
+        </span>
+    </a>
+</section>
 
-{{^userId}}
-    <p>로그인되지 않았습니다.</p>
-    <p><a href="/login">로그인</a></p>
-    <p><a href="/join">회원가입</a></p>
-{{/userId}}
+<section class="promo-strip">
+    보증금으로 지키는 안전 교환 · 오프라인 매장 중개
+</section>
+
+<a href="/test/event" class="event-feature">
+    <div class="event-feature-photo"></div>
+    <div class="event-feature-content">
+        <div class="event-feature-photo-sub"></div>
+        <div class="event-feature-text">
+            <span class="event-eyebrow">FIRST COME FIRST SERVED</span>
+            <h2>선착순 이벤트</h2>
+            <p>가게에서 여는 선착순 이벤트에 참여하고 번호표를 받아보세요</p>
+            <span class="event-feature-link">이벤트 보러가기 →</span>
+        </div>
+    </div>
+</a>
 
 {{> fragments/footer}}

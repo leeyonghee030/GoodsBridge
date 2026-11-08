@@ -3,15 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <title>GoodsBridge</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <nav class="nav">
     <span class="logo">GoodsBridge</span>
     <!-- 실제 화면 나오기 전까지는 /test/* 로 임시 연결. 화면 교체 시 함께 수정 -->
-    <a href="/test/item">상품</a>
-    <a href="/exchange">교환</a>
-    <a href="/test/board">게시판</a>
-    <a href="/login" id="nav-login">로그인</a>
+    <a href="/test/item">SHOP</a>
+    <a href="/exchange">EXCHANGE</a>
+    <a href="/test/board">BOARD</a>
+    {{#userId}}
+    <a href="/update">MY PAGE</a>
+    <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
+    {{/userId}}
+    {{^userId}}
+    <a href="/login" id="nav-login">LOGIN</a>
+    {{/userId}}
 </nav>
 <main>
