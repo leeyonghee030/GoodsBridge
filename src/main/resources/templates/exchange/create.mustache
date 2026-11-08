@@ -1,0 +1,88 @@
+{{> fragments/header}}
+
+<div class="container">
+<h1>교환 게시글 작성</h1>
+
+<form id="create-form">
+    <p>
+        <label for="itemId" class="sr-only">내 아이템</label>
+        <select id="itemId" name="itemId" required>
+            <option value="">내 아이템을 선택하세요</option>
+        </select>
+    </p>
+    <p>
+        <textarea id="wantDescription" name="wantDescription" placeholder="원하는 것을 적어주세요" rows="3" required></textarea>
+    </p>
+    <p style="position: relative;">
+        <input id="shopName" type="text" placeholder="교환장소(가게) 이름을 검색하세요" autocomplete="off" required>
+        <input id="shopId" type="hidden" name="shopId">
+        <div id="shop-results" class="autocomplete-list"></div>
+    </p>
+    <button type="submit">게시글 등록</button>
+</form>
+<p id="create-message" class="form-message"></p>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    async function loadMyItems() {
+        const res = await pageFetch('/api/items/me');
+        if (!res.ok) return;
+        const items = await res.json();
+        const select = document.getElementById('itemId');
+        items.filter(item => item.status === 'ON_SALE').forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.textContent = `${item.title} (${money(item.price)})`;
+            select.appendChild(option);
+        });
+    }
+
+    let shopSearchTimer;
+    document.getElementById('shopName').addEventListener('input', event => {
+        document.getElementById('shopId').value = '';
+        clearTimeout(shopSearchTimer);
+        const keyword = event.target.value.trim();
+        const results = document.getElementById('shop-results');
+        if (!keyword) { results.innerHTML = ''; return; }
+        shopSearchTimer = setTimeout(async () => {
+            const res = await pageFetch('/api/shops?name=' + encodeURIComponent(keyword));
+            if (!res.ok) return;
+            const page = await res.json();
+            const shops = page.content || [];
+            results.innerHTML = shops.length
+                ? shops.map(shop => `<div class="autocomplete-item" data-id="${shop.id}" data-name="${esc(shop.name)}">${esc(shop.name)} · ${esc(shop.region || '')}</div>`).join('')
+                : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+            results.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
+                document.getElementById('shopId').value = el.dataset.id;
+                document.getElementById('shopName').value = el.dataset.name;
+                results.innerHTML = '';
+            }));
+        }, 250);
+    });
+
+    document.getElementById('create-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = document.getElementById('create-message');
+        const shopId = document.getElementById('shopId').value;
+        if (!shopId) { message.textContent = '목록에서 가게를 선택해주세요.'; message.className = 'form-message error'; return; }
+        const body = {
+            itemId: Number(document.getElementById('itemId').value),
+            wantDescription: document.getElementById('wantDescription').value.trim(),
+            shopId: Number(shopId)
+        };
+        const res = await pageFetch('/api/exchange-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) { message.textContent = await res.text() || '등록에 실패했습니다.'; message.className = 'form-message error'; return; }
+        const created = await res.json();
+        location.href = '/exchange/' + created.id;
+    });
+
+    loadMyItems();
+})();
+</script>
+
+{{> fragments/footer}}

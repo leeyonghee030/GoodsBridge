@@ -1,0 +1,172 @@
+{{> fragments/header}}
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+
+<div class="container detail-container">
+<h1>{{item.itemTitle}}</h1>
+<div class="card-image detail-image">
+    {{#item.itemImageUrl}}<img src="{{item.itemImageUrl}}" alt="{{item.itemTitle}}">{{/item.itemImageUrl}}
+    {{^item.itemImageUrl}}이미지 없음{{/item.itemImageUrl}}
+</div>
+<p class="card-price">{{item.itemPrice}}원</p>
+<p>원하는 것: {{item.wantDescription}}</p>
+<p class="card-meta">교환장소: {{item.shopName}} · <span class="badge">{{item.status}}</span></p>
+
+<section id="propose-section" hidden>
+    <h2>교환 제안하기</h2>
+    <p>
+        <select id="proposeItemId">
+            <option value="">제안할 내 아이템을 선택하세요</option>
+        </select>
+    </p>
+    <p>
+        <textarea id="proposeMessage" placeholder="A에게 보낼 메시지" rows="2"></textarea>
+    </p>
+    <button id="propose-button" type="button">보증금 결제하고 제안하기</button>
+    <p id="propose-message" class="form-message"></p>
+</section>
+
+<section id="requests-section" hidden>
+    <h2>받은 제안</h2>
+    <div id="requests-list"></div>
+</section>
+
+<section id="comments-section">
+    <h2>댓글</h2>
+    <div id="comments-list"></div>
+    <form id="comment-form">
+        <p><input id="comment-content" type="text" placeholder="댓글을 입력하세요" required></p>
+        <button type="submit">댓글 등록</button>
+    </form>
+</section>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const deposit = price => Math.max(Math.round(price * 0.2), 2000);
+
+    const exchangeItemId = {{item.id}};
+    const ownerUserId = {{item.userId}};
+    const itemPrice = {{item.itemPrice}};
+    const currentUserId = {{#currentUserId}}{{currentUserId}}{{/currentUserId}}{{^currentUserId}}null{{/currentUserId}};
+    const portoneStoreId = '{{portoneStoreId}}';
+    const portoneChannelKey = '{{portoneChannelKey}}';
+    const isOwner = currentUserId !== null && currentUserId === ownerUserId;
+
+    // ===== 댓글 =====
+    async function loadComments() {
+        const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/comments');
+        const list = document.getElementById('comments-list');
+        if (!res.ok) { list.innerHTML = '<p class="empty-state">댓글을 불러오지 못했습니다.</p>'; return; }
+        const comments = await res.json();
+        list.innerHTML = comments.length
+            ? comments.map(c => `<div class="comment-row"><strong>${esc(c.username)}</strong><p>${esc(c.content)}</p></div>`).join('')
+            : '<p class="empty-state">아직 댓글이 없습니다.</p>';
+    }
+
+    document.getElementById('comment-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        if (currentUserId === null) { alert('로그인이 필요합니다.'); return; }
+        const input = document.getElementById('comment-content');
+        const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/comments', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: input.value.trim() })
+        });
+        if (!res.ok) { alert(await res.text() || '댓글 등록에 실패했습니다.'); return; }
+        input.value = '';
+        loadComments();
+    });
+
+    // ===== 제안하기 (B) =====
+    async function setupProposeSection() {
+        if (currentUserId === null || isOwner) return;
+        document.getElementById('propose-section').hidden = false;
+        const res = await pageFetch('/api/items/me');
+        if (!res.ok) return;
+        const items = await res.json();
+        const select = document.getElementById('proposeItemId');
+        items.filter(item => item.status === 'ON_SALE').forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.dataset.price = item.price;
+            option.textContent = `${item.title} (${money(item.price)})`;
+            select.appendChild(option);
+        });
+    }
+
+    document.getElementById('propose-button').addEventListener('click', async () => {
+        const message = document.getElementById('propose-message');
+        const select = document.getElementById('proposeItemId');
+        const selectedOption = select.options[select.selectedIndex];
+        if (!select.value) { message.textContent = '제안할 아이템을 선택하세요.'; message.className = 'form-message error'; return; }
+        if (!window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }
+        const depositAmount = deposit(Number(selectedOption.dataset.price));
+        message.textContent = '결제창을 여는 중입니다.'; message.className = 'form-message';
+        try {
+            const result = await PortOne.requestPayment({
+                storeId: portoneStoreId, channelKey: portoneChannelKey,
+                paymentId: `goodsbridge-exchange-${crypto.randomUUID()}`,
+                orderName: '교환 보증금', totalAmount: depositAmount, currency: 'KRW', payMethod: 'CARD'
+            });
+            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+            const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/propose', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemBId: Number(select.value), message: document.getElementById('proposeMessage').value.trim(), paymentId: result.paymentId })
+            });
+            if (!res.ok) throw new Error(await res.text() || '제안에 실패했습니다.');
+            message.textContent = '제안이 완료되었습니다.'; message.className = 'form-message';
+        } catch (error) {
+            message.textContent = error.message; message.className = 'form-message error';
+        }
+    });
+
+    // ===== 받은 제안 (A) =====
+    async function loadRequests() {
+        if (!isOwner) return;
+        document.getElementById('requests-section').hidden = false;
+        const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/requests');
+        const list = document.getElementById('requests-list');
+        if (!res.ok) { list.innerHTML = '<p class="empty-state">제안을 불러오지 못했습니다.</p>'; return; }
+        const requests = await res.json();
+        list.innerHTML = requests.length
+            ? requests.map(r => `<div class="comment-row"><p>${esc(r.message)} · 보증금 ${money(r.depositAmountB)}</p><button type="button" data-accept="${r.id}">수락</button> <button type="button" data-reject="${r.id}">거절</button></div>`).join('')
+            : '<p class="empty-state">아직 받은 제안이 없습니다.</p>';
+        list.querySelectorAll('[data-reject]').forEach(button => button.addEventListener('click', async () => {
+            const res = await pageFetch('/api/exchange-requests/' + button.dataset.reject + '/reject', { method: 'POST' });
+            if (!res.ok) { alert('거절에 실패했습니다.'); return; }
+            loadRequests();
+        }));
+        list.querySelectorAll('[data-accept]').forEach(button => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
+    }
+
+    async function acceptRequest(requestId) {
+        if (!window.PortOne) { alert('포트원 SDK를 불러오지 못했습니다.'); return; }
+        const depositAmount = deposit(itemPrice);
+        try {
+            const result = await PortOne.requestPayment({
+                storeId: portoneStoreId, channelKey: portoneChannelKey,
+                paymentId: `goodsbridge-exchange-${crypto.randomUUID()}`,
+                orderName: '교환 보증금', totalAmount: depositAmount, currency: 'KRW', payMethod: 'CARD'
+            });
+            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+            const res = await pageFetch('/api/exchange-requests/' + requestId + '/accept', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: result.paymentId })
+            });
+            if (!res.ok) throw new Error(await res.text() || '수락에 실패했습니다.');
+            alert('교환이 확정되었습니다.');
+            location.reload();
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    loadComments();
+    setupProposeSection();
+    loadRequests();
+})();
+</script>
+
+{{> fragments/footer}}

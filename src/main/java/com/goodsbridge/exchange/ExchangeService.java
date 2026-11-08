@@ -163,6 +163,24 @@ public class ExchangeService {
             .map(ExchangeItemResponse::from).toList();
     }
 
+    //교환 게시글 상세
+    public ExchangeItemResponse getExchangeItem(Long id) {
+        ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글입니다."));
+        return ExchangeItemResponse.from(exchangeItem);
+    }
+
+    //게시글 주인(A)이 받은 대기중인 제안 목록 (수락 화면용)
+    public List<ExchangeRequestResponse> getPendingRequests(Long exchangeItemId, Long userId) {
+        ExchangeItem exchangeItem = exchangeItemRepository.findById(exchangeItemId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글입니다."));
+        if (!exchangeItem.isOwner(userId)) {
+            throw new ForbiddenException("게시글 주인만 조회할 수 있습니다.");
+        }
+        return exchangeRequestRepository.findActiveRequestsByItem(exchangeItem).stream()
+            .map(ExchangeRequestResponse::from).toList();
+    }
+
     //교환 신청
     @Transactional
     public ExchangeRequestResponse proposeExchange(Long exchangeItemId, ExchangeRequestCreateRequest request, Long userId) {

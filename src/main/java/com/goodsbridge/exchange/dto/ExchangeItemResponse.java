@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 public class ExchangeItemResponse {
 
     private Long id;
+    private Long userId;
     private Long itemId;
     private String itemTitle;
     private Integer itemPrice;
@@ -25,10 +26,11 @@ public class ExchangeItemResponse {
     private LocalDateTime createdAt;
 
     @Builder
-    public ExchangeItemResponse(Long id, Long itemId, String itemTitle, Integer itemPrice, String itemImageUrl,
+    public ExchangeItemResponse(Long id, Long userId, Long itemId, String itemTitle, Integer itemPrice, String itemImageUrl,
                                  String wantDescription, Long shopId, String shopName,
                                  ExchangeItemStatus status, LocalDateTime createdAt) {
         this.id = id;
+        this.userId = userId;
         this.itemId = itemId;
         this.itemTitle = itemTitle;
         this.itemPrice = itemPrice;
@@ -43,6 +45,7 @@ public class ExchangeItemResponse {
     public static ExchangeItemResponse from(ExchangeItem exchangeItem) {
         return ExchangeItemResponse.builder()
             .id(exchangeItem.getId())
+            .userId(exchangeItem.getUser().getId())
             .itemId(exchangeItem.getItem().getId())
             .itemTitle(exchangeItem.getItem().getTitle())
             .itemPrice(exchangeItem.getItem().getPrice())

@@ -85,7 +85,9 @@ label.sr-only {
 input[type="email"],
 input[type="password"],
 input[type="text"],
-input[type="file"] {
+input[type="file"],
+select,
+textarea {
     width: 100%;
     padding: 0.65rem 0.8rem;
     border: 1px solid var(--color-border);
@@ -96,12 +98,55 @@ input[type="file"] {
     background: var(--color-bg);
 }
 
-input::placeholder { color: #AAAAAA; }
+textarea { resize: vertical; }
 
-input:focus {
+input::placeholder,
+textarea::placeholder { color: #AAAAAA; }
+
+input:focus,
+select:focus,
+textarea:focus {
     outline: none;
     border-color: var(--color-text);
 }
+
+/* 자동완성 드롭다운 (가게 검색 등) */
+.autocomplete-list {
+    position: absolute;
+    left: 0; right: 0; top: 100%;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 10;
+}
+
+.autocomplete-item {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.autocomplete-item:hover { background: var(--color-surface); }
+.autocomplete-item.empty { color: var(--color-muted); cursor: default; }
+.autocomplete-item.empty:hover { background: none; }
+
+.form-message { font-size: 0.85rem; color: var(--color-muted); }
+.form-message.error { color: #C0392B; }
+
+/* 교환 상세 화면 */
+.detail-container { max-width: 560px; }
+.detail-image { border-radius: 6px; margin-bottom: 0.75rem; }
+
+.comment-row {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-border);
+    font-size: 0.9rem;
+}
+
+.comment-row strong { font-size: 0.85rem; }
+.comment-row p { margin: 0.2rem 0 0; }
 
 .checkbox-row {
     display: flex;
@@ -186,6 +231,16 @@ button.secondary {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
+}
+
+.page-title .write-link {
+    font-size: 0.85rem;
+    font-weight: var(--fw-semibold);
+    color: #fff;
+    background: var(--color-dark);
+    padding: 0.4rem 0.9rem;
+    border-radius: 4px;
+    text-decoration: none;
 }
 
 .page-title small {

@@ -3,6 +3,7 @@ package com.goodsbridge.exchange;
 import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.exchange.dto.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -16,6 +17,12 @@ import java.util.List;
 public class ExchangeViewController {
 
     private final ExchangeService exchangeService;
+
+    @Value("${portone.store-id}")
+    private String storeId;
+
+    @Value("${portone.channel-key}")
+    private String channelKey;
 
     //   교환 보증금 정산( 교환 수락, 가게(check-in))
     //교환수락
@@ -39,11 +46,35 @@ public class ExchangeViewController {
 
 
 
-    //-------교환 게시글 목록 (디자인 확인용 화면)
+    //-------교환 게시글 목록
     @GetMapping("/exchange")
     public String exchangeList(Model model) {
         model.addAttribute("items", exchangeService.getExchangeItemList(null));
         return "exchange/index";
+    }
+
+    //교환 게시글 작성 폼
+    @GetMapping("/exchange/new")
+    public String exchangeCreateForm() {
+        return "exchange/create";
+    }
+
+    //교환 게시글 상세
+    @GetMapping("/exchange/{id}")
+    public String exchangeDetail(@PathVariable Long id, Model model) {
+        model.addAttribute("item", exchangeService.getExchangeItem(id));
+        model.addAttribute("currentUserId", SecurityUtil.getCurrentUserIdOrNull());
+        model.addAttribute("portoneStoreId", storeId);
+        model.addAttribute("portoneChannelKey", channelKey);
+        return "exchange/detail";
+    }
+
+    //게시글 주인이 받은 대기중 제안 목록 (수락 화면용)
+    @ResponseBody
+    @GetMapping("/api/exchange-items/{id}/requests")
+    public ResponseEntity<List<ExchangeRequestResponse>> getPendingRequests(@PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(exchangeService.getPendingRequests(id, userId));
     }
 
     //--
