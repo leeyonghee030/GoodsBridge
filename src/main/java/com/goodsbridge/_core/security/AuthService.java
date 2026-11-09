@@ -5,15 +5,24 @@ import com.goodsbridge._core.exception.CustomException;
 import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import com.goodsbridge.user.UserResponse;
+import com.goodsbridge.user.UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.HexFormat;
 
 @Service
@@ -23,6 +32,41 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final JwtProvider jwtProvider;
+
+    @Value("${jwt.access-token-expiration-ms}")
+    private long accessExpiration;
+    @Value("${jwt.refresh-token-expiration-ms}")
+    private long refreshExpiration;
+    @Value("${app.cookie.secure:false}")
+    private boolean cookieSecure;
+
+    public void addAuthCookies(
+        HttpServletResponse response,
+        TokenResponse tokens
+    ) {
+        response.addHeader("Set-Cookie", createCookie(
+            "accessToken", tokens.getAccessToken(), accessExpiration
+        ).toString());
+
+        response.addHeader("Set-Cookie", createCookie(
+            "refreshToken", tokens.getRefreshToken(), refreshExpiration
+        ).toString());
+    }
+
+    public void clearAuthCookies(HttpServletResponse response) {
+        response.addHeader("Set-Cookie", createCookie("accessToken", "", 0).toString());
+        response.addHeader("Set-Cookie", createCookie("refreshToken", "", 0).toString());
+    }
+
+    private ResponseCookie createCookie(String name, String value, long maxAgeMillis) {
+        return ResponseCookie.from(name, value)
+            .httpOnly(true)
+            .secure(cookieSecure)
+            .path("/")
+            .sameSite("Lax")
+            .maxAge(Duration.ofMillis(maxAgeMillis))
+            .build();
+    }
 
     // 로그인 성공 후 토큰 발급
     @Transactional
@@ -78,6 +122,7 @@ public class AuthService {
             .refreshToken(newRefreshToken)
             .build();
     }
+
 
     // 로그아웃
     @Transactional

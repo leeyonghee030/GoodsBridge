@@ -1,39 +1,75 @@
 {{> fragments/header}}
 <section class="page-head">
-    <p class="eyebrow">ISSUE #9 · PURCHASE</p>
-    <h1>구매 상세</h1>
-    <p>검증된 결제와 연결된 구매 상태, 배송정보를 확인합니다.</p>
-</section>
-
-<section class="panel detail-card">
-    <div class="item-image">상품 이미지</div>
-    <div>
-        <span class="tag">PAID · PREPARING</span>
-        <h2>뉴진스 다니엘 포카</h2>
-        <p>결제번호: payment_demo_001</p>
-        <p>배송지: 서울시 마포구 GoodsBridge로 10</p>
-        <strong>20,000원</strong>
-    </div>
+    <p class="eyebrow">GOODBRIDGE · PURCHASE</p>
+    <h1>상품 구매</h1>
+    <p>상품을 선택하고 포트원 테스트 결제를 진행합니다.</p>
 </section>
 
 <section class="panel">
-    <div class="section-title">
-        <h2>배송 상태</h2>
-        <span class="status paid">구매 완료</span>
-    </div>
-    <div class="steps">
-        <span class="active">결제완료</span>
-        <span class="active">상품준비</span>
-        <span>배송중</span>
-        <span>배송완료</span>
-    </div>
-    <button type="button">수령확인</button>
-    <button type="button" class="secondary">내 구매내역 보기</button>
+    <div class="section-title"><h2>판매 중인 상품</h2><button id="reload-items" type="button">새로고침</button></div>
+    <div id="item-list"><p class="empty">상품을 불러오는 중입니다.</p></div>
+</section>
+
+<section class="panel" id="purchase-panel" hidden>
+    <div class="section-title"><h2 id="selected-title">구매 정보</h2><strong id="selected-price"></strong></div>
+    <label>배송지 <input id="delivery-address" type="text" placeholder="배송지 주소를 입력하세요"></label>
+    <button id="pay-button" class="primary-button" type="button">포트원 테스트 결제</button>
+    <p id="purchase-message" class="empty"></p>
 </section>
 
 <section class="panel">
-    <p class="eyebrow">PURCHASE API</p>
-    <h2>구매 흐름</h2>
-    <p class="empty">결제 검증이 성공하면 구매가 생성되고, 배송 완료 후 수령확인으로 상태를 변경합니다.</p>
+    <div class="section-title"><h2>내 구매 내역</h2><button id="reload-purchases" type="button">새로고침</button></div>
+    <div id="purchase-list"><p class="empty">구매 내역을 불러오는 중입니다.</p></div>
 </section>
+
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const state = { items: [], selected: null };
+    const $ = id => document.getElementById(id);
+    const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
+    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const showMessage = (text, error = false) => { $('purchase-message').textContent = text || ''; $('purchase-message').className = error ? 'error' : 'empty'; };
+
+    async function loadItems() {
+        const response = await pageFetch('/api/items?page=0&size=50');
+        if (!response.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
+        const page = await response.json();
+        state.items = (page.content || []).filter(item => item.status === 'ON_SALE');
+        $('item-list').innerHTML = state.items.length ? state.items.map(item => `<article class="payment-row"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.description || '')}</small></div><strong>${money(item.price)}</strong><button type="button" data-item="${item.id}">구매</button></article>`).join('') : '<p class="empty">판매 중인 상품이 없습니다.</p>';
+        document.querySelectorAll('[data-item]').forEach(button => button.addEventListener('click', () => selectItem(Number(button.dataset.item))));
+    }
+    function selectItem(id) {
+        state.selected = state.items.find(item => item.id === id);
+        if (!state.selected) return;
+        $('purchase-panel').hidden = false; $('selected-title').textContent = state.selected.title; $('selected-price').textContent = money(state.selected.price); showMessage('');
+        $('purchase-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    async function pay() {
+        if (!state.selected) return showMessage('상품을 먼저 선택하세요.', true);
+        const address = $('delivery-address').value.trim();
+        if (!address) return showMessage('배송지 주소를 입력하세요.', true);
+        if (!window.PortOne) return showMessage('포트원 SDK를 불러오지 못했습니다.', true);
+        $('pay-button').disabled = true; showMessage('결제창을 여는 중입니다.');
+        try {
+            const result = await PortOne.requestPayment({ storeId: '{{portoneStoreId}}', channelKey: '{{portoneChannelKey}}', paymentId: `goodsbridge-${crypto.randomUUID()}`, orderName: state.selected.title, totalAmount: state.selected.price, currency: 'KRW', payMethod: 'CARD' });
+            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+            const response = await pageFetch('/api/items/' + state.selected.id + '/purchase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: result.paymentId, deliveryAddress: address }) });
+            if (!response.ok) throw new Error(await response.text() || '구매 처리에 실패했습니다.');
+            showMessage('결제와 구매 처리가 완료되었습니다.'); await loadPurchases();
+        } catch (error) { showMessage(error.message, true); } finally { $('pay-button').disabled = false; }
+    }
+    async function loadPurchases() {
+        const response = await pageFetch('/api/purchases/me');
+        if (!response.ok) { $('purchase-list').innerHTML = '<p class="error">로그인 후 구매 내역을 확인할 수 있습니다.</p>'; return; }
+        const purchases = await response.json();
+        $('purchase-list').innerHTML = purchases.length ? purchases.map(item => `<div class="payment-row"><div><strong>상품 #${item.itemId}</strong><small>${escapeHtml(item.deliveryAddress || '')}</small></div><span>${escapeHtml(item.status || '')}</span><small>${escapeHtml(item.paymentId)}</small></div>`).join('') : '<p class="empty">구매 내역이 없습니다.</p>';
+    }
+    $('pay-button').addEventListener('click', pay);
+    $('reload-items').addEventListener('click', () => loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`));
+    $('reload-purchases').addEventListener('click', loadPurchases);
+    loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`); loadPurchases();
+})();
+</script>
 {{> fragments/footer}}

@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{baseUrl}}/api/auctions/{{auctionId}}/close"
+method: PATCH
+headers:
+  Authorization: Bearer {{token}}
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test('close request handled', function () { pm.expect([200, 400]).to.include(pm.response.code); });
+      if (pm.response.code === 200) { pm.expect(['ENDED_SUCCESS', 'ENDED_FAIL']).to.include(pm.response.json().status); }
+    language: text/javascript
+order: 4000

@@ -1,9 +1,11 @@
 package com.goodsbridge.payment;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.user.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,11 +15,12 @@ import java.util.List;
  * #9(결제/구매), #17(정산/환불)에서 실제 로직을 채웁니다.
  * 지금은 다른 도메인이 컴파일/개발을 먼저 시작할 수 있게 자리만 잡아둔 상태입니다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
-    private final PortOneClient portOneClient;
+    private final PortOnePaymentService portOnePaymentService;
     private final EntityManager entityManager;
 
     // 결제
@@ -41,7 +44,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         // PortOne 결제 조회
         PaymentResponse.PortOnePayment portOnePayment =
-            portOneClient.getPayment(paymentId);
+            portOnePaymentService.getPayment(paymentId);
         if (portOnePayment == null) {
             throw new BadRequestException("PortOne에서 결제 내역을 찾을 수 없습니다.");
         }
@@ -67,6 +70,18 @@ public class PaymentServiceImpl implements PaymentService {
             .amount(expectedAmount)
             .purpose(purpose)
             .build();
+
+        User existingUser = entityManager.find(User.class, userId);
+
+        log.info(
+            "결제 저장 직전 - paymentId={}, userId={}, userExists={}, amount={}, purpose={}",
+            paymentId,
+            userId,
+            existingUser != null,
+            expectedAmount,
+            purpose
+        );
+
         paymentRepository.save(payment);
         return paymentId;
     }
@@ -80,10 +95,37 @@ public class PaymentServiceImpl implements PaymentService {
 
     // 환불
     @Override
+    @Transactional
     public void refund(String paymentId, int amount, String reason) {
-        // #17에서 구현
-        throw new UnsupportedOperationException(
-            "환불은 이슈 #17에서 구현합니다."
-        );
+        if (paymentId == null || paymentId.isBlank() || amount <= 0) {
+            throw new BadRequestException("환불 요청 값이 올바르지 않습니다.");
+        }
+        Payment payment = paymentRepository.findByPaymentId(paymentId)
+            .orElseThrow(() -> new BadRequestException("결제 내역을 찾을 수 없습니다."));
+        if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
+            throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
+        }
+        if (amount > payment.getRefundableAmount()) {
+            throw new BadRequestException("환불 가능 금액을 초과했습니다.");
+        }
+        PaymentResponse.PortOneCancel result =
+            portOnePaymentService.cancelPayment(paymentId, amount, reason);
+        if (result == null || result.getCancellation() == null
+            || !"SUCCEEDED".equals(result.getCancellation().getStatus())) {
+            throw new BadRequestException("결제 취소가 완료되지 않았습니다.");
+        }
+        payment.refund(amount);
+    }
+
+    // 결제 서비스
+    @Override
+    @Transactional
+    public void release(String paymentId) {
+        if (paymentId == null || paymentId.isBlank()) {
+            throw new BadRequestException("paymentId가 필요합니다.");
+        }
+        Payment payment = paymentRepository.findByPaymentIdLock(paymentId)
+            .orElseThrow(() -> new BadRequestException("결제 내역을 찾을 수 없습니다."));
+        payment.release();
     }
 }

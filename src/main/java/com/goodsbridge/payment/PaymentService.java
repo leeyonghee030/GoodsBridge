@@ -25,4 +25,6 @@ public interface PaymentService {
      * 이미 검증된 결제를 부분/전체 환불합니다 (PortOne 부분취소 API).
      */
     void refund(String paymentId, int amount, String reason);
+
+    void release(String paymentId);
 }
