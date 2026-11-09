@@ -5,9 +5,12 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "replies")
+@Table(name = "reply_tb")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reply {
@@ -25,6 +28,10 @@ public class Reply {
 
     @Column(nullable = false)
     private Long authorId;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private LocalDateTime createdAt;
 
     @Builder
     public Reply(Board board, String content, Long authorId) {

@@ -5,12 +5,14 @@ import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "boards")
+@Table(name = "board_tb")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Board {
@@ -41,6 +43,10 @@ public class Board {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private BoardStatus status; // 게시판 상태 (PENDING, COMPLETED)
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false, nullable = false)
+    private LocalDateTime createdAt;
 
     @Builder
     public Board(String title, String content, Long authorId, Long itemId, Boolean isSecret) {

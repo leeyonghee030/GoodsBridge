@@ -1,6 +1,5 @@
 package com.goodsbridge.board;
 
-import aQute.bnd.annotation.metatype.Meta;
 import lombok.*;
 
 import java.util.List;
