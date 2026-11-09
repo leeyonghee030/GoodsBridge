@@ -13,6 +13,8 @@ public class BoardResponseDto {
     private String title;
     private String content;
     private Long authorId;
+    private Long itemId;
+    private Boolean isSecret;
     private List<ReplyResponseDto> replies; // 댓글 목록 포함
 
     public static BoardResponseDto from(Board board) {
@@ -25,6 +27,8 @@ public class BoardResponseDto {
             board.getTitle(),
             board.getContent(),
             board.getAuthorId(),
+            board.getItemId(),
+            board.getIsSecret(),
             replyDtos
         );
     }
