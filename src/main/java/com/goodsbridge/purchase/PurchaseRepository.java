@@ -17,6 +17,14 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         """)
     boolean existsByUserIdAndItemId(@Param("userId") Long userId, @Param("itemId") Long itemId);
 
+    // 누가 샀든 이미 판매된 상품인지 확인 (결제 검증 전에 먼저 차단)
+    @Query("""
+        select case when count(p) > 0 then true else false end
+        from Purchase p
+        where p.item.id = :itemId
+        """)
+    boolean existsByItemId(@Param("itemId") Long itemId);
+
     // 구매 내역 조회
     @Query("select p from Purchase p join fetch p.user where p.user.id = :userId order by p.id desc")
     List<Purchase> findAllPurchaseByUserId(@Param("userId") Long userId);

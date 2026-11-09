@@ -5,6 +5,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentPurpose;
@@ -17,6 +18,7 @@ import com.goodsbridge.user.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -57,6 +59,11 @@ public class PurchaseService {
             throw new BadRequestException("이미 구매한 상품입니다.");
         }
 
+        // 다른 사람이 이미 산 상품이면 결제 검증(외부 호출) 전에 차단한다.
+        if (purchaseRepository.existsByItemId(itemId)) {
+            throw new BadRequestException("이미 판매된 상품입니다.");
+        }
+
         paymentService.verify(createDto.getPaymentId(), item.getPrice(), PaymentPurpose.PURCHASE, userId);
 
         log.info("PortOne 결제 검증 및 Payment 저장 완료 - itemId={}, userId={}, paymentId={}",
@@ -65,12 +72,23 @@ public class PurchaseService {
         // 구매 기록
         User buyer = entityManager.getReference(User.class, userId);
 
-        Purchase purchase = purchaseRepository.save(Purchase.builder()
-            .item(item)
-            .user(buyer)
-            .paymentId(createDto.getPaymentId())
-            .deliveryAddress(createDto.getDeliveryAddress())
-            .build());
+        Purchase purchase;
+        try {
+            purchase = purchaseRepository.save(Purchase.builder()
+                .item(item)
+                .user(buyer)
+                .paymentId(createDto.getPaymentId())
+                .deliveryAddress(createDto.getDeliveryAddress())
+                .build());
+
+            item.updateStatus(ItemStatus.SOLD);
+
+            log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
+                itemId, userId, createDto.getPaymentId());
+        } catch (DataIntegrityViolationException e) {
+            // 위 existsByItemId 검사를 동시에 통과한 경우: uk_purchase_item 제약이 마지막 방어선
+            throw new BadRequestException("이미 판매된 상품입니다.");
+        }
 
         log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
             itemId, userId, createDto.getPaymentId());
