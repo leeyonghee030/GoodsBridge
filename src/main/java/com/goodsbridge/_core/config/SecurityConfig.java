@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -14,7 +15,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -47,7 +48,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/api/login",
-                    "/css/**", "/js/**", "/favicon.ico"
+                    "/css/**", "/js/**", "/favicon.ico", "/images/**"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
@@ -70,6 +71,8 @@ public class SecurityConfig {
                 jwtAuthenticationFilter(),
                 UsernamePasswordAuthenticationFilter.class
             );
+
+
 
         return http.build();
     }
