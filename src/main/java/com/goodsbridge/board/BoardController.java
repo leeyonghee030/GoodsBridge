@@ -30,14 +30,24 @@ public class BoardController {
         return ResponseEntity.status(HttpStatus.CREATED).body(boardId);
     }
 
+    // 게시글 목록 조회 (페이징 및 검색 지원)
+    // 요청 예시: GET /api/boards?page=0&size=10&sort=id,desc&keyword=공지
     @GetMapping("/boards")
-    public ResponseEntity<List<BoardResponseDto>> getBoards() {
-        return ResponseEntity.ok(boardService.getBoards());
+    public ResponseEntity<Page<BoardResponseDto>> getBoards(
+        @RequestParam(required = false) String keyword,
+        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<BoardResponseDto> response = boardService.getBoards(keyword, pageable);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/boards/{id}")
-    public ResponseEntity<BoardResponseDto> getBoard(@PathVariable Long id) {
-        return ResponseEntity.ok(boardService.getBoard(id));
+    public ResponseEntity<BoardResponseDto> getBoard(
+        @PathVariable Long id,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        BoardResponseDto response = boardService.getBoard(id, loginUserId);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/boards/{id}/replies")
@@ -80,14 +90,4 @@ public class BoardController {
         return ResponseEntity.noContent().build();
     }
 
-    // 게시글 목록 조회 (페이징 및 검색 지원)
-    // 요청 예시: GET /api/boards?page=0&size=10&sort=id,desc&keyword=공지
-    @GetMapping("/boards")
-    public ResponseEntity<Page<BoardResponseDto>> getBoards(
-        @RequestParam(required = false) String keyword,
-        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
-    ) {
-        Page<BoardResponseDto> response = boardService.getBoards(keyword, pageable);
-        return ResponseEntity.ok(response);
-    }
 }

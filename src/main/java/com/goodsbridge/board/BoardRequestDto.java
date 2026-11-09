@@ -1,18 +1,21 @@
 package com.goodsbridge.board;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Getter
+@Setter // 테스트 편의를 위해 추가하거나
+@Builder // 빌더 패턴을 사용합니다
 @NoArgsConstructor
+@AllArgsConstructor
 public class BoardRequestDto {
+
     @NotBlank(message = "제목은 필수입니다.")
     private String title;
 
     @NotBlank(message = "내용은 필수입니다.")
     private String content;
 
-    private Long itemId;      // 상품 연관 ID (선택)
-    private Boolean isSecret; // 비밀글 여부 (기본값 false 처리)
+    private Long itemId;
+    private Boolean isSecret;
 }

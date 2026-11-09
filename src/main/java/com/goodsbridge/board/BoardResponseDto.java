@@ -2,6 +2,8 @@ package com.goodsbridge.board;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -15,6 +17,7 @@ public class BoardResponseDto {
     private Long authorId;
     private Long itemId;
     private Boolean isSecret;
+    private BoardStatus status;
     private List<ReplyResponseDto> replies; // 댓글 목록 포함
 
     public static BoardResponseDto from(Board board) {
@@ -29,6 +32,7 @@ public class BoardResponseDto {
             board.getAuthorId(),
             board.getItemId(),
             board.getIsSecret(),
+            board.getStatus(),
             replyDtos
         );
     }
