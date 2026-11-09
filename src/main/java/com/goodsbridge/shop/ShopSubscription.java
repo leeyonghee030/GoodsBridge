@@ -30,7 +30,7 @@ public class ShopSubscription {
     @Column(name = "shop_id", nullable = false)
     private Long shopId;
 
-    @Column(name = "payment_id", unique = true)
+    @Column(name = "payment_id", unique = true, nullable = false)
     private String paymentId; // [추가] 결제 ID 저장 필드
 
     @Column(name = "setup_fee_paid", nullable = false)

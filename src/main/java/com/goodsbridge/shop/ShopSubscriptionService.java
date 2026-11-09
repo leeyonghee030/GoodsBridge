@@ -47,17 +47,19 @@ public class ShopSubscriptionService {
             throw new BadRequestException("결제 ID가 필요합니다.");
         }
 
-        if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
-            throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
-        }
-
         int expectedAmount = request.getDays() * PRICE_PER_DAY;
         if (request.getAmount() == null || !request.getAmount().equals(expectedAmount)) {
             throw new BadRequestException("결제 금액 정보가 올바르지 않습니다.");
         }
 
-        Shop shop = shopRepository.findById(shopId)
+        // 💡 [수정 포인트] 일반 findById 대신 비관적 락이 걸리는 findByIdWithLock 사용!
+        Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
+            throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
+        }
+
 
         userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
