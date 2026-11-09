@@ -66,7 +66,7 @@ public class ShopService {
 
     @Transactional
     public void delete(Long userId, Long shopId) {
-        // 💡 구독 생성과 동일한 비관적 락을 적용하여 동시 폐점/구독 생성 충돌 원천 차단
+        // 💡 1. 샵 폐점 시 비관적 락을 적용하여 동시 구독/수정 충돌 원천 차단
         Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
         if (shop.isDeleted()) {
@@ -76,17 +76,17 @@ public class ShopService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // 1. 가게 본인 소프트 삭제 (폐점 상태 전환)
+        // 2. 가게 본인 소프트 삭제 (폐점 처리)
         shop.deleteShop();
 
-        // 2. 해당 가게에 속한 모든 상품 일괄 소프트 삭제 및 판매 마감 (CLOSED)
+        // 3. 💡 [정합성 보장] 연관된 모든 상품 일괄 소프트 삭제 및 판매 마감 (CLOSED)
         itemRepository.softDeleteByShopId(shopId, now);
 
-        // 3. 해당 가게의 활성화된(ACTIVE) 구독이 있다면 함께 소프트 삭제 및 유니크 충돌 방지 처리
-        subscriptionRepository.findActiveByShopIdWithLock(shopId).ifPresent(subscription -> {
-            subscription.delete(); // paymentId 변형 및 status = EXPIRED, deletedAt 설정
-        });
+        // 4. 💡 [정합성 보장] 활성화된(ACTIVE) 구독이 있다면 소프트 삭제 및 유니크 충돌 방지 처리
+        subscriptionRepository.findActiveByShopIdWithLock(shopId).ifPresent(ShopSubscription::delete);
     }
+
+
     @Transactional
     public void approve(Long adminUserId, Long shopId) {
         validateAdmin(adminUserId);
