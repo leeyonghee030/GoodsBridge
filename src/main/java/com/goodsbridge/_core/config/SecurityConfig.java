@@ -48,16 +48,17 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/join", "/api/login",
-                    "/css/**", "/js/**", "/favicon.ico", "/images/**", "/api/email/**"
+                    "/css/**", "/js/**", "/favicon.ico", "/images/**", "/api/email/**",
+                    "/test/**", "/exchange/**"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
 
                 // 목록/상세 조회는 비로그인도 가능 (CLAUDE.md 권한 규칙)
-                .requestMatchers(HttpMethod.GET, "/api/shops/**", "/api/items/**", "/api/boards/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**", "/api/categories/**").permitAll()
 
                 // 인증이 필요한 경로를 여기에 추가 (조회 외 나머지 메서드)
-                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**")
+                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**")
                 .authenticated()
 
                 .requestMatchers(HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()

@@ -4,6 +4,10 @@ import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.exchange.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -46,16 +50,37 @@ public class ExchangeViewController {
 
 
 
-    //-------교환 게시글 목록
+    //-------교환 게시글 목록 (첫 페이지만 서버 렌더링, 이후는 무한스크롤로 /api/exchange-items/page 호출)
     @GetMapping("/exchange")
-    public String exchangeList(Model model) {
-        model.addAttribute("items", exchangeService.getExchangeItemList(null));
+    public String exchangeList(@RequestParam(required = false) Long category,
+                                @RequestParam(required = false) String keyword,
+                                Model model) {
+        Pageable pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<ExchangeItemResponse> page = exchangeService.getExchangeItemPage(category, keyword, pageable);
+        model.addAttribute("items", page.getContent());
+        model.addAttribute("totalPages", page.getTotalPages());
+        model.addAttribute("selectedCategoryId", category);
+        model.addAttribute("keyword", keyword == null ? "" : keyword);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
         return "exchange/index";
+    }
+
+    //교환 게시글 목록 페이징 조회 (무한스크롤)
+    @ResponseBody
+    @GetMapping("/api/exchange-items/page")
+    public ResponseEntity<Page<ExchangeItemResponse>> getExchangeItemPage(
+        @RequestParam(required = false) Long category,
+        @RequestParam(required = false) String keyword,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(exchangeService.getExchangeItemPage(category, keyword, pageable));
     }
 
     //교환 게시글 작성 폼
     @GetMapping("/exchange/new")
-    public String exchangeCreateForm() {
+    public String exchangeCreateForm(Model model) {
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
         return "exchange/create";
     }
 
@@ -63,7 +88,9 @@ public class ExchangeViewController {
     @GetMapping("/exchange/{id}")
     public String exchangeDetail(@PathVariable Long id, Model model) {
         model.addAttribute("item", exchangeService.getExchangeItem(id));
-        model.addAttribute("currentUserId", SecurityUtil.getCurrentUserIdOrNull());
+        Long currentUserId = SecurityUtil.getCurrentUserIdOrNull();
+        model.addAttribute("currentUserId", currentUserId);
+        model.addAttribute("userId", currentUserId);
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
         return "exchange/detail";

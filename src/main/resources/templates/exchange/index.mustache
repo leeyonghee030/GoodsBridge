@@ -1,14 +1,40 @@
 {{> fragments/header}}
 
 <h1 class="page-title">교환 게시판 <button type="button" id="open-create" class="write-link">글쓰기</button></h1>
+<p id="shop-filter-info" class="card-meta" style="margin: 0 1.5rem 1rem;" hidden></p>
+
+<div class="list-toolbar">
+    <span class="list-toolbar-category" id="toolbar-category">전체</span>
+    <div class="list-toolbar-actions">
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="검색" autocomplete="off" value="{{keyword}}">
+        <button type="button" class="write-link" id="open-filter">필터</button>
+    </div>
+</div>
+
+<div class="filter-panel" id="filter-panel" hidden>
+    <div class="filter-row">
+        <div id="filter-quick" class="filter-chip-grid"></div>
+        <div id="sort-chips" class="filter-chip-grid">
+            <button type="button" class="filter-chip active" data-sort="latest" id="date-sort-chip">최신순</button>
+            <button type="button" class="filter-chip" data-sort="price_asc">가격 낮은순</button>
+            <button type="button" class="filter-chip" data-sort="price_desc">가격 높은순</button>
+        </div>
+    </div>
+    <p style="position: relative;">
+        <label for="categorySearch" class="sr-only">카테고리 검색</label>
+        <input id="categorySearch" type="text" placeholder="카테고리 검색" autocomplete="off">
+        <div id="category-results" class="autocomplete-list"></div>
+    </p>
+</div>
 
 {{^items}}
 <p class="empty-state">아직 등록된 교환 게시글이 없습니다.</p>
 {{/items}}
 
-<div class="card-grid">
+<div class="card-grid" id="item-grid">
 {{#items}}
-    <a class="card" href="/exchange/{{id}}">
+    <a class="card" href="/exchange/{{id}}" data-price="{{itemPrice}}" data-created="{{createdAt}}" data-title="{{itemTitle}}" data-want="{{wantDescription}}" data-shop-id="{{shopId}}">
         <span class="card-tag">■ {{status.displayName}}</span>
         <div class="card-image">
             {{#itemImageUrl}}<img src="{{itemImageUrl}}" alt="{{itemTitle}}">{{/itemImageUrl}}
@@ -20,6 +46,8 @@
     </a>
 {{/items}}
 </div>
+<p id="load-more-status" class="empty-state" hidden>불러오는 중...</p>
+<div id="scroll-sentinel"></div>
 
 <div class="modal-backdrop" id="create-modal" hidden>
     <div class="modal-card">
@@ -112,6 +140,163 @@
         const created = await res.json();
         location.href = '/exchange/' + created.id;
     });
+
+    // ----- 카테고리/검색 필터 -----
+    const params = new URLSearchParams(location.search);
+    const selectedCategoryId = params.get('category');
+    const categoryNameParam = params.get('categoryName');
+    const keywordValue = params.get('keyword') || '';
+    const filterPanel = document.getElementById('filter-panel');
+    const filterQuick = document.getElementById('filter-quick');
+    const categorySearch = document.getElementById('categorySearch');
+    const categoryResults = document.getElementById('category-results');
+    const keywordInput = document.getElementById('keyword-input');
+    let allCategories = [];
+
+    function goToCategory(id) {
+        const query = new URLSearchParams();
+        if (id) query.set('category', id);
+        if (keywordValue) query.set('keyword', keywordValue);
+        location.href = '/exchange' + (query.toString() ? '?' + query.toString() : '');
+    }
+
+    function renderQuickChips() {
+        const top10 = [...allCategories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 10);
+        filterQuick.innerHTML = '<button type="button" class="filter-chip' + (!selectedCategoryId ? ' active' : '') + '" data-id="">전체</button>'
+            + top10.map(c => `<button type="button" class="filter-chip${String(c.id) === selectedCategoryId ? ' active' : ''}" data-id="${c.id}">${esc(c.name)}</button>`).join('');
+        filterQuick.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
+    }
+
+    document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+
+    // ----- 정렬 (이미 로드된 카드들을 재정렬, 서버 재요청 없음) -----
+    const itemGrid = document.getElementById('item-grid');
+    const dateSortChip = document.getElementById('date-sort-chip');
+    let dateSortDirection = 'latest';
+    document.querySelectorAll('#sort-chips [data-sort]').forEach(el => el.addEventListener('click', () => {
+        document.querySelectorAll('#sort-chips .filter-chip').forEach(chip => chip.classList.toggle('active', chip === el));
+        let sortBy = el.dataset.sort;
+        if (el === dateSortChip) {
+            dateSortDirection = dateSortDirection === 'latest' ? 'oldest' : 'latest';
+            dateSortChip.textContent = dateSortDirection === 'latest' ? '최신순' : '오래된순';
+            sortBy = dateSortDirection;
+        }
+        const cards = Array.from(itemGrid.children);
+        cards.sort((a, b) => {
+            if (sortBy === 'price_asc') return Number(a.dataset.price) - Number(b.dataset.price);
+            if (sortBy === 'price_desc') return Number(b.dataset.price) - Number(a.dataset.price);
+            if (sortBy === 'oldest') return new Date(a.dataset.created) - new Date(b.dataset.created);
+            return new Date(b.dataset.created) - new Date(a.dataset.created);
+        });
+        cards.forEach(card => itemGrid.appendChild(card));
+    }));
+
+    categorySearch.addEventListener('input', event => {
+        const keyword = event.target.value.trim().toLowerCase();
+        if (!keyword) { categoryResults.innerHTML = ''; return; }
+        const matches = allCategories.filter(c => c.name.toLowerCase().includes(keyword));
+        categoryResults.innerHTML = matches.length
+            ? matches.map(c => `<div class="autocomplete-item" data-id="${c.id}">${esc(c.name)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        categoryResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
+    });
+
+    // 입력할 때마다 한 글자씩 바로 필터링 (이미 로드된 카드 안에서, 서버 재요청 없음) + 헤더 "전체매장"에서 고른 매장
+    const shopInfo = document.getElementById('shop-filter-info');
+    function getSelectedShopId() { return localStorage.getItem('gb_shop_id') || ''; }
+
+    function applyCardFilters() {
+        const keyword = keywordInput.value.trim().toLowerCase();
+        const shopId = getSelectedShopId();
+        Array.from(itemGrid.children).forEach(card => {
+            const matches = (!keyword
+                    || (card.dataset.title || '').toLowerCase().includes(keyword)
+                    || (card.dataset.want || '').toLowerCase().includes(keyword))
+                && (!shopId || card.dataset.shopId === shopId);
+            card.style.display = matches ? '' : 'none';
+        });
+    }
+
+    function updateShopInfo() {
+        const shopId = getSelectedShopId();
+        if (!shopId) { shopInfo.hidden = true; return; }
+        pageFetch('/api/shops/' + shopId).then(res => res.ok ? res.json() : null).then(shop => {
+            if (!shop) { shopInfo.hidden = true; return; }
+            shopInfo.textContent = `${shop.name} · ${shop.region || ''} 매장에서 하는 교환만 보고 있습니다.`;
+            shopInfo.hidden = false;
+        });
+    }
+
+    window.addEventListener('gb-shop-changed', () => { updateShopInfo(); applyCardFilters(); });
+    updateShopInfo();
+    applyCardFilters();
+
+    keywordInput.addEventListener('input', applyCardFilters);
+
+    keywordInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        const query = new URLSearchParams();
+        if (selectedCategoryId) query.set('category', selectedCategoryId);
+        const value = keywordInput.value.trim();
+        if (value) query.set('keyword', value);
+        location.href = '/exchange' + (query.toString() ? '?' + query.toString() : '');
+    });
+
+    pageFetch('/api/categories').then(res => res.ok ? res.json() : []).then(categories => {
+        allCategories = categories;
+        if (categoryNameParam && !selectedCategoryId) {
+            const matched = categories.find(c => c.name === categoryNameParam);
+            if (matched) { goToCategory(matched.id); return; }
+        }
+        renderQuickChips();
+        if (selectedCategoryId) {
+            const current = categories.find(c => String(c.id) === selectedCategoryId);
+            if (current) document.getElementById('toolbar-category').textContent = current.name;
+        }
+    });
+
+    // ----- 무한스크롤: 아래로 내리면 잠깐 로딩 표시 후 다음 페이지를 불러와 이어붙임 -----
+    const statusLabels = { OPEN: '모집중', MATCHED: '매칭완료', CLOSED: '마감' };
+    const loadMoreStatus = document.getElementById('load-more-status');
+    const sentinel = document.getElementById('scroll-sentinel');
+    let currentPage = 1; // 0페이지는 서버에서 이미 렌더링됨
+    let totalPages = {{totalPages}};
+    let loading = false;
+    const PAGE_SIZE = 20;
+
+    function cardHtml(item) {
+        return `<a class="card" href="/exchange/${item.id}" data-price="${item.itemPrice}" data-created="${item.createdAt}" data-title="${esc(item.itemTitle)}" data-want="${esc(item.wantDescription)}" data-shop-id="${item.shopId}">
+            <span class="card-tag">■ ${esc(statusLabels[item.status] || item.status)}</span>
+            <div class="card-image">${item.itemImageUrl ? `<img src="${esc(item.itemImageUrl)}" alt="${esc(item.itemTitle)}">` : '이미지 없음'}</div>
+            <p class="card-title">${esc(item.itemTitle)}</p>
+            <p class="card-price">${money(item.itemPrice)}</p>
+            <p class="card-meta">원하는 것: ${esc(item.wantDescription)}</p>
+        </a>`;
+    }
+
+    async function loadNextPage() {
+        if (loading || currentPage >= totalPages) return;
+        loading = true;
+        loadMoreStatus.hidden = false;
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const query = new URLSearchParams({ page: currentPage, size: PAGE_SIZE });
+        if (selectedCategoryId) query.set('category', selectedCategoryId);
+        if (keywordValue) query.set('keyword', keywordValue);
+        const res = await pageFetch('/api/exchange-items/page?' + query.toString());
+        if (res.ok) {
+            const page = await res.json();
+            itemGrid.insertAdjacentHTML('beforeend', (page.content || []).map(cardHtml).join(''));
+            totalPages = page.totalPages;
+            currentPage += 1;
+            applyCardFilters();
+        }
+        loadMoreStatus.hidden = true;
+        loading = false;
+    }
+
+    new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) loadNextPage();
+    }, { rootMargin: '400px' }).observe(sentinel);
 })();
 </script>
 

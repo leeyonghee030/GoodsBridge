@@ -2,42 +2,48 @@
 <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
 
 <div class="container detail-container">
-<h1>{{item.itemTitle}}</h1>
-<div class="card-image detail-image">
-    {{#item.itemImageUrl}}<img src="{{item.itemImageUrl}}" alt="{{item.itemTitle}}">{{/item.itemImageUrl}}
-    {{^item.itemImageUrl}}이미지 없음{{/item.itemImageUrl}}
+<div class="detail-grid">
+    <div class="detail-media">
+        <div class="detail-image">
+            {{#item.itemImageUrl}}<img src="{{item.itemImageUrl}}" alt="{{item.itemTitle}}">{{/item.itemImageUrl}}
+            {{^item.itemImageUrl}}이미지 없음{{/item.itemImageUrl}}
+        </div>
+    </div>
+    <div class="detail-info">
+        <h1>{{item.itemTitle}}</h1>
+        <p class="card-price">{{item.itemPrice}}원</p>
+        <p>원하는 것: {{item.wantDescription}}</p>
+        <p class="card-meta">교환장소: {{item.shopName}} · <span class="badge">{{item.status}}</span></p>
+
+        <section id="propose-section" hidden>
+            <h2>교환 제안하기</h2>
+            <p>
+                <select id="proposeItemId">
+                    <option value="">제안할 내 아이템을 선택하세요</option>
+                </select>
+            </p>
+            <p>
+                <textarea id="proposeMessage" placeholder="A에게 보낼 메시지" rows="2"></textarea>
+            </p>
+            <button id="propose-button" type="button">보증금 결제하고 제안하기</button>
+            <p id="propose-message" class="form-message"></p>
+        </section>
+
+        <section id="requests-section" hidden>
+            <h2>받은 제안</h2>
+            <div id="requests-list"></div>
+        </section>
+
+        <section id="comments-section">
+            <h2>댓글</h2>
+            <div id="comments-list"></div>
+            <form id="comment-form">
+                <p><input id="comment-content" type="text" placeholder="댓글을 입력하세요" required></p>
+                <button type="submit">댓글 등록</button>
+            </form>
+        </section>
+    </div>
 </div>
-<p class="card-price">{{item.itemPrice}}원</p>
-<p>원하는 것: {{item.wantDescription}}</p>
-<p class="card-meta">교환장소: {{item.shopName}} · <span class="badge">{{item.status}}</span></p>
-
-<section id="propose-section" hidden>
-    <h2>교환 제안하기</h2>
-    <p>
-        <select id="proposeItemId">
-            <option value="">제안할 내 아이템을 선택하세요</option>
-        </select>
-    </p>
-    <p>
-        <textarea id="proposeMessage" placeholder="A에게 보낼 메시지" rows="2"></textarea>
-    </p>
-    <button id="propose-button" type="button">보증금 결제하고 제안하기</button>
-    <p id="propose-message" class="form-message"></p>
-</section>
-
-<section id="requests-section" hidden>
-    <h2>받은 제안</h2>
-    <div id="requests-list"></div>
-</section>
-
-<section id="comments-section">
-    <h2>댓글</h2>
-    <div id="comments-list"></div>
-    <form id="comment-form">
-        <p><input id="comment-content" type="text" placeholder="댓글을 입력하세요" required></p>
-        <button type="submit">댓글 등록</button>
-    </form>
-</section>
 </div>
 
 <script>

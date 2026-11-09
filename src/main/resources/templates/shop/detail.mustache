@@ -1,0 +1,62 @@
+{{> fragments/header}}
+
+<div class="container detail-container">
+<h1>{{shop.name}}</h1>
+<p class="card-meta">{{shop.region}} · {{shop.address}}</p>
+<p class="card-meta"><span class="badge">{{shop.status}}</span></p>
+</div>
+
+<h1 class="page-title">
+    이 가게 상품
+    <select id="shop-category-filter" style="width:auto;">
+        <option value="">전체 카테고리</option>
+    </select>
+</h1>
+
+<div class="card-grid" id="shop-item-grid">
+    <p class="empty-state">상품을 불러오는 중...</p>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const shopId = {{shop.id}};
+    const grid = document.getElementById('shop-item-grid');
+    const filter = document.getElementById('shop-category-filter');
+    let allItems = [];
+
+    function render() {
+        const categoryName = filter.value;
+        const items = allItems.filter(item => !categoryName || item.categoryName === categoryName);
+        grid.innerHTML = items.length
+            ? items.map(item => `
+                <a class="card" href="/test/item/${item.id}">
+                    <span class="card-tag">${esc(item.categoryName)}</span>
+                    <div class="card-image">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : ''}</div>
+                    <p class="card-title">${esc(item.title)}</p>
+                    <p class="card-price">${money(item.price)}</p>
+                </a>`).join('')
+            : '<p class="empty-state">이 가게의 상품이 없습니다.</p>';
+    }
+
+    pageFetch('/api/categories').then(res => res.ok ? res.json() : []).then(categories => {
+        categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.name;
+            option.textContent = category.name;
+            filter.appendChild(option);
+        });
+    });
+
+    pageFetch('/api/items?size=100').then(res => res.ok ? res.json() : null).then(page => {
+        allItems = (page.content || []).filter(item => item.shopId === shopId && item.status === 'ON_SALE');
+        render();
+    });
+
+    filter.addEventListener('change', render);
+})();
+</script>
+
+{{> fragments/footer}}

@@ -1,4 +1,71 @@
 {{> fragments/header}}
-<h1>Event (테스트용)</h1>
-<p class="todo">TODO: #11/#19(이벤트 CRUD+선착순 참가) 완성 후 실제 화면으로 교체</p>
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+
+<h1 class="page-title">EVENT</h1>
+
+{{^events}}
+<p class="empty-state">등록된 이벤트가 없습니다.</p>
+{{/events}}
+
+<div class="card-grid">
+{{#events}}
+    <div class="card" data-event-id="{{id}}" data-item-id="{{itemId}}" data-fee="{{feeAmount}}">
+        <span class="card-tag">{{status}}</span>
+        <div class="card-image event-card-image">이미지 불러오는 중</div>
+        <p class="card-title event-card-title">상품 정보 불러오는 중</p>
+        <p class="card-price">참가비 {{feeAmount}}원</p>
+        <p class="card-meta">{{currentCount}}/{{capacity}}명 참가 · 마감 {{deadline}}</p>
+        <button type="button" class="event-join-btn">참가하기</button>
+        <p class="form-message"></p>
+    </div>
+{{/events}}
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const portoneStoreId = '{{portoneStoreId}}';
+    const portoneChannelKey = '{{portoneChannelKey}}';
+
+    document.querySelectorAll('.card[data-item-id]').forEach(async card => {
+        const itemId = card.dataset.itemId;
+        const res = await pageFetch('/api/items/' + itemId);
+        if (!res.ok) return;
+        const item = await res.json();
+        const imageBox = card.querySelector('.event-card-image');
+        imageBox.innerHTML = item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : '이미지 없음';
+        card.querySelector('.event-card-title').textContent = item.title;
+    });
+
+    document.querySelectorAll('.event-join-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const card = btn.closest('.card');
+            const message = card.querySelector('.form-message');
+            const eventId = card.dataset.eventId;
+            const fee = Number(card.dataset.fee);
+            if (!window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }
+            message.textContent = '결제창을 여는 중입니다.'; message.className = 'form-message';
+            try {
+                const result = await PortOne.requestPayment({
+                    storeId: portoneStoreId, channelKey: portoneChannelKey,
+                    paymentId: `goodsbridge-event-${crypto.randomUUID()}`,
+                    orderName: '이벤트 참가비', totalAmount: fee, currency: 'KRW', payMethod: 'CARD'
+                });
+                if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+                const res = await pageFetch('/api/events/' + eventId + '/join', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ paymentId: result.paymentId })
+                });
+                if (!res.ok) throw new Error(await res.text() || '참가에 실패했습니다.');
+                message.textContent = '참가가 완료되었습니다!'; message.className = 'form-message';
+            } catch (error) {
+                message.textContent = error.message; message.className = 'form-message error';
+            }
+        });
+    });
+})();
+</script>
+
 {{> fragments/footer}}

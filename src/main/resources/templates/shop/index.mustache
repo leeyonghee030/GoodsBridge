@@ -1,4 +1,87 @@
 {{> fragments/header}}
-<h1>Shop (테스트용)</h1>
-<p class="todo">TODO: #6(Shop CRUD) 완성 후 실제 화면으로 교체</p>
+
+<h1 class="page-title">SHOPS</h1>
+
+<div class="list-toolbar">
+    <span class="list-toolbar-category" id="toolbar-category">전체</span>
+    <div class="list-toolbar-actions">
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="가게 이름 검색" autocomplete="off" value="{{keyword}}">
+        <button type="button" class="write-link" id="open-filter">필터</button>
+    </div>
+</div>
+
+<div class="filter-panel" id="filter-panel" hidden>
+    <div id="filter-quick" class="filter-chip-grid"></div>
+</div>
+
+{{^shops}}
+<p class="empty-state">등록된 가게가 없습니다.</p>
+{{/shops}}
+
+<div class="card-grid" id="item-grid">
+{{#shops}}
+    <a class="card" href="/test/shop/{{id}}" data-name="{{name}}">
+        <span class="card-tag">{{status}}</span>
+        <div class="card-image">{{name}}</div>
+        <p class="card-title">{{name}}</p>
+        <p class="card-meta">{{region}}</p>
+        <p class="card-meta">{{address}}</p>
+    </a>
+{{/shops}}
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    const params = new URLSearchParams(location.search);
+    const selectedRegion = params.get('region');
+    const keywordValue = params.get('keyword') || '';
+    const filterPanel = document.getElementById('filter-panel');
+    const filterQuick = document.getElementById('filter-quick');
+    const keywordInput = document.getElementById('keyword-input');
+
+    function goToRegion(region) {
+        const query = new URLSearchParams();
+        if (region) query.set('region', region);
+        if (keywordValue) query.set('keyword', keywordValue);
+        location.href = '/test/shop' + (query.toString() ? '?' + query.toString() : '');
+    }
+
+    document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+
+    // 입력할 때마다 한 글자씩 바로 필터링 (이미 로드된 가게 카드 안에서, 서버 재요청 없음)
+    const itemGrid = document.getElementById('item-grid');
+    keywordInput.addEventListener('input', () => {
+        const keyword = keywordInput.value.trim().toLowerCase();
+        Array.from(itemGrid.children).forEach(card => {
+            const matches = !keyword || (card.dataset.name || '').toLowerCase().includes(keyword);
+            card.style.display = matches ? '' : 'none';
+        });
+    });
+
+    keywordInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        const query = new URLSearchParams();
+        if (selectedRegion) query.set('region', selectedRegion);
+        const value = keywordInput.value.trim();
+        if (value) query.set('keyword', value);
+        location.href = '/test/shop' + (query.toString() ? '?' + query.toString() : '');
+    });
+
+    pageFetch('/api/shops?size=50').then(res => res.ok ? res.json() : null).then(page => {
+        if (!page) return;
+        const counts = {};
+        (page.content || []).forEach(shop => { if (shop.region) counts[shop.region] = (counts[shop.region] || 0) + 1; });
+        const top10 = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        filterQuick.innerHTML = '<button type="button" class="filter-chip' + (!selectedRegion ? ' active' : '') + '" data-region="">전체</button>'
+            + top10.map(([region]) => `<button type="button" class="filter-chip${region === selectedRegion ? ' active' : ''}" data-region="${esc(region)}">${esc(region)}</button>`).join('');
+        filterQuick.querySelectorAll('[data-region]').forEach(el => el.addEventListener('click', () => goToRegion(el.dataset.region)));
+        if (selectedRegion) document.getElementById('toolbar-category').textContent = selectedRegion;
+    });
+})();
+</script>
+
 {{> fragments/footer}}

@@ -148,13 +148,20 @@ public class ExchangeService {
     }
 
     public List<ExchangeItemResponse> getExchangeItemList(Long category) {
-        if (category == null) {
-            return exchangeItemRepository.findAll().stream()
-                .map(ExchangeItemResponse::from).toList();
-        } else {
-            return exchangeItemRepository.findByItem_Category_Id(category).stream()
-                .map(ExchangeItemResponse::from).toList();
-        }
+        return getExchangeItemList(category, null);
+    }
+
+    public List<ExchangeItemResponse> getExchangeItemList(Long category, String keyword) {
+        return exchangeItemRepository.search(category, (keyword == null || keyword.isBlank()) ? null : keyword.trim())
+            .stream().map(ExchangeItemResponse::from).toList();
+    }
+
+    // 무한스크롤용 페이징 조회
+    public org.springframework.data.domain.Page<ExchangeItemResponse> getExchangeItemPage(
+        Long category, String keyword, org.springframework.data.domain.Pageable pageable) {
+        return exchangeItemRepository
+            .search(category, (keyword == null || keyword.isBlank()) ? null : keyword.trim(), pageable)
+            .map(ExchangeItemResponse::from);
     }
 
     //내 게시글 목록

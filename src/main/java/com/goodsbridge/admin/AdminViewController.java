@@ -5,6 +5,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -19,7 +20,8 @@ public class AdminViewController {
     private final AdminService adminService;
 
     @GetMapping("/test/admin")
-    public String index(Authentication authentication) {
+    public String index(Authentication authentication, Model model) {
+        model.addAttribute("userId", currentUserId(authentication));
         if (!isAdmin(authentication)) {
             return "admin/forbidden";
         }
@@ -56,5 +58,13 @@ public class AdminViewController {
         return authentication != null && authentication.getAuthorities().stream()
             .anyMatch(authority ->
                 authority.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private Long currentUserId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            return null;
+        }
+        return (Long) authentication.getPrincipal();
     }
 }

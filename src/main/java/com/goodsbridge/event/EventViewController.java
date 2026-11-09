@@ -6,9 +6,11 @@ import com.goodsbridge.event.dto.EventParticipationResponse;
 import com.goodsbridge.event.dto.ShopEventRequest;
 import com.goodsbridge.event.dto.ShopEventResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.repository.query.Param;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,6 +20,21 @@ import java.util.List;
 public class EventViewController {
 
     private final EventService eventService;
+
+    @Value("${portone.store-id}")
+    private String storeId;
+
+    @Value("${portone.channel-key}")
+    private String channelKey;
+
+    @GetMapping("/test/event")
+    public String index(Model model) {
+        model.addAttribute("events", eventService.getEventList(null, null));
+        model.addAttribute("portoneStoreId", storeId);
+        model.addAttribute("portoneChannelKey", channelKey);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "event/index";
+    }
 
     //  --------EventParticipation
     @PostMapping("/api/events/{id}/join")

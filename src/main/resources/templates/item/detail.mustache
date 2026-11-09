@@ -1,0 +1,83 @@
+{{> fragments/header}}
+
+<div class="container detail-container">
+<div class="detail-grid">
+    <div class="detail-media">
+        <div class="detail-image">
+            {{#item.imageUrl}}<img src="{{item.imageUrl}}" alt="{{item.title}}">{{/item.imageUrl}}
+            {{^item.imageUrl}}이미지 없음{{/item.imageUrl}}
+        </div>
+    </div>
+    <div class="detail-info">
+        <h1>{{item.title}}</h1>
+        <p class="card-price">{{item.price}}원</p>
+        <p>{{item.description}}</p>
+        <p class="card-meta">카테고리: {{item.categoryName}} · <span class="badge" id="item-status">{{item.status}}</span></p>
+
+        <p>
+            <label for="delivery-address" class="sr-only">배송지 주소</label>
+            <input id="delivery-address" type="text" placeholder="배송지 주소를 입력하세요">
+        </p>
+        <p class="card-meta">수량: 1개</p>
+        <button type="button" id="buy-button">구매하기</button>
+        <p id="buy-message" class="form-message"></p>
+    </div>
+</div>
+</div>
+
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+<script>
+(() => {
+    const itemId = {{item.id}};
+    const price = {{item.price}};
+    const title = document.querySelector('h1').textContent;
+    const statusText = document.getElementById('item-status').textContent.trim();
+    const buyButton = document.getElementById('buy-button');
+    const message = document.getElementById('buy-message');
+
+    if (statusText !== 'ON_SALE') {
+        buyButton.textContent = '판매완료';
+        buyButton.disabled = true;
+        return;
+    }
+
+    buyButton.addEventListener('click', async () => {
+        const address = document.getElementById('delivery-address').value.trim();
+        if (!address) { message.textContent = '배송지 주소를 입력하세요.'; message.className = 'form-message error'; return; }
+        if (!window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }
+
+        buyButton.disabled = true;
+        message.textContent = '결제창을 여는 중입니다.';
+        message.className = 'form-message';
+        try {
+            const result = await PortOne.requestPayment({
+                storeId: '{{portoneStoreId}}',
+                channelKey: '{{portoneChannelKey}}',
+                paymentId: `goodsbridge-${crypto.randomUUID()}`,
+                orderName: title,
+                totalAmount: price,
+                currency: 'KRW',
+                payMethod: 'CARD'
+            });
+            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+
+            const response = await fetch('/api/items/' + itemId + '/purchase', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: result.paymentId, deliveryAddress: address })
+            });
+            if (!response.ok) throw new Error(await response.text() || '구매 처리에 실패했습니다.');
+
+            message.textContent = '구매가 완료되었습니다.';
+            buyButton.textContent = '판매완료';
+        } catch (error) {
+            message.textContent = error.message;
+            message.className = 'form-message error';
+            buyButton.disabled = false;
+        }
+    });
+})();
+</script>
+
+{{> fragments/footer}}

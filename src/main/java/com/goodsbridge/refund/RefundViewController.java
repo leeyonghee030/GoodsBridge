@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,8 +19,8 @@ public class RefundViewController {
     private final SettlementHistoryService settlementHistoryService;
 
     @GetMapping("/test/refund")
-
-    public String index() {
+    public String index(Model model) {
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
         return "refund/index";
     }
 

@@ -1,59 +1,95 @@
 {{> fragments/header}}
 
-<div class="container">
+<div class="container profile-container">
 <h1>회원 정보 수정</h1>
 
-<div>
-    <!--   프로필 이미지 있을 경우              -->
-    {{#user.profileImage}}
-        <img src="{{user.profileImage}}" alt="" class="rounded-circle border">
-        <form action="/user/profile-image/delete" method="post">
-            <button type="submit"
-                    onclick="return confirm('사진을 삭제하시겠습니까?');">프로필 사진 삭제
-            </button>
-        </form>
-    {{/user.profileImage}}
-    <!--   프로필 이미지 없을 경우              -->
-    {{^user.profileImage}}
-        <div style="width: 200px; height: 200px;">
-            <span>프로필 사진 없음</span>
+<div class="profile-grid">
+    <div class="profile-avatar-col">
+        <!--   프로필 이미지 있을 경우              -->
+        {{#user.profileImage}}
+            <img src="{{user.profileImage}}" alt="" class="profile-avatar-image">
+            <form action="/user/profile-image/delete" method="post" class="inline-form">
+                <button type="submit" class="link-button"
+                        onclick="return confirm('사진을 삭제하시겠습니까?');">프로필 사진 삭제
+                </button>
+            </form>
+        {{/user.profileImage}}
+        <!--   프로필 이미지 없을 경우              -->
+        {{^user.profileImage}}
+            <div class="profile-avatar-image profile-avatar-empty">
+                <span>프로필 사진 없음</span>
+            </div>
+        {{/user.profileImage}}
+    </div>
+
+    <form action="/api/update" method="post" enctype="multipart/form-data" class="profile-form">
+        <div class="profile-form-grid">
+            <div class="profile-field-row">
+                <label for="email">이메일</label>
+                <input id="email" type="text" value="{{user.email}}" readonly>
+            </div>
+            <div class="profile-field-row">
+                <label for="nickname">닉네임</label>
+                <input
+                    id="nickname"
+                    type="text"
+                    name="nickname"
+                    value="{{#user.nickname}}{{user.nickname}}{{/user.nickname}}"
+                    required
+                >
+            </div>
+
+            <!--   전화번호/주소는 보여주기용 - User 엔티티에 컬럼이 없어 서버로 전송하지 않음              -->
+            <div class="profile-field-row">
+                <label for="phone-num1">휴대전화</label>
+                <div class="phone-row">
+                    <select id="phone-prefix">
+                        <option value="010">010</option>
+                        <option value="011">011</option>
+                        <option value="016">016</option>
+                        <option value="017">017</option>
+                        <option value="018">018</option>
+                        <option value="019">019</option>
+                    </select>
+                    <span class="field-dash">-</span>
+                    <input id="phone-num1" type="text" maxlength="4" placeholder="0000">
+                    <span class="field-dash">-</span>
+                    <input id="phone-num2" type="text" maxlength="4" placeholder="0000">
+                </div>
+            </div>
+
+            <div class="profile-field-row">
+                <label for="profileImage">프로필 이미지</label>
+                <input
+                    id="profileImage"
+                    type="file"
+                    name="profileImage"
+                    accept="image/**"
+                >
+            </div>
+
+            <div class="profile-field-row profile-field-full">
+                <label for="postcode">주소</label>
+                <div class="address-postcode-row">
+                    <input id="postcode" type="text" placeholder="우편번호" readonly>
+                    <button type="button">주소검색</button>
+                </div>
+                <div class="address-base-row">
+                    <input id="address-base" type="text" placeholder="기본주소" readonly>
+                    <input id="address-detail" type="text" placeholder="상세주소 (선택 입력 가능)">
+                </div>
+            </div>
         </div>
-    {{/user.profileImage}}
+
+        <button type="submit">수정하기</button>
+    </form>
 </div>
 
-<form action="/api/update" method="post" enctype="multipart/form-data">
-    <p>
-        <input type="text" value="{{user.email}}" readonly>
-    </p>
-    <p>
-        <label for="nickname">닉네임</label>
-        <input
-            id="nickname"
-            type="text"
-            name="nickname"
-            value="{{#user.nickname}}{{user.nickname}}{{/user.nickname}}"
-            required
-        >
-    </p>
+<p><a href="/" class="secondary">메인으로</a></p>
 
-    <p>
-        <label for="profileImage">프로필 이미지 경로</label>
-        <input
-            id="profileImage"
-            type="file"
-            name="profileImage"
-            accept="image/**"
-        >
-    </p>
-
-    <button type="submit">수정하기</button>
-</form>
-
-<p><a href="/">메인으로</a></p>
-
-<div>
+<div class="profile-danger-zone">
     <form action="/api/withdraw" method="post">
-        <button type="submit">회원탈퇴</button>
+        <button type="submit" class="secondary">회원탈퇴</button>
     </form>
 </div>
 </div>

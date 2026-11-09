@@ -3,11 +3,13 @@ package com.goodsbridge.shop;
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 @Controller
@@ -15,6 +17,24 @@ import org.springframework.web.bind.annotation.*;
 public class ShopViewController {
 
     private final ShopService shopService;
+
+    @GetMapping("/test/shop")
+    public String index(@RequestParam(required = false) String region,
+                         @RequestParam(required = false) String keyword,
+                         Model model) {
+        model.addAttribute("shops", shopService.findAll(keyword, region, PageRequest.of(0, 60)).getContent());
+        model.addAttribute("selectedRegion", region);
+        model.addAttribute("keyword", keyword == null ? "" : keyword);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "shop/index";
+    }
+
+    @GetMapping("/test/shop/{id}")
+    public String detail(@PathVariable Long id, Model model) {
+        model.addAttribute("shop", shopService.findById(id));
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "shop/detail";
+    }
 
     @PostMapping("/api/shops")
     public ResponseEntity<ShopResponse> createShop(@RequestBody ShopCreateRequest requestDto) {

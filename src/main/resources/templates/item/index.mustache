@@ -1,4 +1,165 @@
 {{> fragments/header}}
-<h1>Item (테스트용)</h1>
-<p class="todo">TODO: #7(상품/카테고리 CRUD) 완성 후 실제 화면으로 교체</p>
+
+<h1 class="page-title">SHOP</h1>
+<p id="shop-filter-info" class="card-meta" style="margin: 0 1.5rem 1rem;" hidden></p>
+
+<div class="list-toolbar">
+    <span class="list-toolbar-category" id="toolbar-category">전체</span>
+    <div class="list-toolbar-actions">
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="상품명 검색" autocomplete="off">
+        <button type="button" class="write-link" id="open-filter">필터</button>
+    </div>
+</div>
+
+<div class="filter-panel" id="filter-panel" hidden>
+    <div class="filter-row">
+        <div id="filter-quick" class="filter-chip-grid"></div>
+        <div id="sort-chips" class="filter-chip-grid">
+            <button type="button" class="filter-chip active" data-sort="latest" id="date-sort-chip">최신순</button>
+            <button type="button" class="filter-chip" data-sort="price_asc">가격 낮은순</button>
+            <button type="button" class="filter-chip" data-sort="price_desc">가격 높은순</button>
+        </div>
+    </div>
+</div>
+
+<p id="item-empty" class="empty-state" hidden>조건에 맞는 상품이 없습니다.</p>
+
+<div class="card-grid" id="item-grid">
+{{#items}}
+    <a class="card" href="/test/item/{{id}}">
+        <span class="card-tag">{{categoryName}}</span>
+        <div class="card-image">
+            {{#imageUrl}}<img src="{{imageUrl}}" alt="{{title}}">{{/imageUrl}}
+            {{^imageUrl}}이미지 없음{{/imageUrl}}
+        </div>
+        <p class="card-title">{{title}}</p>
+        <p class="card-price">{{price}}원</p>
+        <p class="card-meta">{{status}}</p>
+    </a>
+{{/items}}
+</div>
+<p id="load-more-status" class="empty-state" hidden>불러오는 중...</p>
+<div id="scroll-sentinel"></div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const money = v => Number(v || 0).toLocaleString('ko-KR');
+
+    const grid = document.getElementById('item-grid');
+    const empty = document.getElementById('item-empty');
+    const filterPanel = document.getElementById('filter-panel');
+    const filterQuick = document.getElementById('filter-quick');
+    const keywordInput = document.getElementById('keyword-input');
+    const toolbarCategory = document.getElementById('toolbar-category');
+
+    let allItems = [];
+    let selectedCategory = new URLSearchParams(location.search).get('category') || '';
+    let sortBy = 'latest';
+    const shopInfo = document.getElementById('shop-filter-info');
+    if (selectedCategory) toolbarCategory.textContent = selectedCategory;
+
+    function getSelectedShopId() { return localStorage.getItem('gb_shop_id') || ''; }
+
+    function renderGrid() {
+        const keyword = keywordInput.value.trim().toLowerCase();
+        const shopId = getSelectedShopId();
+        const filtered = allItems.filter(item =>
+            (!selectedCategory || item.categoryName === selectedCategory)
+            && (!shopId || String(item.shopId) === shopId)
+            && (!keyword || (item.title || '').toLowerCase().includes(keyword))
+        );
+        if (sortBy === 'price_asc') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
+        else if (sortBy === 'price_desc') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+        else if (sortBy === 'oldest') filtered.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+        else filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        empty.hidden = filtered.length > 0;
+        grid.innerHTML = filtered.map(item => `
+            <a class="card" href="/test/item/${item.id}">
+                <span class="card-tag">${esc(item.categoryName)}</span>
+                <div class="card-image">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : '이미지 없음'}</div>
+                <p class="card-title">${esc(item.title)}</p>
+                <p class="card-price">${money(item.price)}원</p>
+                <p class="card-meta">${esc(item.status)}</p>
+            </a>
+        `).join('');
+    }
+
+    function renderQuickChips(categories) {
+        const top10 = [...categories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 10);
+        filterQuick.innerHTML = `<button type="button" class="filter-chip${selectedCategory ? '' : ' active'}" data-name="">전체</button>`
+            + top10.map(c => `<button type="button" class="filter-chip${c.name === selectedCategory ? ' active' : ''}" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('');
+        filterQuick.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
+            selectedCategory = el.dataset.name;
+            toolbarCategory.textContent = selectedCategory || '전체';
+            filterQuick.querySelectorAll('.filter-chip').forEach(chip => chip.classList.toggle('active', chip === el));
+            renderGrid();
+        }));
+    }
+
+    document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+    keywordInput.addEventListener('input', renderGrid);
+
+    const dateSortChip = document.getElementById('date-sort-chip');
+    document.querySelectorAll('#sort-chips [data-sort]').forEach(el => el.addEventListener('click', () => {
+        if (el === dateSortChip) {
+            sortBy = sortBy === 'latest' ? 'oldest' : 'latest';
+            dateSortChip.textContent = sortBy === 'latest' ? '최신순' : '오래된순';
+        } else {
+            sortBy = el.dataset.sort;
+        }
+        document.querySelectorAll('#sort-chips .filter-chip').forEach(chip => chip.classList.toggle('active', chip === el));
+        renderGrid();
+    }));
+
+    function updateShopInfo() {
+        const shopId = getSelectedShopId();
+        if (!shopId) { shopInfo.hidden = true; return; }
+        pageFetch('/api/shops/' + shopId).then(res => res.ok ? res.json() : null).then(shop => {
+            if (!shop) { shopInfo.hidden = true; return; }
+            shopInfo.textContent = `${shop.name} · ${shop.region || ''} 매장의 상품만 보고 있습니다.`;
+            shopInfo.hidden = false;
+        });
+    }
+
+    window.addEventListener('gb-shop-changed', () => { updateShopInfo(); renderGrid(); });
+    updateShopInfo();
+
+    // ----- 무한스크롤: 아래로 내리면 잠깐 로딩 표시 후 다음 페이지를 불러와 이어붙임 -----
+    const loadMoreStatus = document.getElementById('load-more-status');
+    const sentinel = document.getElementById('scroll-sentinel');
+    let currentPage = 0;
+    let totalPages = 1;
+    let loading = false;
+    const PAGE_SIZE = 20;
+
+    async function loadNextPage() {
+        if (loading || currentPage >= totalPages) return;
+        loading = true;
+        loadMoreStatus.hidden = false;
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const res = await pageFetch(`/api/items?page=${currentPage}&size=${PAGE_SIZE}`);
+        if (res.ok) {
+            const page = await res.json();
+            allItems = allItems.concat(page.content || []);
+            totalPages = page.totalPages;
+            currentPage += 1;
+            renderGrid();
+        }
+        loadMoreStatus.hidden = true;
+        loading = false;
+    }
+
+    new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) loadNextPage();
+    }, { rootMargin: '400px' }).observe(sentinel);
+
+    loadNextPage();
+
+    pageFetch('/api/categories').then(res => res.ok ? res.json() : []).then(categories => renderQuickChips(categories));
+})();
+</script>
+
 {{> fragments/footer}}

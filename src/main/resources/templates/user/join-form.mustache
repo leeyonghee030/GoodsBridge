@@ -4,9 +4,18 @@
 <h1>회원가입</h1>
 
 <form action="/api/join" method="post" onsubmit="return checkVerify()">
-    <div>
-        <label for="email">이메일</label>
-        <input id="email" type="email" name="email" required>
+    <div class="email-verify-row">
+        <label for="email-id">이메일 아이디</label>
+        <input id="email-id" type="text" required>
+        <span class="email-at">@</span>
+        <label for="email-domain">도메인</label>
+        <input id="email-domain" type="text" list="email-domain-list" placeholder="도메인 (gmail.com)" required>
+        <datalist id="email-domain-list">
+            <option value="naver.com">
+            <option value="gmail.com">
+            <option value="daum.net">
+        </datalist>
+        <input type="hidden" id="email" name="email">
         <button type="button" class="btn btn-outline-secondary" id="send-btn" onclick="sendCode()">
             인증 번호 전송
         </button>
@@ -16,7 +25,7 @@
         <label for="code">인증번호</label>
         <div class="input-group">
             <input type="text" id="code" placeholder="인증번호 입력" maxlength="10">
-            <button type="button" onclick="verifyCode()">확인</button>
+            <button type="button" id="verify-btn" onclick="verifyCode()">확인</button>
         </div>
         <div id="msg" class="form-text"></div>
     </div>
@@ -32,7 +41,18 @@
                minlength="8" maxlength="20" required>
     </p>
 
-    <button type="submit">가입하기</button>
+    <p>
+        <label for="password-confirm">비밀번호 확인</label>
+        <input id="password-confirm" type="password" minlength="8" maxlength="20" required>
+    </p>
+    <p id="password-match-msg" class="form-message"></p>
+
+    <p>
+        <label for="address">배송지 주소</label>
+        <input id="address" type="text">
+    </p>
+
+    <button type="submit" id="join-submit-btn">가입하기</button>
 </form>
 
 <p><a href="/login">로그인</a></p>
@@ -43,8 +63,36 @@
     let isEmailVerified = false;
     let count = 5;
 
+    function updateEmailValue() {
+        const id = document.querySelector("#email-id").value.trim();
+        const domain = document.querySelector("#email-domain").value.trim();
+        document.querySelector("#email").value = id && domain ? `${id}@${domain}` : "";
+    }
+    document.querySelector("#email-id").addEventListener("input", updateEmailValue);
+    document.querySelector("#email-domain").addEventListener("input", updateEmailValue);
+    updateEmailValue();
+
+    function checkPasswordMatch() {
+        const password = document.querySelector("#password").value;
+        const passwordConfirm = document.querySelector("#password-confirm").value;
+        const msg = document.querySelector("#password-match-msg");
+        if (!passwordConfirm) { msg.textContent = ""; return; }
+        if (password === passwordConfirm) {
+            msg.textContent = "비밀번호가 일치합니다.";
+            msg.className = "form-message";
+        } else {
+            msg.textContent = "비밀번호가 일치하지 않습니다.";
+            msg.className = "form-message error";
+        }
+    }
+    document.querySelector("#password").addEventListener("input", checkPasswordMatch);
+    document.querySelector("#password-confirm").addEventListener("input", checkPasswordMatch);
+
     // 1. 인증 번호 전송
     async function sendCode() {
+        const sendBtn = document.querySelector("#send-btn");
+        if (sendBtn.disabled) return;
+        updateEmailValue();
         const email = document.querySelector("#email").value; // 사용자 입력 : a@naver.com
         if (!email) {
             alert("이메일을 입력해주세요");
@@ -52,7 +100,6 @@
         }
 
         // 메일 발송은 몇 초 걸리므로, 그 동안 버튼을 막아 중복 요청을 방지 한다 (중요!)
-        const sendBtn = document.querySelector("#send-btn");
         sendBtn.disabled = true;
         sendBtn.innerText = "전송 중 ...";
 
@@ -84,6 +131,8 @@
 
     // 2. 인증번호 확인 전승
     async function verifyCode() {
+        const verifyBtn = document.querySelector("#verify-btn");
+        if (verifyBtn.disabled) return;
         // 사용자 이메일, 인증 코드 (6자리)
         const email = document.querySelector("#email").value;
         const code = document.querySelector("#code").value;
@@ -93,6 +142,7 @@
             return;
         }
 
+        verifyBtn.disabled = true;
         try {
             const response = await fetch("/api/email/verify", {
                 method: "POST",
@@ -106,7 +156,8 @@
                 msgBox.innerHTML = result.message;  // "인증 되었습니다"
                 msgBox.className = "form-text text-success";
                 // 인증한 이메일을 화면단에서 바꾸지 못하게 잠금
-                document.querySelector("#email").readOnly = true;
+                document.querySelector("#email-id").disabled = true;
+                document.querySelector("#email-domain").disabled = true;
                 document.querySelector("#send-btn").disabled = true;
             } else {
                 msgBox.textContent = result.message;
@@ -116,7 +167,8 @@
                     isEmailVerified = false;
                     document.querySelector("#code-box").style.display = "none";
                     document.querySelector("#code").value = "";
-                    document.querySelector("#email").readOnly = false;
+                    document.querySelector("#email-id").disabled = false;
+                    document.querySelector("#email-domain").disabled = false;
                     document.querySelector("#send-btn").disabled = false;
                     alert(result.message);
                 }
@@ -125,15 +177,26 @@
             console.log(e)
             alert("서버와 통신하지 못했습니다");
             return;
+        } finally {
+            verifyBtn.disabled = false;
         }
     }
 
     // 3. 회원가입 제출 직전 확인 (false 를 반환하면 제출을 막음)
     function checkVerify() {
+        const submitBtn = document.querySelector("#join-submit-btn");
+        if (submitBtn.disabled) return false;
         if (!isEmailVerified) {
             alert("이메일 인증을 먼저해주세요")
             return false;
         }
+        const password = document.querySelector("#password").value;
+        const passwordConfirm = document.querySelector("#password-confirm").value;
+        if (password !== passwordConfirm) {
+            alert("비밀번호가 일치하지 않습니다");
+            return false;
+        }
+        submitBtn.disabled = true;
         return true;
     }
 

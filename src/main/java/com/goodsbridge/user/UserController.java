@@ -28,6 +28,7 @@ public class UserController {
     @GetMapping("/")
     public String index(@AuthenticationPrincipal Long userId, Model model) {
         model.addAttribute("userId", userId);
+        model.addAttribute("isHome", true);
         return "user/index";
     }
 
@@ -53,6 +54,7 @@ public class UserController {
     // GET http://localhost:8080/update
     @GetMapping("/update")
     public String updateForm(@AuthenticationPrincipal Long userId, Model model) {
+        model.addAttribute("userId", userId);
         model.addAttribute("user", userService.findUpdateForm(userId));
         return "user/update-form";
     }

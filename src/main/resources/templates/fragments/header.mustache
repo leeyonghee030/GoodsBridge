@@ -7,18 +7,449 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-<nav class="nav">
-    <span class="logo">GoodsBridge</span>
+<div class="nav-backdrop"></div>
+<nav class="nav{{#isHome}} hero{{/isHome}}">
+    <div class="logo-slot"><a href="/" class="logo">GoodsBridge</a></div>
+    <div class="shop-dropdown" id="shop-dropdown">
+        <button type="button" class="shop-dropdown-trigger" id="shop-trigger">전체 매장</button>
+        <div class="shop-dropdown-menu" id="shop-menu" hidden>
+            <label for="shop-menu-search" class="sr-only">매장 검색</label>
+            <input type="text" id="shop-menu-search" class="shop-dropdown-search" placeholder="매장 검색" autocomplete="off">
+            <ul id="shop-menu-list">
+                <li data-value="" class="active">전체 매장</li>
+            </ul>
+        </div>
+    </div>
     <!-- 실제 화면 나오기 전까지는 /test/* 로 임시 연결. 화면 교체 시 함께 수정 -->
-    <a href="/test/item">SHOP</a>
-    <a href="/exchange">EXCHANGE</a>
+    <div class="nav-item-mega">
+        <a href="/test/item">SHOP</a>
+        <div class="mega-menu">
+            <div class="category-rank">
+                <div class="category-list">
+                    <h2>인기 상품 카테고리</h2>
+                    <ol>
+                        <li><a href="/test/item?category=포토카드"><span>01</span>포토카드</a></li>
+                        <li><a href="/test/item?category=앨범"><span>02</span>앨범</a></li>
+                        <li><a href="/test/item?category=피규어"><span>03</span>피규어</a></li>
+                        <li><a href="/test/item?category=응원봉"><span>04</span>응원봉</a></li>
+                        <li><a href="/test/item?category=포스터"><span>05</span>포스터</a></li>
+                    </ol>
+                </div>
+                <a href="/test/item?category=포토카드" class="category-photo">
+                    <span class="category-photo-overlay">
+                        <strong>포토카드</strong>
+                        <span>자세히 보기</span>
+                    </span>
+                </a>
+            </div>
+            <div class="mega-menu-footer">SECURE DEPOSIT TRADE</div>
+        </div>
+    </div>
+    <div class="nav-item-mega">
+        <a href="/exchange">EXCHANGE</a>
+        <div class="mega-menu">
+            <div class="category-rank">
+                <div class="category-list">
+                    <h2>인기 교환 카테고리</h2>
+                    <ol>
+                        <li><a href="/exchange?categoryName=포토카드"><span>01</span>포토카드</a></li>
+                        <li><a href="/exchange?categoryName=앨범"><span>02</span>앨범</a></li>
+                        <li><a href="/exchange?categoryName=피규어"><span>03</span>피규어</a></li>
+                        <li><a href="/exchange?categoryName=응원봉"><span>04</span>응원봉</a></li>
+                        <li><a href="/exchange?categoryName=포스터"><span>05</span>포스터</a></li>
+                    </ol>
+                </div>
+                <a href="/exchange?categoryName=포토카드" class="category-photo">
+                    <span class="category-photo-overlay">
+                        <strong>포토카드</strong>
+                        <span>자세히 보기</span>
+                    </span>
+                </a>
+            </div>
+            <div class="mega-menu-footer">NO-SHOW FREE EXCHANGE</div>
+        </div>
+    </div>
     <a href="/test/board">BOARD</a>
     {{#userId}}
     <a href="/update">MY PAGE</a>
     <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
     {{/userId}}
     {{^userId}}
-    <a href="/login" id="nav-login">LOGIN</a>
+    <button type="button" id="nav-login" class="link-button">LOGIN</button>
     {{/userId}}
 </nav>
+
+{{^userId}}
+<div class="modal-backdrop" id="login-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="login-modal-close">✕</button>
+        <h1>로그인</h1>
+        <form id="login-modal-form">
+            <p>
+                <label for="login-email" class="sr-only">이메일</label>
+                <input id="login-email" type="email" name="email" placeholder="이메일" required>
+            </p>
+            <p>
+                <label for="login-password" class="sr-only">비밀번호</label>
+                <input id="login-password" type="password" name="password" placeholder="비밀번호" required>
+            </p>
+            <label class="checkbox-row">
+                <input type="checkbox" name="rememberMe">
+                로그인상태유지
+            </label>
+            <button type="submit">로그인</button>
+        </form>
+        <p id="login-modal-message" class="form-message"></p>
+        <div class="link-row">
+            <button type="button" class="link-button" id="open-signup">회원가입</button>
+            <a href="/api/kakao-login">카카오 로그인</a>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="signup-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="signup-modal-close">✕</button>
+        <h1>회원가입</h1>
+        <form id="signup-modal-form">
+            <p class="email-verify-row">
+                <label for="signup-email-id" class="sr-only">이메일 아이디</label>
+                <input id="signup-email-id" type="text" placeholder="이메일 아이디" required>
+                <span class="email-at">@</span>
+                <label for="signup-email-domain" class="sr-only">도메인</label>
+                <input id="signup-email-domain" type="text" list="signup-email-domain-list" placeholder="도메인 (gmail.com)" required>
+                <datalist id="signup-email-domain-list">
+                    <option value="naver.com">
+                    <option value="gmail.com">
+                    <option value="daum.net">
+                </datalist>
+                <input type="hidden" id="signup-email" name="email">
+                <button type="button" id="signup-send-btn">인증번호 전송</button>
+            </p>
+            <p class="code-verify-row" id="signup-code-box" hidden>
+                <label for="signup-code" class="sr-only">인증번호</label>
+                <input type="text" id="signup-code" placeholder="인증번호 입력" maxlength="10">
+                <button type="button" id="signup-verify-btn">확인</button>
+            </p>
+            <p id="signup-verify-msg" class="form-message"></p>
+            <p>
+                <label for="signup-nickname" class="sr-only">닉네임</label>
+                <input id="signup-nickname" type="text" name="nickname" placeholder="닉네임" required>
+            </p>
+            <p>
+                <label for="signup-password" class="sr-only">비밀번호</label>
+                <input id="signup-password" type="password" name="password" placeholder="비밀번호 (8~20자)" minlength="8" maxlength="20" required>
+            </p>
+            <p>
+                <label for="signup-password-confirm" class="sr-only">비밀번호 확인</label>
+                <input id="signup-password-confirm" type="password" placeholder="비밀번호 확인" minlength="8" maxlength="20" required>
+            </p>
+            <p id="signup-password-match-msg" class="form-message"></p>
+            <p>
+                <label for="signup-address" class="sr-only">배송지 주소</label>
+                <input id="signup-address" type="text" placeholder="배송지 주소">
+            </p>
+            <button type="submit" id="signup-submit-btn">가입하기</button>
+        </form>
+        <p id="signup-modal-message" class="form-message"></p>
+    </div>
+</div>
+{{/userId}}
+
+<script>
+if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+
+(() => {
+    const dropdown = document.getElementById('shop-dropdown');
+    const trigger = document.getElementById('shop-trigger');
+    const menu = document.getElementById('shop-menu');
+    const list = document.getElementById('shop-menu-list');
+    const search = document.getElementById('shop-menu-search');
+    const KEY = 'gb_shop_id';
+
+    function selectShop(value, label) {
+        trigger.textContent = label;
+        list.querySelectorAll('li').forEach(li => li.classList.toggle('active', li.dataset.value === value));
+        if (value) localStorage.setItem(KEY, value);
+        else localStorage.removeItem(KEY);
+        window.dispatchEvent(new CustomEvent('gb-shop-changed', { detail: value }));
+    }
+
+    list.querySelector('[data-value=""]').addEventListener('click', () => { selectShop('', '전체 매장'); menu.hidden = true; });
+
+    fetch('/api/shops?size=100', { credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : null)
+        .then(page => {
+            if (!page) return;
+            const saved = localStorage.getItem(KEY) || '';
+            (page.content || []).forEach(shop => {
+                const li = document.createElement('li');
+                li.dataset.value = String(shop.id);
+                li.dataset.name = shop.name.toLowerCase();
+                li.textContent = shop.name;
+                if (String(shop.id) === saved) {
+                    li.classList.add('active');
+                    trigger.textContent = shop.name;
+                }
+                li.addEventListener('click', () => { selectShop(String(shop.id), shop.name); menu.hidden = true; });
+                list.appendChild(li);
+            });
+        });
+
+    // 매장이 많을 때(100개 등) 검색으로 좁혀 찾을 수 있게
+    search.addEventListener('input', () => {
+        const keyword = search.value.trim().toLowerCase();
+        list.querySelectorAll('li[data-name]').forEach(li => {
+            li.hidden = keyword !== '' && !li.dataset.name.includes(keyword);
+        });
+    });
+
+    trigger.addEventListener('click', () => { menu.hidden = !menu.hidden; if (!menu.hidden) search.focus(); });
+    document.addEventListener('click', event => { if (!dropdown.contains(event.target)) menu.hidden = true; });
+})();
+
+document.addEventListener('DOMContentLoaded', () => {
+    // .hero 클래스는 서버(홈 컨트롤러)에서만 렌더링해서 붙여준다 — 홈이 아닌 페이지는
+    // 애초에 이 클래스 자체가 없으므로 JS 타이밍과 무관하게 항상 기본(작은 배지) 상태로 시작한다.
+    // 홈 화면만 스크롤/조작 시 .hero를 제거해 같은 배지 상태로 줄어든다.
+    const nav = document.querySelector('.nav');
+    if (!nav.classList.contains('hero')) return;
+
+    function shrinkNav() {
+        nav.classList.remove('hero');
+        document.querySelector('main').style.paddingTop = '0';
+    }
+    window.addEventListener('scroll', () => { if (window.scrollY > 5) shrinkNav(); });
+    window.addEventListener('mousemove', shrinkNav, { once: true });
+});
+
+(() => {
+    const loginTrigger = document.getElementById('nav-login');
+    if (!loginTrigger) return;
+
+    const modal = document.getElementById('login-modal');
+    const form = document.getElementById('login-modal-form');
+    const message = document.getElementById('login-modal-message');
+
+    loginTrigger.addEventListener('click', () => { modal.hidden = false; });
+    document.getElementById('login-modal-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        message.textContent = '';
+        message.className = 'form-message';
+        try {
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                credentials: 'same-origin',
+                body: new URLSearchParams(new FormData(form))
+            });
+            if (!response.ok) {
+                const error = await response.json().catch(() => null);
+                message.textContent = (error && error.message) || '이메일 또는 비밀번호를 확인해주세요.';
+                message.className = 'form-message error';
+                return;
+            }
+            location.reload();
+        } catch (e) {
+            message.textContent = '로그인 중 오류가 발생했습니다.';
+            message.className = 'form-message error';
+        }
+    });
+
+    const openSignup = document.getElementById('open-signup');
+    if (openSignup) {
+        const signupModal = document.getElementById('signup-modal');
+        const signupForm = document.getElementById('signup-modal-form');
+        const signupMessage = document.getElementById('signup-modal-message');
+        const verifyMessage = document.getElementById('signup-verify-msg');
+        const emailInput = document.getElementById('signup-email');
+        const emailIdInput = document.getElementById('signup-email-id');
+        const emailDomainInput = document.getElementById('signup-email-domain');
+        const codeBox = document.getElementById('signup-code-box');
+        const sendBtn = document.getElementById('signup-send-btn');
+        const verifyBtn = document.getElementById('signup-verify-btn');
+        const submitBtn = document.getElementById('signup-submit-btn');
+        const passwordInput = document.getElementById('signup-password');
+        const passwordConfirmInput = document.getElementById('signup-password-confirm');
+        const passwordMatchMsg = document.getElementById('signup-password-match-msg');
+        let isEmailVerified = false;
+
+        function updateEmailValue() {
+            const domain = emailDomainInput.value.trim();
+            emailInput.value = emailIdInput.value.trim() && domain ? `${emailIdInput.value.trim()}@${domain}` : '';
+        }
+        emailIdInput.addEventListener('input', updateEmailValue);
+        emailDomainInput.addEventListener('input', updateEmailValue);
+        updateEmailValue();
+
+        function checkPasswordMatch() {
+            if (!passwordConfirmInput.value) { passwordMatchMsg.textContent = ''; return; }
+            if (passwordInput.value === passwordConfirmInput.value) {
+                passwordMatchMsg.textContent = '비밀번호가 일치합니다.';
+                passwordMatchMsg.className = 'form-message';
+            } else {
+                passwordMatchMsg.textContent = '비밀번호가 일치하지 않습니다.';
+                passwordMatchMsg.className = 'form-message error';
+            }
+        }
+        passwordInput.addEventListener('input', checkPasswordMatch);
+        passwordConfirmInput.addEventListener('input', checkPasswordMatch);
+
+        function resetSignupForm() {
+            signupForm.reset();
+            isEmailVerified = false;
+            codeBox.hidden = true;
+            verifyMessage.textContent = '';
+            verifyMessage.className = 'form-message';
+            signupMessage.textContent = '';
+            signupMessage.className = 'form-message';
+            passwordMatchMsg.textContent = '';
+            passwordMatchMsg.className = 'form-message';
+            emailIdInput.disabled = false;
+            emailDomainInput.disabled = false;
+            sendBtn.disabled = false;
+            sendBtn.textContent = '인증번호 전송';
+            verifyBtn.disabled = false;
+            submitBtn.disabled = false;
+        }
+
+        openSignup.addEventListener('click', () => { modal.hidden = true; resetSignupForm(); signupModal.hidden = false; });
+        document.getElementById('signup-modal-close').addEventListener('click', () => { signupModal.hidden = true; });
+        signupModal.addEventListener('click', event => { if (event.target === signupModal) signupModal.hidden = true; });
+
+        sendBtn.addEventListener('click', async () => {
+            if (sendBtn.disabled) return;
+            updateEmailValue();
+            const email = emailInput.value.trim();
+            if (!email) { verifyMessage.textContent = '이메일을 입력해주세요.'; verifyMessage.className = 'form-message error'; return; }
+            sendBtn.disabled = true;
+            sendBtn.textContent = '전송 중...';
+            try {
+                const response = await fetch('/api/email/send', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) { verifyMessage.textContent = result.message || '인증번호 전송에 실패했습니다.'; verifyMessage.className = 'form-message error'; return; }
+                codeBox.hidden = false;
+                verifyMessage.textContent = '인증번호를 보냈습니다.';
+                verifyMessage.className = 'form-message';
+            } catch (e) {
+                verifyMessage.textContent = '서버와 통신하지 못했습니다.';
+                verifyMessage.className = 'form-message error';
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.textContent = '인증번호 전송';
+            }
+        });
+
+        verifyBtn.addEventListener('click', async () => {
+            if (verifyBtn.disabled) return;
+            const email = emailInput.value.trim();
+            const code = document.getElementById('signup-code').value.trim();
+            if (!code) { verifyMessage.textContent = '인증번호를 입력해주세요.'; verifyMessage.className = 'form-message error'; return; }
+            verifyBtn.disabled = true;
+            try {
+                const response = await fetch('/api/email/verify', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, code })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (response.ok) {
+                    isEmailVerified = true;
+                    verifyMessage.textContent = result.message || '인증되었습니다.';
+                    verifyMessage.className = 'form-message';
+                    emailIdInput.disabled = true;
+                    emailDomainInput.disabled = true;
+                    sendBtn.disabled = true;
+                } else {
+                    verifyMessage.textContent = result.message || '인증번호가 일치하지 않습니다.';
+                    verifyMessage.className = 'form-message error';
+                    if (response.status === 429) {
+                        isEmailVerified = false;
+                        codeBox.hidden = true;
+                        document.getElementById('signup-code').value = '';
+                        emailIdInput.disabled = false;
+                        emailDomainInput.disabled = false;
+                        sendBtn.disabled = false;
+                    }
+                }
+            } catch (e) {
+                verifyMessage.textContent = '서버와 통신하지 못했습니다.';
+                verifyMessage.className = 'form-message error';
+            } finally {
+                verifyBtn.disabled = false;
+            }
+        });
+
+        signupForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (submitBtn.disabled) return;
+            signupMessage.textContent = '';
+            signupMessage.className = 'form-message';
+            if (!isEmailVerified) { signupMessage.textContent = '이메일 인증을 먼저 해주세요.'; signupMessage.className = 'form-message error'; return; }
+            const password = document.getElementById('signup-password').value;
+            const passwordConfirm = document.getElementById('signup-password-confirm').value;
+            if (password !== passwordConfirm) { signupMessage.textContent = '비밀번호가 일치하지 않습니다.'; signupMessage.className = 'form-message error'; return; }
+            submitBtn.disabled = true;
+            try {
+                const response = await fetch('/api/join', {
+                    method: 'POST', credentials: 'same-origin',
+                    body: new URLSearchParams(new FormData(signupForm))
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => null);
+                    signupMessage.textContent = (error && error.message) || '회원가입에 실패했습니다.';
+                    signupMessage.className = 'form-message error';
+                    return;
+                }
+                const verifiedEmail = emailInput.value.trim();
+                signupModal.hidden = true;
+                resetSignupForm();
+                document.getElementById('login-email').value = verifiedEmail;
+                modal.hidden = false;
+            } catch (e) {
+                signupMessage.textContent = '회원가입 중 오류가 발생했습니다.';
+                signupMessage.className = 'form-message error';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    }
+})();
+
+(() => {
+    const nav = document.querySelector('.nav');
+    const backdrop = document.querySelector('.nav-backdrop');
+    const items = document.querySelectorAll('.nav-item-mega');
+    let activeItem = null;
+
+    function closeMega() {
+        if (activeItem) activeItem.classList.remove('open');
+        activeItem = null;
+        backdrop.classList.remove('show');
+    }
+
+    items.forEach(item => {
+        item.addEventListener('mouseenter', () => {
+            if (activeItem && activeItem !== item) activeItem.classList.remove('open');
+            item.classList.add('open');
+            activeItem = item;
+            backdrop.classList.add('show');
+        });
+    });
+
+    Array.from(nav.children).forEach(child => {
+        if (!child.classList.contains('nav-item-mega')) {
+            child.addEventListener('mouseenter', closeMega);
+        }
+    });
+
+    nav.addEventListener('mouseleave', closeMega);
+})();
+</script>
 <main>

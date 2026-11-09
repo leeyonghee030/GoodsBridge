@@ -8,66 +8,123 @@
     </span>
 </a>
 
-<section class="hero-grid">
-    <a href="/exchange" class="hero-block">
-        <div class="hero-mock">
-            <div class="mock-card"><div class="mock-img"></div><div class="mock-line"></div><div class="mock-line short"></div></div>
-            <div class="mock-card"><div class="mock-img"></div><div class="mock-line"></div><div class="mock-line short"></div></div>
-            <div class="mock-card"><div class="mock-img"></div><div class="mock-line"></div><div class="mock-line short"></div></div>
+<section class="shop-row">
+    <div class="row-head">
+        <h2>SHOP</h2>
+        <a href="/test/item">전체 상품 보기 →</a>
+    </div>
+    <div class="row-wrap">
+        <button type="button" class="row-nav row-nav-prev" data-target="shop-row-list" aria-label="이전">‹</button>
+        <div class="row-scroll" id="shop-row-list">
+            <p class="row-empty">상품을 불러오는 중...</p>
         </div>
-        <span class="hero-overlay">
-            <span class="hero-label">EXCHANGE</span>
-            <span class="hero-title">교환 게시판</span>
-        </span>
-    </a>
-    <a href="/test/item" class="hero-block">
-        <div class="hero-mock mock-grid-2">
-            <div class="mock-card"><div class="mock-img"></div></div>
-            <div class="mock-card"><div class="mock-img"></div></div>
-            <div class="mock-card"><div class="mock-img"></div></div>
-            <div class="mock-card"><div class="mock-img"></div></div>
-        </div>
-        <span class="hero-overlay">
-            <span class="hero-label">SHOP</span>
-            <span class="hero-title">상품 둘러보기</span>
-        </span>
-    </a>
+        <button type="button" class="row-nav row-nav-next" data-target="shop-row-list" aria-label="다음">›</button>
+    </div>
 </section>
 
-<section class="category-rank">
-    <div class="category-list">
-        <h2>인기 교환 카테고리</h2>
-        <ol>
-            <li><span>01</span>포토카드</li>
-            <li><span>02</span>앨범</li>
-            <li><span>03</span>피규어</li>
-            <li><span>04</span>응원봉</li>
-            <li><span>05</span>포스터</li>
-        </ol>
+<div class="event-feature">
+    <a href="/test/event" class="event-feature-photo"></a>
+    <div class="event-feature-content">
+        <a href="/test/event" class="event-feature-photo-sub"></a>
+        <a href="/test/event" class="event-feature-text">
+            <span class="event-eyebrow">FIRST COME FIRST SERVED</span>
+            <h2>선착순 이벤트</h2>
+            <p>가게에서 여는 선착순 이벤트에 참여하고 번호표를 받아보세요</p>
+            <span class="event-feature-link">이벤트 보러가기 →</span>
+        </a>
     </div>
-    <a href="/exchange" class="category-photo">
-        <span class="category-photo-overlay">
-            <strong>포토카드</strong>
-            <span>자세히 보기</span>
-        </span>
-    </a>
+</div>
+
+<section class="exchange-row">
+    <div class="row-head">
+        <h2>EXCHANGE</h2>
+        <a href="/exchange">지금 올라온 교환 게시글 →</a>
+    </div>
+    <div class="row-wrap">
+        <button type="button" class="row-nav row-nav-prev" data-target="exchange-row-list" aria-label="이전">‹</button>
+        <div class="row-scroll" id="exchange-row-list">
+            <p class="row-empty">교환 게시글을 불러오는 중...</p>
+        </div>
+        <button type="button" class="row-nav row-nav-next" data-target="exchange-row-list" aria-label="다음">›</button>
+    </div>
 </section>
 
 <section class="promo-strip">
     보증금으로 지키는 안전 교환 · 오프라인 매장 중개
 </section>
 
-<a href="/test/event" class="event-feature">
-    <div class="event-feature-photo"></div>
-    <div class="event-feature-content">
-        <div class="event-feature-photo-sub"></div>
-        <div class="event-feature-text">
-            <span class="event-eyebrow">FIRST COME FIRST SERVED</span>
-            <h2>선착순 이벤트</h2>
-            <p>가게에서 여는 선착순 이벤트에 참여하고 번호표를 받아보세요</p>
-            <span class="event-feature-link">이벤트 보러가기 →</span>
-        </div>
-    </div>
-</a>
+<script>
+(() => {
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const getShopId = () => localStorage.getItem('gb_shop_id') || '';
+
+    const MAX_ROW_ITEMS = 30;
+    const BATCH_SIZE = 8;
+
+    function setupLazyRow(list, items, emptyMessage, renderCard) {
+        const capped = items.slice(0, MAX_ROW_ITEMS);
+        list.innerHTML = '';
+        list.onscroll = null;
+        if (!capped.length) { list.innerHTML = `<p class="row-empty">${emptyMessage}</p>`; return; }
+        let shown = 0;
+        function appendBatch() {
+            const next = capped.slice(shown, shown + BATCH_SIZE);
+            if (!next.length) return;
+            list.insertAdjacentHTML('beforeend', next.map(renderCard).join(''));
+            shown += next.length;
+        }
+        appendBatch();
+        list.onscroll = () => {
+            if (shown >= capped.length) return;
+            if (list.scrollLeft + list.clientWidth >= list.scrollWidth - 300) appendBatch();
+        };
+    }
+
+    async function renderShopRow() {
+        const list = document.getElementById('shop-row-list');
+        const res = await fetch('/api/items?size=50&sort=createdAt,desc', { credentials: 'same-origin' });
+        if (!res.ok) { list.innerHTML = '<p class="row-empty">상품을 불러오지 못했습니다.</p>'; return; }
+        const page = await res.json();
+        const shopId = getShopId();
+        let items = (page.content || []).filter(item => item.status === 'ON_SALE');
+        if (shopId) items = items.filter(item => String(item.shopId) === shopId);
+        setupLazyRow(list, items, '등록된 상품이 없습니다.', item => `
+                <a class="shop-card" href="/test/item/${item.id}">
+                    <span class="shop-card-tag">NEW</span>
+                    <div class="shop-card-image">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : ''}</div>
+                    <p class="shop-card-title">${esc(item.title)}</p>
+                    <p class="shop-card-price">${money(item.price)}</p>
+                </a>`);
+    }
+
+    async function renderExchangeRow() {
+        const list = document.getElementById('exchange-row-list');
+        const res = await fetch('/api/exchange-items', { credentials: 'same-origin' });
+        if (!res.ok) { list.innerHTML = '<p class="row-empty">교환 게시글을 불러오지 못했습니다.</p>'; return; }
+        const all = await res.json();
+        const shopId = getShopId();
+        const items = shopId ? all.filter(item => String(item.shopId) === shopId) : all;
+        setupLazyRow(list, items, '등록된 교환 게시글이 없습니다.', item => `
+                <a class="exchange-card" href="/exchange/${item.id}">
+                    <div class="exchange-card-image">${item.itemImageUrl ? `<img src="${esc(item.itemImageUrl)}" alt="${esc(item.itemTitle)}">` : ''}</div>
+                    <p class="exchange-card-title">${esc(item.itemTitle)}</p>
+                    <p class="exchange-card-meta">원하는 것: ${esc(item.wantDescription)}</p>
+                </a>`);
+    }
+
+    document.querySelectorAll('.row-nav').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const scroller = document.getElementById(btn.dataset.target);
+            const dir = btn.classList.contains('row-nav-prev') ? -1 : 1;
+            scroller.scrollBy({ left: dir * scroller.clientWidth * 0.8, behavior: 'smooth' });
+        });
+    });
+
+    renderShopRow();
+    renderExchangeRow();
+    window.addEventListener('gb-shop-changed', () => { renderShopRow(); renderExchangeRow(); });
+})();
+</script>
 
 {{> fragments/footer}}

@@ -2,19 +2,45 @@ package com.goodsbridge.item;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@RestController
+@Controller
 @RequiredArgsConstructor
 public class ItemViewController {
 
     private final ItemService itemService;
+
+    @Value("${portone.store-id}")
+    private String storeId;
+
+    @Value("${portone.channel-key}")
+    private String channelKey;
+
+    @GetMapping("/test/item")
+    public String index(Model model) {
+        model.addAttribute("items", itemService.findAll(null, null, null, PageRequest.of(0, 60)).getContent());
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "item/index";
+    }
+
+    @GetMapping("/test/item/{id}")
+    public String detail(@PathVariable Long id, Model model) {
+        model.addAttribute("item", itemService.findById(id));
+        model.addAttribute("portoneStoreId", storeId);
+        model.addAttribute("portoneChannelKey", channelKey);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "item/detail";
+    }
 
     // 상품 등록
     @PostMapping("/api/items")
