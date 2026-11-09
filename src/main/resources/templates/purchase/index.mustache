@@ -6,7 +6,9 @@
 </section>
 
 <section class="panel">
-    <div class="section-title"><h2>판매 중인 상품</h2><button id="reload-items" type="button">새로고침</button></div>
+    <div class="section-title"><h2>판매 중인 상품</h2>
+        <button id="reload-items" type="button">새로고침</button>
+    </div>
     <div id="item-list"><p class="empty">상품을 불러오는 중입니다.</p></div>
 </section>
 
@@ -18,58 +20,99 @@
 </section>
 
 <section class="panel">
-    <div class="section-title"><h2>내 구매 내역</h2><button id="reload-purchases" type="button">새로고침</button></div>
+    <div class="section-title"><h2>내 구매 내역</h2>
+        <button id="reload-purchases" type="button">새로고침</button>
+    </div>
     <div id="purchase-list"><p class="empty">구매 내역을 불러오는 중입니다.</p></div>
 </section>
 
 <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
 <script>
-(() => {
-    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
-    const state = { items: [], selected: null };
-    const $ = id => document.getElementById(id);
-    const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
-    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    const showMessage = (text, error = false) => { $('purchase-message').textContent = text || ''; $('purchase-message').className = error ? 'error' : 'empty'; };
+    (() => {
+        const pageFetch = (path, options = {}) => fetch(path, Object.assign({credentials: 'same-origin'}, options));
+        const state = {items: [], selected: null};
+        const $ = id => document.getElementById(id);
+        const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
+        const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[c]));
+        const showMessage = (text, error = false) => {
+            $('purchase-message').textContent = text || '';
+            $('purchase-message').className = error ? 'error' : 'empty';
+        };
 
-    async function loadItems() {
-        const response = await pageFetch('/api/items?page=0&size=50');
-        if (!response.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
-        const page = await response.json();
-        state.items = (page.content || []).filter(item => item.status === 'ON_SALE');
-        $('item-list').innerHTML = state.items.length ? state.items.map(item => `<article class="payment-row"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.description || '')}</small></div><strong>${money(item.price)}</strong><button type="button" data-item="${item.id}">구매</button></article>`).join('') : '<p class="empty">판매 중인 상품이 없습니다.</p>';
-        document.querySelectorAll('[data-item]').forEach(button => button.addEventListener('click', () => selectItem(Number(button.dataset.item))));
-    }
-    function selectItem(id) {
-        state.selected = state.items.find(item => item.id === id);
-        if (!state.selected) return;
-        $('purchase-panel').hidden = false; $('selected-title').textContent = state.selected.title; $('selected-price').textContent = money(state.selected.price); showMessage('');
-        $('purchase-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    async function pay() {
-        if (!state.selected) return showMessage('상품을 먼저 선택하세요.', true);
-        const address = $('delivery-address').value.trim();
-        if (!address) return showMessage('배송지 주소를 입력하세요.', true);
-        if (!window.PortOne) return showMessage('포트원 SDK를 불러오지 못했습니다.', true);
-        $('pay-button').disabled = true; showMessage('결제창을 여는 중입니다.');
-        try {
-            const result = await PortOne.requestPayment({ storeId: '{{portoneStoreId}}', channelKey: '{{portoneChannelKey}}', paymentId: `goodsbridge-${crypto.randomUUID()}`, orderName: state.selected.title, totalAmount: state.selected.price, currency: 'KRW', payMethod: 'CARD' });
-            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
-            const response = await pageFetch('/api/items/' + state.selected.id + '/purchase', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: result.paymentId, deliveryAddress: address }) });
-            if (!response.ok) throw new Error(await response.text() || '구매 처리에 실패했습니다.');
-            showMessage('결제와 구매 처리가 완료되었습니다.'); await loadPurchases();
-        } catch (error) { showMessage(error.message, true); } finally { $('pay-button').disabled = false; }
-    }
-    async function loadPurchases() {
-        const response = await pageFetch('/api/purchases/me');
-        if (!response.ok) { $('purchase-list').innerHTML = '<p class="error">로그인 후 구매 내역을 확인할 수 있습니다.</p>'; return; }
-        const purchases = await response.json();
-        $('purchase-list').innerHTML = purchases.length ? purchases.map(item => `<div class="payment-row"><div><strong>상품 #${item.itemId}</strong><small>${escapeHtml(item.deliveryAddress || '')}</small></div><span>${escapeHtml(item.status || '')}</span><small>${escapeHtml(item.paymentId)}</small></div>`).join('') : '<p class="empty">구매 내역이 없습니다.</p>';
-    }
-    $('pay-button').addEventListener('click', pay);
-    $('reload-items').addEventListener('click', () => loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`));
-    $('reload-purchases').addEventListener('click', loadPurchases);
-    loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`); loadPurchases();
-})();
+        async function loadItems() {
+            const response = await pageFetch('/api/items?page=0&size=50');
+            if (!response.ok) throw new Error('상품 목록을 불러오지 못했습니다.');
+            const page = await response.json();
+            state.items = (page.content || []).filter(item => item.status === 'ON_SALE');
+            $('item-list').innerHTML = state.items.length ? state.items.map(item => `<article class="payment-row"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.description || '')}</small></div><strong>${money(item.price)}</strong><button type="button" data-item="${item.id}">구매</button></article>`).join('') : '<p class="empty">판매 중인 상품이 없습니다.</p>';
+            document.querySelectorAll('[data-item]').forEach(button => button.addEventListener('click', () => selectItem(Number(button.dataset.item))));
+        }
+
+        function selectItem(id) {
+            state.selected = state.items.find(item => item.id === id);
+            if (!state.selected) return;
+            $('purchase-panel').hidden = false;
+            $('selected-title').textContent = state.selected.title;
+            $('selected-price').textContent = money(state.selected.price);
+            showMessage('');
+            $('purchase-panel').scrollIntoView({behavior: 'smooth', block: 'start'});
+        }
+
+        async function pay() {
+            if (!state.selected) return showMessage('상품을 먼저 선택하세요.', true);
+            const address = $('delivery-address').value.trim();
+            if (!address) return showMessage('배송지 주소를 입력하세요.', true);
+            if (!window.PortOne) return showMessage('포트원 SDK를 불러오지 못했습니다.', true);
+            $('pay-button').disabled = true;
+            showMessage('결제창을 여는 중입니다.');
+            try {
+                const result = await PortOne.requestPayment({
+                    storeId: '{{portoneStoreId}}',
+                    channelKey: '{{portoneChannelKey}}',
+                    paymentId: `goodsbridge-${crypto.randomUUID()}`,
+                    orderName: String(state.selected.title || '').trim() || `GoodsBridge 상품 #${state.selected.id}`,
+                    totalAmount: state.selected.price,
+                    currency: 'KRW',
+                    payMethod: 'CARD'
+                });
+                if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+                const response = await pageFetch('/api/items/' + state.selected.id + '/purchase', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({paymentId: result.paymentId, deliveryAddress: address})
+                });
+                if (!response.ok) throw new Error(await response.text() || '구매 처리에 실패했습니다.');
+                showMessage('결제와 구매 처리가 완료되었습니다.');
+                await loadPurchases();
+                await loadItems();
+            } catch (error) {
+                showMessage(error.message, true);
+            } finally {
+                $('pay-button').disabled = false;
+            }
+        }
+
+        async function loadPurchases() {
+            const response = await pageFetch('/api/purchases/me');
+            if (!response.ok) {
+                $('purchase-list').innerHTML = '<p class="error">로그인 후 구매 내역을 확인할 수 있습니다.</p>';
+                return;
+            }
+            const purchases = await response.json();
+            $('purchase-list').innerHTML = purchases.length ? purchases.map(item => `<div class="payment-row"><div><strong>상품 #${item.itemId}</strong><small>${escapeHtml(item.deliveryAddress || '')}</small></div><span>${escapeHtml(item.status || '')}</span><small>${escapeHtml(item.paymentId)}</small></div>`).join('') : '<p class="empty">구매 내역이 없습니다.</p>';
+        }
+
+        $('pay-button').addEventListener('click', pay);
+        $('reload-items').addEventListener('click', () => loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`));
+        $('reload-purchases').addEventListener('click', loadPurchases);
+        loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`);
+        loadPurchases();
+    })();
 </script>
 {{> fragments/footer}}

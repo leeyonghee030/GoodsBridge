@@ -25,7 +25,16 @@ public class UserService {
     private final AuthService authService;
 
     @Transactional
-    public UserResponse.JoinDto join(UserRequest.JoinDto joinDto) {
+    public UserResponse.JoinDto join(UserRequest.JoinDto joinDto, String  verifiedEmail) {
+
+        if (verifiedEmail == null || !verifiedEmail.equals(joinDto.getEmail())){
+            throw new BadRequestException("이메일 인증을 먼저 완료해주세요");
+        }
+
+        userRepository.findByEmail(joinDto.getEmail()).ifPresent(user -> {
+            log.warn("회원가입 실패 - 중복된 이메일 : {}", joinDto.getEmail());
+            throw new BadRequestException("이미 존재하는 이메일입니다");
+        });
 
         String encodePassword = passwordEncoder.encode(joinDto.getPassword());
         User user = joinDto.toEntity(encodePassword);

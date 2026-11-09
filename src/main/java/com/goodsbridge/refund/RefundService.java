@@ -7,6 +7,8 @@ import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentStatus;
+import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
@@ -89,9 +91,20 @@ public class RefundService {
         if (refund.getRequestedAmount() > payment.getRefundableAmount()) {
             throw new BadRequestException("환불 가능 금액을 초과했습니다.");
         }
-        paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
+        // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
+        // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
         refund.approve();
         createSettlementIfNeeded(refund, payment);
+        paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
+
+        // 구매 상품을 전액 환불하면 거래를 종료하고 상품을 다시 판매 목록에 노출한다.
+        // purchase_tb.item_id가 unique이므로 기존 구매 행은 재구매 전에 제거한다.
+        if (payment.getStatus() == PaymentStatus.CANCELLED && payment.getPurpose() == PaymentPurpose.PURCHASE) {
+            purchaseRepository.findByPaymentId(payment.getPaymentId()).ifPresent(purchase -> {
+                purchase.getItem().updateStatus(ItemStatus.ON_SALE);
+                purchaseRepository.delete(purchase);
+            });
+        }
     }
 
     /**
@@ -111,10 +124,16 @@ public class RefundService {
         }
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("정산 대상 가게를 찾을 수 없습니다."));
-        paymentService.refund(paymentId, amount, reason);
+        // 정산 기록을 먼저 만들고 PortOne 취소는 마지막에 호출한다 (approve()와 같은 이유)
         settlementHistoryService.calculate(shop, payment, amount, SettlementHistoryType.NO_SHOW_FEE);
+        paymentService.refund(paymentId, amount, reason);
     }
 
+    /**
+     * RefundType.NO_SHOW 요청에 한해 정산을 만든다.
+     * 사용자/가게 환불 요청은 항상 PURCHASE 타입이라 여기서 건너뛰고,
+     * 교환 노쇼는 Refund 엔티티 없이 {@link #refundAndSettleNoShow}를 직접 호출한다.
+     */
     private void createSettlementIfNeeded(Refund refund, Payment payment) {
         if (refund.getType() != RefundType.NO_SHOW) {
             return;
@@ -162,7 +181,7 @@ public class RefundService {
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
         if (!shop.isOwner(userId)) {
-            throw new NotFoundException("자신의 가게에만 접근할 수 있습니다.");
+            throw new ForbiddenException("자신의 가게에만 접근할 수 있습니다.");
         }
         Payment payment = paymentRepository.findByPaymentId(shopRefundRequest.getPaymentId())
             .orElseThrow(() -> new NotFoundException("결제를 찾을 수 없습니다."));
