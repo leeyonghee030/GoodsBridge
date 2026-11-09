@@ -1,15 +1,15 @@
 package com.goodsbridge.board;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import aQute.bnd.annotation.metatype.Meta;
+import lombok.*;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Getter
+@Builder
 @AllArgsConstructor
+@NoArgsConstructor
 public class BoardResponseDto {
     private Long id;
     private String title;
@@ -36,4 +36,5 @@ public class BoardResponseDto {
             replyDtos
         );
     }
+
 }
