@@ -7,6 +7,7 @@ import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -34,6 +35,10 @@ public class Auction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "current_winner_user_id")
     private User currentWinner; // 현재 입찰자
+
+    @Column(name = "winning_payment_id")
+    @Setter
+    private String winningPaymentId;  // 낙찰 결제id 저장
 
     private LocalDateTime deadline; // 마감 시간
 
@@ -70,5 +75,9 @@ public class Auction {
     public void end() {
         this.status = currentWinner == null
             ? Status.ENDED_FAIL : Status.ENDED_SUCCESS;
+    }
+
+    public void updateCurrentPrice(Integer bidAmount) {
+        this.currentPrice = bidAmount;
     }
 }

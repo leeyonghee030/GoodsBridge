@@ -3,9 +3,9 @@ package com.goodsbridge.payment;
 import java.util.List;
 
 /**
- * exchange(#18)/event(#19)/auction(#20)이 공통으로 호출하는 결제 검증/환불 인터페이스 초안입니다.
- * 메서드 이름·파라미터는 C/D가 상의해서 확정하고, 바뀌면 이 파일을 같이 고쳐주세요.
- * 실제 구현(#9, #17)이 끝나기 전까지는 호출하면 예외가 던져집니다.
+ * exchange(#18)/event(#19)/auction(#20)/purchase(#9)가 공통으로 호출하는 결제 검증/환불/지급 인터페이스입니다.
+ * 메서드 이름·파라미터를 바꾸면 호출하는 쪽(exchange, event, auction, purchase, refund)도 같이 고쳐야 합니다.
+ * 실제 구현은 {@link PaymentServiceImpl}에 있습니다.
  */
 
 public interface PaymentService {
@@ -18,11 +18,14 @@ public interface PaymentService {
      */
     String verify(String paymentId, int expectedAmount, PaymentPurpose purpose, Long userId);
 
-    // 내 구매 목록
+    // 내 전체 결제 내역 (목적 불문)
     List<PaymentResponse.DetailDto> findMine(Long userId);
 
     /**
      * 이미 검증된 결제를 부분/전체 환불합니다 (PortOne 부분취소 API).
      */
     void refund(String paymentId, int amount, String reason);
+
+    /** 구매자 수령 확인 이후 대금을 판매자에게 지급 처리합니다 (PAID -> RELEASED, 멱등). */
+    void release(String paymentId);
 }

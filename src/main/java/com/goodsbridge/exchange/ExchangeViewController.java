@@ -1,15 +1,10 @@
 package com.goodsbridge.exchange;
 
 import com.goodsbridge._core.util.SecurityUtil;
-import com.goodsbridge.exchange.dto.ExchangeItemCreateRequest;
-import com.goodsbridge.exchange.dto.ExchangeItemResponse;
-import com.goodsbridge.exchange.dto.ExchangeRequestCreateRequest;
-import com.goodsbridge.exchange.dto.ExchangeRequestResponse;
+import com.goodsbridge.exchange.dto.*;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.repository.query.Param;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,6 +16,66 @@ public class ExchangeViewController {
 
     private final ExchangeService exchangeService;
 
+    //   교환 보증금 정산( 교환 수락, 가게(check-in))
+    //교환수락
+    @PostMapping("/api/exchange-requests/{id}/accept")
+    public ResponseEntity<ExchangeRequestResponse> accept(@PathVariable Long id,
+                                                          @RequestBody ExchangeAcceptRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        ExchangeRequestResponse response = exchangeService.accept(id, userId, request);
+        return ResponseEntity.ok().body(response);
+    }
+
+    @PatchMapping("/api/shops/{shopId}/exchange-requests/{id}/check-in")
+    public ResponseEntity<ExchangeRequestResponse> checkIn(@PathVariable Long id,
+                            @RequestBody ExchangeCheckInRequest request){
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        ExchangeRequestResponse response = exchangeService.checkIn(id,userId,request);
+        return ResponseEntity.ok().body(response);
+    }
+
+
+
+    //--
+
+
+    //-------교환 게시글 댓글
+    @PostMapping("/api/exchange-items/{id}/comments")
+    public ResponseEntity<ExchangeCommentResponse> createExchangeComment(@PathVariable(name = "id") Long id,
+                                                                         @RequestBody ExchangeCommentRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        ExchangeCommentResponse response = exchangeService.saveComment(id, userId, request);
+        return ResponseEntity.status(201).body(response);
+    }
+
+    @GetMapping("/api/exchange-items/{id}/comments")
+    public ResponseEntity<List<ExchangeCommentResponse>> getExchangeCommentList(@PathVariable Long id) {
+        List<ExchangeCommentResponse> responses = exchangeService.getExchangeCommentList(id);
+        return ResponseEntity.ok().body(responses);
+    }
+
+    @PatchMapping("/api/exchange-comments/{id}")
+    public ResponseEntity<ExchangeCommentResponse> updateComment(@PathVariable(name = "id") Long id,
+                                                                 @RequestBody ExchangeCommentRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        ExchangeCommentResponse response = exchangeService.updateComment(id, userId, request);
+        return ResponseEntity.ok().body(response);
+    }
+
+    @DeleteMapping("/api/exchange-comments/{id}")
+    public ResponseEntity<?> deleteComment(@PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        exchangeService.deleteComment(id, userId);
+        return ResponseEntity.noContent().build();
+    }
+// -----------------------
+
+
+    //-------------교환 -------------------
     //교환 게시글 등록
     @ResponseBody
     @PostMapping("/api/exchange-items")
@@ -53,7 +108,7 @@ public class ExchangeViewController {
     @ResponseBody
     @PostMapping("/api/exchange-items/{id}/propose")
     public ResponseEntity<ExchangeRequestResponse> proposeExchange(@PathVariable Long id,
-        @RequestBody ExchangeRequestCreateRequest request) {
+                                                                   @RequestBody ExchangeRequestCreateRequest request) {
         Long userId = SecurityUtil.getCurrentUserId();
         request.validate();
         ExchangeRequestResponse response = exchangeService.proposeExchange(id, request, userId);

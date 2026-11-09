@@ -5,6 +5,10 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.payment.Payment;
+import com.goodsbridge.payment.PaymentRepository;
+import com.goodsbridge.settlement.SettlementHistoryService;
+import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.Role;
@@ -32,6 +36,8 @@ public class AuctionService {
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
+    private final PaymentRepository paymentRepository;
+    private final SettlementHistoryService settlementHistoryService;
 
     // 경매 개설
     @Transactional
@@ -106,6 +112,18 @@ public class AuctionService {
             throw new BadRequestException("아직 마감 시간이 지나지 않았습니다.");
         }
         auction.end();
+
+        if (auction.getStatus() == Status.ENDED_SUCCESS
+            && auction.getWinningPaymentId() != null) {
+            Payment payment = paymentRepository.findByPaymentId(auction.getWinningPaymentId())
+                .orElseThrow(() -> new NotFoundException("낙찰 결제를 찾을 수 없습니다."));
+            settlementHistoryService.calculate(
+                auction.getShop(),
+                payment,
+                auction.getCurrentPrice(),
+                SettlementHistoryType.AUCTION_FEE
+            );
+        }
     }
 
     // 경매 마감시간 지나면 자동 종료
@@ -113,9 +131,19 @@ public class AuctionService {
     @Transactional
     public void autoCloseAuctions() {
         LocalDateTime now = LocalDateTime.now();
-        List<Auction> auctions = auctionRepository.findByStatusAndDeadlineBefore(Status.ACTIVE, now);
-        for (Auction auction : auctions) {
-            closeInternal(auction);
-        }
+        int pageSize = 100;
+
+        // 종료 처리할 때 ACTIVE 목록에서 빠지므로 항상 첫 페이지를 다시 조회한다.
+        Page<Auction> auctions;
+        do {
+            auctions = auctionRepository.findByStatusAndDeadlineBefore(
+                Status.ACTIVE,
+                now,
+                PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "id"))
+            );
+            for (Auction auction : auctions.getContent()) {
+                closeInternal(auction);
+            }
+        } while (!auctions.isEmpty());
     }
 }

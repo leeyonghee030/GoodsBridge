@@ -9,10 +9,6 @@ import java.util.Optional;
 
 public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
 
-    // 구매 내역 조회(해당 게시글 PK 기준)
-    @Query("select p from Purchase p where p.user.id = :userId")
-    Optional<Purchase> findByUserId(@Param("userId") Long userId);
-
     // 구매 여부 확인(true, false로 응답 필요할 때)
     @Query("""
         select case when count(p) > 0 then true else false end
@@ -20,6 +16,14 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         where p.user.id = :userId and p.item.id = :itemId
         """)
     boolean existsByUserIdAndItemId(@Param("userId") Long userId, @Param("itemId") Long itemId);
+
+    // 누가 샀든 이미 판매된 상품인지 확인 (결제 검증 전에 먼저 차단)
+    @Query("""
+        select case when count(p) > 0 then true else false end
+        from Purchase p
+        where p.item.id = :itemId
+        """)
+    boolean existsByItemId(@Param("itemId") Long itemId);
 
     // 구매 내역 조회
     @Query("select p from Purchase p join fetch p.user where p.user.id = :userId order by p.id desc")
@@ -33,4 +37,11 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
             order by p.id desc
         """)
     List<Purchase> findAllByShop(@Param("shopId") Long shopId, @Param("ds") DeliveryStatus ds);
+
+    @Query("""
+        select p
+        from Purchase p
+        where p.paymentId = :paymentId
+        """)
+    Optional<Purchase> findByPaymentId(@Param("paymentId") String paymentId);
 }

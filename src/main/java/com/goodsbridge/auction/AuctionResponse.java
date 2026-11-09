@@ -28,4 +28,8 @@ public class AuctionResponse {
         this.depositAmount = auction.getDepositAmount();
         this.status = auction.getStatus();
     }
+
+    public static AuctionResponse from(Auction auction) {
+        return new AuctionResponse(auction);
+    }
 }
