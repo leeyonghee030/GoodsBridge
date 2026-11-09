@@ -140,4 +140,19 @@ public class ItemService {
             throw new IllegalArgumentException("유효하지 않은 ID 값입니다.");
         }
     }
+
+    @Transactional
+    public void closeItemsByShopId(Long shopId) {
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
+    }
+
+    // ItemService 내부에 추가해야 할 메서드 예시
+    @Transactional
+    public void restoreAndActivateItemsByShopId(Long shopId) {
+        List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
+        for (Item item : expiredItems) {
+            item.restore(ItemStatus.ON_SALE);
+        }
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
+    }
 }

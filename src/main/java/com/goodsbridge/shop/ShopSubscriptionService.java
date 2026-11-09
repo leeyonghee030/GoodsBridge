@@ -4,7 +4,7 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
-import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.item.ItemService;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
@@ -30,13 +30,13 @@ public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
     private final ShopRepository shopRepository;
-    private final ItemRepository itemRepository;
+    private final ItemService itemService; // 👈 ItemRepository 대신 ItemService 주입
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopSubscriptionProcessor subscriptionProcessor;
 
     private static final int PRICE_PER_DAY = 1000;
-    private static final int MAX_DAYS = 365 * 3; // 한 번에 최대 3년(1095일) 제한
+    private static final int MAX_DAYS = 1095; // 한 번에 최대 3년(1095일) 제한
 
     @Transactional
     public Long create(Long userId, Long shopId, ShopSubscriptionRequest request) {
@@ -51,7 +51,7 @@ public class ShopSubscriptionService {
             throw new BadRequestException("결제 ID가 필요합니다.");
         }
 
-        // 💡 정수 오버플로 방어 계산
+        // 정수 오버플로 방어 계산
         long calculatedAmountLong = (long) request.getDays() * PRICE_PER_DAY;
         if (calculatedAmountLong > Integer.MAX_VALUE) {
             throw new BadRequestException("결제 금액이 허용 범위를 초과했습니다.");
@@ -62,11 +62,11 @@ public class ShopSubscriptionService {
             throw new BadRequestException("결제 금액 정보가 올바르지 않습니다.");
         }
 
-        // 💡 1. 샵 조회 및 비관적 락 적용 (샵 삭제/폐점 트랜잭션과 경쟁 상태 방지)
+        // 샵 조회 및 비관적 락 적용 (샵 삭제/폐점 트랜잭션과 경쟁 상태 방지)
         Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
-        // 💡 2. 폐점·삭제·미승인 샵 구독 결제 차단 방어 로직
+        // 폐점·삭제·미승인 샵 구독 결제 차단 방어 로직
         if (shop.isDeleted()) {
             throw new BadRequestException("이미 삭제(폐점)된 가게는 구독을 진행할 수 없습니다.");
         }
@@ -74,7 +74,7 @@ public class ShopSubscriptionService {
             throw new BadRequestException("승인 완료(APPROVED)된 가게만 구독을 진행할 수 있습니다. (현재 상태: " + shop.getStatus() + ")");
         }
 
-        // 💡 1. [중복 결제 방어] DB 레벨 제약 및 exists 체크를 통한 이중 방어
+        // [중복 결제 방어] DB 레벨 제약 및 exists 체크를 통한 이중 방어
         if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
@@ -138,16 +138,10 @@ public class ShopSubscriptionService {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
             if (isExpiredOrCancelled || existingSubscription == null) {
-                // 💡 [수정] 만료 배치가 소프트 삭제(deleted=true) 처리했던 상품들을 조회하여 완전 복구(deleted=false, status=ON_SALE) 처리
-                List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
-                for (Item item : expiredItems) {
-                    item.restore(ItemStatus.ON_SALE);
-                }
+                // 💡 [개선] ItemService에 상품 복구 및 상태 변경 책임을 위임합니다.
+                itemService.restoreAndActivateItemsByShopId(shopId);
 
-                // 만약 삭제되지 않고 단순히 상태만 CLOSED였던 상품이 있다면 일괄 업데이트 쿼리 병행 실행 가능
-                itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
-
-                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 만료되었던 상품 {}개가 복구 및 ON_SALE로 전환되었습니다.", shopId, expiredItems.size());
+                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
             }
 
             return subscriptionId;
@@ -179,12 +173,10 @@ public class ShopSubscriptionService {
 
         subscription.restore(originalPaymentId);
 
-        List<Item> deletedItems = itemRepository.findAllDeletedByShopId(shopId);
-        for (Item item : deletedItems) {
-            item.restore(ItemStatus.ON_SALE);
-        }
+        // 💡 [개선] ItemService에 상품 복구 위임
+        itemService.restoreAndActivateItemsByShopId(shopId);
 
-        log.info("[구독 및 상품 복구 완료] 가게 ID: {} | 복구된 상품 수: {}개", shopId, deletedItems.size());
+        log.info("[구독 및 상품 복구 완료] 가게 ID: {}", shopId);
     }
 
     public List<ShopSubscriptionResponse> findAllSubscriptions(Long adminUserId) {
