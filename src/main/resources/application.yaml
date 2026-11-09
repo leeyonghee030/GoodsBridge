@@ -24,6 +24,24 @@ spring:
                 chat:
                     model: gemini-2.5-flash
 
+    # 메일 발송 설정 (추가)
+    mail:
+        host: smtp.gmail.com        # Gmail SMTP 서버 주소
+        port: 587                   # STARTTLS 포트
+        username: ${MAIL_USERNAME:}  # 발신 Gmail 주소 (.env)
+        password: ${MAIL_PASSWORD:}  # 16자리 앱 비밀번호 (.env, 구글 로그인 비밀번호 아님)
+        properties:
+            mail:
+                smtp:
+                    auth: true                # SMTP 서버에 아이디, 비밀번호로 로그인
+                    starttls:
+                        enable: true            # 암호화 연결(TLS)로 전환
+                        required: true          # 전환에 실패하면 보내지 않음
+                    connectiontimeout: 5000   # 서버 연결을 기다리는 최대 시간 (밀리초)
+                    timeout: 5000             # 서버 응답을 기다리는 최대 시간 (밀리초)
+                    writetimeout: 5000        # 데이터를 보내는 데 걸리는 최대 시간 (밀리초)
+
+
 oauth2:
     kakao:
         client-id: ${KAKAO_CLIENT_ID}

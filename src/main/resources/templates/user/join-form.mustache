@@ -2,11 +2,23 @@
 
 <h1>회원가입</h1>
 
-<form action="/api/join" method="post">
-    <p>
+<form action="/api/join" method="post" onsubmit="return checkVerify()">
+    <div>
         <label for="email">이메일</label>
         <input id="email" type="email" name="email" required>
-    </p>
+        <button type="button" class="btn btn-outline-secondary" id="send-btn" onclick="sendCode()">
+            인증 번호 전송
+        </button>
+    </div>
+
+    <div class="mb-3" id="code-box" style="display: none">
+        <label for="code">인증번호</label>
+        <div class="input-group">
+            <input type="text" id="code" placeholder="인증번호 입력" maxlength="10">
+            <button type="button" onclick="verifyCode()">확인</button>
+        </div>
+        <div id="msg" class="form-text"></div>
+    </div>
 
     <p>
         <label for="nickname">닉네임</label>
@@ -23,5 +35,113 @@
 </form>
 
 <p><a href="/login">로그인</a></p>
+
+<script>
+    // 인증 완료 여부 (화면 안 내용, 실제 검사는 서버의 세션으로 함
+    let isEmailVerified = false;
+    let count = 5;
+
+    // 1. 인증 번호 전송
+    async function sendCode() {
+        const email = document.querySelector("#email").value; // 사용자 입력 : a@naver.com
+        if (!email) {
+            alert("이메일을 입력해주세요");
+            return;
+        }
+
+        // 메일 발송은 몇 초 걸리므로, 그 동안 버튼을 막아 중복 요청을 방지 한다 (중요!)
+        const sendBtn = document.querySelector("#send-btn");
+        sendBtn.disabled = true;
+        sendBtn.innerText = "전송 중 ...";
+
+        try {
+            const response = await fetch("/api/email/send", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"}, // 바디가 JSON 이라고 알림
+                body: JSON.stringify({email: email})            // 객체 --> JSON 문자열로 변환 됨
+            })
+
+            const result = await response.json()    // JSON 응답 --> 자바스크립트 객체로 변환 됨
+            // 백엔드 개발자와 어떤 식으로 요청을 보내고 어떤 식으로 응답이 올지 확인 해야 한다.
+            // 백엔드 API 에서 key : message 로 내려 보내기로 했다
+            // alert(result.message);
+            if (!response.ok) {
+                alert(result.message);
+                return;
+            }
+
+            document.querySelector("#code-box").style.display = "block";
+
+        } catch (e) {
+            alert("서버와 통신하지 못했습니다.")
+        } finally {
+            sendBtn.disabled = false;
+            sendBtn.innerText = "인증번호 전송"
+        }
+    }
+
+    // 2. 인증번호 확인 전승
+    async function verifyCode() {
+        // 사용자 이메일, 인증 코드 (6자리)
+        const email = document.querySelector("#email").value;
+        const code = document.querySelector("#code").value;
+
+        if (!code) {
+            alert("인증번호를 입력해주세요");
+            return;
+        }
+
+        try {
+            const response = await fetch("/api/email/verify", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({email: email, code: code}) // 객체 --> JSON 으로 변환
+            });
+            const result = await response.json();   // JSON --> 객체로 변환
+            const msgBox = document.querySelector("#msg");
+            if (response.ok) {
+                isEmailVerified = true;
+                msgBox.innerHTML = result.message;  // "인증 되었습니다"
+                msgBox.className = "form-text text-success";
+                // 인증한 이메일을 화면단에서 바꾸지 못하게 잠금
+                document.querySelector("#email").readOnly = true;
+                document.querySelector("#send-btn").disabled = true;
+            } else {
+                msgBox.textContent = result.message;
+                msgBox.className = "form-text text-danger";
+
+                if (response.status === 429) {
+                    isEmailVerified = false;
+                    document.querySelector("#code-box").style.display = "none";
+                    document.querySelector("#code").value = "";
+                    document.querySelector("#email").readOnly = false;
+                    document.querySelector("#send-btn").disabled = false;
+                    alert(result.message);
+                }
+            }
+        } catch (e) {
+            console.log(e)
+            alert("서버와 통신하지 못했습니다");
+            return;
+        }
+    }
+
+    // 3. 회원가입 제출 직전 확인 (false 를 반환하면 제출을 막음)
+    function checkVerify() {
+        if (!isEmailVerified) {
+            alert("이메일 인증을 먼저해주세요")
+            return false;
+        }
+        return true;
+    }
+
+    function checkCount() {
+        if (count >= 5){
+            count = 0;
+
+        }
+    }
+
+</script>
 
 {{> fragments/footer}}
