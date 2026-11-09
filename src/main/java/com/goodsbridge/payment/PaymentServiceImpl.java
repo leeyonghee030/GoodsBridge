@@ -1,19 +1,21 @@
 package com.goodsbridge.payment;
 
 import com.goodsbridge._core.exception.BadRequestException;
-import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.user.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 /**
- * #9(결제/구매), #17(정산/환불)에서 실제 로직을 채웁니다.
- * 지금은 다른 도메인이 컴파일/개발을 먼저 시작할 수 있게 자리만 잡아둔 상태입니다.
+ * PortOne 결제 검증(#9), 부분취소(#17), 대금 지급(release) 구현체.
+ * 금액 검증의 기준은 항상 호출하는 쪽(서버)이 넘기는 expectedAmount이며 클라이언트 값은 신뢰하지 않는다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
@@ -68,11 +70,20 @@ public class PaymentServiceImpl implements PaymentService {
             .amount(expectedAmount)
             .purpose(purpose)
             .build();
-        paymentRepository.save(payment);
+
+        log.info("결제 저장 - paymentId={}, userId={}, amount={}, purpose={}",
+            paymentId, userId, expectedAmount, purpose);
+
+        try {
+            paymentRepository.save(payment);
+        } catch (DataIntegrityViolationException e) {
+            // existsByPaymentId 검사를 동시에 통과한 중복 요청 -> payment_id unique 제약이 마지막 방어선
+            throw new BadRequestException("이미 처리된 결제입니다.");
+        }
         return paymentId;
     }
 
-    // 내 구매 목록
+    // 내 전체 결제 내역
     @Override
     public List<PaymentResponse.DetailDto> findMine(Long userId) {
         return paymentRepository.findAllByUserIdOrderByIdDesc(userId).stream()
@@ -86,7 +97,8 @@ public class PaymentServiceImpl implements PaymentService {
         if (paymentId == null || paymentId.isBlank() || amount <= 0) {
             throw new BadRequestException("환불 요청 값이 올바르지 않습니다.");
         }
-        Payment payment = paymentRepository.findByPaymentId(paymentId)
+        // 같은 결제를 동시에 환불/지급하지 못하도록 행 잠금 후 한도를 다시 검증한다.
+        Payment payment = paymentRepository.findByPaymentIdLock(paymentId)
             .orElseThrow(() -> new BadRequestException("결제 내역을 찾을 수 없습니다."));
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
@@ -103,7 +115,7 @@ public class PaymentServiceImpl implements PaymentService {
         payment.refund(amount);
     }
 
-    // 결제 서비스
+    // 수령 확인 후 판매자에게 지급 처리
     @Override
     @Transactional
     public void release(String paymentId) {

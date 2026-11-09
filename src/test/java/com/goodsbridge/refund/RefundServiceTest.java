@@ -5,7 +5,9 @@ import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.settlement.SettlementHistoryService;
+import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -15,6 +17,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,6 +27,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -87,5 +91,91 @@ class RefundServiceTest {
         ReflectionTestUtils.setField(request, "requestedAmount", amount);
         ReflectionTestUtils.setField(request, "reason", reason);
         return request;
+    }
+
+    @Test
+    void approve_marksRefundApprovedBeforeCallingPortOneAsTheLastStep() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
+            .requestedAmount(3_000).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+
+        // PortOne 취소가 호출되는 시점에는 DB 쪽 상태 변경이 이미 끝나 있어야 한다.
+        doAnswer(invocation -> {
+            assertEquals(Status.APPROVED, refund.getStatus());
+            return null;
+        }).when(paymentService).refund("p-1", 3_000, "환불");
+
+        refundService.approve(1L, 7L);
+
+        verify(paymentService).refund("p-1", 3_000, "환불");
+    }
+
+    @Test
+    void approve_doesNotCallPortOneWhenRefundIsNotPending() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
+            .requestedAmount(3_000).status(Status.REJECTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+
+        assertThrows(BadRequestException.class, () -> refundService.approve(1L, 7L));
+
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void requestedByShop_rejectsNonOwnerWithForbidden() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(5L)).thenReturn(false);
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+
+        com.goodsbridge.refund.ShopRefundRequest request = new com.goodsbridge.refund.ShopRefundRequest();
+        ReflectionTestUtils.setField(request, "paymentId", "p-1");
+        ReflectionTestUtils.setField(request, "requestedAmount", 1_000);
+        ReflectionTestUtils.setField(request, "reason", "불량");
+
+        assertThrows(ForbiddenException.class, () -> refundService.requestedByShop(5L, 10L, request));
+        verifyNoInteractions(refundRepository, paymentService);
+    }
+
+    @Test
+    void refundAndSettleNoShow_recordsSettlementBeforeCallingPortOne() {
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.EXCHANGE_DEPOSIT).build();
+        Shop shop = mock(Shop.class);
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+        when(shopRepository.findById(5L)).thenReturn(Optional.of(shop));
+
+        refundService.refundAndSettleNoShow("p-1", 5L, 2_000, "노쇼");
+
+        InOrder inOrder = inOrder(settlementHistoryService, paymentService);
+        inOrder.verify(settlementHistoryService).calculate(shop, payment, 2_000, SettlementHistoryType.NO_SHOW_FEE);
+        inOrder.verify(paymentService).refund("p-1", 2_000, "노쇼");
+    }
+
+    @Test
+    void refundAndSettleNoShow_rejectsAmountAboveRefundable() {
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.EXCHANGE_DEPOSIT).build();
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+
+        assertThrows(BadRequestException.class,
+            () -> refundService.refundAndSettleNoShow("p-1", 5L, 10_001, "노쇼"));
+
+        verifyNoInteractions(paymentService, settlementHistoryService);
+        assertTrue(payment.getRefundableAmount() == 10_000);
     }
 }

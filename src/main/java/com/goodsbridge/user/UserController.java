@@ -14,7 +14,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
 
 
 @RequiredArgsConstructor
@@ -51,8 +50,25 @@ public class UserController {
         return "redirect:/";
     }
 
+    // GET http://localhost:8080/update
+    @GetMapping("/update")
+    public String updateForm(@AuthenticationPrincipal Long userId, Model model) {
+        model.addAttribute("user", userService.findUpdateForm(userId));
+        return "user/update-form";
+    }
 
+    @PostMapping("/api/update")
+    public String update(@AuthenticationPrincipal Long userId, UserRequest.UpdateDto updateDto){
+        updateDto.validate();
+        userService.updateById(userId, updateDto);
+        return "redirect:/";
+    }
 
+    @PostMapping("/user/profile-image/delete")
+    public String deleteProfileImage(@AuthenticationPrincipal Long userId) {
+        userService.deleteProfileImage(userId);
+        return "redirect:/user/detail";
+    }
 
     // GET http://localhost:8080/login
     @GetMapping("/login")
@@ -76,8 +92,25 @@ public class UserController {
 
     // POST http://localhost:8080/join
     @PostMapping("/api/join")
-    public String join(@Valid UserRequest.JoinDto joinDto) {
-        userService.join(joinDto);
+    public String join(@Valid UserRequest.JoinDto joinDto, HttpSession session) {
+        String verifiedEmail = (String) session.getAttribute(Define.VERIFIED_EMAIL);
+        userService.join(joinDto, verifiedEmail);
+
+        session.removeAttribute(Define.VERIFIED_EMAIL);
         return "redirect:/login";
     }
+
+    @PostMapping("/api/logout")
+    public String logout(@AuthenticationPrincipal Long userId, HttpServletResponse response) {
+        authService.logout(userId);          // DB에서 Refresh Token 해시 제거
+        authService.clearAuthCookies(response); // accessToken, refreshToken 쿠키 만료
+        return "redirect:/";
+    }
+
+    @PostMapping("/api/withdraw")
+    public String withdraw(@AuthenticationPrincipal Long userId, HttpServletResponse response){
+        userService.withdraw(userId, response);
+        return "redirect:/";
+    }
+
 }

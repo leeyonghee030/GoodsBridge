@@ -30,6 +30,8 @@ dependencyManagement {
 
 dependencies {
 
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+
     implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.18.0'
 
     // H2 Database (테스트용 내장 DB)
@@ -60,6 +62,17 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+
+    // Windows에서 사용자 홈 경로(및 그 하위 프로젝트 경로)에 비ASCII 문자가 있으면
+    // Mockito의 inline mock maker가 bytebuddy 에이전트를 로드하지 못해 모든 테스트가 깨짐.
+    // 그 경우에만 OS 드라이브 루트의 영문 경로로 우회 (해당 없는 환경은 기본값 그대로 사용)
+    def defaultTmp = System.getProperty('java.io.tmpdir')
+    def isWindows = System.getProperty('os.name').toLowerCase().contains('windows')
+    if (isWindows && defaultTmp != null && !defaultTmp.matches('^[\\x00-\\x7F]*$')) {
+        def asciiTmpDir = new File("${System.getenv('SystemDrive') ?: 'C:'}/gradle-test-tmp")
+        asciiTmpDir.mkdirs()
+        systemProperty 'java.io.tmpdir', asciiTmpDir.absolutePath
+    }
 }
 
 tasks.withType(JavaCompile) {
