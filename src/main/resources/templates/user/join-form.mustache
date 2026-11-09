@@ -39,7 +39,6 @@
 <script>
     // 인증 완료 여부 (화면 안 내용, 실제 검사는 서버의 세션으로 함
     let isEmailVerified = false;
-    let count = 5;
 
     // 1. 인증 번호 전송
     async function sendCode() {
@@ -70,6 +69,9 @@
                 return;
             }
 
+            document.querySelector("#code").value = "";
+            document.querySelector("#msg").textContent = "";
+            document.querySelector("#msg").className = "form-text";
             document.querySelector("#code-box").style.display = "block";
 
         } catch (e) {
@@ -135,12 +137,6 @@
         return true;
     }
 
-    function checkCount() {
-        if (count >= 5){
-            count = 0;
-
-        }
-    }
 
 </script>
 
