@@ -10,24 +10,53 @@
     .refund-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-bottom: 1rem; }
     .refund-stat { padding: 1rem; background: #fafafa; border-radius: 16px; } .refund-stat strong { display: block; font-size: 1.4rem; margin-top: .25rem; }
     .refund-list { display: grid; gap: .75rem; }
+    .payment-list { display: grid; gap: .75rem; margin-top: 1rem; }
+    .payment-option { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #e8e8e8; border-radius: 16px; cursor: pointer; transition: border-color .15s, background .15s; }
+    .payment-option:hover, .payment-option.selected { border-color: #4f46e5; background: #f8f8ff; }
+    .payment-option.unavailable { opacity: .6; cursor: not-allowed; }
+    .payment-option.unavailable:hover { border-color: #e8e8e8; background: #fff; }
+    .payment-option input { accent-color: #4f46e5; width: 1.1rem; height: 1.1rem; }
+    .payment-option strong, .payment-option small { display: block; }
+    .payment-option small { color: #777; margin-top: .3rem; }
+    .payment-amount { text-align: right; }
+    .payment-amount strong { font-size: 1.05rem; }
+    .payment-amount small { color: #4f46e5; }
+    .refund-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    .refund-field { display: grid; gap: .45rem; }
+    .refund-field.full { grid-column: 1 / -1; }
+    .refund-field label { font-size: .85rem; font-weight: 700; }
+    .refund-field input, .refund-field textarea { width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: .75rem; font: inherit; }
+    .refund-field textarea { min-height: 92px; resize: vertical; }
+    .refund-form button[type="submit"] { margin-top: 1rem; border: 0; border-radius: 10px; padding: .75rem 1.1rem; background: #4f46e5; color: #fff; font-weight: 700; cursor: pointer; }
+    .refund-form button[type="submit"]:disabled { background: #c7c7d1; cursor: not-allowed; }
+    .refund-selection { padding: .85rem 1rem; border-radius: 12px; background: #f7f7f8; color: #555; }
     .refund-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 1rem; padding: 1rem; border: 1px solid #eee; border-radius: 16px; }
     .refund-row h3 { margin: 0 0 .35rem; font-size: 1rem; }
     .refund-badge { display: inline-flex; width: fit-content; padding: .3rem .6rem; border-radius: 999px; font-size: .75rem; background: #f1f1f1; }
     .refund-badge.REQUESTED { background: #fff7ed; color: #9a3412; }.refund-badge.APPROVED { background: #dcfce7; color: #166534; }.refund-badge.REJECTED { background: #fee2e2; color: #991b1b; }
     .refund-actions { display: flex; gap: .4rem; }.refund-actions button { border: 1px solid #ddd; border-radius: 9px; background: #fff; padding: .45rem .65rem; cursor: pointer; }.refund-actions .approve { background: #166534; color: white; border-color: #166534; }
     .refund-empty, .refund-error { text-align: center; padding: 2rem; color: #777; }.refund-error { color: #b42318; }
-    @media (max-width: 640px) { .refund-hero, .refund-panel { padding: 1rem; }.refund-summary { grid-template-columns: 1fr; }.refund-row { grid-template-columns: 1fr; }.refund-actions { justify-content: flex-start; } }
+    @media (max-width: 640px) { .refund-hero, .refund-panel { padding: 1rem; }.refund-summary { grid-template-columns: 1fr; }.refund-row, .payment-option { grid-template-columns: 1fr; }.payment-amount { text-align: left; }.refund-form-grid { grid-template-columns: 1fr; }.refund-field.full { grid-column: auto; }.refund-actions { justify-content: flex-start; } }
 </style>
 
 <div class="refund-page" id="refund-page">
     <section class="refund-hero"><p class="refund-kicker">GOODBRIDGE · REFUND</p><h1>환불 관리</h1><p>환불 요청 상태와 처리 결과를 확인합니다.</p></section>
     <section class="refund-panel">
-        <h2>환불 요청</h2>
-        <form id="refund-form">
-            <input id="refund-payment-id" placeholder="paymentId" required>
-            <input id="refund-amount" type="number" min="1" placeholder="환불 금액" required>
-            <input id="refund-reason" placeholder="환불 사유" required>
-            <button type="submit">환불 요청</button>
+        <div class="section-title"><div><p class="refund-kicker">STEP 1</p><h2>환불할 결제 선택</h2></div><button id="reload-payments" type="button">새로고침</button></div>
+        <p class="refund-muted">최근 결제내역에서 환불할 결제를 선택해주세요.</p>
+        <div id="payment-list" class="payment-list"><div class="refund-empty">결제내역을 불러오는 중입니다.</div></div>
+    </section>
+    <section class="refund-panel">
+        <p class="refund-kicker">STEP 2</p><h2>환불 요청 정보</h2>
+        <div id="refund-selection" class="refund-selection">먼저 환불할 결제를 선택해주세요.</div>
+        <form id="refund-form" class="refund-form">
+            <input id="refund-payment-id" type="hidden" required>
+            <div class="refund-form-grid">
+                <div class="refund-field"><label for="refund-amount">환불 금액</label><input id="refund-amount" type="number" min="1" required disabled></div>
+                <div class="refund-field"><label for="refund-max-amount">환불 가능 금액</label><input id="refund-max-amount" type="text" readonly placeholder="결제 선택 후 표시"></div>
+                <div class="refund-field full"><label for="refund-reason">환불 사유</label><textarea id="refund-reason" maxlength="500" placeholder="환불 사유를 입력해주세요." required disabled></textarea></div>
+            </div>
+            <button type="submit" disabled>환불 요청</button>
         </form>
         <p id="refund-form-message" class="refund-muted"></p>
     </section>
@@ -43,18 +72,42 @@
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
     let view = 'mine'; const $ = (id) => document.getElementById(id); const labels = { REQUESTED: '처리 대기', APPROVED: '승인', REJECTED: '거절' };
     const money = (value) => Number(value || 0).toLocaleString('ko-KR') + '원'; const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    let refunds = [];
+    let refunds = []; let payments = []; let selectedPayment = null;
+    const paymentLabels = { PURCHASE: '상품 구매', DEPOSIT: '보증금', EVENT: '이벤트', AUCTION: '경매' };
+    function refundable(payment) { return Math.max(0, Number(payment.amount || 0) - Number(payment.refundedAmount || 0)); }
+    function renderPayments() {
+        const list = $('payment-list');
+        if (!payments.length) { list.innerHTML = '<div class="refund-empty">결제내역이 없습니다.</div>'; return; }
+        const refundablePayments = payments.filter(payment => {
+            const hasPendingRefund = refunds.some(refund => refund.paymentId === payment.paymentId && refund.status === 'REQUESTED');
+            return payment.paymentPurpose === 'PURCHASE'
+                && refundable(payment) > 0
+                && ['PAID', 'PARTIAL_CANCELLED'].includes(payment.paymentStatus)
+                && !hasPendingRefund;
+        });
+        if (!refundablePayments.length) { list.innerHTML = '<div class="refund-empty">환불 가능한 결제내역이 없습니다.</div>'; return; }
+        list.innerHTML = refundablePayments.map(payment => `<label class="payment-option ${selectedPayment && selectedPayment.id === payment.id ? 'selected' : ''}"><input type="radio" name="refund-payment" value="${esc(payment.paymentId)}" ${selectedPayment && selectedPayment.id === payment.id ? 'checked' : ''}><div><strong>${esc(payment.paymentId)}</strong><small>${esc(paymentLabels[payment.paymentPurpose] || payment.paymentPurpose || '결제')} · ${esc(payment.paymentStatus || '')}</small></div><div class="payment-amount"><strong>${money(payment.amount)}</strong><small>환불 가능 ${money(refundable(payment))}</small></div></label>`).join('');
+        document.querySelectorAll('input[name="refund-payment"]').forEach(input => input.addEventListener('change', () => selectPayment(payments.find(payment => payment.paymentId === input.value))));
+    }
+    function selectPayment(payment) {
+        selectedPayment = payment; const max = refundable(payment); $('refund-payment-id').value = payment.paymentId; $('refund-amount').max = max; $('refund-amount').value = max; $('refund-amount').disabled = false; $('refund-reason').disabled = false; $('refund-form').querySelector('button[type="submit"]').disabled = false; $('refund-max-amount').value = money(max); $('refund-selection').textContent = `${payment.paymentId} · 최대 ${money(max)}까지 환불 요청할 수 있습니다.`; renderPayments();
+    }
+    async function loadPayments() {
+        const list = $('payment-list'); list.innerHTML = '<div class="refund-empty">결제내역을 불러오는 중입니다.</div>';
+        try { const response = await pageFetch('/api/payments/me'); if (!response.ok) throw new Error('로그인 후 결제내역을 확인할 수 있습니다.'); payments = await response.json(); renderPayments(); }
+        catch (error) { list.innerHTML = `<div class="refund-error">${esc(error.message)}</div>`; }
+    }
     async function loadRefunds() {
         const list = $('refund-list'); list.innerHTML = '<div class="refund-empty">환불 내역을 불러오는 중입니다.</div>';
-        try { const response = await pageFetch(view === 'admin' ? '/api/admin/refunds' : '/api/refunds/me'); if (!response.ok) throw new Error(view === 'admin' ? '관리자 권한이 필요합니다.' : '환불 내역을 불러오지 못했습니다.'); refunds = await response.json(); render(); }
+        try { const response = await pageFetch(view === 'admin' ? '/api/admin/refunds' : '/api/refunds/me'); if (!response.ok) throw new Error(view === 'admin' ? '관리자 권한이 필요합니다.' : '환불 내역을 불러오지 못했습니다.'); refunds = await response.json(); render(); renderPayments(); }
         catch (error) { list.innerHTML = `<div class="refund-error">${esc(error.message)}</div>`; updateSummary([]); }
     }
     function updateSummary(items) { $('refund-total').textContent = items.length; $('refund-requested').textContent = items.filter((item) => item.status === 'REQUESTED').length; $('refund-approved').textContent = items.filter((item) => item.status === 'APPROVED').length; }
     function render() { updateSummary(refunds); if (!refunds.length) { $('refund-list').innerHTML = '<div class="refund-empty">아직 환불 내역이 없습니다.</div>'; return; } $('refund-list').innerHTML = refunds.map((item) => `<article class="refund-row"><div><h3>결제 ${esc(item.paymentId)}</h3><span class="refund-muted">${esc(item.reason || '사유 없음')} · ${esc(item.requestedAt || '')}</span>${item.rejectReason ? `<p class="refund-muted">거절 사유: ${esc(item.rejectReason)}</p>` : ''}</div><div><span class="refund-badge ${esc(item.status)}">${esc(labels[item.status] || item.status)}</span><strong>${money(item.requestedAmount)}</strong></div>${view === 'admin' && item.status === 'REQUESTED' ? `<div class="refund-actions"><button class="approve" data-approve="${item.id}" type="button">승인</button><button data-reject="${item.id}" type="button">거절</button></div>` : ''}</article>`).join(''); bindActions(); }
     function bindActions() { document.querySelectorAll('[data-approve]').forEach((button) => button.addEventListener('click', async () => { if (!confirm('이 환불 요청을 승인할까요?')) return; const response = await pageFetch('/api/admin/refunds/' + button.dataset.approve + '/approve', { method: 'PATCH' }); if (!response.ok) { alert('환불 승인에 실패했습니다.'); return; } loadRefunds(); })); document.querySelectorAll('[data-reject]').forEach((button) => button.addEventListener('click', async () => { const reason = prompt('거절 사유를 입력하세요.'); if (!reason) return; const response = await pageFetch('/api/admin/refunds/' + button.dataset.reject + '/reject?rejectReason=' + encodeURIComponent(reason), { method: 'PATCH' }); if (!response.ok) { alert('환불 거절에 실패했습니다.'); return; } loadRefunds(); })); }
-    $('refund-form').addEventListener('submit', async (event) => { event.preventDefault(); const message = $('refund-form-message'); const response = await pageFetch('/api/refunds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: $('refund-payment-id').value.trim(), requestedAmount: Number($('refund-amount').value), reason: $('refund-reason').value.trim() }) }); if (!response.ok) { message.textContent = await response.text() || '환불 요청에 실패했습니다.'; return; } message.textContent = '환불 요청이 등록되었습니다. 관리자 승인을 기다려주세요.'; event.target.reset(); loadRefunds(); });
+    $('refund-form').addEventListener('submit', async (event) => { event.preventDefault(); const message = $('refund-form-message'); const amount = Number($('refund-amount').value); if (!selectedPayment || amount < 1 || amount > refundable(selectedPayment)) { message.textContent = '환불 가능한 금액을 확인해주세요.'; return; } const response = await pageFetch('/api/refunds', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ paymentId: selectedPayment.paymentId, requestedAmount: amount, reason: $('refund-reason').value.trim() }) }); if (!response.ok) { message.textContent = await response.text() || '환불 요청에 실패했습니다.'; return; } message.textContent = '환불 요청이 등록되었습니다. 관리자 승인을 기다려주세요.'; event.target.reset(); selectedPayment = null; $('refund-payment-id').value = ''; $('refund-amount').disabled = true; $('refund-reason').disabled = true; $('refund-form').querySelector('button[type="submit"]').disabled = true; $('refund-max-amount').value = ''; $('refund-selection').textContent = '먼저 환불할 결제를 선택해주세요.'; loadPayments(); loadRefunds(); });
     document.querySelectorAll('[data-refund-view]').forEach((button) => button.addEventListener('click', () => { view = button.dataset.refundView; document.querySelectorAll('[data-refund-view]').forEach((item) => item.classList.toggle('active', item === button)); loadRefunds(); }));
-    loadRefunds();
+    $('reload-payments').addEventListener('click', loadPayments); loadPayments(); loadRefunds();
 })();
 </script>
 {{> fragments/footer}}

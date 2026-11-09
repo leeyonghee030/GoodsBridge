@@ -76,7 +76,7 @@
                     storeId: '{{portoneStoreId}}',
                     channelKey: '{{portoneChannelKey}}',
                     paymentId: `goodsbridge-${crypto.randomUUID()}`,
-                    orderName: state.selected.title,
+                    orderName: String(state.selected.title || '').trim() || `GoodsBridge 상품 #${state.selected.id}`,
                     totalAmount: state.selected.price,
                     currency: 'KRW',
                     payMethod: 'CARD'

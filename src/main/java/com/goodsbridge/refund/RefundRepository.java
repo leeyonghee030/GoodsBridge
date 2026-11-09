@@ -14,6 +14,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
     @Query("""
         select r
         from Refund r
+        join fetch r.payment
         where r.user.id = :userId
         order by r.id desc
         """)
@@ -30,6 +31,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
 
     @Query("""
         select r from Refund r
+        join fetch r.payment
         order by r.id desc
         """)
     List<Refund> findAllByOrderByIdDesc();
