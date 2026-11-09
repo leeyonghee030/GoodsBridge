@@ -77,6 +77,7 @@ public class BoardService {
     @Transactional
     public void updateBoard(Long id, BoardRequestDto requestDto, Long loginUserId) {
         Board board = boardRepository.findById(id)
+            .orElseThrow(() ->  new NotFoundException("게시글을 찾을 수 없습니다."));
 
         if (!board.getAuthorId().equals(loginUserId)) {
             throw new ForbiddenException("게시글 권한이 없습니다.");
