@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
@@ -128,5 +129,60 @@ class PurchaseServiceTest {
 
         assertThrows(BadRequestException.class, () -> purchaseService.purchase(7L, 3L, dto));
         verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void purchase_rejectsItemAlreadySoldToAnotherBuyerBeforePaymentVerification() {
+        Item item = mock(Item.class);
+        when(item.getSellerUserId()).thenReturn(99L);
+        when(itemRepository.findById(7L)).thenReturn(java.util.Optional.of(item));
+        when(purchaseRepository.existsByUserIdAndItemId(3L, 7L)).thenReturn(false);
+        when(purchaseRepository.existsByItemId(7L)).thenReturn(true);
+
+        PurchaseRequest.CreateDto dto = new PurchaseRequest.CreateDto();
+        dto.setPaymentId("payment-1");
+        dto.setDeliveryAddress("Seoul");
+
+        BadRequestException e = assertThrows(BadRequestException.class,
+            () -> purchaseService.purchase(7L, 3L, dto));
+
+        assertEquals("이미 판매된 상품입니다.", e.getMessage());
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void purchase_convertsUniqueViolationOnSaveToBadRequest() {
+        Item item = mock(Item.class);
+        when(item.getSellerUserId()).thenReturn(99L);
+        when(item.getPrice()).thenReturn(10_000);
+        when(itemRepository.findById(7L)).thenReturn(java.util.Optional.of(item));
+        when(entityManager.getReference(User.class, 3L)).thenReturn(mock(User.class));
+        // existsByItemId 검사를 동시에 통과한 경우 -> uk_purchase_item 위반
+        when(purchaseRepository.save(any(Purchase.class))).thenThrow(new DataIntegrityViolationException("dup"));
+
+        PurchaseRequest.CreateDto dto = new PurchaseRequest.CreateDto();
+        dto.setPaymentId("payment-1");
+        dto.setDeliveryAddress("Seoul");
+
+        BadRequestException e = assertThrows(BadRequestException.class,
+            () -> purchaseService.purchase(7L, 3L, dto));
+
+        assertEquals("이미 판매된 상품입니다.", e.getMessage());
+    }
+
+    @Test
+    void confirm_isIdempotentWhenAlreadyConfirmed() {
+        User buyer = mock(User.class);
+        when(buyer.getId()).thenReturn(10L);
+        Purchase purchase = Purchase.builder()
+            .item(mock(Item.class)).user(buyer).paymentId("payment-1")
+            .deliveryAddress("Seoul").build();
+        purchase.ship("TRACK-1");
+        purchase.confirm();
+        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+
+        purchaseService.confirm(1L, 10L);
+
+        verifyNoInteractions(paymentService, settlementHistoryService);
     }
 }

@@ -58,7 +58,7 @@ public class PurchaseViewController {
     // 가게 발송 관리 목록
     @GetMapping("/api/shops/{id}/purchases")
     public ResponseEntity<List<PurchaseResponse.DetailDto>> shopPurchases(
-        @PathVariable Long id, @RequestParam(defaultValue = "UNSHIPPED") String status) {
+        @PathVariable Long id, @RequestParam(defaultValue = "PREPARING") String status) {
         Long userId = SecurityUtil.getCurrentUserId();
         return ResponseEntity.ok(purchaseService.findByShop(id, userId, status));
     }
