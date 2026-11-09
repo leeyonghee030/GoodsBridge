@@ -3,6 +3,7 @@ package com.goodsbridge.payment;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.InternalServerException;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
 
+@Slf4j
 @Getter
 @Component
 public class PortOneClient {
@@ -43,6 +45,11 @@ public class PortOneClient {
         } catch (HttpClientErrorException.NotFound e) {
             throw new BadRequestException("결제를 찾을 수 없습니다.");
         } catch (HttpClientErrorException e) {
+            log.error(
+                "PortOne 조회 실패 status={}, body={}",
+                e.getStatusCode(),
+                e.getResponseBodyAsString()
+            );
             throw new BadRequestException("PortOne 결제 조회에 실패했습니다.");
         } catch (ResourceAccessException e) {
             throw new InternalServerException("결제 서버에 연결할 수 없습니다.");
