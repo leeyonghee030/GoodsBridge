@@ -33,6 +33,11 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
         Pageable pageable
     );
 
+    // 💡 [추가] 구독 ID 기반 비관적 락(Pessimistic Write) 조회 (만료 프로세서 직렬화용)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM ShopSubscription s WHERE s.id = :id")
+    Optional<ShopSubscription> findByIdWithLock(@Param("id") Long id);
+
     // 구독 연장/결제 시 동시성 제어를 위한 비관적 락 (Pessimistic Write) 조회
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM ShopSubscription s WHERE s.shopId = :shopId AND s.status = 'ACTIVE'")

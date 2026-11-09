@@ -36,30 +36,47 @@ public class ShopSubscriptionService {
     private final ShopSubscriptionProcessor subscriptionProcessor;
 
     private static final int PRICE_PER_DAY = 1000;
+    private static final int MAX_DAYS = 365 * 3; // 한 번에 최대 3년(1095일) 제한
 
     @Transactional
     public Long create(Long userId, Long shopId, ShopSubscriptionRequest request) {
         if (request.getDays() == null || request.getDays() <= 0) {
             throw new BadRequestException("구독 일수는 1일 이상이어야 합니다.");
         }
+        if (request.getDays() > MAX_DAYS) {
+            throw new BadRequestException("한 번에 최대 3년(1095일)까지만 구독할 수 있습니다.");
+        }
 
         if (request.getPaymentId() == null || request.getPaymentId().isBlank()) {
             throw new BadRequestException("결제 ID가 필요합니다.");
         }
 
-        int expectedAmount = request.getDays() * PRICE_PER_DAY;
+        // 💡 정수 오버플로 방어 계산
+        long calculatedAmountLong = (long) request.getDays() * PRICE_PER_DAY;
+        if (calculatedAmountLong > Integer.MAX_VALUE) {
+            throw new BadRequestException("결제 금액이 허용 범위를 초과했습니다.");
+        }
+        int expectedAmount = (int) calculatedAmountLong;
+
         if (request.getAmount() == null || !request.getAmount().equals(expectedAmount)) {
             throw new BadRequestException("결제 금액 정보가 올바르지 않습니다.");
         }
 
-        // 💡 [수정 포인트] 일반 findById 대신 비관적 락이 걸리는 findByIdWithLock 사용!
+        // 💡 1. 샵 조회 및 비관적 락 적용 (샵 삭제/폐점 트랜잭션과 경쟁 상태 방지)
         Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        // 💡 2. 폐점·삭제·미승인 샵 구독 결제 차단 방어 로직
+        if (shop.isDeleted()) {
+            throw new BadRequestException("이미 삭제(폐점)된 가게는 구독을 진행할 수 없습니다.");
+        }
+        if (shop.getStatus() != ShopStatus.APPROVED) {
+            throw new BadRequestException("승인 완료(APPROVED)된 가게만 구독을 진행할 수 있습니다. (현재 상태: " + shop.getStatus() + ")");
+        }
 
         if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
-
 
         userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
@@ -71,6 +88,7 @@ public class ShopSubscriptionService {
         ShopSubscription existingSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
         boolean isActive = existingSubscription != null && existingSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
 
+        // 외부 결제 검증
         paymentService.verify(
             request.getPaymentId(),
             request.getAmount(),
@@ -119,8 +137,16 @@ public class ShopSubscriptionService {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
             if (isExpiredOrCancelled || existingSubscription == null) {
+                // 💡 [수정] 만료 배치가 소프트 삭제(deleted=true) 처리했던 상품들을 조회하여 완전 복구(deleted=false, status=ON_SALE) 처리
+                List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
+                for (Item item : expiredItems) {
+                    item.restore(ItemStatus.ON_SALE);
+                }
+
+                // 만약 삭제되지 않고 단순히 상태만 CLOSED였던 상품이 있다면 일괄 업데이트 쿼리 병행 실행 가능
                 itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
-                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 판매 중단 상품들이 ON_SALE로 전환되었습니다.", shopId);
+
+                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 만료되었던 상품 {}개가 복구 및 ON_SALE로 전환되었습니다.", shopId, expiredItems.size());
             }
 
             return subscriptionId;
@@ -172,43 +198,33 @@ public class ShopSubscriptionService {
         return processExpiredSubscriptions();
     }
 
-    /**
-     * [ID 커서 페이징 기반 만료 구독 일괄 처리 배치]
-     * - OFFSET 방식의 성능 저하 및 데이터 밀림 현상(무한 루프)을 원천 차단합니다.
-     * - 개별 건 처리 중 예외가 발생해도 트랜잭션이 분리되어 있어 전체 배치가 멈추지 않고 안전하게 격리됩니다.
-     */
     @Transactional(readOnly = true)
     public int processExpiredSubscriptions() {
         int pageSize = 100;
-        Long lastId = 0L; // 💡 첫 조회는 0번 ID 초과부터 시작
+        Long lastId = 0L;
         int totalProcessedCount = 0;
         LocalDate today = LocalDate.now();
 
         log.info("[커서 페이징 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
 
         while (true) {
-            // 💡 커서 페이징을 위해 0번 페이지 크기만 100개로 지정하여 조회
             Pageable pageable = PageRequest.of(0, pageSize);
             List<ShopSubscription> expiredSubscriptions =
                 subscriptionRepository.findExpiredActiveSubscriptionsAfterId(lastId, today, pageable);
 
-            // 💡 더 이상 처리할 만료 구독이 없으면 확실하게 루프 탈출
             if (expiredSubscriptions.isEmpty()) {
                 break;
             }
 
             for (ShopSubscription subscription : expiredSubscriptions) {
-                // 💡 현재 순회 중인 엔티티의 ID로 커서를 무조건 갱신 (실패/스킵되어도 다음 ID로 전진하여 무한 루프 방지)
                 lastId = subscription.getId();
 
                 try {
-                    // 💡 개별 프로세서 호출 (REQUIRES_NEW 트랜잭션으로 독립 실행)
                     boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
                     if (success) {
                         totalProcessedCount++;
                     }
                 } catch (Exception e) {
-                    // 💡 개별 실패 격리: 특정 건에 에러가 나도 로그만 남기고 다음 건으로 정상 진행
                     log.error("[배치 개별 실패 격리] subscriptionId: {}, 사유: {}", subscription.getId(), e.getMessage());
                 }
             }

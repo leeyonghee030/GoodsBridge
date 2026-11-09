@@ -66,7 +66,12 @@ public class ShopService {
 
     @Transactional
     public void delete(Long userId, Long shopId) {
-        Shop shop = findActiveShopEntity(shopId);
+        // 💡 구독 생성과 동일한 비관적 락을 적용하여 동시 폐점/구독 생성 충돌 원천 차단
+        Shop shop = shopRepository.findByIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+        if (shop.isDeleted()) {
+            throw new NotFoundException("이미 삭제(폐점)된 가게입니다.");
+        }
         validateOwner(shop, userId);
 
         LocalDateTime now = LocalDateTime.now();

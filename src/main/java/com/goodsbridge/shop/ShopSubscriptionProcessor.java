@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -18,12 +19,13 @@ public class ShopSubscriptionProcessor {
     private final ShopSubscriptionRepository subscriptionRepository;
 
     /**
-     * 개별 구독 만료 처리 (독립된 트랜잭션 실행 및 방어 로직 포함)
+     * 개별 구독 만료 처리 (비관적 락을 통한 갱신 작업 직렬화 및 최신 만료일 재검증)
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean processSingleSubscriptionById(Long subscriptionId) {
         try {
-            ShopSubscription subscription = subscriptionRepository.findById(subscriptionId)
+            // 💡 1. 비관적 락(PESSIMISTIC_WRITE)을 걸어 구독 연장(결제) 작업과 직렬화합니다.
+            ShopSubscription subscription = subscriptionRepository.findByIdWithLock(subscriptionId)
                 .orElse(null);
 
             if (subscription == null || subscription.getStatus() != ShopSubscriptionStatus.ACTIVE) {
@@ -31,14 +33,23 @@ public class ShopSubscriptionProcessor {
                 return false;
             }
 
+            // 💡 2. 락 획득 후 최신 endDate가 실제로 만료되었는지(오늘 이전인지) 재검증
+            // (배치 조회 후 사용자가 결제를 통해 구독을 연장했을 경우, 상품이 닫히는 사고 방지)
+            LocalDate today = LocalDate.now();
+            if (subscription.getEndDate() == null || !subscription.getEndDate().isBefore(today)) {
+                log.info("[만료 처리 스킵] 사용자에 의해 구독이 연장되어 아직 유효한 구독 ID: {} (만료일: {})",
+                    subscriptionId, subscription.getEndDate());
+                return false;
+            }
+
             LocalDateTime now = LocalDateTime.now();
             Long shopId = subscription.getShopId();
 
-            // 1. 구독 소프트 삭제 및 상태 EXPIRED 변경
+            // 3. 구독 소프트 삭제 및 상태 EXPIRED 변경
             subscription.delete();
             subscriptionRepository.save(subscription);
 
-            // 2. 연관 상품 일괄 소프트 삭제 및 상태 마감 처리 (CLOSED)
+            // 4. 연관 상품 일괄 소프트 삭제 및 상태 마감 처리 (CLOSED)
             itemRepository.softDeleteByShopId(shopId, now);
 
             log.info("[구독 만료 처리 성공] shopId: {}, subscriptionId: {}", shopId, subscription.getId());

@@ -122,6 +122,7 @@ public class Item {
 
     // 상품 복구 메서드 (삭제 전 상태로 원복)
     public void restore(ItemStatus previousStatus) {
+        this.deleted = false;
         this.deletedAt = null;
         this.status = previousStatus != null ? previousStatus : ItemStatus.ON_SALE;
     }

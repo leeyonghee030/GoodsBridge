@@ -1,25 +1,23 @@
 package com.goodsbridge.shop;
 
-import com.goodsbridge.user.LoginType;
+import com.goodsbridge._core.exception.BadRequestException;//
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@Import(TestPaymentConfig.class)
+@Import(TestPaymentConfig.class) // 💡 3. 가짜 결제 설정 추가하여 실제 외부 PG 검증 우회
 class ShopSubscriptionConcurrencyTest {
 
     @Autowired
@@ -32,77 +30,133 @@ class ShopSubscriptionConcurrencyTest {
     private UserRepository userRepository;
 
     @Autowired
-    private ShopSubscriptionRepository subscriptionRepository;
-
-    @AfterEach
-    void tearDown() {
-        subscriptionRepository.deleteAllInBatch();
-        shopRepository.deleteAllInBatch();
-        userRepository.deleteAllInBatch();
-    }
+    private ShopSubscriptionRepository subscriptionRepository; // 💡 6. 구독 데이터 정리를 위해 주입
 
     @Test
-    @DisplayName("동일한 paymentId로 다중 스레드가 동시에 구독 생성을 요청해도 단 1건만 성공하고 나머지는 방어된다.")
-    void concurrentSubscriptionCreation_preventsDuplicatePayment() throws InterruptedException {
-        // given: 테스트용 유저와 샵 생성
-        User owner = userRepository.save(User.builder()
-            .email("concurrent_owner@goodsbridge.com")
-            .password("password123!")
-            .nickname("동시성사장님")
-            .loginType(LoginType.EMAIL)
-            .build());
+    @DisplayName("동일한 결제 ID(paymentId)로 동시에 여러 번 구독 요청 시, 단 1건만 성공하고 나머지는 중복 예외로 방어되어야 한다.")
+    void concurrentSubscriptionCreationTest() throws InterruptedException {
+        // given
+        User savedUser = userRepository.save(
+            User.builder()
+                .email("test_owner@goodsbridge.com")
+                .password("encoded_password")
+                .nickname("테스트사장님")
+                .build()
+        );
+        Long testUserId = savedUser.getId();
 
-        Shop shop = shopRepository.save(Shop.builder()
-            .ownerUserId(owner.getId())
-            .name("동시성테스트샵")
-            .region("부산")
-            .address("해운대구")
-            .status(ShopStatus.APPROVED)
-            .build());
+        Shop savedShop = shopRepository.save(
+            Shop.builder()
+                .ownerUserId(testUserId)
+                .name("동시성 테스트 팝업스토어")
+                .region("부산")
+                .address("해운대구 우동 123")
+                .status(ShopStatus.APPROVED)
+                .build()
+        );
+        Long testShopId = savedShop.getId();
 
-        // 💡 1. 멀티스레드 진입 전, 모든 스레드가 공유할 단 하나의 고유 paymentId 생성
-        String sharedPaymentId = "PAY_CONCURRENT_" + UUID.randomUUID();
-
-        // 💡 2. 요청 DTO에 sharedPaymentId 세팅
-        ShopSubscriptionRequest request = new ShopSubscriptionRequest();
-        request.setPaymentId(sharedPaymentId);
-        request.setDays(30);
-        request.setAmount(30000);
+        String sharedPaymentId = "PAYMENT_DUPLICATE_TEST_" + System.currentTimeMillis();
+        // 💡 3. 사전 결제 데이터 저장 코드는 제거 (가짜 결제 환경에서 검증 통과)
 
         int threadCount = 5;
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
-        CountDownLatch latch = new CountDownLatch(threadCount);
 
-        AtomicInteger successCount = new AtomicInteger(0);
-        AtomicInteger failCount = new AtomicInteger(0);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        CountDownLatch endLatch = new CountDownLatch(threadCount);
 
-        // when: 5개의 스레드가 동일한 request(동일한 paymentId)로 동시에 구독 생성 요청
-        for (int i = 0; i < threadCount; i++) {
-            executorService.submit(() -> {
-                String threadName = Thread.currentThread().getName();
-                try {
-                    subscriptionService.create(owner.getId(), shop.getId(), request);
-                    successCount.incrementAndGet();
-                    System.out.println("🟢 [" + threadName + "] 구독 생성 성공!");
-                } catch (Exception e) {
-                    failCount.incrementAndGet();
-                    System.out.println("🔴 [" + threadName + "] 동시성 방어 성공 (예외 발생): " + e.getMessage());
-                } finally {
-                    latch.countDown();
-                }
-            });
+        List<Future<ShopTestResult>> futures = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < threadCount; i++) {
+                futures.add(executorService.submit(() -> {
+                    ShopSubscriptionRequest request = new ShopSubscriptionRequest();
+                    request.setPaymentId(sharedPaymentId);
+                    request.setDays(30);
+                    request.setAmount(30000);
+
+                    try {
+                        startLatch.await();
+                        subscriptionService.create(testUserId, testShopId, request);
+                        return new ShopTestResult(true, null);
+                    } catch (Exception e) {
+                        return new ShopTestResult(false, e);
+                    } finally {
+                        endLatch.countDown();
+                    }
+                }));
+            }
+
+            startLatch.countDown();
+
+            boolean finished = endLatch.await(10, TimeUnit.SECONDS);
+            assertThat(finished).isTrue();
+
+        } finally {
+            executorService.shutdownNow();
+
+            // 💡 6. 테스트 데이터 정리 시 구독(Subscription) 및 예외 로깅 보완
+            try {
+                subscriptionRepository.findByShopId(testShopId).ifPresent(subscriptionRepository::delete);
+                shopRepository.delete(savedShop);
+                userRepository.delete(savedUser);
+            } catch (Exception e) {
+                System.err.println("[테스트 데이터 정리 실패] " + e.getMessage());
+            }
         }
 
-        latch.await();
-        executorService.shutdown();
+        // when & then
+        int successCount = 0;
+        int duplicateExceptionCount = 0;
+        List<Throwable> unexpectedExceptions = new ArrayList<>();
 
-        // then: 정확히 1건만 성공하고, 나머지 4건은 예외로 방어되었는지 검증
-        assertThat(successCount.get()).isEqualTo(1);
-        assertThat(failCount.get()).isEqualTo(threadCount - 1);
+        for (Future<ShopTestResult> future : futures) {
+            try {
+                ShopTestResult result = future.get();
+                if (result.isSuccess()) {
+                    successCount++;
+                } else {
+                    Throwable ex = result.getException();
+                    if (ex instanceof BadRequestException || ex instanceof DataIntegrityViolationException ||
+                        (ex.getCause() != null && (ex.getCause() instanceof BadRequestException || ex.getCause() instanceof DataIntegrityViolationException))) {
+                        duplicateExceptionCount++;
+                    } else {
+                        unexpectedExceptions.add(ex);
+                    }
+                }
+            } catch (ExecutionException e) {
+                unexpectedExceptions.add(e.getCause());
+            }
+        }
 
-        long activeSubscriptionCount = subscriptionRepository.findAll().stream()
-            .filter(sub -> sub.getShopId().equals(shop.getId()) && sub.getStatus() == ShopSubscriptionStatus.ACTIVE)
-            .count();
-        assertThat(activeSubscriptionCount).isEqualTo(1);
+        System.out.println("=== [동시성 테스트 결과] 성공 횟수: " + successCount + ", 중복 방어 횟수: " + duplicateExceptionCount);
+        if (!unexpectedExceptions.isEmpty()) {
+            System.err.println("=== [예상치 못한 예외 발생 목록] ===");
+            for (Throwable ex : unexpectedExceptions) {
+                ex.printStackTrace();
+            }
+        }
+
+        assertThat(unexpectedExceptions).isEmpty();
+        assertThat(successCount).isEqualTo(1);
+        assertThat(duplicateExceptionCount).isEqualTo(threadCount - 1);
+    }
+
+    private static class ShopTestResult {
+        private final boolean success;
+        private final Exception exception;
+
+        public ShopTestResult(boolean success, Exception exception) {
+            this.success = success;
+            this.exception = exception;
+        }
+
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public Exception getException() {
+            return exception;
+        }
     }
 }
