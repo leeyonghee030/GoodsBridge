@@ -38,6 +38,10 @@ public class Board {
     @OneToMany(mappedBy = "board", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Reply> replies = new ArrayList<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private BoardStatus status; // 게시판 상태 (PENDING, COMPLETED)
+
     @Builder
     public Board(String title, String content, Long authorId, Long itemId, Boolean isSecret) {
         this.title = title;
@@ -45,6 +49,7 @@ public class Board {
         this.authorId = authorId;
         this.itemId = itemId;
         this.isSecret = isSecret != null ? isSecret : false;
+        this.status = BoardStatus.PENDING; // 생성 시 기본값: 답변 대기
     }
 
     // 게시글 수정 메서드
@@ -55,5 +60,10 @@ public class Board {
         if (isSecret != null) {
             this.isSecret = isSecret;
         }
+    }
+
+    // 댓글 작성 시 호출할 상태 변경 메서드
+    public void complete() {
+        this.status = BoardStatus.COMPLETED;
     }
 }

@@ -62,18 +62,23 @@ public class BoardService {
 
     @Transactional
     public Long createReply(Long boardId, ReplyRequestDto requestDto, Long loginUserId) {
-        // 1. 게시글 존재 여부 확인 및 조회 (Proxy가 아닌 실제 엔티티 확보)
+        // 1. 게시글 조회
         Board board = boardRepository.findById(boardId)
-            .orElseThrow(() -> new NotFoundException("게시글을 찾을수 없습니다."));
+            .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다."));
 
-        // 2. Reply 생성 시 Board 엔티티 전달
+        // 2. 댓글 생성 및 저장
         Reply reply = Reply.builder()
             .board(board)
             .content(requestDto.getContent())
             .authorId(loginUserId)
             .build();
 
-        return replyRepository.save(reply).getId();
+        Long replyId = replyRepository.save(reply).getId();
+
+        // 3. 댓글이 작성되면 게시판 상태를 '답변 완료'로 자동 변경
+        board.complete();
+
+        return replyId;
     }
 
     @Transactional
