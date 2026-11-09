@@ -5,8 +5,12 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.Payment;
+import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
+import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.payment.PaymentStatus;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -14,18 +18,20 @@ import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Slf4j
 @Service
@@ -37,7 +43,10 @@ public class AuctionService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
+    private final PaymentService paymentService;
+    private final BidRepository bidRepository;
     private final SettlementHistoryService settlementHistoryService;
+    private final EntityManager entityManager;
 
     // 경매 개설
     @Transactional
@@ -48,8 +57,25 @@ public class AuctionService {
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("가게의 주인만 경매를 열 수 있습니다.");
         }
-        Item item = itemRepository.findById(request.getItemId())
-            .orElseThrow(() -> new NotFoundException("상품을 찾을 수 없습니다."));
+        // 상품 행을 잠가 같은 상품의 동시 경매 개설을 직렬화한다.
+        Item item = entityManager.find(
+            Item.class,
+            request.getItemId(),
+            LockModeType.PESSIMISTIC_WRITE
+        );
+
+        if (item == null) {
+            throw new NotFoundException("상품을 찾을 수 없습니다.");
+        }
+
+        // 기획상 경매는 해당 가게의 상품만 등록할 수 있다.
+        if (!shopId.equals(item.getShopId())) {
+            throw new ForbiddenException("해당 가게의 상품만 경매에 등록할 수 있습니다.");
+        }
+
+        if (auctionRepository.existsByItemIdAndStatus(item.getId(), Status.ACTIVE)) {
+            throw new BadRequestException("이미 진행 중인 경매가 있는 상품입니다.");
+        }
 
         Auction auction = Auction.builder()
             .shop(shop)
@@ -87,7 +113,7 @@ public class AuctionService {
     // 경매 마감
     @Transactional
     public AuctionResponse close(Long userId, Long id) {
-        Auction auction = auctionRepository.findById(id)
+        Auction auction = auctionRepository.findByIdLock(id)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
 
         User user = userRepository.findById(userId)
@@ -111,39 +137,135 @@ public class AuctionService {
         if (auction.getDeadline().isAfter(now)) {
             throw new BadRequestException("아직 마감 시간이 지나지 않았습니다.");
         }
+        // 낙찰이면 잔금 결제 기한이 정해진다. 수수료 정산은 잔금 결제가 끝난 뒤(payBalance)에 한다.
+        // 패찰자 보증금 환불은 PortOne 호출이라 마감 트랜잭션과 분리해 스케줄러가 처리한다(refundLosers).
         auction.end();
+    }
 
-        if (auction.getStatus() == Status.ENDED_SUCCESS
-            && auction.getWinningPaymentId() != null) {
-            Payment payment = paymentRepository.findByPaymentId(auction.getWinningPaymentId())
-                .orElseThrow(() -> new NotFoundException("낙찰 결제를 찾을 수 없습니다."));
-            settlementHistoryService.calculate(
-                auction.getShop(),
-                payment,
-                auction.getCurrentPrice(),
-                SettlementHistoryType.AUCTION_FEE
-            );
+    /**
+     * 스케줄러가 호출하는 단건 마감.
+     * 경매 1건마다 별도 트랜잭션과 비관적 락을 사용해 한 건의 실패가
+     * 같은 배치의 다른 경매를 롤백시키지 않도록 한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void closeExpired(Long auctionId) {
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+
+        if (auction.getStatus() != Status.ACTIVE) {
+            return;
+        }
+
+        closeInternal(auction);
+    }
+
+    /**
+     * 낙찰자 잔금 결제 (잔금 = 낙찰가 - 이미 낸 보증금).
+     * 금액은 서버가 계산한 값으로만 PortOne 검증을 하며, 완료되면 상품을 SOLD로 바꾸고 가게 정산을 남긴다.
+     */
+    @Transactional
+    public AuctionResponse payBalance(Long userId, Long auctionId, BalancePayRequest request) {
+        if (request == null || request.getPaymentId() == null || request.getPaymentId().isBlank()) {
+            throw new BadRequestException("잔금 결제 ID가 필요합니다.");
+        }
+        // 마감/미납 처리 스케줄러와 겹치지 않도록 경매 행을 잠근다
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+
+        if (auction.getStatus() != Status.ENDED_SUCCESS) {
+            throw new BadRequestException("낙찰된 경매만 잔금을 결제할 수 있습니다.");
+        }
+        if (auction.getCurrentWinner() == null || !auction.getCurrentWinner().getId().equals(userId)) {
+            throw new ForbiddenException("낙찰자만 잔금을 결제할 수 있습니다.");
+        }
+        if (auction.isBalancePaid()) {
+            throw new BadRequestException("이미 잔금을 결제한 경매입니다.");
+        }
+        if (auction.isBalanceOverdue(LocalDateTime.now())) {
+            throw new BadRequestException("잔금 결제 기한이 지났습니다.");
+        }
+        int balance = auction.getBalanceAmount();
+        if (balance <= 0) {
+            throw new BadRequestException("결제할 잔금이 없습니다.");
+        }
+
+        String balancePaymentId = paymentService.verify(
+            request.getPaymentId(), balance, PaymentPurpose.AUCTION_BALANCE, userId);
+        auction.completeBalance(balancePaymentId);
+        auction.getItem().updateStatus(ItemStatus.SOLD);
+
+        // 가게 정산: 기존 규칙(낙찰가 전액 기록)을 유지하되, 실제로 돈이 다 들어온 이 시점에 남긴다
+        Payment payment = paymentRepository.findByPaymentId(balancePaymentId)
+            .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
+        int auctionFee = auction.getCurrentPrice();
+        settlementHistoryService.calculate(
+            auction.getShop(),
+            payment,
+            auctionFee,
+            SettlementHistoryType.AUCTION_SALE
+        );
+        return new AuctionResponse(auction);
+    }
+
+    /**
+     * 패찰자(낙찰자 제외 입찰자) 보증금 100% 환불.
+     * PortOne 호출이 있어 트랜잭션 없이 실행하고, 환불 1건마다 PaymentService가 자체 트랜잭션으로 커밋한다.
+     * 이미 환불된 결제는 건너뛰므로 실패 후 다시 호출해도 안전하다(멱등).
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void refundLosers(Long auctionId) {
+        Long winnerId = auctionRepository.findWinnerUserId(auctionId);
+        if (winnerId == null) {
+            return;
+        }
+        for (String paymentId : bidRepository.findLoserDepositPaymentIds(auctionId, winnerId)) {
+            Payment payment = paymentRepository.findByPaymentId(paymentId).orElse(null);
+            if (payment == null) {
+                continue;
+            }
+            boolean refundable = payment.isPaid() || payment.getStatus() == PaymentStatus.PARTIAL_CANCELLED;
+            if (!refundable || payment.getRefundableAmount() <= 0) {
+                continue;
+            }
+            paymentService.refund(paymentId, payment.getRefundableAmount(), "경매 패찰 보증금 환불");
         }
     }
 
-    // 경매 마감시간 지나면 자동 종료
-    @Scheduled(fixedDelay = 60000)
+    // 환불이 전부 끝난 경매 표시 (refundLosers 성공 뒤 스케줄러가 호출)
     @Transactional
-    public void autoCloseAuctions() {
-        LocalDateTime now = LocalDateTime.now();
-        int pageSize = 100;
+    public void markLosersRefunded(Long auctionId) {
+        auctionRepository.findById(auctionId).ifPresent(Auction::markLosersRefunded);
+    }
 
-        // 종료 처리할 때 ACTIVE 목록에서 빠지므로 항상 첫 페이지를 다시 조회한다.
-        Page<Auction> auctions;
-        do {
-            auctions = auctionRepository.findByStatusAndDeadlineBefore(
-                Status.ACTIVE,
-                now,
-                PageRequest.of(0, pageSize, Sort.by(Sort.Direction.ASC, "id"))
+    /**
+     * 기한 내 잔금 미납 처리: 낙찰 무효(ENDED_FAIL) + 낙찰자 보증금은 가게 몫(NO_SHOW_FEE)으로 정산.
+     * 경매 1건마다 별도 트랜잭션으로 실행한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void forfeitUnpaid(Long auctionId) {
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+
+        // 잠금을 기다리는 사이 낙찰자가 결제했거나 상태가 바뀐 경우는 건드리지 않는다
+        if (auction.getStatus() != Status.ENDED_SUCCESS
+            || auction.isBalancePaid()
+            || !auction.isBalanceOverdue(LocalDateTime.now())) {
+            return;
+        }
+        auction.forfeitUnpaid();
+
+        if (auction.getWinningPaymentId() != null) {
+            Payment deposit = paymentRepository.findByPaymentId(
+                    auction.getWinningPaymentId()
+                )
+                .orElseThrow(() -> new NotFoundException("낙찰자 보증금 결제를 찾을 수 없습니다."));
+
+            settlementHistoryService.calculate(
+                auction.getShop(),
+                deposit,
+                auction.getDepositAmount(),
+                SettlementHistoryType.NO_SHOW_FEE
             );
-            for (Auction auction : auctions.getContent()) {
-                closeInternal(auction);
-            }
-        } while (!auctions.isEmpty());
+        }
     }
 }
