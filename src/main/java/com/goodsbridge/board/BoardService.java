@@ -1,6 +1,5 @@
 package com.goodsbridge.board;
 
-import com.goodsbridge._core.exception.ErrorCode;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -8,9 +7,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -39,23 +35,9 @@ public class BoardService {
         // 비밀글인 경우 작성자 본인만 조회 가능 (관리자 권한이 있다면 관리자 예외 처리 추가 가능)
         if (board.getIsSecret()) {
             if (loginUserId == null || !board.getAuthorId().equals(loginUserId)) {
-                throw new ForbiddenException("게시글 ㅎ권한이 없습니다.");
+                throw new ForbiddenException("게시글 권한이 없습니다.");
             }
         }
-
-        return BoardResponseDto.from(board);
-    }
-
-    public List<BoardResponseDto> getBoards() {
-        return boardRepository.findAll().stream()
-            .map(BoardResponseDto::from)
-            .collect(Collectors.toList());
-    }
-
-    public BoardResponseDto getBoard(Long id) {
-        // 페치 조인을 통해 게시글과 댓글을 한 번에 조회 (N+1 문제 해결)
-        Board board = boardRepository.findByIdWithReplies(id)
-            .orElseThrow(() -> new NotFoundException("게시글을 찾을수 없습니다."));
 
         return BoardResponseDto.from(board);
     }
@@ -96,7 +78,7 @@ public class BoardService {
     @Transactional
     public void updateBoard(Long id, BoardRequestDto requestDto, Long loginUserId) {
         Board board = boardRepository.findById(id)
-            .orElseThrow(() -> new NotFoundException("게시글을 찾을 없습니다."));
+            .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다."));
 
         if (!board.getAuthorId().equals(loginUserId)) {
             throw new ForbiddenException("게시글 권한이 없습니다.");
