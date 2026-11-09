@@ -70,12 +70,11 @@ public class ShopSubscription {
     }
 
 
-    // 소프트 삭제 수행 시 유니크 제약 충돌 방지를 위해 paymentId 변형 처리
-
+    // 💡 소프트 삭제 시 유니크 제약 충돌 방지를 위해 paymentId 변형 처리
     public void delete() {
         this.deletedAt = LocalDateTime.now();
         this.status = ShopSubscriptionStatus.EXPIRED;
-        if (this.paymentId != null) {
+        if (this.paymentId != null && !this.paymentId.contains("_DELETED_")) {
             this.paymentId = this.paymentId + "_DELETED_" + System.currentTimeMillis();
         }
     }

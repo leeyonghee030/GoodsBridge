@@ -74,6 +74,7 @@ public class ShopSubscriptionService {
             throw new BadRequestException("승인 완료(APPROVED)된 가게만 구독을 진행할 수 있습니다. (현재 상태: " + shop.getStatus() + ")");
         }
 
+        // 💡 1. [중복 결제 방어] DB 레벨 제약 및 exists 체크를 통한 이중 방어
         if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
