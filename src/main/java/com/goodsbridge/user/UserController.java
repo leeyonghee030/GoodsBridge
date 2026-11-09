@@ -2,7 +2,9 @@ package com.goodsbridge.user;
 
 import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.security.AuthService.TokenResponse;
+import com.goodsbridge._core.util.Define;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,8 +92,11 @@ public class UserController {
 
     // POST http://localhost:8080/join
     @PostMapping("/api/join")
-    public String join(@Valid UserRequest.JoinDto joinDto) {
-        userService.join(joinDto);
+    public String join(@Valid UserRequest.JoinDto joinDto, HttpSession session) {
+        String verifiedEmail = (String) session.getAttribute(Define.VERIFIED_EMAIL);
+        userService.join(joinDto, verifiedEmail);
+
+        session.removeAttribute(Define.VERIFIED_EMAIL);
         return "redirect:/login";
     }
 
