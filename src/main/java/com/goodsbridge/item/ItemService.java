@@ -1,7 +1,10 @@
 package com.goodsbridge.item;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.shop.Shop;
+import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopSubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,6 +23,7 @@ public class ItemService {
 
     private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
+    private final ShopRepository shopRepository; // [추가] 가게 소유자 및 존재 여부 확인용
     private final ShopSubscriptionService shopSubscriptionService;
 
     private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
@@ -27,11 +31,25 @@ public class ItemService {
     // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
-        if (request.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+        request.validate();
+
+        // [추가] shopId 필수 검증 (가게 없는 일반 판매 상품 등록 원천 차단)
+        if (request.getShopId() == null) {
+            throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
         }
 
-        request.validate();
+        // [추가 3] 가게 존재 여부 및 본인 소유(isOwner) 보안 검증
+        Shop shop = shopRepository.findById(request.getShopId())
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
+        }
+
+        // [추가 2] 구독 활성화 여부 필수 검증
+        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+        }
 
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
@@ -101,8 +119,22 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정 할 수 있습니다.");
+        // [정책 4] 수정 시에도 shopId 필수화 및 우회 방지
+        if (request.getShopId() == null) {
+            throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
+        }
+
+        // [추가] 수정하려는 가게의 소유자 검증
+        Shop shop = shopRepository.findById(request.getShopId())
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
+        }
+
+        // [추가] 수정 시에도 구독 활성화 상태 필수 검증
+        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
