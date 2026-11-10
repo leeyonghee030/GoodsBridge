@@ -3,6 +3,8 @@ services:
     image: mysql:8.0
     container_name: goodsbridge-mysql
     restart: unless-stopped
+    command:
+        - --default-time-zone=+09:00
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
