@@ -17,6 +17,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -59,9 +60,9 @@ class ItemServiceUpdateTest {
 
         Category mockCategory = Category.builder().name("굿즈").build();
 
-        given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionService.isSubscriptionActive(10L)).willReturn(true);
-        given(categoryRepository.findById(1L)).willReturn(Optional.of(mockCategory));
+        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
+        given(shopSubscriptionService.isSubscriptionActive(anyLong())).willReturn(true);
+        given(categoryRepository.findById(anyLong())).willReturn(Optional.of(mockCategory));
         given(itemRepository.save(any(Item.class))).willReturn(
             Item.builder()
                 .sellerUserId(userId)
@@ -86,14 +87,14 @@ class ItemServiceUpdateTest {
         // given
         Long userId = 1L;
         ItemCreateRequest request = new ItemCreateRequest();
-        request.setShopId(null); // 💡 shopId 누락
+        request.setShopId(null); // shopId 누락
         request.setCategoryId(1L);
         request.setTitle("테스트 상품");
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
         // when & then
-        // ItemCreateRequest.validate()에서 shopId가 null이면 "유효한 가게 ID를 입력해주세요."를 던집니다.
+        // 💡 실제 DTO 검증 메시지인 "유효한 가게 ID를 입력해주세요."로 매칭 수정
         assertThatThrownBy(() -> itemService.create(userId, request))
             .isInstanceOf(BadRequestException.class)
             .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
@@ -116,12 +117,12 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
 
         Shop mockShop = Shop.builder()
-            .ownerUserId(otherOwnerId) // 💡 다른 유저 소유의 가게
+            .ownerUserId(otherOwnerId)
             .name("타인 샵")
             .region("부산")
             .build();
 
-        given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
+        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
 
         // when & then
         assertThatThrownBy(() -> itemService.create(loginUserId, request))
@@ -149,9 +150,8 @@ class ItemServiceUpdateTest {
             .region("서울")
             .build();
 
-        // 💡 [핵심 수정] 특정 ID(10L) 대신 any(Long.class)를 사용하여 샵 조회 실패를 원천 차단합니다.
-        given(shopRepository.findByIdWithLock(any(Long.class))).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionService.isSubscriptionActive(any(Long.class))).willReturn(false); // 구독 비활성 상태
+        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
+        given(shopSubscriptionService.isSubscriptionActive(anyLong())).willReturn(false);
 
         // when & then
         assertThatThrownBy(() -> itemService.create(userId, request))
@@ -182,8 +182,8 @@ class ItemServiceUpdateTest {
         Item mockItem = Item.builder()
             .sellerUserId(userId)
             .shopId(10L)
-            .category(mockCategory) // 💡 카테고리 정상 주입
-            .title("기존 제목")
+            .category(mockCategory)
+            .title("기존 제목") // 💡 필수 title 추가
             .price(15000)
             .saleType(SaleType.NORMAL)
             .status(ItemStatus.ON_SALE)
@@ -196,9 +196,9 @@ class ItemServiceUpdateTest {
             .build();
 
         given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
-        given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionService.isSubscriptionActive(10L)).willReturn(true);
-        given(categoryRepository.findById(1L)).willReturn(Optional.of(mockCategory));
+        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
+        given(shopSubscriptionService.isSubscriptionActive(anyLong())).willReturn(true);
+        given(categoryRepository.findById(anyLong())).willReturn(Optional.of(mockCategory));
 
         // when
         itemService.update(userId, itemId, request);
@@ -227,9 +227,10 @@ class ItemServiceUpdateTest {
         Category mockCategory = Category.builder().name("기존").build();
 
         Item mockItem = Item.builder()
-            .sellerUserId(itemOwnerId) // 💡 다른 유저가 등록한 상품
+            .sellerUserId(itemOwnerId)
             .shopId(10L)
             .category(mockCategory)
+            .title("기존 제목") // 💡 필수 title 추가
             .price(15000)
             .build();
 
@@ -249,23 +250,13 @@ class ItemServiceUpdateTest {
         Long itemId = 100L;
 
         ItemUpdateRequest request = new ItemUpdateRequest();
-        request.setShopId(null); // 💡 shopId 누락
+        request.setShopId(null); // shopId 누락으로 인해 DTO 검증 단계에서 즉시 예외 발생
         request.setCategoryId(1L);
         request.setTitle("수정 시도");
         request.setPrice(20000);
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
-        Category mockCategory = Category.builder().name("기존").build();
-
-        Item mockItem = Item.builder()
-            .sellerUserId(userId)
-            .shopId(10L)
-            .category(mockCategory)
-            .price(15000)
-            .build();
-
-        given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
 
         // when & then
         assertThatThrownBy(() -> itemService.update(userId, itemId, request))
@@ -295,16 +286,17 @@ class ItemServiceUpdateTest {
             .sellerUserId(loginUserId)
             .shopId(10L)
             .category(mockCategory)
+            .title("기존 제목") // 💡 필수 title 추가
             .price(15000)
             .build();
 
         Shop mockShop = Shop.builder()
-            .ownerUserId(otherShopOwnerId) // 💡 다른 사람 소유의 샵
+            .ownerUserId(otherShopOwnerId)
             .name("타인 샵")
             .build();
 
         given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
-        given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
+        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
 
         // when & then
         assertThatThrownBy(() -> itemService.update(loginUserId, itemId, request))
@@ -333,6 +325,7 @@ class ItemServiceUpdateTest {
             .sellerUserId(userId)
             .shopId(10L)
             .category(mockCategory)
+            .title("기존 제목") // 💡 필수 title 추가
             .price(15000)
             .build();
 
@@ -342,8 +335,8 @@ class ItemServiceUpdateTest {
             .build();
 
         given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
-        given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionService.isSubscriptionActive(10L)).willReturn(false); // 💡 구독 만료 상태
+        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
+        given(shopSubscriptionService.isSubscriptionActive(anyLong())).willReturn(false);
 
         // when & then
         assertThatThrownBy(() -> itemService.update(userId, itemId, request))
