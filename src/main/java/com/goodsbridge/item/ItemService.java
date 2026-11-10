@@ -123,10 +123,11 @@ public class ItemService {
             throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
         }
 
-        // [추가] 수정하려는 가게의 소유자 검증
-        Shop shop = shopRepository.findById(request.getShopId())
+        // [동시성 방어] 샵 상태 및 구독 변경 동시 충돌 방지를 위해 비관적 락(findByIdWithLock) 적용
+        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
+        // [추가] 수정하려는 가게의 소유자 검증
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
         }
@@ -139,7 +140,9 @@ public class ItemService {
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
+        // 💡 [필드 반영] Item 엔티티의 update 메서드 시그니처에 맞춰 첫 번째 인자로 shopId 전달
         item.update(
+            request.getShopId(),
             category,
             request.getTitle(),
             request.getDescription(),
