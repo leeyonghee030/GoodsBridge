@@ -3,10 +3,10 @@ package com.goodsbridge.item;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
-import com.goodsbridge.shop.Shop;
-import com.goodsbridge.shop.ShopRepository;
-import com.goodsbridge.shop.ShopSubscriptionService;
+import com.goodsbridge.shop.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -14,8 +14,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -24,7 +26,7 @@ public class ItemService {
     private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
     private final ShopRepository shopRepository; // [추가] 가게 소유자 및 존재 여부 확인용
-    private final ShopSubscriptionService shopSubscriptionService;
+    private final ShopSubscriptionRepository shopSubscriptionRepository; // 💡 순환 참조 원천 차단을 위해 Repository 직접 주입
 
     private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
 
@@ -46,8 +48,8 @@ public class ItemService {
             throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
         }
 
-        // [추가] 구독 활성화 여부 필수 검증
-        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+        // 💡 구독 활성화 여부 검증 (Repository를 통해 직접 안전하게 체크)
+        if (!isSubscriptionActive(request.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
         }
 
@@ -132,8 +134,7 @@ public class ItemService {
             throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
         }
 
-        // [추가] 수정 시에도 구독 활성화 상태 필수 검증
-        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+        if (!isSubscriptionActive(request.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
         }
 
@@ -176,6 +177,21 @@ public class ItemService {
         }
     }
 
+    private boolean isSubscriptionActive(Long shopId) {
+        return shopSubscriptionRepository.findByShopId(shopId)
+            .map(sub -> sub.getStatus() == ShopSubscriptionStatus.ACTIVE
+                && sub.getEndDate() != null
+                && !sub.getEndDate().isBefore(LocalDate.now()))
+            .orElse(false);
+    }
+
+    // 💡 [이벤트 리스너] 구독 활성화 이벤트 수신 시 상품 일괄 복구 및 상태 변경 수행
+    @EventListener
+    @Transactional
+    public void handleShopSubscriptionActivated(ShopSubscriptionActivatedEvent event) {
+        restoreAndActivateItemsByShopId(event.getShopId());
+        log.info("[이벤트 수신 성공] 가게 ID: {}의 상품들이 복구 및 ON_SALE로 전환되었습니다.", event.getShopId());
+    }
 
 
     // 특정 샵의 구독 재개/복구 시, 만료로 인해 소프트 삭제되었거나

@@ -4,9 +4,6 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.util.SecurityUtil;
-import com.goodsbridge.item.Item;
-import com.goodsbridge.item.ItemService;
-import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.user.Role;
@@ -14,6 +11,7 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -31,7 +29,7 @@ public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
     private final ShopRepository shopRepository;
-    private final ItemService itemService; // 👈 ItemRepository 대신 ItemService 주입
+    private final ApplicationEventPublisher eventPublisher; // 💡 ItemService 대신 이벤트 퍼블리셔 주입
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopSubscriptionProcessor subscriptionProcessor;
@@ -139,8 +137,8 @@ public class ShopSubscriptionService {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
             if (isExpiredOrCancelled || existingSubscription == null) {
-                // 💡 [개선] ItemService에 상품 복구 및 상태 변경 책임을 위임합니다.
-                itemService.restoreAndActivateItemsByShopId(shopId);
+                // 💡 [이벤트 발행] 직접 호출 대신 이벤트를 발행하여 결합도를 완전히 제거합니다.
+                eventPublisher.publishEvent(new ShopSubscriptionActivatedEvent(shopId));
 
                 log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
             }

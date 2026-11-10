@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,6 +17,8 @@ import java.util.concurrent.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+
+@ActiveProfiles("test")
 @SpringBootTest
 @Import(TestPaymentConfig.class) // 💡 3. 가짜 결제 설정 추가하여 실제 외부 PG 검증 우회
 class ShopSubscriptionConcurrencyTest {
