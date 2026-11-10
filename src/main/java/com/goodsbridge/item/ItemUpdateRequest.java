@@ -1,6 +1,7 @@
 package com.goodsbridge.item;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,6 +10,9 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 public class ItemUpdateRequest {
+    @NotNull(message = "가게 ID는 필수 입력 값입니다.") // 💡 [추가] 수정 시에도 가게 선택 강제화 및 우회 방지
+    private Long shopId;
+    @NotNull(message = "카테고리 ID는 필수 입력 값입니다.")
     private Long categoryId;
     private String title;
     private String description;
@@ -18,6 +22,9 @@ public class ItemUpdateRequest {
     private String imageUrl;
 
     public void validate() {
+        if (shopId == null || shopId <= 0) {
+            throw new BadRequestException("유효한 가게 ID를 입력해주세요.");
+        }
         if (categoryId == null || categoryId <= 0) {
             throw new BadRequestException("유효한 카테고리 ID를 입력해주세요.");
         }
