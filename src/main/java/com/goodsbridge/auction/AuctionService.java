@@ -73,6 +73,11 @@ public class AuctionService {
             throw new ForbiddenException("해당 가게의 상품만 경매에 등록할 수 있습니다.");
         }
 
+        // 이미 팔렸거나(SOLD) 판매 중지(CLOSED)된 상품, 삭제된 상품은 경매에 올릴 수 없다.
+        if (item.isDeleted() || item.getStatus() != ItemStatus.ON_SALE) {
+            throw new BadRequestException("판매 중인 상품만 경매에 등록할 수 있습니다.");
+        }
+
         if (auctionRepository.existsByItemIdAndStatus(item.getId(), Status.ACTIVE)) {
             throw new BadRequestException("이미 진행 중인 경매가 있는 상품입니다.");
         }
@@ -129,6 +134,35 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
+    /**
+     * 경매 취소.
+     *  - 가게 주인: 입찰이 아직 없는 진행 중 경매만 취소할 수 있다.
+     *  - 관리자: 입찰이 있어도 취소할 수 있다. (모든 입찰자의 보증금은 스케줄러가 100% 환불한다)
+     */
+    @Transactional
+    public AuctionResponse cancel(Long userId, Long id) {
+        Auction auction = auctionRepository.findByIdLock(id)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
+
+        boolean isOwner = auction.getShop().isOwner(userId);
+        boolean isAdmin = user.getRole() == Role.ADMIN;
+        if (!isOwner && !isAdmin) {
+            throw new ForbiddenException("경매를 취소할 권한이 없습니다.");
+        }
+        if (auction.getStatus() != Status.ACTIVE) {
+            throw new BadRequestException("진행 중인 경매만 취소할 수 있습니다.");
+        }
+        if (!isAdmin && auction.getCurrentWinner() != null) {
+            throw new BadRequestException("입찰이 있는 경매는 관리자만 취소할 수 있습니다.");
+        }
+
+        auction.cancel();
+        return new AuctionResponse(auction);
+    }
+
     private void closeInternal(Auction auction) {
         if (auction.getStatus() != Status.ACTIVE) {
             throw new BadRequestException("진행 중인 경매만 마감할 수 있습니다.");
@@ -142,27 +176,18 @@ public class AuctionService {
         auction.end();
     }
 
-    /**
-     * 스케줄러가 호출하는 단건 마감.
-     * 경매 1건마다 별도 트랜잭션과 비관적 락을 사용해 한 건의 실패가
-     * 같은 배치의 다른 경매를 롤백시키지 않도록 한다.
-     */
+    // 스케줄러가 호출하는 단건 마감.
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void closeExpired(Long auctionId) {
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
-
         if (auction.getStatus() != Status.ACTIVE) {
             return;
         }
-
         closeInternal(auction);
     }
 
-    /**
-     * 낙찰자 잔금 결제 (잔금 = 낙찰가 - 이미 낸 보증금).
-     * 금액은 서버가 계산한 값으로만 PortOne 검증을 하며, 완료되면 상품을 SOLD로 바꾸고 가게 정산을 남긴다.
-     */
+    // 낙찰자 잔금 결제
     @Transactional
     public AuctionResponse payBalance(Long userId, Long auctionId, BalancePayRequest request) {
         if (request == null || request.getPaymentId() == null || request.getPaymentId().isBlank()) {
@@ -207,11 +232,7 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
-    /**
-     * 패찰자(낙찰자 제외 입찰자) 보증금 100% 환불.
-     * PortOne 호출이 있어 트랜잭션 없이 실행하고, 환불 1건마다 PaymentService가 자체 트랜잭션으로 커밋한다.
-     * 이미 환불된 결제는 건너뛰므로 실패 후 다시 호출해도 안전하다(멱등).
-     */
+    // 패찰자(낙찰자 제외 입찰자) 보증금 환불.
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void refundLosers(Long auctionId) {
         Long winnerId = auctionRepository.findWinnerUserId(auctionId);
@@ -219,16 +240,29 @@ public class AuctionService {
             return;
         }
         for (String paymentId : bidRepository.findLoserDepositPaymentIds(auctionId, winnerId)) {
-            Payment payment = paymentRepository.findByPaymentId(paymentId).orElse(null);
-            if (payment == null) {
-                continue;
-            }
-            boolean refundable = payment.isPaid() || payment.getStatus() == PaymentStatus.PARTIAL_CANCELLED;
-            if (!refundable || payment.getRefundableAmount() <= 0) {
-                continue;
-            }
-            paymentService.refund(paymentId, payment.getRefundableAmount(), "경매 패찰 보증금 환불");
+            refundDeposit(paymentId, "경매 패찰 보증금 환불");
         }
+    }
+
+    // 취소된 경매의 보증금 환불
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public void refundCancelled(Long auctionId) {
+        for (String paymentId : bidRepository.findAllDepositPaymentIds(auctionId)) {
+            refundDeposit(paymentId, "경매 취소 보증금 환불");
+        }
+    }
+
+    // 보증금 결제 1건 환불 (이미 환불됐거나 환불할 금액이 없으면 건너뜀)
+    private void refundDeposit(String paymentId, String reason) {
+        Payment payment = paymentRepository.findByPaymentId(paymentId).orElse(null);
+        if (payment == null) {
+            return;
+        }
+        boolean refundable = payment.isPaid() || payment.getStatus() == PaymentStatus.PARTIAL_CANCELLED;
+        if (!refundable || payment.getRefundableAmount() <= 0) {
+            return;
+        }
+        paymentService.refund(paymentId, payment.getRefundableAmount(), reason);
     }
 
     // 환불이 전부 끝난 경매 표시 (refundLosers 성공 뒤 스케줄러가 호출)
@@ -237,10 +271,7 @@ public class AuctionService {
         auctionRepository.findById(auctionId).ifPresent(Auction::markLosersRefunded);
     }
 
-    /**
-     * 기한 내 잔금 미납 처리: 낙찰 무효(ENDED_FAIL) + 낙찰자 보증금은 가게 몫(NO_SHOW_FEE)으로 정산.
-     * 경매 1건마다 별도 트랜잭션으로 실행한다.
-     */
+    // 기한 내 잔금 미납 처리
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void forfeitUnpaid(Long auctionId) {
         Auction auction = auctionRepository.findByIdLock(auctionId)

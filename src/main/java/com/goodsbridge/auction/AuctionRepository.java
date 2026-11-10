@@ -60,6 +60,16 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     List<Long> findIdsPendingLoserRefund(@Param("statuses") Collection<Status> statuses);
 
+    // 취소된 경매 중 입찰이 있었고 보증금 환불이 아직 안 끝난 경매
+    @Query("""
+        select a.id from Auction a
+        where a.status = :status
+          and a.losersRefunded = false
+          and a.currentWinner is not null
+        order by a.id asc
+        """)
+    List<Long> findIdsPendingCancelRefund(@Param("status") Status status);
+
     // 잔금 결제 기한이 지났는데 아직 미결제인 낙찰 경매
     @Query("""
         select a.id from Auction a

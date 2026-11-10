@@ -335,6 +335,9 @@
         // 서버가 못 내려주면(페이지 이동 시 JWT 헤더가 안 실림) ensureUserId()가 /api/users/me로 채운다.
         let currentUserId = '{{userId}}';
         const $ = (id) => document.getElementById(id);
+        // 결제창에서 오래 대기하면 Access Token(1시간)이 만료되어 결제 후 API가 401로 실패한다.
+        // 결제창을 열기 전과 결제 직후에 Refresh Token 쿠키로 세션을 갱신한다. (실패해도 무시: 이후 API가 오류를 알려준다)
+        const refreshSession = () => fetch('/api/auth/reissue', {method: 'POST', credentials: 'same-origin'}).catch(() => {});
         const money = (value) => value == null ? '-' : Number(value).toLocaleString('ko-KR') + '원';
         const formatTime = (value) => value ? String(value).replace('T', ' ').slice(0, 16) : '-';
         const label = (status) => ({
@@ -383,7 +386,7 @@
             const approvedShops = myShops.filter(shop => shop.status === 'APPROVED');
             select.innerHTML = approvedShops.length
                 ? '<option value="">가게를 선택하세요.</option>' + approvedShops.map(shop =>
-                    `<option value="${shop.id}">${escapeHtml(shop.name)} (#${shop.id})</option>`).join('')
+                `<option value="${shop.id}">${escapeHtml(shop.name)} (#${shop.id})</option>`).join('')
                 : '<option value="">승인된 내 가게가 없습니다.</option>';
             select.disabled = !approvedShops.length;
         }
@@ -395,7 +398,7 @@
                 && item.status !== 'SOLD' && item.status !== 'CLOSED');
             select.innerHTML = items.length
                 ? '<option value="">상품을 선택하세요.</option>' + items.map(item =>
-                    `<option value="${item.id}" data-price="${item.price}">${escapeHtml(item.title)} · ${money(item.price)}</option>`).join('')
+                `<option value="${item.id}" data-price="${item.price}">${escapeHtml(item.title)} · ${money(item.price)}</option>`).join('')
                 : '<option value="">이 가게에 등록 가능한 상품이 없습니다.</option>';
             select.disabled = !items.length;
         }
@@ -538,6 +541,7 @@
             button.disabled = true;
             try {
                 if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
+                await refreshSession();
                 const paymentResult = await PortOne.requestPayment({
                     storeId: '{{portoneStoreId}}',
                     channelKey: '{{portoneChannelKey}}',
@@ -550,6 +554,7 @@
                 if (paymentResult.code) {
                     throw new Error(paymentResult.message || '잔금 결제가 취소되었습니다.');
                 }
+                await refreshSession();
                 const result = await apiFetch(`/api/auctions/${auction.id}/pay-balance`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -674,6 +679,43 @@
                         : `<ul class="bid-history">${bids.map((bid) => `<li><span>${escapeHtml(bid.nickname)}</span><span><strong>${money(bid.bidAmount)}</strong> <span class="auction-muted">${escapeHtml(formatTime(bid.createdAt))}</span></span></li>`).join('')}</ul>`}
         `;
 
+                // 가게 주인에게만 보이는 경매 취소 버튼 (입찰이 있으면 서버가 거절한다. 입찰이 있는 경우 취소는 관리자 전용)
+                if (isActive) {
+                    try {
+                        if (currentUserId && currentUserId !== 'null') {
+                            const ownerResponse = await apiFetch(`/api/shops/${auction.shopId}`);
+                            if (ownerResponse.ok) {
+                                const ownerShop = await ownerResponse.json();
+                                if (String(ownerShop.ownerUserId) === String(currentUserId)) {
+                                    const cancelButton = document.createElement('button');
+                                    cancelButton.type = 'button';
+                                    cancelButton.className = 'auction-action';
+                                    cancelButton.style.marginTop = '1rem';
+                                    cancelButton.textContent = '경매 취소 (입찰이 없을 때만 가능)';
+                                    cancelButton.addEventListener('click', async () => {
+                                        if (!confirm('이 경매를 취소하시겠습니까?')) return;
+                                        cancelButton.disabled = true;
+                                        try {
+                                            const cancelResponse = await apiFetch(`/api/auctions/${id}/cancel`, {method: 'PATCH'});
+                                            const cancelBody = await cancelResponse.json().catch(() => ({}));
+                                            if (!cancelResponse.ok) throw new Error(cancelBody.message || '경매 취소에 실패했습니다.');
+                                            alert('경매가 취소되었습니다.');
+                                            await Promise.all([loadAuctions(), loadMyAuctions()]);
+                                            await loadDetail(id);
+                                        } catch (cancelError) {
+                                            alert(cancelError.message || '경매 취소에 실패했습니다.');
+                                            cancelButton.disabled = false;
+                                        }
+                                    });
+                                    detail.appendChild(cancelButton);
+                                }
+                            }
+                        }
+                    } catch (ignore) {
+                        // 가게 정보를 못 불러오면 취소 버튼만 생략한다
+                    }
+                }
+
                 $('bid-form')?.addEventListener('submit', async (event) => {
                     event.preventDefault();
 
@@ -708,6 +750,7 @@
                         const hasPreviousBid = (await fetchAllBids(id))
                             .some(bid => String(bid.userId) === String(currentUserId));
 
+                        await refreshSession();
                         let paymentId = null;
                         if (!hasPreviousBid) {
                             if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
@@ -728,6 +771,7 @@
                             paymentId = paymentResult.paymentId;
                         }
 
+                        await refreshSession();
                         const result = await apiFetch('/api/auctions/' + id + '/bids', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},

@@ -42,6 +42,13 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
         countQuery = "select count(distinct b.auction.id) from Bid b where b.user.id = :userId")
     Page<Long> findParticipatedAuctionIds(@Param("userId") Long userId, Pageable pageable);
 
+    // 경매 취소 시: 모든 입찰자의 보증금 결제 id (한 유저가 여러 번 입찰해도 보증금은 1건)
+    @Query("""
+        select distinct b.depositPaymentId from Bid b
+        where b.auction.id = :auctionId
+        """)
+    List<String> findAllDepositPaymentIds(@Param("auctionId") Long auctionId);
+
     // 낙찰자를 뺀 입찰자들의 보증금 결제 id (한 유저가 여러 번 입찰해도 보증금은 1건)
     @Query("""
         select distinct b.depositPaymentId from Bid b

@@ -1,5 +1,6 @@
 package com.goodsbridge.auction;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.user.User;
@@ -29,7 +30,6 @@ public class Auction {
     // 안티 스나이핑 용
     @Column(name = "extension_count", nullable = false)
     private int extensionCount = 0;
-
 
     @Id
     @GeneratedValue
@@ -69,11 +69,11 @@ public class Auction {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status;
+    private Status status;  // 경매 상태(낙찰, 취소, 실패, 진행 등)
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
-    private LocalDateTime createdAt;
+    private LocalDateTime createdAt;    // DB 기록용 시간
 
     @Builder
     public Auction(Shop shop, Item item, Integer startPrice,
@@ -101,6 +101,14 @@ public class Auction {
         if (this.status == Status.ENDED_SUCCESS) {
             this.balanceDueAt = LocalDateTime.now().plusMinutes(BALANCE_DUE_MINUTES);
         }
+    }
+
+    // 경매 취소 (진행 중인 경매만). 입찰자 보증금 환불은 스케줄러가 처리한다.
+    public void cancel() {
+        if (status != Status.ACTIVE) {
+            throw new BadRequestException("진행 중인 경매만 취소할 수 있습니다.");
+        }
+        this.status = Status.CANCELLED;
     }
 
     // 안티 스나이핑용

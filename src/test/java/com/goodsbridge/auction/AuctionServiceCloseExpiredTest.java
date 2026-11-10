@@ -52,6 +52,9 @@ class AuctionServiceCloseExpiredTest {
         return new Auction(shop, item, 10_000, LocalDateTime.now().minusMinutes(1), 1_000);
     }
 
+    // 주의: 이 헬퍼는 내부에서 when(...)을 호출하므로,
+    // 다른 when(...).thenReturn(...) 인자 안에서 직접 호출하면 UnfinishedStubbingException이 발생한다.
+    // 반드시 변수에 먼저 담은 뒤 stubbing에 사용할 것.
     private User user(Role role) {
         User user = mock(User.class);
         when(user.getRole()).thenReturn(role);
@@ -124,8 +127,9 @@ class AuctionServiceCloseExpiredTest {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(1L)).thenReturn(true);
         Auction auction = expiredAuction(shop, mock(Item.class));
+        User requester = user(Role.USER);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(Role.USER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(requester));
 
         AuctionResponse response = auctionService.close(1L, 1L);
 
@@ -141,8 +145,9 @@ class AuctionServiceCloseExpiredTest {
         when(winner.getId()).thenReturn(7L);
         Auction auction = expiredAuction(shop, mock(Item.class));
         auction.updateCurrentBid(15_000, winner);
+        User requester = user(Role.USER);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(Role.USER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(requester));
 
         AuctionResponse response = auctionService.close(1L, 1L);
 
@@ -157,8 +162,9 @@ class AuctionServiceCloseExpiredTest {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(9L)).thenReturn(false);
         Auction auction = expiredAuction(shop, mock(Item.class));
+        User admin = user(Role.ADMIN);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
-        when(userRepository.findById(9L)).thenReturn(Optional.of(user(Role.ADMIN)));
+        when(userRepository.findById(9L)).thenReturn(Optional.of(admin));
 
         AuctionResponse response = auctionService.close(9L, 1L);
 
@@ -170,8 +176,9 @@ class AuctionServiceCloseExpiredTest {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(5L)).thenReturn(false);
         Auction auction = expiredAuction(shop, mock(Item.class));
+        User requester = user(Role.USER);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
-        when(userRepository.findById(5L)).thenReturn(Optional.of(user(Role.USER)));
+        when(userRepository.findById(5L)).thenReturn(Optional.of(requester));
 
         assertThrows(ForbiddenException.class, () -> auctionService.close(5L, 1L));
 
@@ -203,8 +210,9 @@ class AuctionServiceCloseExpiredTest {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(1L)).thenReturn(true);
         Auction auction = new Auction(shop, mock(Item.class), 10_000, LocalDateTime.now().plusMinutes(5), 1_000);
+        User requester = user(Role.USER);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user(Role.USER)));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(requester));
 
         assertThrows(BadRequestException.class, () -> auctionService.close(1L, 1L));
 

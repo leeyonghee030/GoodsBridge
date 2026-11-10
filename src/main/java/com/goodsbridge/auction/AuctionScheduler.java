@@ -14,10 +14,11 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 1분마다 아래 세 가지를 순서대로 처리한다. 각 단계는 경매 1건 단위로 실패를 격리한다.
+ * 1분마다 아래 네 가지를 순서대로 처리한다. 각 단계는 경매 1건 단위로 실패를 격리한다.
  * 1) 마감 시간이 지난 ACTIVE 경매를 종료 (낙찰이면 잔금 결제 기한 설정)
  * 2) 종료된 경매의 패찰자 보증금 환불 (실패하면 다음 주기에 재시도)
  * 3) 잔금 결제 기한이 지난 낙찰 경매를 미납 처리 (낙찰 무효, 보증금은 가게 몫)
+ * 4) 취소된 경매의 입찰자 보증금 전액 환불 (실패하면 다음 주기에 재시도)
  */
 @Slf4j
 @Component
@@ -33,6 +34,7 @@ public class AuctionScheduler {
         runStep("경매 자동 마감", this::closeExpiredAuctions);
         runStep("패찰자 보증금 환불", this::refundLosers);
         runStep("잔금 미납 처리", this::forfeitUnpaidWinners);
+        runStep("취소 경매 보증금 환불", this::refundCancelledAuctions);
     }
 
     // 한 단계가 통째로 실패해도 다음 단계는 계속 돈다
@@ -44,6 +46,7 @@ public class AuctionScheduler {
         }
     }
 
+    // 경매 마감
     private void closeExpiredAuctions() {
         LocalDateTime now = LocalDateTime.now();
         // 실패한 경매는 ACTIVE로 남아 다음 조회에도 다시 나오므로, 건너뛰어야 무한 반복을 막을 수 있다.
@@ -75,8 +78,8 @@ public class AuctionScheduler {
         }
     }
 
+    // 패찰자 환불
     private void refundLosers() {
-        // 낙찰자 미납으로 ENDED_FAIL이 된 경매도 포함 — 환불이 밀려 있는 채로 상태가 바뀌어도 끝까지 환불한다
         List<Long> ids = auctionRepository.findIdsPendingLoserRefund(
             List.of(Status.ENDED_SUCCESS, Status.ENDED_FAIL));
         for (Long id : ids) {
@@ -89,6 +92,20 @@ public class AuctionScheduler {
         }
     }
 
+    // 경매 도중 취소 시 환불
+    private void refundCancelledAuctions() {
+        List<Long> ids = auctionRepository.findIdsPendingCancelRefund(Status.CANCELLED);
+        for (Long id : ids) {
+            try {
+                auctionService.refundCancelled(id);
+                auctionService.markLosersRefunded(id);
+            } catch (RuntimeException e) {
+                log.error("취소 경매 보증금 환불 실패 - auctionId={} (다음 주기에 재시도)", id, e);
+            }
+        }
+    }
+
+    // 잔금 납부 여부
     private void forfeitUnpaidWinners() {
         List<Long> ids = auctionRepository.findIdsUnpaidOverdue(Status.ENDED_SUCCESS, LocalDateTime.now());
         for (Long id : ids) {

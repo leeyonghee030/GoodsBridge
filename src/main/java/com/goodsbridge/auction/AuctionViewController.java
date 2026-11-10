@@ -61,6 +61,13 @@ public class AuctionViewController {
         return ResponseEntity.ok(auctionResponse);
     }
 
+    // 경매 취소 (가게 주인: 입찰 없는 경매만 / 관리자: 입찰이 있어도 가능)
+    @PatchMapping("/api/auctions/{id}/cancel")
+    public ResponseEntity<AuctionResponse> cancelAuction(@PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(auctionService.cancel(userId, id));
+    }
+
     // 낙찰자 잔금 결제 (낙찰가 - 보증금)
     @PostMapping("/api/auctions/{id}/pay-balance")
     public ResponseEntity<AuctionResponse> payBalance(@PathVariable Long id,
