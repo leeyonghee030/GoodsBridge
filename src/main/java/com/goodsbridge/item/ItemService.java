@@ -28,7 +28,7 @@ public class ItemService {
 
     private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
 
-    // 상품 등록 : 카테코리 여부 검증 -> 상품 정보 저장
+    // 상품 등록 : 구독 여부 검증 -> 카테고리 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
         request.validate();
@@ -38,7 +38,7 @@ public class ItemService {
             throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
         }
 
-        // [추가 3] 가게 존재 여부 및 본인 소유(isOwner) 보안 검증
+        // [추가] 가게 존재 여부 및 본인 소유(isOwner) 보안 검증
         Shop shop = shopRepository.findById(request.getShopId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
@@ -46,7 +46,7 @@ public class ItemService {
             throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
         }
 
-        // [추가 2] 구독 활성화 여부 필수 검증
+        // [추가] 구독 활성화 여부 필수 검증
         if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
         }
@@ -85,7 +85,7 @@ public class ItemService {
 
         pageable = PageRequest.of(pageable.getPageNumber(), pageSize, sort);
 
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region , saleType, pageable);
+        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
         return itemPage.map(ItemResponse::from);
     }
 
@@ -93,7 +93,6 @@ public class ItemService {
     public ItemResponse findById(Long id) {
         validateId(id);
 
-        // 삭제되지 않은 상품만 조회해야 함
         Item item = itemRepository.findByIdAndDeletedFalse(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않거나 삭제된 상품입니다."));
         return ItemResponse.from(item);
@@ -119,7 +118,7 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        // [정책 4] 수정 시에도 shopId 필수화 및 우회 방지
+        // [추가] 수정 시에도 shopId 필수화 및 우회 방지
         if (request.getShopId() == null) {
             throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
         }
@@ -163,7 +162,7 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        // 하드 삭제(delete) 대신 소프트 삭제 메서드 호출
+        // 소프트 삭제 메서드 호출
         item.deleteItem();
     }
 
@@ -172,5 +171,24 @@ public class ItemService {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("유효하지 않은 ID 값입니다.");
         }
+    }
+
+    @Transactional
+    public void closeItemsByShopId(Long shopId) {
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
+    }
+
+    // 특정 샵의 구독 재개/복구 시, 만료로 인해 소프트 삭제되었거나
+    // 닫혀 있던(CLOSED) 모든 상품들을 일괄 복구하고 ON_SALE 상태로 전환합니다.
+    @Transactional
+    public void restoreAndActivateItemsByShopId(Long shopId) {
+        // 1. 소프트 삭제된 상품들 조회 후 복구 처리
+        List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
+        for (Item item : expiredItems) {
+            item.restore(ItemStatus.ON_SALE);
+        }
+
+        // 2. 삭제되지 않고 단순히 상태만 CLOSED였던 상품들 일괄 상태 변경
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
     }
 }

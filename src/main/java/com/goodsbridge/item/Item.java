@@ -20,7 +20,7 @@ public class Item {
     @Column(name = "seller_user_id", nullable = false)
     private Long sellerUserId;
 
-    @Column(name = "shop_id", nullable = false) // 💡 [추가] 가게 ID는 필수이므로 nullable = false 권장
+    @Column(name = "shop_id")
     private Long shopId;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -48,9 +48,9 @@ public class Item {
     private String imageUrl;
 
     @Column(nullable = false, columnDefinition = "boolean default false")
-    private boolean deleted = false; // 소프트 삭제 플래그
+    private boolean deleted = false;
 
-    @Version // 동시성 제어 (낙관적 락)
+    @Version
     @Column(nullable = false, columnDefinition = "integer default 0")
     private Long version;
 

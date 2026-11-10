@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 public class ItemCreateRequest {
-    @NotNull(message = "가게 ID는 필수 입력 값입니다.") // 💡 [정책 반영] 상품 등록 시 가게 선택 강제화
+    @NotNull(message = "가게 ID는 필수 입력 값입니다.") // 💡 [추가] 상품 등록 시 가게 선택 강제화
     private Long shopId;
 
     @NotNull(message = "카테고리 ID는 필수 입력 값입니다.")
