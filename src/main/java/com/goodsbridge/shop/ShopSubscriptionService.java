@@ -5,7 +5,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.item.Item;
-import com.goodsbridge.item.ItemService;
+import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
@@ -31,7 +31,7 @@ public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
     private final ShopRepository shopRepository;
-    private final ItemService itemService; // 👈 ItemRepository 대신 ItemService 주입
+    private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopSubscriptionProcessor subscriptionProcessor;
@@ -139,8 +139,7 @@ public class ShopSubscriptionService {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
             if (isExpiredOrCancelled || existingSubscription == null) {
-                // 💡 [개선] ItemService에 상품 복구 및 상태 변경 책임을 위임합니다.
-                itemService.restoreAndActivateItemsByShopId(shopId);
+                restoreAndActivateItemsByShopId(shopId);
 
                 log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
             }
@@ -235,6 +234,16 @@ public class ShopSubscriptionService {
                 && sub.getEndDate() != null
                 && !sub.getEndDate().isBefore(LocalDate.now()))
             .orElse(false);
+    }
+
+    // 구독 재개 시, 만료로 소프트 삭제되었거나 CLOSED 상태였던 상품들을 일괄 복구하고 ON_SALE로 전환
+    // (ItemService 대신 ItemRepository를 직접 사용 — ItemService가 이 서비스에 의존하고 있어 순환 참조 방지)
+    private void restoreAndActivateItemsByShopId(Long shopId) {
+        List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
+        for (Item item : expiredItems) {
+            item.restore(ItemStatus.ON_SALE);
+        }
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
     }
 
     private void validateAdmin(Long userId) {
