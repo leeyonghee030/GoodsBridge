@@ -139,4 +139,29 @@ class ItemServiceIntegrationTest {
         boolean containsDeleted = myItems.stream().anyMatch(i -> i.getId().equals(itemId));
         assertThat(containsDeleted).isFalse();
     }
+
+    @Test
+    @DisplayName("6. 소프트 삭제된 상품을 복구(restore)하면 deleted가 false로 바뀌고 상태가 원복된다")
+    void restoreItemTest() {
+        // given: 상품 생성 후 소프트 삭제 처리
+        Item item = itemRepository.findAll().stream()
+            .filter(i -> !i.isDeleted())
+            .findFirst()
+            .orElseThrow();
+
+        item.deleteItem();
+        itemRepository.saveAndFlush(item);
+
+        assertThat(item.isDeleted()).isTrue();
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.CLOSED);
+
+        // when: 상품 복구 메서드 호출 (예: ON_SALE 상태로 원복)
+        item.restore(ItemStatus.ON_SALE);
+        itemRepository.saveAndFlush(item);
+
+        // then: deleted 플래그가 false로 풀리고 상태가 ON_SALE로 돌아왔는지 검증
+        assertThat(item.isDeleted()).isFalse();
+        assertThat(item.getDeletedAt()).isNull();
+        assertThat(item.getStatus()).isEqualTo(ItemStatus.ON_SALE);
+    }
 }

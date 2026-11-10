@@ -27,7 +27,7 @@ public class Item {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String title;
 
     @Column(columnDefinition = "TEXT")
@@ -48,9 +48,9 @@ public class Item {
     private String imageUrl;
 
     @Column(nullable = false, columnDefinition = "boolean default false")
-    private boolean deleted = false; // 소프트 삭제 플래그
+    private boolean deleted = false;
 
-    @Version // 동시성 제어 (낙관적 락)
+    @Version
     @Column(nullable = false, columnDefinition = "integer default 0")
     private Long version;
 
@@ -58,22 +58,13 @@ public class Item {
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     @Builder
     public Item(Long sellerUserId, Long shopId, Category category, String title,
                 String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
-        // 엔티티 생성 시점 방어 로직
-        if (sellerUserId == null) {
-            throw new BadRequestException("판매자 ID는 필수입니다.");
-        }
-        if (category == null) {
-            throw new BadRequestException("카테고리는 필수입니다.");
-        }
-        if (title == null || title.isBlank()) {
-            throw new BadRequestException("상품 제목은 필수입니다.");
-        }
-        if (price == null || price <= 0) {
-            throw new BadRequestException("가격은 0보다 커야 합니다.");
-        }
+        validateItem(category, title, description, price);
 
         this.sellerUserId = sellerUserId;
         this.shopId = shopId;
@@ -87,16 +78,7 @@ public class Item {
     }
 
     public void update(Category category, String title, String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
-        // 수정 시점 방어 로직
-        if (category == null) {
-            throw new BadRequestException("카테고리는 필수입니다.");
-        }
-        if (title == null || title.isBlank()) {
-            throw new BadRequestException("상품 제목은 필수입니다.");
-        }
-        if (price == null || price <= 0) {
-            throw new BadRequestException("가격은 0보다 커야 합니다.");
-        }
+        validateItem(category, title, description, price);
 
         this.category = category;
         this.title = title;
@@ -111,9 +93,38 @@ public class Item {
         this.imageUrl = imageUrl;
     }
 
+    private void validateItem(Category category, String title, String description, Integer price) {
+        if (category == null) {
+            throw new BadRequestException("카테고리는 필수입니다.");
+        }
+        if (title == null || title.isBlank()) {
+            throw new BadRequestException("상품 제목은 필수입니다.");
+        }
+        if (title.length() > 100) {
+            throw new BadRequestException("상품 제목은 100자 이내여야 합니다.");
+        }
+        if (description != null && description.length() > 5000) {
+            throw new BadRequestException("상품 설명은 5000자 이내여야 합니다.");
+        }
+        if (price == null || price <= 0) {
+            throw new BadRequestException("가격은 0보다 커야 합니다.");
+        }
+        // 💡 [검증 강화] 비즈니스 정책에 따른 상품 가격 상한선 검증 (예: 1억 원)
+        if (price > 100_000_000) {
+            throw new BadRequestException("상품 가격은 1억 원을 초과할 수 없습니다.");
+        }
+    }
+
     public void deleteItem() {
         this.deleted = true;
-        this.status = ItemStatus.CLOSED; // 삭제 시 판매 마감 처리
+        this.deletedAt = LocalDateTime.now();
+        this.status = ItemStatus.CLOSED;
+    }
+
+    public void restore(ItemStatus previousStatus) {
+        this.deleted = false;
+        this.deletedAt = null;
+        this.status = previousStatus != null ? previousStatus : ItemStatus.ON_SALE;
     }
 
     public boolean isOwner(Long userId) {

@@ -1,12 +1,21 @@
 package com.goodsbridge.shop;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
+
 public interface ShopRepository extends JpaRepository<Shop, Long> {
+
+    // 💡 동시성 제어를 위한 비관적 락(Pessimistic Write) 조회 메서드 추가
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Shop s WHERE s.id = :id")
+    Optional<Shop> findByIdWithLock(@Param("id") Long id);
 
     // 1. 고객용 디렉터리 페이징 조회 (삭제되지 않고 승인된 가게만)
     @Query("""

@@ -45,6 +45,9 @@ public class SecurityConfig {
 
             // API 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
+                // 💡 [필수 추가] 관리자 전용 경로는 ROLE_ADMIN만 접근 가능하도록 최상단에 배치
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/join", "/api/login",

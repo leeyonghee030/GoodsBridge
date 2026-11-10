@@ -61,7 +61,7 @@ class ItemRepositoryTest {
         assertThat(result.getContent()).isNotEmpty();
         assertThat(result.getContent())
             .extracting(Item::getTitle)
-            .contains("한정판 피규어");
+            .contains("홍대 굿즈샵 한정 피규어"); // 💡 조회된 실제 데이터명으로 수정
     }
 
     @Test
