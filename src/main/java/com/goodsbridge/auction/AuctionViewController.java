@@ -8,6 +8,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+
 import org.springframework.web.bind.annotation.*;
 
 @Controller
@@ -22,11 +25,12 @@ public class AuctionViewController {
     private String channelKey;
 
     @GetMapping("/test/auction")
-    public String index(Model model) {
-        model.addAttribute("auctions", auctionService.findAll(1, 60, null).getContent());
+
+    public String index(@AuthenticationPrincipal Long userId, Model model) {
+        model.addAttribute("userId", userId);
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
-        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+
         return "auction/index";
     }
 
@@ -59,5 +63,20 @@ public class AuctionViewController {
         Long userId = SecurityUtil.getCurrentUserId();
         AuctionResponse auctionResponse = auctionService.close(userId, id);
         return ResponseEntity.ok(auctionResponse);
+    }
+
+    // 경매 취소 (가게 주인: 입찰 없는 경매만 / 관리자: 입찰이 있어도 가능)
+    @PatchMapping("/api/auctions/{id}/cancel")
+    public ResponseEntity<AuctionResponse> cancelAuction(@PathVariable Long id) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(auctionService.cancel(userId, id));
+    }
+
+    // 낙찰자 잔금 결제 (낙찰가 - 보증금)
+    @PostMapping("/api/auctions/{id}/pay-balance")
+    public ResponseEntity<AuctionResponse> payBalance(@PathVariable Long id,
+                                                      @RequestBody BalancePayRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(auctionService.payBalance(userId, id, request));
     }
 }

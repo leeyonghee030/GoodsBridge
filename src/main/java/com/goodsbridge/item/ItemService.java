@@ -1,7 +1,10 @@
 package com.goodsbridge.item;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.shop.Shop;
+import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopSubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -20,6 +23,7 @@ public class ItemService {
 
     private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
+    private final ShopRepository shopRepository; // [추가] 가게 소유자 및 존재 여부 확인용
     private final ShopSubscriptionService shopSubscriptionService;
 
     private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
@@ -27,11 +31,25 @@ public class ItemService {
     // 상품 등록 : 구독 여부 검증 -> 카테고리 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
-        if (request.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+        request.validate();
+
+        // [추가] shopId 필수 검증 (가게 없는 일반 판매 상품 등록 원천 차단)
+        if (request.getShopId() == null) {
+            throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
         }
 
-        request.validate();
+        // 💡 [동시성 방어 통일] update와 동일하게 비관적 락(findByIdWithLock) 적용
+        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
+        }
+
+        // [추가] 구독 활성화 여부 필수 검증
+        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+        }
 
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
@@ -100,14 +118,31 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
+        // [추가] 수정 시에도 shopId 필수화 및 우회 방지
+        if (request.getShopId() == null) {
+            throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
+        }
+
+        // [동시성 방어] 샵 상태 및 구독 변경 동시 충돌 방지를 위해 비관적 락(findByIdWithLock) 적용
+        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        // [추가] 수정하려는 가게의 소유자 검증
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
+        }
+
+        // [추가] 수정 시에도 구독 활성화 상태 필수 검증
+        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
+        // 💡 [필드 반영] Item 엔티티의 update 메서드 시그니처에 맞춰 첫 번째 인자로 shopId 전달
         item.update(
+            request.getShopId(),
             category,
             request.getTitle(),
             request.getDescription(),
@@ -141,10 +176,7 @@ public class ItemService {
         }
     }
 
-    @Transactional
-    public void closeItemsByShopId(Long shopId) {
-        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
-    }
+
 
     // 특정 샵의 구독 재개/복구 시, 만료로 인해 소프트 삭제되었거나
     // 닫혀 있던(CLOSED) 모든 상품들을 일괄 복구하고 ON_SALE 상태로 전환합니다.
