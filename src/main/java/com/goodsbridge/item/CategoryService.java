@@ -2,10 +2,6 @@ package com.goodsbridge.item;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.NotFoundException;
-import com.goodsbridge.item.Category;
-import com.goodsbridge.item.CategoryCreateRequest;
-import com.goodsbridge.item.CategoryJpaRepository;
-import com.goodsbridge.item.CategoryResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -36,16 +32,12 @@ public class CategoryService {
         return categoryRepository.save(category).getId();
     }
 
-    // 카테고리 목록 조회 (가나다 순 정렬+각 카테고리별 상품 개수 포함)
+    /**
+     * 카테고리 목록 조회 (N+1 최적화 적용)
+     * - 단 한 번의 쿼리로 가나다 순 정렬 및 각 카테고리별 상품 개수를 조회합니다.
+     */
     public List<CategoryResponse> findAll() {
-        List<Category> categories = categoryRepository.findAllByOrderByNameAsc();
-
-        return categories.stream()
-            .map(category -> {
-                // 삭제되지 않은 유효한 상품 개수만 카운트
-                Long itemCount = itemRepository.countByCategoryIdAndDeletedFalse(category.getId());
-                return CategoryResponse.of(category, itemCount);
-            }).toList();
+        return categoryRepository.findAllWithItemCount();
     }
 
     // 인기 카테고리 상위 N개 (구매 건수 기준, 0건이면 id순으로 폴백 - SHOP 메가메뉴용)

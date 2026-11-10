@@ -37,4 +37,17 @@ public interface CategoryJpaRepository extends JpaRepository<Category, Long> {
         order by count(e) desc, c.id asc
         """)
     List<Category> findTopByExchangeCount(Pageable pageable);
+
+    /**
+     * [N+1 최적화 쿼리] 모든 카테고리와 삭제되지 않은 상품 개수를 한 번의 쿼리로 조회
+     * - LEFT JOIN을 사용하여 상품이 없는 빈 카테고리도 결과에 포함시킵니다.
+     */
+    @Query("""
+        SELECT new com.goodsbridge.item.CategoryResponse(c.id, c.name, COUNT(i.id))
+        FROM Category c
+        LEFT JOIN Item i ON i.category.id = c.id AND i.deleted = false
+        GROUP BY c.id, c.name
+        ORDER BY c.name ASC
+        """)
+    List<CategoryResponse> findAllWithItemCount();
 }
