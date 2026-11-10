@@ -13,7 +13,7 @@
         <span class="card-tag">{{status}}</span>
         <div class="card-image event-card-image">이미지 불러오는 중</div>
         <p class="card-title event-card-title">상품 정보 불러오는 중</p>
-        <p class="card-price">참가비 {{feeAmount}}원</p>
+        <p class="card-price">참가비 {{#money}}{{feeAmount}}{{/money}}원</p>
         <p class="card-meta">{{currentCount}}/{{capacity}}명 참가 · 마감 {{deadline}}</p>
         <button type="button" class="event-join-btn">참가하기</button>
         <p class="form-message"></p>

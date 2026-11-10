@@ -39,7 +39,7 @@
             {{^imageUrl}}이미지 없음{{/imageUrl}}
         </div>
         <p class="card-title">{{title}}</p>
-        <p class="card-price">{{price}}원</p>
+        <p class="card-price">{{#money}}{{price}}{{/money}}원</p>
         <p class="card-meta">{{status}}</p>
     </a>
 {{/items}}
@@ -156,6 +156,13 @@
     window.addEventListener('scroll', closeCategoryResults, { passive: true });
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+    // 필터가 열려 있을 때 패널 바깥 클릭이나 페이지 스크롤이면 자동으로 접음
+    // (캡처 단계로 등록해서 다른 버튼의 stopPropagation과 상관없이 동작)
+    document.addEventListener('click', event => {
+        if (filterPanel.hidden || filterPanel.contains(event.target) || event.target.closest('#open-filter')) return;
+        filterPanel.hidden = true;
+    }, true);
+    window.addEventListener('scroll', () => { filterPanel.hidden = true; }, { passive: true });
     keywordInput.addEventListener('input', renderGrid);
 
     const dateSortChip = document.getElementById('date-sort-chip');

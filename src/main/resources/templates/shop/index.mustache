@@ -51,6 +51,13 @@
     }
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+    // 필터가 열려 있을 때 패널 바깥 클릭이나 페이지 스크롤이면 자동으로 접음
+    // (캡처 단계로 등록해서 다른 버튼의 stopPropagation과 상관없이 동작)
+    document.addEventListener('click', event => {
+        if (filterPanel.hidden || filterPanel.contains(event.target) || event.target.closest('#open-filter')) return;
+        filterPanel.hidden = true;
+    }, true);
+    window.addEventListener('scroll', () => { filterPanel.hidden = true; }, { passive: true });
 
     // 입력할 때마다 한 글자씩 바로 필터링 (이미 로드된 가게 카드 안에서, 서버 재요청 없음)
     const itemGrid = document.getElementById('item-grid');

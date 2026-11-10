@@ -12,7 +12,7 @@
     <span class="list-toolbar-category" id="toolbar-category">전체</span>
     <div class="list-toolbar-actions">
         <div class="scope-dropdown" id="scope-dropdown">
-            <button type="button" class="write-link" id="scope-trigger">전체 ⌄</button>
+            <button type="button" class="write-link" id="scope-trigger">전체</button>
             <div class="scope-menu" id="scope-menu" hidden>
                 <button type="button" class="scope-menu-item active" data-scope="all">전체</button>
                 <button type="button" class="scope-menu-item" data-scope="title">제목</button>
@@ -55,7 +55,7 @@
             {{^itemImageUrl}}이미지 없음{{/itemImageUrl}}
         </div>
         <p class="card-title">{{itemTitle}}</p>
-        <p class="card-price">{{itemPrice}}원</p>
+        <p class="card-price">{{#money}}{{itemPrice}}{{/money}}원</p>
         <p class="card-meta">원하는 것: {{wantDescription}}</p>
     </a>
 {{/items}}
@@ -332,6 +332,13 @@
     window.addEventListener('scroll', closeCategoryResults, { passive: true });
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+    // 필터가 열려 있을 때 패널 바깥 클릭이나 페이지 스크롤이면 자동으로 접음
+    // (캡처 단계로 등록해서 다른 버튼의 stopPropagation과 상관없이 동작)
+    document.addEventListener('click', event => {
+        if (filterPanel.hidden || filterPanel.contains(event.target) || event.target.closest('#open-filter')) return;
+        filterPanel.hidden = true;
+    }, true);
+    window.addEventListener('scroll', () => { filterPanel.hidden = true; }, { passive: true });
 
     // ----- 정렬 (이미 로드된 카드들을 재정렬, 서버 재요청 없음) -----
     const itemGrid = document.getElementById('item-grid');
@@ -385,7 +392,7 @@
         const item = event.target.closest('.scope-menu-item');
         if (!item) return;
         searchScope = item.dataset.scope;
-        scopeTrigger.textContent = scopeLabels[searchScope] + ' ⌄';
+        scopeTrigger.textContent = scopeLabels[searchScope];
         scopeMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
         scopeMenu.hidden = true;
         applyCardFilters();
