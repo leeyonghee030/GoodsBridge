@@ -30,6 +30,18 @@ public class CategoryController {
         return ResponseEntity.ok(categories);
     }
 
+    // GET /api/categories/popular — 구매 건수 기준 인기 카테고리 상위 5개 (SHOP 메가메뉴용)
+    @GetMapping("/categories/popular")
+    public ResponseEntity<List<CategoryResponse>> getPopularCategories() {
+        return ResponseEntity.ok(categoryService.findTopPurchased(5));
+    }
+
+    // GET /api/categories/popular-exchange — 교환 게시글 등록 건수 기준 인기 카테고리 상위 5개 (EXCHANGE 메가메뉴용)
+    @GetMapping("/categories/popular-exchange")
+    public ResponseEntity<List<CategoryResponse>> getPopularExchangeCategories() {
+        return ResponseEntity.ok(categoryService.findTopExchanged(5));
+    }
+
     // PATCH /api/categories/{id} - 카테고리 수정 (관리자만 가능)
     @PatchMapping("/categories/{id}")
     @PreAuthorize("hasRole('ADMIN')")

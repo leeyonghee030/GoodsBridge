@@ -152,16 +152,32 @@ public class ExchangeService {
     }
 
     public List<ExchangeItemResponse> getExchangeItemList(Long category, String keyword) {
-        return exchangeItemRepository.search(category, (keyword == null || keyword.isBlank()) ? null : keyword.trim())
-            .stream().map(ExchangeItemResponse::from).toList();
+        List<ExchangeItem> items = exchangeItemRepository.search(category, (keyword == null || keyword.isBlank()) ? null : keyword.trim());
+        java.util.Map<Long, Long> requestCounts = requestCountsByExchangeItem(items);
+        return items.stream()
+            .map(item -> ExchangeItemResponse.from(item, requestCounts.get(item.getId())))
+            .toList();
     }
 
     // 무한스크롤용 페이징 조회
     public org.springframework.data.domain.Page<ExchangeItemResponse> getExchangeItemPage(
         Long category, String keyword, org.springframework.data.domain.Pageable pageable) {
-        return exchangeItemRepository
-            .search(category, (keyword == null || keyword.isBlank()) ? null : keyword.trim(), pageable)
-            .map(ExchangeItemResponse::from);
+        org.springframework.data.domain.Page<ExchangeItem> page = exchangeItemRepository
+            .search(category, (keyword == null || keyword.isBlank()) ? null : keyword.trim(), pageable);
+        java.util.Map<Long, Long> requestCounts = requestCountsByExchangeItem(page.getContent());
+        return page.map(item -> ExchangeItemResponse.from(item, requestCounts.get(item.getId())));
+    }
+
+    // 교환 게시글 id별 제안받은 횟수 (인기순 정렬용)
+    private java.util.Map<Long, Long> requestCountsByExchangeItem(List<ExchangeItem> items) {
+        List<Long> ids = items.stream().map(ExchangeItem::getId).toList();
+        if (ids.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return exchangeRequestRepository.countGroupedByExchangeItemId(ids).stream()
+            .collect(java.util.stream.Collectors.toMap(
+                ExchangeRequestRepository.ExchangeItemRequestCountView::getExchangeItemId,
+                ExchangeRequestRepository.ExchangeItemRequestCountView::getRequestCount));
     }
 
     //내 게시글 목록

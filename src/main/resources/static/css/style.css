@@ -656,13 +656,37 @@ textarea:focus {
 .profile-danger-zone { margin-top: 1.5rem; }
 
 .comment-row {
-    padding: 0.75rem 0;
+    position: relative;
+    padding: 0.75rem 2rem 0.75rem 0;
     border-bottom: 1px solid var(--color-border);
     font-size: 0.9rem;
 }
 
 .comment-row strong { font-size: 0.85rem; }
 .comment-row p { margin: 0.2rem 0 0; }
+
+.related-item-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.75rem 0;
+    text-decoration: none;
+    color: var(--color-text);
+}
+
+.related-item-thumb {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--color-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.related-item-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
 .checkbox-row {
     display: flex;
@@ -710,12 +734,31 @@ button[type="button"] {
 button[type="submit"]:hover,
 button[type="button"]:hover { background: var(--color-dark-hover); }
 
+/* 댓글 삭제를 작은 X 아이콘으로 — 전역 button[type=button] 규칙(width:100% 등)을 명시적으로 덮어씀 */
+button.comment-delete {
+    position: absolute;
+    top: 0.75rem;
+    right: 0;
+    width: auto;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+button.comment-delete:hover { background: none; color: var(--color-text); }
+
 /* 한 줄에 버튼 여러 개 나란히 놓을 때 (수락/거절 등) - 꽉 채우지 않고 내용만큼만 */
 .btn-row {
     display: flex;
     gap: 0.5rem;
     margin-top: 0.5rem;
 }
+
+.btn-row[hidden] { display: none; }
 
 .btn-row button {
     width: auto;

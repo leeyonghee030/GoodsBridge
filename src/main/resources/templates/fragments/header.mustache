@@ -27,7 +27,7 @@
             <div class="category-rank">
                 <div class="category-list">
                     <h2>인기 상품 카테고리</h2>
-                    <ol>
+                    <ol id="shop-category-rank-list">
                         <li><a href="/test/item?category=포토카드"><span>01</span>포토카드</a></li>
                         <li><a href="/test/item?category=앨범"><span>02</span>앨범</a></li>
                         <li><a href="/test/item?category=피규어"><span>03</span>피규어</a></li>
@@ -51,7 +51,7 @@
             <div class="category-rank">
                 <div class="category-list">
                     <h2>인기 교환 카테고리</h2>
-                    <ol>
+                    <ol id="exchange-category-rank-list">
                         <li><a href="/exchange?categoryName=포토카드"><span>01</span>포토카드</a></li>
                         <li><a href="/exchange?categoryName=앨범"><span>02</span>앨범</a></li>
                         <li><a href="/exchange?categoryName=피규어"><span>03</span>피규어</a></li>
@@ -206,6 +206,36 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
 
     trigger.addEventListener('click', () => { menu.hidden = !menu.hidden; if (!menu.hidden) search.focus(); });
     document.addEventListener('click', event => { if (!dropdown.contains(event.target)) menu.hidden = true; });
+})();
+
+// 메가메뉴 인기 카테고리 (구매/교환 건수 기준 랭킹, 데이터 없으면 위 하드코딩된 기본 목록 유지)
+(() => {
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    function renderCategoryRank(listEl, categories, buildHref) {
+        if (!listEl || !categories.length) return;
+        listEl.innerHTML = categories.map((c, i) =>
+            `<li><a href="${buildHref(c.name)}"><span>${String(i + 1).padStart(2, '0')}</span>${esc(c.name)}</a></li>`
+        ).join('');
+    }
+
+    fetch('/api/categories/popular', { credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : [])
+        .then(categories => renderCategoryRank(
+            document.getElementById('shop-category-rank-list'),
+            categories,
+            name => `/test/item?category=${encodeURIComponent(name)}`
+        ))
+        .catch(() => {});
+
+    fetch('/api/categories/popular-exchange', { credentials: 'same-origin' })
+        .then(res => res.ok ? res.json() : [])
+        .then(categories => renderCategoryRank(
+            document.getElementById('exchange-category-rank-list'),
+            categories,
+            name => `/exchange?categoryName=${encodeURIComponent(name)}`
+        ))
+        .catch(() => {});
 })();
 
 document.addEventListener('DOMContentLoaded', () => {

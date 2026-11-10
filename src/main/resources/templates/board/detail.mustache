@@ -1,0 +1,219 @@
+{{> fragments/header}}
+
+<section class="page-head">
+    <h1 id="view-title" data-raw-title="{{board.title}}">{{#board.isSecret}}🔒 {{/board.isSecret}}{{board.title}}</h1>
+    <p>{{board.status.description}}</p>
+</section>
+
+<section class="panel" id="view-section">
+    <p id="view-content" style="white-space: pre-wrap;">{{board.content}}</p>
+    {{#board.itemId}}<div id="related-item"></div>{{/board.itemId}}
+    <div class="btn-row" id="owner-actions" hidden style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--color-border);">
+        <button type="button" id="edit-button">수정</button>
+        <button type="button" class="btn-secondary" id="delete-button">삭제</button>
+    </div>
+</section>
+
+<div class="modal-backdrop" id="edit-section" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="cancel-edit">✕</button>
+        <h1>게시글 수정</h1>
+        <form id="edit-form">
+            <p><input id="edit-title" type="text" maxlength="100" autocomplete="off" required></p>
+            <p><textarea id="edit-content" rows="5" required></textarea></p>
+            <p style="position: relative;">
+                <input id="item-search" type="text" placeholder="관련 상품 검색 (선택)" autocomplete="off">
+                <input id="edit-item-id" type="hidden" value="{{#board.itemId}}{{board.itemId}}{{/board.itemId}}">
+                <div id="item-search-results" class="autocomplete-list"></div>
+            </p>
+            <label class="checkbox-row">
+                <input type="checkbox" id="edit-secret" {{#board.isSecret}}checked{{/board.isSecret}}>
+                비밀글로 유지
+            </label>
+            <button type="submit">저장</button>
+        </form>
+        <p id="edit-message" class="form-message"></p>
+    </div>
+</div>
+
+<section class="panel">
+    <div class="section-title"><h2>댓글</h2></div>
+    <div id="reply-list">
+        {{^board.replies}}<p class="empty">아직 댓글이 없습니다.</p>{{/board.replies}}
+        {{#board.replies}}
+        <div class="comment-row">
+            <p>{{content}}</p>
+            <button type="button" class="comment-delete" data-delete-reply="{{id}}" data-author-id="{{authorId}}" hidden aria-label="댓글 삭제">✕</button>
+        </div>
+        {{/board.replies}}
+    </div>
+    <form id="reply-form" style="margin-top: 1rem;">
+        <p><input id="reply-content" type="text" placeholder="댓글을 입력하세요" required></p>
+        <button type="submit">댓글 등록</button>
+    </form>
+    <p id="reply-message" class="form-message"></p>
+</section>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+
+    const boardId = {{board.id}};
+    const authorId = {{board.authorId}};
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    const isOwner = userId !== null && userId === authorId;
+
+    function requireLogin() {
+        if (userId !== null) return true;
+        alert('로그인이 필요합니다.');
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) loginModal.hidden = false;
+        return false;
+    }
+
+    if (isOwner) document.getElementById('owner-actions').hidden = false;
+
+    // ===== 관련 상품 미리보기 (이름 + 썸네일) =====
+    const relatedItemId = {{#board.itemId}}{{board.itemId}}{{/board.itemId}}{{^board.itemId}}null{{/board.itemId}};
+    if (relatedItemId !== null) {
+        pageFetch('/api/items/' + relatedItemId).then(res => res.ok ? res.json() : null).then(item => {
+            if (!item) return;
+            document.getElementById('related-item').innerHTML = `
+                <a href="/test/item/${relatedItemId}" class="related-item-link">
+                    <span class="related-item-thumb">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : '🛍'}</span>
+                    <span>관련 상품: <strong>${esc(item.title)}</strong></span>
+                </a>`;
+        });
+    }
+
+    // 본인이 작성한 댓글에만 삭제 버튼 노출
+    document.querySelectorAll('[data-delete-reply]').forEach(button => {
+        if (userId !== null && userId === Number(button.dataset.authorId)) button.hidden = false;
+        button.addEventListener('click', async () => {
+            const res = await pageFetch('/api/replies/' + button.dataset.deleteReply, { method: 'DELETE' });
+            if (!res.ok) { alert('삭제에 실패했습니다.'); return; }
+            location.reload();
+        });
+    });
+
+    // ===== 게시글 수정 =====
+    const editSection = document.getElementById('edit-section');
+
+    document.getElementById('edit-button').addEventListener('click', async () => {
+        document.getElementById('edit-title').value = document.getElementById('view-title').dataset.rawTitle;
+        document.getElementById('edit-content').value = document.getElementById('view-content').textContent.trim();
+        await loadItemsForSearch();
+        const currentItemId = document.getElementById('edit-item-id').value;
+        const itemSearchInput = document.getElementById('item-search');
+        if (currentItemId) {
+            const current = allItemsForSearch.find(item => String(item.id) === currentItemId);
+            itemSearchInput.value = current ? current.title : '';
+        } else {
+            itemSearchInput.value = '';
+        }
+        editSection.hidden = false;
+    });
+    editSection.addEventListener('click', event => { if (event.target === editSection) editSection.hidden = true; });
+
+    // ===== 관련 상품 검색/선택 (로드된 목록을 글자 입력마다 즉시 클라이언트에서 필터링) =====
+    let allItemsForSearch = [];
+    let itemsLoaded = false;
+
+    async function loadItemsForSearch() {
+        if (itemsLoaded) return;
+        const res = await pageFetch('/api/items?size=200');
+        if (!res.ok) return;
+        itemsLoaded = true;
+        const page = await res.json();
+        allItemsForSearch = page.content || [];
+    }
+
+    const itemSearchResults = document.getElementById('item-search-results');
+    const editItemIdInput = document.getElementById('edit-item-id');
+    const itemSearchInput = document.getElementById('item-search');
+
+    function positionDropdown() {
+        const rect = itemSearchInput.getBoundingClientRect();
+        itemSearchResults.style.position = 'fixed';
+        itemSearchResults.style.top = rect.bottom + 'px';
+        itemSearchResults.style.left = rect.left + 'px';
+        itemSearchResults.style.width = rect.width + 'px';
+    }
+
+    function renderItemResults(matches) {
+        positionDropdown();
+        itemSearchResults.innerHTML = matches.length
+            ? matches.map(item => `<div class="autocomplete-item" data-id="${item.id}" data-title="${esc(item.title)}">${esc(item.title)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        itemSearchResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
+            editItemIdInput.value = el.dataset.id;
+            itemSearchInput.value = el.dataset.title;
+            itemSearchResults.innerHTML = '';
+        }));
+    }
+
+    function showItemResults() {
+        const keyword = itemSearchInput.value.trim().toLowerCase();
+        const matches = keyword
+            ? allItemsForSearch.filter(item => item.title.toLowerCase().includes(keyword))
+            : allItemsForSearch;
+        renderItemResults(matches);
+    }
+
+    itemSearchInput.addEventListener('focus', async () => {
+        await loadItemsForSearch();
+        showItemResults();
+    });
+    itemSearchInput.addEventListener('input', () => {
+        editItemIdInput.value = '';
+        showItemResults();
+    });
+    document.addEventListener('click', event => {
+        if (!itemSearchInput.contains(event.target) && !itemSearchResults.contains(event.target)) {
+            itemSearchResults.innerHTML = '';
+        }
+    });
+
+    document.getElementById('cancel-edit').addEventListener('click', () => { editSection.hidden = true; });
+
+    document.getElementById('edit-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = document.getElementById('edit-message');
+        const itemIdValue = document.getElementById('edit-item-id').value.trim();
+        const body = {
+            title: document.getElementById('edit-title').value.trim(),
+            content: document.getElementById('edit-content').value.trim(),
+            itemId: itemIdValue ? Number(itemIdValue) : null,
+            isSecret: document.getElementById('edit-secret').checked
+        };
+        const res = await pageFetch('/api/boards/' + boardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) { message.textContent = await res.text() || '수정에 실패했습니다.'; message.className = 'form-message error'; return; }
+        location.reload();
+    });
+
+    document.getElementById('delete-button').addEventListener('click', async () => {
+        if (!confirm('게시글을 삭제하시겠습니까?')) return;
+        const res = await pageFetch('/api/boards/' + boardId, { method: 'DELETE' });
+        if (!res.ok) { alert('삭제에 실패했습니다.'); return; }
+        location.href = '/test/board';
+    });
+
+    // ===== 댓글 작성 =====
+    document.getElementById('reply-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!requireLogin()) return;
+        const message = document.getElementById('reply-message');
+        const input = document.getElementById('reply-content');
+        const res = await pageFetch('/api/boards/' + boardId + '/replies', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: input.value.trim() })
+        });
+        if (!res.ok) { message.textContent = await res.text() || '댓글 등록에 실패했습니다.'; message.className = 'form-message error'; return; }
+        input.value = '';
+        location.reload();
+    });
+})();
+</script>
+
+{{> fragments/footer}}

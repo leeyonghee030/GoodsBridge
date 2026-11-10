@@ -74,7 +74,12 @@
 
     document.getElementById('comment-form').addEventListener('submit', async event => {
         event.preventDefault();
-        if (currentUserId === null) { alert('로그인이 필요합니다.'); return; }
+        if (currentUserId === null) {
+            alert('로그인이 필요합니다.');
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal) loginModal.hidden = false;
+            return;
+        }
         const input = document.getElementById('comment-content');
         const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/comments', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },

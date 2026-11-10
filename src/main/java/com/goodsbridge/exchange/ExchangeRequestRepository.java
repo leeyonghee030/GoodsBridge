@@ -44,8 +44,19 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
 """)
     public List<ExchangeRequest> findByStatusAndDeadlineBefore();
 
+    // 교환 게시글(ExchangeItem)별 제안받은 횟수 - 인기순 정렬용
+    @Query("""
+        select e.exchangeItemA.id as exchangeItemId, count(e) as requestCount
+        from ExchangeRequest e
+        where e.exchangeItemA.id in :exchangeItemIds
+        group by e.exchangeItemA.id
+        """)
+    List<ExchangeItemRequestCountView> countGroupedByExchangeItemId(@Param("exchangeItemIds") List<Long> exchangeItemIds);
 
-
+    interface ExchangeItemRequestCountView {
+        Long getExchangeItemId();
+        Long getRequestCount();
+    }
 
 
 }

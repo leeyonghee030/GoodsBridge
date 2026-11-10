@@ -28,6 +28,7 @@
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const portoneStoreId = '{{portoneStoreId}}';
     const portoneChannelKey = '{{portoneChannelKey}}';
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
 
     document.querySelectorAll('.card[data-item-id]').forEach(async card => {
         const itemId = card.dataset.itemId;
@@ -43,6 +44,12 @@
         btn.addEventListener('click', async () => {
             const card = btn.closest('.card');
             const message = card.querySelector('.form-message');
+            if (userId === null) {
+                alert('로그인이 필요합니다.');
+                const loginModal = document.getElementById('login-modal');
+                if (loginModal) loginModal.hidden = false;
+                return;
+            }
             const eventId = card.dataset.eventId;
             const fee = Number(card.dataset.fee);
             if (!window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }

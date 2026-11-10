@@ -30,6 +30,7 @@
 (() => {
     const itemId = {{item.id}};
     const price = {{item.price}};
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
     const title = document.querySelector('h1').textContent;
     const statusText = document.getElementById('item-status').textContent.trim();
     const buyButton = document.getElementById('buy-button');
@@ -42,6 +43,12 @@
     }
 
     buyButton.addEventListener('click', async () => {
+        if (userId === null) {
+            alert('로그인이 필요합니다.');
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal) loginModal.hidden = false;
+            return;
+        }
         const address = document.getElementById('delivery-address').value.trim();
         if (!address) { message.textContent = '배송지 주소를 입력하세요.'; message.className = 'form-message error'; return; }
         if (!window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }

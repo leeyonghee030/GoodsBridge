@@ -24,11 +24,12 @@ public class ExchangeItemResponse {
     private String shopName;
     private ExchangeItemStatus status;
     private LocalDateTime createdAt;
+    private Long requestCount; // 받은 교환 제안 수 (인기순 정렬용, 목록 조회가 아니면 0)
 
     @Builder
     public ExchangeItemResponse(Long id, Long userId, Long itemId, String itemTitle, Integer itemPrice, String itemImageUrl,
                                  String wantDescription, Long shopId, String shopName,
-                                 ExchangeItemStatus status, LocalDateTime createdAt) {
+                                 ExchangeItemStatus status, LocalDateTime createdAt, Long requestCount) {
         this.id = id;
         this.userId = userId;
         this.itemId = itemId;
@@ -40,9 +41,14 @@ public class ExchangeItemResponse {
         this.shopName = shopName;
         this.status = status;
         this.createdAt = createdAt;
+        this.requestCount = requestCount;
     }
 
     public static ExchangeItemResponse from(ExchangeItem exchangeItem) {
+        return from(exchangeItem, 0L);
+    }
+
+    public static ExchangeItemResponse from(ExchangeItem exchangeItem, Long requestCount) {
         return ExchangeItemResponse.builder()
             .id(exchangeItem.getId())
             .userId(exchangeItem.getUser().getId())
@@ -55,6 +61,7 @@ public class ExchangeItemResponse {
             .shopName(exchangeItem.getShop().getName())
             .status(exchangeItem.getStatus())
             .createdAt(exchangeItem.getCreatedAt())
+            .requestCount(requestCount == null ? 0L : requestCount)
             .build();
     }
 }

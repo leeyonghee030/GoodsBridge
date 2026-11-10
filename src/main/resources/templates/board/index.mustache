@@ -1,4 +1,227 @@
 {{> fragments/header}}
-<h1>Board (테스트용)</h1>
-<p class="todo">TODO: #8(게시판/댓글 CRUD) 완성 후 실제 화면으로 교체</p>
+
+<section class="page-head">
+    <h1>게시판</h1>
+    <p>문의와 공지를 올리고 답변을 받아보세요.</p>
+</section>
+
+<section class="panel">
+    <div class="section-title">
+        <h2>전체 글</h2>
+        <button type="button" id="open-create">글쓰기</button>
+    </div>
+    <form id="search-form" style="margin-bottom: 1rem;">
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" placeholder="제목 또는 내용 검색" value="{{keyword}}" style="width: 60%; display: inline-block;">
+        <button type="submit" style="width: auto; display: inline-block;">검색</button>
+        <button type="button" id="sort-toggle" class="btn-secondary" style="width: auto; display: inline-block;">최신순</button>
+    </form>
+    <div id="board-list">
+        {{^boards}}<p class="empty">아직 등록된 게시글이 없습니다.</p>{{/boards}}
+        {{#boards}}
+        <a class="payment-row" href="/test/board/{{id}}" style="text-decoration: none; color: inherit;">
+            <div>
+                <strong>{{#isSecret}}🔒 {{/isSecret}}{{title}}</strong>
+                <small>{{status.description}}</small>
+            </div>
+        </a>
+        {{/boards}}
+    </div>
+    <p id="load-more-status" class="empty" hidden>불러오는 중...</p>
+    <button type="button" id="load-more" style="margin-top: 0.75rem;" {{^totalPages}}hidden{{/totalPages}}>더 보기</button>
+</section>
+
+<div class="modal-backdrop" id="create-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="close-create">✕</button>
+        <h1>게시글 작성</h1>
+        <form id="create-form">
+            <p><input id="board-title" type="text" placeholder="제목" maxlength="100" autocomplete="off" required></p>
+            <p><textarea id="board-content" placeholder="내용을 입력하세요" rows="5" required></textarea></p>
+            <p style="position: relative;">
+                <input id="item-search" type="text" placeholder="관련 상품 검색 (선택)" autocomplete="off">
+                <input id="board-item-id" type="hidden">
+                <div id="item-search-results" class="autocomplete-list"></div>
+            </p>
+            <label class="checkbox-row">
+                <input type="checkbox" id="board-secret">
+                비밀글로 작성
+            </label>
+            <button type="submit">등록</button>
+        </form>
+        <p id="create-message" class="form-message"></p>
+    </div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const statusLabels = { PENDING: '답변 대기', COMPLETED: '답변 완료' };
+
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    function requireLogin() {
+        if (userId !== null) return true;
+        alert('로그인이 필요합니다.');
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) loginModal.hidden = false;
+        return false;
+    }
+
+    const keywordInput = document.getElementById('keyword-input');
+    const list = document.getElementById('board-list');
+    const loadMoreButton = document.getElementById('load-more');
+    const loadMoreStatus = document.getElementById('load-more-status');
+    let currentKeyword = keywordInput.value.trim();
+    let currentPage = 1; // 0페이지는 서버에서 이미 렌더링됨
+    let totalPages = {{totalPages}};
+    let sortDirection = 'desc'; // 최신순 기본
+
+    function rowHtml(board) {
+        return `<a class="payment-row" href="/test/board/${board.id}" style="text-decoration: none; color: inherit;">
+            <div>
+                <strong>${board.isSecret ? '🔒 ' : ''}${esc(board.title)}</strong>
+                <small>${esc(statusLabels[board.status] || board.status)}</small>
+            </div>
+        </a>`;
+    }
+
+    async function loadMore() {
+        if (currentPage >= totalPages) return;
+        loadMoreStatus.hidden = false;
+        const query = new URLSearchParams({ page: currentPage, size: 10, sort: 'id,' + sortDirection });
+        if (currentKeyword) query.set('keyword', currentKeyword);
+        const res = await pageFetch('/api/boards?' + query.toString());
+        loadMoreStatus.hidden = true;
+        if (!res.ok) return;
+        const page = await res.json();
+        list.insertAdjacentHTML('beforeend', (page.content || []).map(rowHtml).join(''));
+        totalPages = page.totalPages;
+        currentPage += 1;
+        loadMoreButton.hidden = currentPage >= totalPages;
+    }
+
+    loadMoreButton.hidden = currentPage >= totalPages;
+    loadMoreButton.addEventListener('click', loadMore);
+
+    // ===== 게시글 검색 (입력할 때마다 바로 조회, 엔터/버튼 불필요) =====
+    async function runSearch(keyword) {
+        currentKeyword = keyword;
+        const query = new URLSearchParams({ page: 0, size: 10, sort: 'id,' + sortDirection });
+        if (keyword) query.set('keyword', keyword);
+        const res = await pageFetch('/api/boards?' + query.toString());
+        if (!res.ok) return;
+        const page = await res.json();
+        const rows = page.content || [];
+        list.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="empty">아직 등록된 게시글이 없습니다.</p>';
+        totalPages = page.totalPages;
+        currentPage = 1;
+        loadMoreButton.hidden = currentPage >= totalPages;
+    }
+
+    let searchTimer;
+    keywordInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => runSearch(keywordInput.value.trim()), 200);
+    });
+
+    document.getElementById('search-form').addEventListener('submit', event => {
+        event.preventDefault();
+        clearTimeout(searchTimer);
+        runSearch(keywordInput.value.trim());
+    });
+
+    document.getElementById('sort-toggle').addEventListener('click', event => {
+        sortDirection = sortDirection === 'desc' ? 'asc' : 'desc';
+        event.target.textContent = sortDirection === 'desc' ? '최신순' : '오래된순';
+        runSearch(currentKeyword);
+    });
+
+    const modal = document.getElementById('create-modal');
+    document.getElementById('open-create').addEventListener('click', () => {
+        if (!requireLogin()) return;
+        modal.hidden = false;
+        loadItemsForSearch();
+    });
+    document.getElementById('close-create').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
+
+    // ===== 관련 상품 검색/선택 (로드된 목록을 글자 입력마다 즉시 클라이언트에서 필터링) =====
+    let allItemsForSearch = [];
+    let itemsLoaded = false;
+
+    async function loadItemsForSearch() {
+        if (itemsLoaded) return;
+        const res = await pageFetch('/api/items?size=200');
+        if (!res.ok) return;
+        itemsLoaded = true;
+        const page = await res.json();
+        allItemsForSearch = page.content || [];
+    }
+
+    const itemSearchInput = document.getElementById('item-search');
+    const itemSearchResults = document.getElementById('item-search-results');
+    const boardItemIdInput = document.getElementById('board-item-id');
+
+    // 모달의 overflow:auto에 드롭다운이 가려지지 않도록 body 바로 아래 fixed 위치로 띄움
+    function positionDropdown() {
+        const rect = itemSearchInput.getBoundingClientRect();
+        itemSearchResults.style.position = 'fixed';
+        itemSearchResults.style.top = rect.bottom + 'px';
+        itemSearchResults.style.left = rect.left + 'px';
+        itemSearchResults.style.width = rect.width + 'px';
+    }
+
+    function renderItemResults(matches) {
+        positionDropdown();
+        itemSearchResults.innerHTML = matches.length
+            ? matches.map(item => `<div class="autocomplete-item" data-id="${item.id}" data-title="${esc(item.title)}">${esc(item.title)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        itemSearchResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
+            boardItemIdInput.value = el.dataset.id;
+            itemSearchInput.value = el.dataset.title;
+            itemSearchResults.innerHTML = '';
+        }));
+    }
+
+    function showItemResults() {
+        const keyword = itemSearchInput.value.trim().toLowerCase();
+        const matches = keyword
+            ? allItemsForSearch.filter(item => item.title.toLowerCase().includes(keyword))
+            : allItemsForSearch;
+        renderItemResults(matches);
+    }
+
+    itemSearchInput.addEventListener('focus', async () => {
+        await loadItemsForSearch();
+        showItemResults();
+    });
+    itemSearchInput.addEventListener('input', () => {
+        boardItemIdInput.value = '';
+        showItemResults();
+    });
+    document.addEventListener('click', event => {
+        if (!itemSearchInput.contains(event.target) && !itemSearchResults.contains(event.target) && event.target !== itemSearchInput) {
+            itemSearchResults.innerHTML = '';
+        }
+    });
+
+    document.getElementById('create-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = document.getElementById('create-message');
+        const itemIdValue = document.getElementById('board-item-id').value.trim();
+        const body = {
+            title: document.getElementById('board-title').value.trim(),
+            content: document.getElementById('board-content').value.trim(),
+            itemId: itemIdValue ? Number(itemIdValue) : null,
+            isSecret: document.getElementById('board-secret').checked
+        };
+        const res = await pageFetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) { message.textContent = await res.text() || '등록에 실패했습니다.'; message.className = 'form-message error'; return; }
+        const createdId = await res.json();
+        location.href = '/test/board/' + createdId;
+    });
+})();
+</script>
+
 {{> fragments/footer}}
