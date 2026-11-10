@@ -51,6 +51,33 @@
     .dashboard-error {
         color: #c62828;
     }
+
+    .ops-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 1rem;
+    }
+
+    .ops-card {
+        padding: 1rem;
+        border: 1px solid #e8e8e8;
+        border-radius: 12px;
+        background: #fafafa;
+    }
+
+    .ops-card small {
+        display: block;
+        color: #777;
+        margin-bottom: .35rem;
+    }
+
+    .ops-card strong {
+        font-size: 1.3rem;
+    }
+
+    .ops-card.warn strong {
+        color: #c62828;
+    }
 </style>
 
 <div class="dashboard">
@@ -69,6 +96,19 @@
     <p id="dashboard-message" class="dashboard-message">
         통계를 불러오는 중입니다.
     </p>
+
+    <section class="dashboard-chart">
+        <h2>처리 대기 현황</h2>
+        <p class="dashboard-message">월과 무관한 현재 값입니다. 0이 아니면 처리가 필요한 항목입니다.</p>
+        <div id="pending-cards" class="ops-cards"></div>
+    </section>
+
+    <section class="dashboard-chart">
+        <h2>월 운영 지표</h2>
+        <div id="month-cards" class="ops-cards"></div>
+        <h3>결제 목적별 금액</h3>
+        <div id="purpose-cards" class="ops-cards"></div>
+    </section>
 
     <section class="dashboard-chart">
         <h2>전체 가입자 수</h2>
@@ -94,7 +134,7 @@
 <script>
     (() => {
         const pageFetch = (path, options = {}) =>
-            fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+            fetch(path, Object.assign({credentials: 'same-origin'}, options));
         const form = document.getElementById('dashboard-form');
         const monthInput = document.getElementById('month');
         const selectedMonth = document.getElementById('selected-month');
@@ -135,11 +175,61 @@
                 message.textContent = '통계 조회가 완료되었습니다.';
                 paymentAmount.textContent = '거래 금액 합계: ' + Number(data.paymentAmount || 0).toLocaleString('ko-KR') + '원';
 
+                renderOps(data);
                 renderCharts(month, data);
             } catch (error) {
                 message.textContent = error.message;
                 message.className = 'dashboard-error';
             }
+        }
+
+        const won = value => Number(value || 0).toLocaleString('ko-KR') + '원';
+        const count = value => Number(value || 0).toLocaleString('ko-KR') + '건';
+        const purposeLabel = {
+            PURCHASE: '일반 구매',
+            AUCTION_DEPOSIT: '경매 보증금',
+            AUCTION_BALANCE: '경매 낙찰 잔금',
+            EXCHANGE_DEPOSIT: '교환 예치금',
+            EVENT_FEE: '이벤트 참가비',
+            SHOP_SUBSCRIPTION: '가게 구독'
+        };
+
+        // 카드 하나를 그린다 (값은 textContent로 넣어 HTML이 섞이지 않게 한다)
+        function addCard(container, title, value, warn) {
+            const card = document.createElement('div');
+            card.className = 'ops-card' + (warn ? ' warn' : '');
+            const label = document.createElement('small');
+            label.textContent = title;
+            const strong = document.createElement('strong');
+            strong.textContent = value;
+            card.appendChild(label);
+            card.appendChild(strong);
+            container.appendChild(card);
+        }
+
+        function renderOps(data) {
+            const pending = document.getElementById('pending-cards');
+            const monthly = document.getElementById('month-cards');
+            const purpose = document.getElementById('purpose-cards');
+            pending.replaceChildren();
+            monthly.replaceChildren();
+            purpose.replaceChildren();
+
+            addCard(pending, '환불 승인 대기', count(data.pendingRefundCount), data.pendingRefundCount > 0);
+            addCard(pending, '발송 대기 구매', count(data.pendingShipmentCount), data.pendingShipmentCount > 0);
+            addCard(pending, '진행 중 경매', count(data.activeAuctionCount), false);
+            addCard(pending, '잔금 미납 낙찰', count(data.unpaidBalanceCount), data.unpaidBalanceCount > 0);
+            addCard(pending, '자동 환불 실패(수동 확인)', count(data.failedWebhookRefundCount), data.failedWebhookRefundCount > 0);
+
+            addCard(monthly, '환불 금액', won(data.refundedAmount), false);
+            addCard(monthly, '가게 정산 금액', won(data.settlementAmount), false);
+            addCard(monthly, '미기록 결제 자동 환불', count(data.autoRefundedCount), false);
+
+            const entries = Object.entries(data.paymentAmountByPurpose || {});
+            if (!entries.length) {
+                addCard(purpose, '결제 없음', '-', false);
+            }
+            entries.forEach(([key, amount]) => addCard(purpose, purposeLabel[key] || key, won(amount), false));
         }
 
         function renderCharts(month, data) {
