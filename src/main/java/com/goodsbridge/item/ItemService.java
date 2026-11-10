@@ -38,8 +38,8 @@ public class ItemService {
             throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
         }
 
-        // [추가] 가게 존재 여부 및 본인 소유(isOwner) 보안 검증
-        Shop shop = shopRepository.findById(request.getShopId())
+        // 💡 [동시성 방어 통일] update와 동일하게 비관적 락(findByIdWithLock) 적용
+        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
         if (!shop.isOwner(userId)) {
@@ -176,10 +176,7 @@ public class ItemService {
         }
     }
 
-    @Transactional
-    public void closeItemsByShopId(Long shopId) {
-        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
-    }
+
 
     // 특정 샵의 구독 재개/복구 시, 만료로 인해 소프트 삭제되었거나
     // 닫혀 있던(CLOSED) 모든 상품들을 일괄 복구하고 ON_SALE 상태로 전환합니다.

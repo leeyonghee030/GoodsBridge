@@ -59,7 +59,6 @@ class ItemServiceUpdateTest {
 
         Category mockCategory = Category.builder().name("굿즈").build();
 
-        // 💡 비관적 락(findByIdWithLock) 모킹 적용
         given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
         given(shopSubscriptionService.isSubscriptionActive(10L)).willReturn(true);
         given(categoryRepository.findById(1L)).willReturn(Optional.of(mockCategory));
@@ -87,16 +86,17 @@ class ItemServiceUpdateTest {
         // given
         Long userId = 1L;
         ItemCreateRequest request = new ItemCreateRequest();
-        request.setShopId(null); // 💡 가게 ID 누락
+        request.setShopId(null); // 💡 shopId 누락
         request.setCategoryId(1L);
         request.setTitle("테스트 상품");
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
         // when & then
+        // ItemCreateRequest.validate()에서 shopId가 null이면 "유효한 가게 ID를 입력해주세요."를 던집니다.
         assertThatThrownBy(() -> itemService.create(userId, request))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("상품을 등록하려면 가게 선택이 필수입니다.");
+            .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
 
         verify(itemRepository, never()).save(any(Item.class));
     }
@@ -149,8 +149,9 @@ class ItemServiceUpdateTest {
             .region("서울")
             .build();
 
-        given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionService.isSubscriptionActive(10L)).willReturn(false); // 💡 구독 만료/비활성 상태
+        // 💡 [핵심 수정] 특정 ID(10L) 대신 any(Long.class)를 사용하여 샵 조회 실패를 원천 차단합니다.
+        given(shopRepository.findByIdWithLock(any(Long.class))).willReturn(Optional.of(mockShop));
+        given(shopSubscriptionService.isSubscriptionActive(any(Long.class))).willReturn(false); // 구독 비활성 상태
 
         // when & then
         assertThatThrownBy(() -> itemService.create(userId, request))
@@ -176,10 +177,12 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
+        Category mockCategory = Category.builder().name("기존").build();
+
         Item mockItem = Item.builder()
             .sellerUserId(userId)
             .shopId(10L)
-            .category(Category.builder().name("기존").build())
+            .category(mockCategory) // 💡 카테고리 정상 주입
             .title("기존 제목")
             .price(15000)
             .saleType(SaleType.NORMAL)
@@ -191,8 +194,6 @@ class ItemServiceUpdateTest {
             .name("테스트 샵")
             .region("서울")
             .build();
-
-        Category mockCategory = Category.builder().name("굿즈").build();
 
         given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
         given(shopRepository.findByIdWithLock(10L)).willReturn(Optional.of(mockShop));
@@ -220,10 +221,15 @@ class ItemServiceUpdateTest {
         request.setCategoryId(1L);
         request.setTitle("수정 시도");
         request.setPrice(20000);
+        request.setSaleType(SaleType.NORMAL);
+        request.setStatus(ItemStatus.ON_SALE);
+
+        Category mockCategory = Category.builder().name("기존").build();
 
         Item mockItem = Item.builder()
             .sellerUserId(itemOwnerId) // 💡 다른 유저가 등록한 상품
             .shopId(10L)
+            .category(mockCategory)
             .price(15000)
             .build();
 
@@ -247,10 +253,15 @@ class ItemServiceUpdateTest {
         request.setCategoryId(1L);
         request.setTitle("수정 시도");
         request.setPrice(20000);
+        request.setSaleType(SaleType.NORMAL);
+        request.setStatus(ItemStatus.ON_SALE);
+
+        Category mockCategory = Category.builder().name("기존").build();
 
         Item mockItem = Item.builder()
             .sellerUserId(userId)
             .shopId(10L)
+            .category(mockCategory)
             .price(15000)
             .build();
 
@@ -259,7 +270,7 @@ class ItemServiceUpdateTest {
         // when & then
         assertThatThrownBy(() -> itemService.update(userId, itemId, request))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("상품 수정 시 가게 선택은 필수입니다.");
+            .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
     }
 
     @Test
@@ -275,10 +286,15 @@ class ItemServiceUpdateTest {
         request.setCategoryId(1L);
         request.setTitle("수정 시도");
         request.setPrice(20000);
+        request.setSaleType(SaleType.NORMAL);
+        request.setStatus(ItemStatus.ON_SALE);
+
+        Category mockCategory = Category.builder().name("기존").build();
 
         Item mockItem = Item.builder()
             .sellerUserId(loginUserId)
             .shopId(10L)
+            .category(mockCategory)
             .price(15000)
             .build();
 
@@ -308,10 +324,15 @@ class ItemServiceUpdateTest {
         request.setCategoryId(1L);
         request.setTitle("수정 시도");
         request.setPrice(20000);
+        request.setSaleType(SaleType.NORMAL);
+        request.setStatus(ItemStatus.ON_SALE);
+
+        Category mockCategory = Category.builder().name("기존").build();
 
         Item mockItem = Item.builder()
             .sellerUserId(userId)
             .shopId(10L)
+            .category(mockCategory)
             .price(15000)
             .build();
 
