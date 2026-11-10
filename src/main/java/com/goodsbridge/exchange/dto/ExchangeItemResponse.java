@@ -19,6 +19,7 @@ public class ExchangeItemResponse {
     private String itemTitle;
     private Integer itemPrice;
     private String itemImageUrl;
+    private String categoryName;
     private String wantDescription;
     private Long shopId;
     private String shopName;
@@ -28,7 +29,7 @@ public class ExchangeItemResponse {
 
     @Builder
     public ExchangeItemResponse(Long id, Long userId, Long itemId, String itemTitle, Integer itemPrice, String itemImageUrl,
-                                 String wantDescription, Long shopId, String shopName,
+                                 String categoryName, String wantDescription, Long shopId, String shopName,
                                  ExchangeItemStatus status, LocalDateTime createdAt, Long requestCount) {
         this.id = id;
         this.userId = userId;
@@ -36,6 +37,7 @@ public class ExchangeItemResponse {
         this.itemTitle = itemTitle;
         this.itemPrice = itemPrice;
         this.itemImageUrl = itemImageUrl;
+        this.categoryName = categoryName;
         this.wantDescription = wantDescription;
         this.shopId = shopId;
         this.shopName = shopName;
@@ -56,6 +58,7 @@ public class ExchangeItemResponse {
             .itemTitle(exchangeItem.getItem().getTitle())
             .itemPrice(exchangeItem.getItem().getPrice())
             .itemImageUrl(exchangeItem.getItem().getImageUrl())
+            .categoryName(exchangeItem.getItem().getCategory().getName())
             .wantDescription(exchangeItem.getWantDescription())
             .shopId(exchangeItem.getShop().getId())
             .shopName(exchangeItem.getShop().getName())

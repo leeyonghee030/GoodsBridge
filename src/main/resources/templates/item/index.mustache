@@ -7,7 +7,7 @@
     <span class="list-toolbar-category" id="toolbar-category">전체</span>
     <div class="list-toolbar-actions">
         <label for="keyword-input" class="sr-only">검색</label>
-        <input type="text" id="keyword-input" class="toolbar-search" placeholder="상품명 검색" autocomplete="off">
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="상품명, 카테고리 검색" autocomplete="off">
         <button type="button" class="write-link" id="open-filter">필터</button>
     </div>
 </div>
@@ -21,6 +21,11 @@
             <button type="button" class="filter-chip" data-sort="price_desc">가격 높은순</button>
         </div>
     </div>
+    <p style="position: relative;">
+        <label for="categorySearch" class="sr-only">카테고리</label>
+        <input id="categorySearch" type="text" placeholder="카테고리" autocomplete="off">
+        <div id="category-results" class="autocomplete-list category-filter-list"></div>
+    </p>
 </div>
 
 <p id="item-empty" class="empty-state" hidden>조건에 맞는 상품이 없습니다.</p>
@@ -54,8 +59,11 @@
     const filterQuick = document.getElementById('filter-quick');
     const keywordInput = document.getElementById('keyword-input');
     const toolbarCategory = document.getElementById('toolbar-category');
+    const categorySearch = document.getElementById('categorySearch');
+    const categoryResults = document.getElementById('category-results');
 
     let allItems = [];
+    let allCategories = [];
     let selectedCategory = new URLSearchParams(location.search).get('category') || '';
     let sortBy = 'latest';
     const shopInfo = document.getElementById('shop-filter-info');
@@ -69,7 +77,9 @@
         const filtered = allItems.filter(item =>
             (!selectedCategory || item.categoryName === selectedCategory)
             && (!shopId || String(item.shopId) === shopId)
-            && (!keyword || (item.title || '').toLowerCase().includes(keyword))
+            && (!keyword
+                || (item.title || '').toLowerCase().includes(keyword)
+                || (item.categoryName || '').toLowerCase().includes(keyword))
         );
         if (sortBy === 'price_asc') filtered.sort((a, b) => (a.price || 0) - (b.price || 0));
         else if (sortBy === 'price_desc') filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
@@ -87,17 +97,49 @@
         `).join('');
     }
 
+    function selectCategory(name) {
+        selectedCategory = name;
+        toolbarCategory.textContent = selectedCategory || '전체';
+        filterQuick.querySelectorAll('.filter-chip').forEach(chip => chip.classList.toggle('active', chip.dataset.name === name));
+        renderGrid();
+    }
+
     function renderQuickChips(categories) {
-        const top10 = [...categories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 10);
+        allCategories = categories;
+        const top5 = [...categories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 5);
         filterQuick.innerHTML = `<button type="button" class="filter-chip${selectedCategory ? '' : ' active'}" data-name="">전체</button>`
-            + top10.map(c => `<button type="button" class="filter-chip${c.name === selectedCategory ? ' active' : ''}" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('');
-        filterQuick.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
-            selectedCategory = el.dataset.name;
-            toolbarCategory.textContent = selectedCategory || '전체';
-            filterQuick.querySelectorAll('.filter-chip').forEach(chip => chip.classList.toggle('active', chip === el));
-            renderGrid();
+            + top5.map(c => `<button type="button" class="filter-chip${c.name === selectedCategory ? ' active' : ''}" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('');
+        filterQuick.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => selectCategory(el.dataset.name)));
+    }
+
+    // 모달/패널의 overflow에 드롭다운이 가려지지 않도록 body 바로 아래 fixed 위치로 띄움
+    function positionResults(inputEl, resultsEl) {
+        const rect = inputEl.getBoundingClientRect();
+        resultsEl.style.position = 'fixed';
+        resultsEl.style.top = rect.bottom + 'px';
+        resultsEl.style.left = rect.left + 'px';
+        resultsEl.style.width = rect.width + 'px';
+    }
+
+    // 상위 인기 카테고리 외 전체 카테고리는 입력창 클릭 시 목록으로 (많아지면 스크롤)
+    function renderCategoryList() {
+        positionResults(categorySearch, categoryResults);
+        const keyword = categorySearch.value.trim().toLowerCase();
+        const matches = keyword ? allCategories.filter(c => c.name.toLowerCase().includes(keyword)) : allCategories;
+        categoryResults.innerHTML = matches.length
+            ? matches.map(c => `<div class="autocomplete-item" data-name="${esc(c.name)}">${esc(c.name)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        categoryResults.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
+            selectCategory(el.dataset.name);
+            categoryResults.innerHTML = '';
+            categorySearch.value = '';
         }));
     }
+    categorySearch.addEventListener('focus', renderCategoryList);
+    categorySearch.addEventListener('input', renderCategoryList);
+    document.addEventListener('click', event => {
+        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) categoryResults.innerHTML = '';
+    });
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
     keywordInput.addEventListener('input', renderGrid);

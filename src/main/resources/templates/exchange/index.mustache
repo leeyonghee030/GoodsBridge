@@ -1,13 +1,18 @@
 {{> fragments/header}}
 
-<h1 class="page-title">교환 게시판 <button type="button" id="open-create" class="write-link">글쓰기</button><button type="button" id="open-item-create" class="write-link">상품 등록</button></h1>
+<h1 class="page-title">교환 게시판
+    <span class="page-title-actions">
+        <button type="button" id="open-item-create" class="write-link">상품 등록</button>
+        <button type="button" id="open-create" class="write-link">글쓰기</button>
+    </span>
+</h1>
 <p id="shop-filter-info" class="card-meta" style="margin: 0 1.5rem 1rem;" hidden></p>
 
 <div class="list-toolbar">
     <span class="list-toolbar-category" id="toolbar-category">전체</span>
     <div class="list-toolbar-actions">
         <label for="keyword-input" class="sr-only">검색</label>
-        <input type="text" id="keyword-input" class="toolbar-search" placeholder="검색" autocomplete="off" value="{{keyword}}">
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="제목, 카테고리 검색" autocomplete="off" value="{{keyword}}">
         <button type="button" class="write-link" id="open-filter">필터</button>
     </div>
 </div>
@@ -23,9 +28,9 @@
         </div>
     </div>
     <p style="position: relative;">
-        <label for="categorySearch" class="sr-only">카테고리 검색</label>
-        <input id="categorySearch" type="text" placeholder="카테고리 검색" autocomplete="off">
-        <div id="category-results" class="autocomplete-list"></div>
+        <label for="categorySearch" class="sr-only">카테고리</label>
+        <input id="categorySearch" type="text" placeholder="카테고리" autocomplete="off">
+        <div id="category-results" class="autocomplete-list category-filter-list"></div>
     </p>
 </div>
 
@@ -35,7 +40,7 @@
 
 <div class="card-grid" id="item-grid">
 {{#items}}
-    <a class="card" href="/exchange/{{id}}" data-price="{{itemPrice}}" data-created="{{createdAt}}" data-title="{{itemTitle}}" data-want="{{wantDescription}}" data-shop-id="{{shopId}}" data-request-count="{{requestCount}}">
+    <a class="card" href="/exchange/{{id}}" data-price="{{itemPrice}}" data-created="{{createdAt}}" data-title="{{itemTitle}}" data-category="{{categoryName}}" data-want="{{wantDescription}}" data-shop-id="{{shopId}}" data-request-count="{{requestCount}}">
         <span class="card-tag">■ {{status.displayName}}</span>
         <div class="card-image">
             {{#itemImageUrl}}<img src="{{itemImageUrl}}" alt="{{itemTitle}}">{{/itemImageUrl}}
@@ -269,9 +274,9 @@
     const keywordValue = params.get('keyword') || '';
     const filterPanel = document.getElementById('filter-panel');
     const filterQuick = document.getElementById('filter-quick');
+    const keywordInput = document.getElementById('keyword-input');
     const categorySearch = document.getElementById('categorySearch');
     const categoryResults = document.getElementById('category-results');
-    const keywordInput = document.getElementById('keyword-input');
     let allCategories = [];
 
     function goToCategory(id) {
@@ -282,11 +287,27 @@
     }
 
     function renderQuickChips() {
-        const top10 = [...allCategories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 10);
+        const top5 = [...allCategories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 5);
         filterQuick.innerHTML = '<button type="button" class="filter-chip' + (!selectedCategoryId ? ' active' : '') + '" data-id="">전체</button>'
-            + top10.map(c => `<button type="button" class="filter-chip${String(c.id) === selectedCategoryId ? ' active' : ''}" data-id="${c.id}">${esc(c.name)}</button>`).join('');
+            + top5.map(c => `<button type="button" class="filter-chip${String(c.id) === selectedCategoryId ? ' active' : ''}" data-id="${c.id}">${esc(c.name)}</button>`).join('');
         filterQuick.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
     }
+
+    // 상위 인기 카테고리 외 전체 카테고리는 입력창 클릭 시 목록으로 (많아지면 스크롤)
+    function renderCategoryList() {
+        positionResults(categorySearch, categoryResults);
+        const keyword = categorySearch.value.trim().toLowerCase();
+        const matches = keyword ? allCategories.filter(c => c.name.toLowerCase().includes(keyword)) : allCategories;
+        categoryResults.innerHTML = matches.length
+            ? matches.map(c => `<div class="autocomplete-item" data-id="${c.id}">${esc(c.name)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        categoryResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
+    }
+    categorySearch.addEventListener('focus', renderCategoryList);
+    categorySearch.addEventListener('input', renderCategoryList);
+    document.addEventListener('click', event => {
+        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) categoryResults.innerHTML = '';
+    });
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
 
@@ -326,16 +347,6 @@
         applySort('popular');
     }
 
-    categorySearch.addEventListener('input', event => {
-        const keyword = event.target.value.trim().toLowerCase();
-        if (!keyword) { categoryResults.innerHTML = ''; return; }
-        const matches = allCategories.filter(c => c.name.toLowerCase().includes(keyword));
-        categoryResults.innerHTML = matches.length
-            ? matches.map(c => `<div class="autocomplete-item" data-id="${c.id}">${esc(c.name)}</div>`).join('')
-            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
-        categoryResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
-    });
-
     // 입력할 때마다 한 글자씩 바로 필터링 (이미 로드된 카드 안에서, 서버 재요청 없음) + 헤더 "전체매장"에서 고른 매장
     const shopInfo = document.getElementById('shop-filter-info');
     function getSelectedShopId() { return localStorage.getItem('gb_shop_id') || ''; }
@@ -346,7 +357,8 @@
         Array.from(itemGrid.children).forEach(card => {
             const matches = (!keyword
                     || (card.dataset.title || '').toLowerCase().includes(keyword)
-                    || (card.dataset.want || '').toLowerCase().includes(keyword))
+                    || (card.dataset.want || '').toLowerCase().includes(keyword)
+                    || (card.dataset.category || '').toLowerCase().includes(keyword))
                 && (!shopId || card.dataset.shopId === shopId);
             card.style.display = matches ? '' : 'none';
         });
@@ -400,7 +412,7 @@
     const PAGE_SIZE = 20;
 
     function cardHtml(item) {
-        return `<a class="card" href="/exchange/${item.id}" data-price="${item.itemPrice}" data-created="${item.createdAt}" data-title="${esc(item.itemTitle)}" data-want="${esc(item.wantDescription)}" data-shop-id="${item.shopId}" data-request-count="${item.requestCount || 0}">
+        return `<a class="card" href="/exchange/${item.id}" data-price="${item.itemPrice}" data-created="${item.createdAt}" data-title="${esc(item.itemTitle)}" data-category="${esc(item.categoryName)}" data-want="${esc(item.wantDescription)}" data-shop-id="${item.shopId}" data-request-count="${item.requestCount || 0}">
             <span class="card-tag">■ ${esc(statusLabels[item.status] || item.status)}</span>
             <div class="card-image">${item.itemImageUrl ? `<img src="${esc(item.itemImageUrl)}" alt="${esc(item.itemTitle)}">` : '이미지 없음'}</div>
             <p class="card-title">${esc(item.itemTitle)}</p>
