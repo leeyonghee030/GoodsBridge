@@ -27,7 +27,7 @@ public class Item {
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false)
     private String title;
 
     @Column(columnDefinition = "TEXT")
@@ -64,7 +64,7 @@ public class Item {
     @Builder
     public Item(Long sellerUserId, Long shopId, Category category, String title,
                 String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
-        validateItem(category, title, description, price);
+        validateItem(shopId, category, title, description, price);
 
         this.sellerUserId = sellerUserId;
         this.shopId = shopId;
@@ -77,9 +77,11 @@ public class Item {
         this.imageUrl = imageUrl;
     }
 
-    public void update(Category category, String title, String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
-        validateItem(category, title, description, price);
+    // [수정] shopId 필드 변경 로직 추가
+    public void update(Long shopId, Category category, String title, String description, Integer price, SaleType saleType, ItemStatus status, String imageUrl) {
+        validateItem(shopId, category, title, description, price);
 
+        this.shopId = shopId;
         this.category = category;
         this.title = title;
         this.description = description;
@@ -93,7 +95,10 @@ public class Item {
         this.imageUrl = imageUrl;
     }
 
-    private void validateItem(Category category, String title, String description, Integer price) {
+    private void validateItem(Long shopId, Category category, String title, String description, Integer price) {
+        if (shopId == null || shopId <= 0) {
+            throw new BadRequestException("가게 ID는 필수입니다.");
+        }
         if (category == null) {
             throw new BadRequestException("카테고리는 필수입니다.");
         }
@@ -109,7 +114,6 @@ public class Item {
         if (price == null || price <= 0) {
             throw new BadRequestException("가격은 0보다 커야 합니다.");
         }
-        // 💡 [검증 강화] 비즈니스 정책에 따른 상품 가격 상한선 검증 (예: 1억 원)
         if (price > 100_000_000) {
             throw new BadRequestException("상품 가격은 1억 원을 초과할 수 없습니다.");
         }
