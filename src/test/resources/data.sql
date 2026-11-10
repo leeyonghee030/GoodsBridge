@@ -54,5 +54,8 @@ VALUES (1L, 1L, 2L, '홍대 굿즈샵 시그니처 후드티', '가게 활성 �
 -- ==========================================
 -- 4. 가게 구독 데이터 (ShopSubscription)
 -- ==========================================
-INSERT INTO shop_subscription_tb (shop_id, setup_fee_paid, start_date, end_date, status, created_at)
-VALUES (1, true, CURRENT_DATE(), DATEADD('DAY', 30, CURRENT_DATE()), 'ACTIVE', NOW());
+INSERT INTO shop_subscription_tb
+(shop_id, payment_id, setup_fee_paid, start_date, end_date, status, created_at)
+VALUES
+    (1, 'PAY_TEST_SUBSCRIPTION_001', true, CURRENT_DATE(),
+     DATEADD('DAY', 30, CURRENT_DATE()), 'ACTIVE', NOW());

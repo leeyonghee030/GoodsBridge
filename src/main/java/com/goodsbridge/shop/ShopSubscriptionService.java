@@ -3,6 +3,8 @@ package com.goodsbridge.shop;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge._core.util.SecurityUtil;
+import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
@@ -13,6 +15,8 @@ import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,49 +34,63 @@ public class ShopSubscriptionService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final ShopSubscriptionProcessor subscriptionProcessor;
 
-    // 일 단위 표준 요금 정책 (예: 1일 = 1,000원 -> 30일 = 30,000원)
     private static final int PRICE_PER_DAY = 1000;
+    private static final int MAX_DAYS = 1095; // 한 번에 최대 3년(1095일) 제한
 
-    // 일 단위 구독 시작 && 기간 연장(누적)
     @Transactional
     public Long create(Long userId, Long shopId, ShopSubscriptionRequest request) {
-
-        // 1. 일수 및 결제 ID 유효성 검사
         if (request.getDays() == null || request.getDays() <= 0) {
             throw new BadRequestException("구독 일수는 1일 이상이어야 합니다.");
+        }
+        if (request.getDays() > MAX_DAYS) {
+            throw new BadRequestException("한 번에 최대 3년(1095일)까지만 구독할 수 있습니다.");
         }
 
         if (request.getPaymentId() == null || request.getPaymentId().isBlank()) {
             throw new BadRequestException("결제 ID가 필요합니다.");
         }
 
-        // [방어 1: 중복 결제 방지] 이미 사용된 paymentId인지 사전 검증 (Fast-Fail)
+        // 정수 오버플로 방어 계산
+        long calculatedAmountLong = (long) request.getDays() * PRICE_PER_DAY;
+        if (calculatedAmountLong > Integer.MAX_VALUE) {
+            throw new BadRequestException("결제 금액이 허용 범위를 초과했습니다.");
+        }
+        int expectedAmount = (int) calculatedAmountLong;
+
+        if (request.getAmount() == null || !request.getAmount().equals(expectedAmount)) {
+            throw new BadRequestException("결제 금액 정보가 올바르지 않습니다.");
+        }
+
+        // 샵 조회 및 비관적 락 적용 (샵 삭제/폐점 트랜잭션과 경쟁 상태 방지)
+        Shop shop = shopRepository.findByIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        // 폐점·삭제·미승인 샵 구독 결제 차단 방어 로직
+        if (shop.isDeleted()) {
+            throw new BadRequestException("이미 삭제(폐점)된 가게는 구독을 진행할 수 없습니다.");
+        }
+        if (shop.getStatus() != ShopStatus.APPROVED) {
+            throw new BadRequestException("승인 완료(APPROVED)된 가게만 구독을 진행할 수 있습니다. (현재 상태: " + shop.getStatus() + ")");
+        }
+
+        // [중복 결제 방어] DB 레벨 제약 및 exists 체크를 통한 이중 방어
         if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
 
-        // [방어 2: 위변조 방지] 서버 단 결제 금액 검증
-        int expectedAmount = request.getDays() * PRICE_PER_DAY;
-        if (request.getAmount() == null || !request.getAmount().equals(expectedAmount)) {
-            throw new BadRequestException("결제 금액 정보가 올바르지 않습니다. (요청 금액: " + request.getAmount() + ", 정가: " + expectedAmount + ")");
-        }
-
-        Shop shop = shopRepository.findById(shopId)
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
-
-        User user = userRepository.findById(userId)
+        userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
 
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("본인의 가게만 구독을 시작하거나 갱신할 수 있습니다.");
         }
 
-        ShopSubscription existingSubscription = subscriptionRepository.findByShopId(shopId).orElse(null);
-
+        ShopSubscription existingSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
         boolean isActive = existingSubscription != null && existingSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
 
-        // [외부 연동] 포트원 결제 검증 연동
+        // 외부 결제 검증
         paymentService.verify(
             request.getPaymentId(),
             request.getAmount(),
@@ -90,24 +108,15 @@ public class ShopSubscriptionService {
         ShopSubscription subscription;
 
         if (isActive) {
-            // [방어 3: Null 방어] 기존 만료일 안전하게 추출
             LocalDate currentEndDate = existingSubscription.getEndDate() != null ? existingSubscription.getEndDate() : LocalDate.now();
+            LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
 
-            // ACTIVE 상태인 구독이 기간이 남아있을 때: 기존 종료일에 새로운 일수 합산
-            LocalDate baseDate = currentEndDate.isAfter(LocalDate.now())
-                ? currentEndDate
-                : LocalDate.now();
-
-            startDate = currentEndDate.isAfter(LocalDate.now())
-                ? currentEndDate
-                : LocalDate.now();
-
+            startDate = baseDate;
             endDate = baseDate.plusDays(request.getDays());
 
             existingSubscription.extendSubscription(startDate, endDate, setupFeePaid, request.getPaymentId());
             subscription = existingSubscription;
         } else {
-            // 신규 가입 또는 만료/취소되었던 가게의 재시작
             startDate = LocalDate.now();
             endDate = startDate.plusDays(request.getDays());
 
@@ -122,29 +131,27 @@ public class ShopSubscriptionService {
                     .startDate(startDate)
                     .endDate(endDate)
                     .status(ShopSubscriptionStatus.ACTIVE)
-                    .paymentId(request.getPaymentId()) // [결제 번호 저장]
+                    .paymentId(request.getPaymentId())
                     .build());
         }
 
         try {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
-            // 만료되었던 가게가 구독을 재개한 경우 CLOSED 상품들을 ON_SALE로 복구 + 운영 로그
             if (isExpiredOrCancelled || existingSubscription == null) {
-                itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
-                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 연장 일수: {}일 | 판매 중단 상품들이 ON_SALE로 전환되었습니다.", shopId, request.getDays());
+                restoreAndActivateItemsByShopId(shopId);
+
+                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
             }
 
             return subscriptionId;
 
         } catch (DataIntegrityViolationException e) {
-            // [방어 4: 동시성 충돌 및 유니크 제약 방어]
-            log.error("[구독 중복 생성 충돌] 가게 ID: {} 또는 결제 번호 충돌이 감지되었습니다.", shopId, e);
-            throw new BadRequestException("이미 처리 중이거나 존재하는 구독 정보(또는 결제 번호)입니다. 잠시 후 다시 시도해 주세요.");
+            log.error("[구독 중복 생성 충돌] 가게 ID: {}", shopId, e);
+            throw new BadRequestException("이미 처리 중이거나 존재하는 구독 정보(또는 결제 번호)입니다.");
         }
     }
 
-    // 가게 단건 구독 조회 (가게 사장 본인)
     public ShopSubscriptionResponse findById(Long userId, Long shopId) {
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
@@ -154,12 +161,11 @@ public class ShopSubscriptionService {
         }
 
         ShopSubscription subscription = subscriptionRepository.findByShopId(shopId)
-            .orElseThrow(() -> new NotFoundException("구독 정보가 존재하지 않습니다"));
+            .orElseThrow(() -> new NotFoundException("구독 정보가 존재하지 않습니다."));
 
         return ShopSubscriptionResponse.from(subscription);
     }
 
-    // (관리자) 전체 가게 구독 현황 목록 조회
     public List<ShopSubscriptionResponse> findAllSubscriptions(Long adminUserId) {
         validateAdmin(adminUserId);
         return subscriptionRepository.findAll().stream()
@@ -167,13 +173,77 @@ public class ShopSubscriptionService {
             .toList();
     }
 
-    // 가게 구독 활성 여부 확인 (상품 등록/수정 제한용)
+    @Transactional
+    public int processExpiredSubscriptionsByAdmin() {
+        // 1. 현재 요청을 보낸 사용자의 ID를 추출하여 관리자 권한 검증
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        User adminUser = userRepository.findById(adminUserId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
+
+        if (adminUser.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("관리자 권한만 구독 만료 배치를 수동 실행할 수 있습니다.");
+        }
+
+        log.info("[관리자 수동 트리거] 관리자(ID: {})에 의해 만료 구독 배치 강제 실행", adminUserId);
+
+        // 2. 기존 커서 페이징 배치 로직 호출
+        return processExpiredSubscriptions();
+    }
+
+    // [스케줄러 & 관리자 공용] 커서 페이징을 활용한 만료 구독 일괄 처리 핵심 로직
+    @Transactional(readOnly = true)
+    public int processExpiredSubscriptions() {
+        int pageSize = 100;
+        Long lastId = 0L;
+        int totalProcessedCount = 0;
+        LocalDate today = LocalDate.now();
+
+        log.info("[커서 페이징 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
+
+        while (true) {
+            Pageable pageable = PageRequest.of(0, pageSize);
+            List<ShopSubscription> expiredSubscriptions =
+                subscriptionRepository.findExpiredActiveSubscriptionsAfterId(lastId, today, pageable);
+
+            if (expiredSubscriptions.isEmpty()) {
+                break;
+            }
+
+            for (ShopSubscription subscription : expiredSubscriptions) {
+                lastId = subscription.getId();
+
+                try {
+                    // 개별 트랜잭션(REQUIRES_NEW)으로 분리된 프로세서 호출
+                    boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
+                    if (success) {
+                        totalProcessedCount++;
+                    }
+                } catch (Exception e) {
+                    log.error("[배치 개별 실패 격리] subscriptionId: {}, 사유: {}", subscription.getId(), e.getMessage());
+                }
+            }
+        }
+
+        log.info("[커서 페이징 배치 완료] 총 {}건의 만료 구독 처리 완료", totalProcessedCount);
+        return totalProcessedCount;
+    }
+
     public boolean isSubscriptionActive(Long shopId) {
         return subscriptionRepository.findByShopId(shopId)
             .map(sub -> sub.getStatus() == ShopSubscriptionStatus.ACTIVE
                 && sub.getEndDate() != null
                 && !sub.getEndDate().isBefore(LocalDate.now()))
             .orElse(false);
+    }
+
+    // 구독 재개 시, 만료로 소프트 삭제되었거나 CLOSED 상태였던 상품들을 일괄 복구하고 ON_SALE로 전환
+    // (ItemService 대신 ItemRepository를 직접 사용 — ItemService가 이 서비스에 의존하고 있어 순환 참조 방지)
+    private void restoreAndActivateItemsByShopId(Long shopId) {
+        List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
+        for (Item item : expiredItems) {
+            item.restore(ItemStatus.ON_SALE);
+        }
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
     }
 
     private void validateAdmin(Long userId) {

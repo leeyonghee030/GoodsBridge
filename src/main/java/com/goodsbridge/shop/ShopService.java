@@ -2,6 +2,7 @@ package com.goodsbridge.shop;
 
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -11,6 +12,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -18,6 +21,8 @@ public class ShopService {
 
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
+    private final ItemRepository itemRepository;
+    private final ShopSubscriptionRepository subscriptionRepository;
 
     @Transactional
     public ShopResponse create(Long userId, ShopCreateRequest requestDto) {
@@ -61,12 +66,26 @@ public class ShopService {
 
     @Transactional
     public void delete(Long userId, Long shopId) {
-        Shop shop = findActiveShopEntity(shopId);
+        // 💡 1. 샵 폐점 시 비관적 락을 적용하여 동시 구독/수정 충돌 원천 차단
+        Shop shop = shopRepository.findByIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+        if (shop.isDeleted()) {
+            throw new NotFoundException("이미 삭제(폐점)된 가게입니다.");
+        }
         validateOwner(shop, userId);
 
-        // 하드 삭제 대신 소프트 삭제 수행 (데이터 보존 및 연관관계 무결성 유지)
+        LocalDateTime now = LocalDateTime.now();
+
+        // 2. 가게 본인 소프트 삭제 (폐점 처리)
         shop.deleteShop();
+
+        // 3. 💡 [정합성 보장] 연관된 모든 상품 일괄 소프트 삭제 및 판매 마감 (CLOSED)
+        itemRepository.softDeleteByShopId(shopId, now);
+
+        // 4. 💡 [정합성 보장] 활성화된(ACTIVE) 구독이 있다면 소프트 삭제 및 유니크 충돌 방지 처리
+        subscriptionRepository.findActiveByShopIdWithLock(shopId).ifPresent(ShopSubscription::delete);
     }
+
 
     @Transactional
     public void approve(Long adminUserId, Long shopId) {
