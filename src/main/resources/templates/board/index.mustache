@@ -55,6 +55,12 @@
 </div>
 
 <script>
+// 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
+const errorText = async (res, fallback) => {
+    const text = await res.text();
+    try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+};
+
 (() => {
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -222,7 +228,7 @@
             isSecret: document.getElementById('board-secret').checked
         };
         const res = await pageFetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) { message.textContent = await res.text() || '등록에 실패했습니다.'; message.className = 'form-message error'; return; }
+        if (!res.ok) { message.textContent = await errorText(res, '등록에 실패했습니다.'); message.className = 'form-message error'; return; }
         const createdId = await res.json();
         location.href = '/test/board/' + createdId;
     });

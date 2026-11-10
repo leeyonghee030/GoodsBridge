@@ -12,7 +12,7 @@ import lombok.Setter;
 @Getter
 @NoArgsConstructor
 public class ItemCreateRequest {
-    @NotNull(message = "가게 ID는 필수 입력 값입니다.") // 💡 [추가] 상품 등록 시 가게 선택 강제화
+    // 가게 ID가 없으면 교환용 상품으로 보고 가게 없이 등록 (교환 화면의 상품 등록)
     private Long shopId;
 
     @NotNull(message = "카테고리 ID는 필수 입력 값입니다.")
@@ -33,7 +33,7 @@ public class ItemCreateRequest {
     private String imageUrl;
 
     public void validate() {
-        if (shopId == null || shopId <= 0) {
+        if (shopId != null && shopId <= 0) {
             throw new BadRequestException("유효한 가게 ID를 입력해주세요.");
         }
         if (categoryId == null || categoryId <= 0) {

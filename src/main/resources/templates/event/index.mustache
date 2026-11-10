@@ -22,6 +22,12 @@
 </div>
 
 <script>
+// 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
+const errorText = async (res, fallback) => {
+    const text = await res.text();
+    try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+};
+
 (() => {
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
     const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
@@ -65,7 +71,7 @@
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ paymentId: result.paymentId })
                 });
-                if (!res.ok) throw new Error(await res.text() || '참가에 실패했습니다.');
+                if (!res.ok) throw new Error(await errorText(res, '참가에 실패했습니다.'));
                 message.textContent = '참가가 완료되었습니다!'; message.className = 'form-message';
             } catch (error) {
                 message.textContent = error.message; message.className = 'form-message error';

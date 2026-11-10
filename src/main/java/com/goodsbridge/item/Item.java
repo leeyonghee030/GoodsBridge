@@ -96,7 +96,8 @@ public class Item {
     }
 
     private void validateItem(Long shopId, Category category, String title, String description, Integer price) {
-        if (shopId == null || shopId <= 0) {
+        // shopId가 없는 상품(교환용)은 허용, 값이 있으면 유효한지만 확인 (수정 시 가게 필수 여부는 ItemService에서 검증)
+        if (shopId != null && shopId <= 0) {
             throw new BadRequestException("가게 ID는 필수입니다.");
         }
         if (category == null) {

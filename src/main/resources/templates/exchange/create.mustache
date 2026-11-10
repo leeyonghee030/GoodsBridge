@@ -24,6 +24,12 @@
 </div>
 
 <script>
+// 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
+const errorText = async (res, fallback) => {
+    const text = await res.text();
+    try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+};
+
 (() => {
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
     const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
@@ -76,7 +82,7 @@
             shopId: Number(shopId)
         };
         const res = await pageFetch('/api/exchange-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!res.ok) { message.textContent = await res.text() || '등록에 실패했습니다.'; message.className = 'form-message error'; return; }
+        if (!res.ok) { message.textContent = await errorText(res, '등록에 실패했습니다.'); message.className = 'form-message error'; return; }
         const created = await res.json();
         location.href = '/exchange/' + created.id;
     });

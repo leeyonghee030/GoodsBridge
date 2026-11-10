@@ -33,22 +33,21 @@ public class ItemService {
     public Long create(Long userId, ItemCreateRequest request) {
         request.validate();
 
-        // [추가] shopId 필수 검증 (가게 없는 일반 판매 상품 등록 원천 차단)
-        if (request.getShopId() == null) {
-            throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
-        }
+        // 가게 ID가 있을 때만 가게 상품으로 보고 소유자/구독 검증
+        // (가게 ID 없이 들어오는 건 교환 화면에서 일반 유저가 등록하는 교환용 상품 — 기획서 3.2 예외)
+        if (request.getShopId() != null) {
+            // 💡 [동시성 방어 통일] update와 동일하게 비관적 락(findByIdWithLock) 적용
+            Shop shop = shopRepository.findByIdWithLock(request.getShopId())
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
-        // 💡 [동시성 방어 통일] update와 동일하게 비관적 락(findByIdWithLock) 적용
-        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+            if (!shop.isOwner(userId)) {
+                throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
+            }
 
-        if (!shop.isOwner(userId)) {
-            throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
-        }
-
-        // [추가] 구독 활성화 여부 필수 검증
-        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+            // [추가] 구독 활성화 여부 필수 검증
+            if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+                throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+            }
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
@@ -118,23 +117,25 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        // [추가] 수정 시에도 shopId 필수화 및 우회 방지
         if (request.getShopId() == null) {
-            throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
-        }
+            // 가게 없는 상품(교환용)은 가게 ID 없이 수정 가능. 가게 상품은 가게를 떼어낼 수 없음
+            if (item.getShopId() != null) {
+                throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
+            }
+        } else {
+            // [동시성 방어] 샵 상태 및 구독 변경 동시 충돌 방지를 위해 비관적 락(findByIdWithLock) 적용
+            Shop shop = shopRepository.findByIdWithLock(request.getShopId())
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
-        // [동시성 방어] 샵 상태 및 구독 변경 동시 충돌 방지를 위해 비관적 락(findByIdWithLock) 적용
-        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+            // [추가] 수정하려는 가게의 소유자 검증
+            if (!shop.isOwner(userId)) {
+                throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
+            }
 
-        // [추가] 수정하려는 가게의 소유자 검증
-        if (!shop.isOwner(userId)) {
-            throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
-        }
-
-        // [추가] 수정 시에도 구독 활성화 상태 필수 검증
-        if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
+            // [추가] 수정 시에도 구독 활성화 상태 필수 검증
+            if (!shopSubscriptionService.isSubscriptionActive(request.getShopId())) {
+                throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
+            }
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())

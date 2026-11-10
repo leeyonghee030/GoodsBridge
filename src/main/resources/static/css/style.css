@@ -306,6 +306,22 @@ main { display: block; padding-top: 5rem; }
 
 .modal-card .modal-close:hover { color: var(--color-text); background: none; }
 
+/* 모달 왼쪽 위 뒤로가기 (닫기 버튼과 같은 톤, 전역 button 스타일 덮어씀) */
+.modal-card .modal-back {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    width: auto;
+    border: none;
+    background: none;
+    padding: 0.2rem 0.3rem;
+    font-size: 0.82rem;
+    font-weight: var(--fw-medium);
+    color: var(--color-muted);
+}
+
+.modal-card .modal-back:hover { color: var(--color-text); background: none; }
+
 h1 {
     color: var(--color-text);
     font-size: 1.25rem;
@@ -354,6 +370,92 @@ input[type="file"]::file-selector-button {
 }
 
 input[type="file"]::file-selector-button:hover { background: var(--color-dark-hover); }
+
+/* 이미지 선택: 다른 입력칸과 같은 테두리 박스 안에 "이미지 선택" 버튼 + 파일 이름 */
+.image-picker {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.8rem 0.45rem 0.45rem;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+}
+
+/* 실제 파일 input은 화면에서 숨김 (전역 input[type="file"] 스타일이 .sr-only보다 우선해서 여기서 다시 지정) */
+.image-picker input[type="file"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+}
+
+.image-picker-btn {
+    flex: none;
+    padding: 0.45rem 0.9rem;
+    background: var(--color-dark);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    font-weight: var(--fw-semibold);
+    cursor: pointer;
+}
+
+.image-picker-btn:hover { background: var(--color-dark-hover); }
+.image-picker input:focus-visible + .image-picker-btn { outline: 2px solid var(--color-dark); outline-offset: 2px; }
+
+.image-picker-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-muted);
+    font-size: 0.85rem;
+}
+
+/* 내 아이템 목록: 많아지면 창 안에서 스크롤 (스크롤 중에만 스크롤바 표시) */
+.my-items-list {
+    height: 420px;
+    max-height: 60vh;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    padding-right: 0.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+}
+
+.my-items-list .my-item-row { cursor: default; }
+.my-items-list .my-item-row:hover { opacity: 1; }
+
+/* 오른쪽 작은 버튼 (전역 button[type="button"]의 width:100%/검은 배경을 덮어씀) */
+.my-items-list .my-item-actions { flex: none; display: flex; gap: 0.35rem; }
+.my-items-list .my-item-actions button {
+    width: auto;
+    padding: 0.3rem 0.65rem;
+    font-size: 0.75rem;
+    font-weight: var(--fw-semibold);
+}
+.my-items-list .my-item-actions button.is-danger {
+    background: var(--color-bg);
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+.my-items-list .my-item-actions button.is-danger:hover { background: var(--color-surface); }
+
+/* 가격 입력칸: 다른 입력칸과 같은 모양 + 오른쪽에 '원' 단위 표시 */
+.price-input { position: relative; display: block; }
+.price-input input { padding-right: 2.2rem; text-align: right; }
+.price-input-unit {
+    position: absolute;
+    right: 0.8rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-muted);
+    font-size: 0.9rem;
+    pointer-events: none;
+}
 
 textarea { resize: vertical; }
 
@@ -792,28 +894,33 @@ textarea:focus {
 /* 스크롤 중에만 스크롤바 노출 (JS가 스크롤 시 is-scrolling을 토글) */
 .detail-post.is-scrolling,
 .detail-comments #reply-list.is-scrolling,
-.exchange-comments #comments-list.is-scrolling {
+.exchange-comments #comments-list.is-scrolling,
+.my-items-list.is-scrolling {
     scrollbar-color: var(--color-border) transparent;
 }
 
 .detail-post::-webkit-scrollbar,
 .detail-comments #reply-list::-webkit-scrollbar,
-.exchange-comments #comments-list::-webkit-scrollbar { width: 6px; }
+.exchange-comments #comments-list::-webkit-scrollbar,
+.my-items-list::-webkit-scrollbar { width: 6px; }
 
 .detail-post::-webkit-scrollbar-track,
 .detail-comments #reply-list::-webkit-scrollbar-track,
-.exchange-comments #comments-list::-webkit-scrollbar-track { background: transparent; }
+.exchange-comments #comments-list::-webkit-scrollbar-track,
+.my-items-list::-webkit-scrollbar-track { background: transparent; }
 
 .detail-post::-webkit-scrollbar-thumb,
 .detail-comments #reply-list::-webkit-scrollbar-thumb,
-.exchange-comments #comments-list::-webkit-scrollbar-thumb {
+.exchange-comments #comments-list::-webkit-scrollbar-thumb,
+.my-items-list::-webkit-scrollbar-thumb {
     background: transparent;
     border-radius: 3px;
 }
 
 .detail-post.is-scrolling::-webkit-scrollbar-thumb,
 .detail-comments #reply-list.is-scrolling::-webkit-scrollbar-thumb,
-.exchange-comments #comments-list.is-scrolling::-webkit-scrollbar-thumb {
+.exchange-comments #comments-list.is-scrolling::-webkit-scrollbar-thumb,
+.my-items-list.is-scrolling::-webkit-scrollbar-thumb {
     background: var(--color-border);
 }
 
@@ -1384,6 +1491,23 @@ button.link-button:hover { background: none; color: var(--color-text); }
     color: var(--color-text-soft);
 }
 
+/* 대표사진이 있는 배너: 사진을 꽉 채우고, 글씨는 흰색 + 아래쪽 어두운 그라데이션으로 읽히게 */
+.main-hero-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 22%;
+}
+
+.main-hero.has-image .main-hero-overlay {
+    background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0.25) 55%, rgba(0,0,0,0));
+}
+
+.main-hero.has-image .main-hero-overlay strong,
+.main-hero.has-image .main-hero-overlay span { color: #fff; }
+
 .main-hero-cta {
     margin-top: 0.5rem;
     font-size: 0.78rem !important;
@@ -1626,6 +1750,23 @@ button.link-button:hover { background: none; color: var(--color-text); }
     color: var(--color-text-soft);
 }
 
+/* 메뉴 사진: 칸을 꽉 채우고, 글씨는 흰색 + 아래쪽 어두운 그라데이션 */
+.category-photo-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 25%;
+}
+
+.category-photo.has-image .category-photo-overlay {
+    background: linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));
+}
+
+.category-photo.has-image .category-photo-overlay strong,
+.category-photo.has-image .category-photo-overlay span { color: #fff; }
+
 .promo-strip {
     width: 95%;
     max-width: 1400px;
@@ -1645,7 +1786,7 @@ button.link-button:hover { background: none; color: var(--color-text); }
     display: grid;
     grid-template-columns: 1.3fr 1fr;
     gap: 1.5rem;
-    width: 100%;
+    width: 95%;
     min-height: 420px;
     margin: 2.5rem auto 0;
     border-top: 1px solid var(--color-border);
@@ -1670,6 +1811,20 @@ button.link-button:hover { background: none; color: var(--color-text); }
     height: 260px;
     background: var(--color-surface);
     text-decoration: none;
+}
+
+/* 이벤트 사진: 칸을 꽉 채우고 얼굴이 보이도록 위쪽 기준으로 자름 */
+.event-feature-photo,
+.event-feature-photo-sub { overflow: hidden; position: relative; }
+/* 큰 사진이 원본 높이만큼 섹션을 늘리지 않도록 칸 안에 띄워서 채움 */
+.event-feature-photo img { position: absolute; inset: 0; }
+.event-feature-photo img,
+.event-feature-photo-sub img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
 }
 
 .event-feature-text {
@@ -1798,6 +1953,11 @@ button.link-button:hover { background: none; color: var(--color-text); }
     line-height: 1;
     color: var(--color-text);
     overflow: hidden;
+}
+
+/* 넓은 화면에서만 큰 GoodsBridge 글자를 왼쪽으로 150px 이동 (좁은 화면에서는 잘리지 않게 그대로) */
+@media (min-width: 1100px) {
+    .footer-wordmark { transform: translateX(-150px); }
 }
 
 .footer-bottom {

@@ -57,6 +57,65 @@ class ItemServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("1-1. 가게 ID 없이 등록하면(교환 화면 상품 등록) 가게 없이 일반 유저도 등록된다")
+    void createItemWithoutShopTest() {
+        Category category = categoryRepository.findAll().stream().findFirst().orElseThrow();
+
+        ItemCreateRequest request = new ItemCreateRequest();
+        request.setCategoryId(category.getId());
+        request.setTitle("교환용 포토카드");
+        request.setPrice(15000);
+        request.setSaleType(SaleType.NORMAL);
+
+        Long itemId = itemService.create(999L, request);
+
+        Item savedItem = itemRepository.findById(itemId).orElseThrow();
+        assertThat(savedItem.getShopId()).isNull();
+        assertThat(savedItem.getSellerUserId()).isEqualTo(999L);
+    }
+
+    @Test
+    @DisplayName("1-2. 가게 ID를 넣으면 본인 가게가 아닐 때 등록할 수 없다 (가게 상품 검증 유지)")
+    void createItemWithOthersShopFailTest() {
+        Category category = categoryRepository.findAll().stream().findFirst().orElseThrow();
+
+        ItemCreateRequest request = new ItemCreateRequest();
+        request.setCategoryId(category.getId());
+        request.setShopId(1L);
+        request.setTitle("남의 가게 상품");
+        request.setPrice(15000);
+        request.setSaleType(SaleType.NORMAL);
+
+        assertThrows(ForbiddenException.class, () -> itemService.create(999L, request));
+    }
+
+    @Test
+    @DisplayName("1-3. 가게 없는 상품은 가게 ID 없이 수정할 수 있다")
+    void updateItemWithoutShopTest() {
+        Category category = categoryRepository.findAll().stream().findFirst().orElseThrow();
+        ItemCreateRequest createRequest = new ItemCreateRequest();
+        createRequest.setCategoryId(category.getId());
+        createRequest.setTitle("교환용 포토카드");
+        createRequest.setPrice(15000);
+        createRequest.setSaleType(SaleType.NORMAL);
+        Long itemId = itemService.create(999L, createRequest);
+
+        ItemUpdateRequest updateRequest = new ItemUpdateRequest();
+        updateRequest.setCategoryId(category.getId());
+        updateRequest.setTitle("교환용 포토카드 (수정)");
+        updateRequest.setPrice(18000);
+        updateRequest.setSaleType(SaleType.NORMAL);
+        updateRequest.setStatus(ItemStatus.ON_SALE);
+
+        itemService.update(999L, itemId, updateRequest);
+
+        Item updatedItem = itemRepository.findById(itemId).orElseThrow();
+        assertThat(updatedItem.getTitle()).isEqualTo("교환용 포토카드 (수정)");
+        assertThat(updatedItem.getPrice()).isEqualTo(18000);
+        assertThat(updatedItem.getShopId()).isNull();
+    }
+
+    @Test
     @DisplayName("2. 필터 조건(카테고리, 판매 타입 등)을 적용한 페이징 검색 테스트")
     void searchItemsWithFilterTest() {
         // given

@@ -12,6 +12,12 @@ spring:
         password: ${DB_PASSWORD}
         driver-class-name: com.mysql.cj.jdbc.Driver
 
+    # 이미지 업로드 크기 제한 (기본 1MB라 휴대폰 사진이 막혀서 상향)
+    servlet:
+        multipart:
+            max-file-size: 10MB
+            max-request-size: 10MB
+
     jpa:
         hibernate:
             ddl-auto: ${JPA_DDL_AUTO:update}
