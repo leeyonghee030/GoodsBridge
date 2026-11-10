@@ -11,8 +11,16 @@
 <div class="list-toolbar">
     <span class="list-toolbar-category" id="toolbar-category">전체</span>
     <div class="list-toolbar-actions">
+        <div class="scope-dropdown" id="scope-dropdown">
+            <button type="button" class="write-link" id="scope-trigger">전체 ⌄</button>
+            <div class="scope-menu" id="scope-menu" hidden>
+                <button type="button" class="scope-menu-item active" data-scope="all">전체</button>
+                <button type="button" class="scope-menu-item" data-scope="title">제목</button>
+                <button type="button" class="scope-menu-item" data-scope="want">원하는 것</button>
+            </div>
+        </div>
         <label for="keyword-input" class="sr-only">검색</label>
-        <input type="text" id="keyword-input" class="toolbar-search" placeholder="제목, 카테고리 검색" autocomplete="off" value="{{keyword}}">
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="검색" autocomplete="off" value="{{keyword}}">
         <button type="button" class="write-link" id="open-filter">필터</button>
     </div>
 </div>
@@ -293,8 +301,19 @@
         filterQuick.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
     }
 
+    // 드롭다운을 완전히 접음 (display:none까지 꺼야 빈 테두리가 CSS 기본 position으로 화면에 남는 걸 막음)
+    function closeCategoryResults() {
+        categoryResults.innerHTML = '';
+        categoryResults.style.display = 'none';
+        categoryResults.style.removeProperty('position');
+        categoryResults.style.removeProperty('top');
+        categoryResults.style.removeProperty('left');
+        categoryResults.style.removeProperty('width');
+    }
+
     // 상위 인기 카테고리 외 전체 카테고리는 입력창 클릭 시 목록으로 (많아지면 스크롤)
     function renderCategoryList() {
+        categoryResults.style.display = '';
         positionResults(categorySearch, categoryResults);
         const keyword = categorySearch.value.trim().toLowerCase();
         const matches = keyword ? allCategories.filter(c => c.name.toLowerCase().includes(keyword)) : allCategories;
@@ -306,8 +325,11 @@
     categorySearch.addEventListener('focus', renderCategoryList);
     categorySearch.addEventListener('input', renderCategoryList);
     document.addEventListener('click', event => {
-        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) categoryResults.innerHTML = '';
+        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) closeCategoryResults();
     });
+    // 페이지 스크롤(카드 영역 등)이면 닫되, 드롭다운 목록 자체를 스크롤하는 건 막지 않음
+    // (scroll 이벤트는 버블링되지 않으므로 캡처 단계를 쓰지 않으면 window/document 자체 스크롤에만 반응함)
+    window.addEventListener('scroll', closeCategoryResults, { passive: true });
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
 
@@ -351,15 +373,38 @@
     const shopInfo = document.getElementById('shop-filter-info');
     function getSelectedShopId() { return localStorage.getItem('gb_shop_id') || ''; }
 
+    // 검색 범위 선택: 전체(제목+카테고리+원하는것) / 제목(+카테고리) / 원하는 것(교환 품목)
+    let searchScope = 'all';
+    const scopeTrigger = document.getElementById('scope-trigger');
+    const scopeMenu = document.getElementById('scope-menu');
+    const scopeLabels = { all: '전체', title: '제목', want: '원하는 것' };
+
+    document.getElementById('scope-dropdown').addEventListener('click', event => {
+        event.stopPropagation();
+        if (event.target === scopeTrigger) { scopeMenu.hidden = !scopeMenu.hidden; return; }
+        const item = event.target.closest('.scope-menu-item');
+        if (!item) return;
+        searchScope = item.dataset.scope;
+        scopeTrigger.textContent = scopeLabels[searchScope] + ' ⌄';
+        scopeMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
+        scopeMenu.hidden = true;
+        applyCardFilters();
+    });
+    document.addEventListener('click', () => { scopeMenu.hidden = true; });
+
     function applyCardFilters() {
         const keyword = keywordInput.value.trim().toLowerCase();
         const shopId = getSelectedShopId();
         Array.from(itemGrid.children).forEach(card => {
-            const matches = (!keyword
-                    || (card.dataset.title || '').toLowerCase().includes(keyword)
-                    || (card.dataset.want || '').toLowerCase().includes(keyword)
-                    || (card.dataset.category || '').toLowerCase().includes(keyword))
-                && (!shopId || card.dataset.shopId === shopId);
+            const title = (card.dataset.title || '').toLowerCase();
+            const category = (card.dataset.category || '').toLowerCase();
+            const want = (card.dataset.want || '').toLowerCase();
+            const scopeMatches = !keyword || (
+                searchScope === 'title' ? (title.includes(keyword) || category.includes(keyword)) :
+                searchScope === 'want' ? want.includes(keyword) :
+                (title.includes(keyword) || category.includes(keyword) || want.includes(keyword))
+            );
+            const matches = scopeMatches && (!shopId || card.dataset.shopId === shopId);
             card.style.display = matches ? '' : 'none';
         });
     }

@@ -121,8 +121,19 @@
         resultsEl.style.width = rect.width + 'px';
     }
 
+    // 드롭다운을 완전히 접음 (display:none까지 꺼야 빈 테두리가 CSS 기본 position으로 화면에 남는 걸 막음)
+    function closeCategoryResults() {
+        categoryResults.innerHTML = '';
+        categoryResults.style.display = 'none';
+        categoryResults.style.removeProperty('position');
+        categoryResults.style.removeProperty('top');
+        categoryResults.style.removeProperty('left');
+        categoryResults.style.removeProperty('width');
+    }
+
     // 상위 인기 카테고리 외 전체 카테고리는 입력창 클릭 시 목록으로 (많아지면 스크롤)
     function renderCategoryList() {
+        categoryResults.style.display = '';
         positionResults(categorySearch, categoryResults);
         const keyword = categorySearch.value.trim().toLowerCase();
         const matches = keyword ? allCategories.filter(c => c.name.toLowerCase().includes(keyword)) : allCategories;
@@ -131,15 +142,18 @@
             : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
         categoryResults.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
             selectCategory(el.dataset.name);
-            categoryResults.innerHTML = '';
+            closeCategoryResults();
             categorySearch.value = '';
         }));
     }
     categorySearch.addEventListener('focus', renderCategoryList);
     categorySearch.addEventListener('input', renderCategoryList);
     document.addEventListener('click', event => {
-        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) categoryResults.innerHTML = '';
+        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) closeCategoryResults();
     });
+    // 페이지 스크롤(카드 영역 등)이면 닫되, 드롭다운 목록 자체를 스크롤하는 건 막지 않음
+    // (scroll 이벤트는 버블링되지 않으므로 캡처 단계를 쓰지 않으면 window/document 자체 스크롤에만 반응함)
+    window.addEventListener('scroll', closeCategoryResults, { passive: true });
 
     document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
     keywordInput.addEventListener('input', renderGrid);
