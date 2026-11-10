@@ -99,7 +99,6 @@ public class ShopViewController {
 
     // --- 관리자 전용 스케줄러 수동 트리거 API ---
 
-    @Profile({"local", "dev"})
     @PostMapping("/api/admin/scheduler/subscriptions")
     public ResponseEntity<SchedulerResponse> triggerExpiredSubscriptionBatch() {
         log.info("[관리자 API] 수동 스케줄러 트리거 요청 수신: 만료 구독 일괄 처리");
@@ -110,6 +109,7 @@ public class ShopViewController {
 
         return ResponseEntity.ok(new SchedulerResponse(true, processedCount, "만료 구독 배치가 성공적으로 수동 실행되었습니다."));
     }
+
 
     public record SchedulerResponse(
         boolean success,

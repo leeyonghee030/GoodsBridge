@@ -24,7 +24,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
     @Query("""
         SELECT i FROM Item i
         JOIN FETCH i.category c
-        JOIN Shop s ON i.shopId = s.id
+        LEFT JOIN Shop s ON i.shopId = s.id
         WHERE (:categoryId IS NULL OR c.id = :categoryId)
           AND (:region IS NULL OR s.region = :region)
           AND (:saleType IS NULL OR i.saleType = :saleType)
@@ -57,6 +57,6 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         @Param("targetStatus") ItemStatus targetStatus
     );
 
-    @Query(value = "SELECT * FROM item_tb WHERE shop_id = :shopId AND deleted_at IS NOT NULL", nativeQuery = true)
+    @Query("SELECT i FROM Item i WHERE i.shopId = :shopId AND i.deletedAt IS NOT NULL")
     List<Item> findAllDeletedByShopId(@Param("shopId") Long shopId);
 }

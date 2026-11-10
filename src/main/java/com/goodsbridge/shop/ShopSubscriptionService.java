@@ -3,6 +3,7 @@ package com.goodsbridge.shop;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemService;
 import com.goodsbridge.item.ItemStatus;
@@ -166,19 +167,6 @@ public class ShopSubscriptionService {
         return ShopSubscriptionResponse.from(subscription);
     }
 
-    @Transactional
-    public void restoreSubscriptionAndItems(Long shopId, String originalPaymentId) {
-        ShopSubscription subscription = subscriptionRepository.findDeletedByShopId(shopId)
-            .orElseThrow(() -> new NotFoundException("복구할 삭제된 구독 정보를 찾을 수 없습니다."));
-
-        subscription.restore(originalPaymentId);
-
-        // 💡 [개선] ItemService에 상품 복구 위임
-        itemService.restoreAndActivateItemsByShopId(shopId);
-
-        log.info("[구독 및 상품 복구 완료] 가게 ID: {}", shopId);
-    }
-
     public List<ShopSubscriptionResponse> findAllSubscriptions(Long adminUserId) {
         validateAdmin(adminUserId);
         return subscriptionRepository.findAll().stream()
@@ -186,11 +174,24 @@ public class ShopSubscriptionService {
             .toList();
     }
 
+    @Transactional
     public int processExpiredSubscriptionsByAdmin() {
-        log.info("[관리자 수동 트리거] 만료 구독 배치 강제 실행");
+        // 1. 현재 요청을 보낸 사용자의 ID를 추출하여 관리자 권한 검증
+        Long adminUserId = SecurityUtil.getCurrentUserId();
+        User adminUser = userRepository.findById(adminUserId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
+
+        if (adminUser.getRole() != Role.ADMIN) {
+            throw new ForbiddenException("관리자 권한만 구독 만료 배치를 수동 실행할 수 있습니다.");
+        }
+
+        log.info("[관리자 수동 트리거] 관리자(ID: {})에 의해 만료 구독 배치 강제 실행", adminUserId);
+
+        // 2. 기존 커서 페이징 배치 로직 호출
         return processExpiredSubscriptions();
     }
 
+    // [스케줄러 & 관리자 공용] 커서 페이징을 활용한 만료 구독 일괄 처리 핵심 로직
     @Transactional(readOnly = true)
     public int processExpiredSubscriptions() {
         int pageSize = 100;
@@ -213,6 +214,7 @@ public class ShopSubscriptionService {
                 lastId = subscription.getId();
 
                 try {
+                    // 개별 트랜잭션(REQUIRES_NEW)으로 분리된 프로세서 호출
                     boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
                     if (success) {
                         totalProcessedCount++;

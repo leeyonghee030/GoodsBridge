@@ -146,13 +146,17 @@ public class ItemService {
         itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
     }
 
-    // ItemService 내부에 추가해야 할 메서드 예시
+    // 특정 샵의 구독 재개/복구 시, 만료로 인해 소프트 삭제되었거나
+    // 닫혀 있던(CLOSED) 모든 상품들을 일괄 복구하고 ON_SALE 상태로 전환합니다.
     @Transactional
     public void restoreAndActivateItemsByShopId(Long shopId) {
+        // 1. 소프트 삭제된 상품들 조회 후 복구 처리
         List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
         for (Item item : expiredItems) {
             item.restore(ItemStatus.ON_SALE);
         }
+
+        // 2. 삭제되지 않고 단순히 상태만 CLOSED였던 상품들 일괄 상태 변경
         itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
     }
 }
