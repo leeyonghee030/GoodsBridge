@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Slf4j
@@ -109,8 +110,8 @@ public class ShopSubscriptionService {
             LocalDate currentEndDate = existingSubscription.getEndDate() != null ? existingSubscription.getEndDate() : LocalDate.now();
             LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
 
-            // 💡 방어 로직: 연장하려는 총 일수가 오늘 기준 최대 허용 기간(1095일)을 넘지 않는지 검증
-            long totalDaysFromNow = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), baseDate.plusDays(request.getDays()));
+            // 💡 [보완] 연장하려는 총 일수가 오늘 기준 최대 허용 기간(1095일)을 넘지 않는지 검증
+            long totalDaysFromNow = ChronoUnit.DAYS.between(LocalDate.now(), baseDate.plusDays(request.getDays()));
             if (totalDaysFromNow > MAX_DAYS) {
                 throw new BadRequestException("구독 기간은 오늘부터 최대 3년(1095일)까지만 누적 연장할 수 있습니다.");
             }

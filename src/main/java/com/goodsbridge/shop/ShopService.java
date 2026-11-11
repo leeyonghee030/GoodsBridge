@@ -1,5 +1,6 @@
 package com.goodsbridge.shop;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.ItemRepository;
@@ -66,7 +67,7 @@ public class ShopService {
 
     @Transactional
     public void delete(Long userId, Long shopId) {
-        // 💡 1. 샵 폐점 시 비관적 락을 적용하여 동시 구독/수정 충돌 원천 차단
+        // 💡 샵 폐점 시 비관적 락을 적용하여 동시 구독/수정 충돌 원천 차단
         Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
         if (shop.isDeleted()) {
@@ -86,11 +87,21 @@ public class ShopService {
         subscriptionRepository.findActiveByShopIdWithLock(shopId).ifPresent(ShopSubscription::delete);
     }
 
-
     @Transactional
     public void approve(Long adminUserId, Long shopId) {
         validateAdmin(adminUserId);
-        Shop shop = findActiveShopEntity(shopId);
+
+        // 💡 [방어 로직 보완] 락을 포함하여 조회하거나 활성 엔티티 조회 후 상태 검증
+        Shop shop = shopRepository.findById(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (shop.isDeleted()) {
+            throw new BadRequestException("이미 삭제(폐점)된 가게는 승인할 수 없습니다.");
+        }
+        if (shop.getStatus() == ShopStatus.APPROVED) {
+            throw new BadRequestException("이미 승인 완료된 가게입니다.");
+        }
+
         shop.updateStatus(ShopStatus.APPROVED);
     }
 

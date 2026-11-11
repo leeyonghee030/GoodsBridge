@@ -12,7 +12,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -25,22 +28,20 @@ public class ItemService {
 
     private final ItemRepository itemRepository;
     private final CategoryJpaRepository categoryRepository;
-    private final ShopRepository shopRepository; // [추가] 가게 소유자 및 존재 여부 확인용
-    private final ShopSubscriptionRepository shopSubscriptionRepository; // 💡 순환 참조 원천 차단을 위해 Repository 직접 주입
+    private final ShopRepository shopRepository;
+    private final ShopSubscriptionRepository shopSubscriptionRepository;
 
-    private static final int MAX_PAGE_SIZE = 100; // 페이징 최대 허용 사이즈 제한
+    private static final int MAX_PAGE_SIZE = 100;
 
     // 상품 등록 : 구독 여부 검증 -> 카테고리 검증 -> 상품 정보 저장
     @Transactional
     public Long create(Long userId, ItemCreateRequest request) {
         request.validate();
 
-        // [추가] shopId 필수 검증 (가게 없는 일반 판매 상품 등록 원천 차단)
         if (request.getShopId() == null) {
             throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
         }
 
-        // 💡 [동시성 방어 통일] update와 동일하게 비관적 락(findByIdWithLock) 적용
         Shop shop = shopRepository.findByIdWithLock(request.getShopId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
@@ -48,7 +49,6 @@ public class ItemService {
             throw new ForbiddenException("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
         }
 
-        // 💡 구독 활성화 여부 검증 (Repository를 통해 직접 안전하게 체크)
         if (!isSubscriptionActive(request.getShopId())) {
             throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
         }
@@ -71,16 +71,14 @@ public class ItemService {
         return itemRepository.save(item).getId();
     }
 
-    // 전체 상품 목록 조회 필터링 검색 (페이징 크기 제한 및 최신순 기본 정렬 적용)
+    // 전체 상품 목록 조회 필터링 검색
     public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, Pageable pageable) {
         int pageSize = pageable.getPageSize();
 
-        // 1. 페이징 사이즈 방어 로직 (최대 100개 제한)
         if (pageSize > MAX_PAGE_SIZE) {
             pageSize = MAX_PAGE_SIZE;
         }
 
-        // 2. 정렬 조건이 지정되지 않았다면 기본적으로 최신 등록순(createdAt DESC) 부여
         Sort sort = pageable.getSort().isUnsorted()
             ? Sort.by(Sort.Direction.DESC, "createdAt")
             : pageable.getSort();
@@ -100,7 +98,7 @@ public class ItemService {
         return ItemResponse.from(item);
     }
 
-    // 내 상품 목록 조회 (삭제된 상품 제외)
+    // 내 상품 목록 조회
     public List<ItemResponse> findAllByUserId(Long userId) {
         return itemRepository.findBySellerUserIdAndDeletedFalse(userId).stream()
             .map(ItemResponse::from)
@@ -120,16 +118,13 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        // [추가] 수정 시에도 shopId 필수화 및 우회 방지
         if (request.getShopId() == null) {
             throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
         }
 
-        // [동시성 방어] 샵 상태 및 구독 변경 동시 충돌 방지를 위해 비관적 락(findByIdWithLock) 적용
         Shop shop = shopRepository.findByIdWithLock(request.getShopId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
-        // [추가] 수정하려는 가게의 소유자 검증
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
         }
@@ -141,7 +136,6 @@ public class ItemService {
         Category category = categoryRepository.findById(request.getCategoryId())
             .orElseThrow(() -> new NotFoundException("존재하지 않는 카테고리입니다."));
 
-        // 💡 [필드 반영] Item 엔티티의 update 메서드 시그니처에 맞춰 첫 번째 인자로 shopId 전달
         item.update(
             request.getShopId(),
             category,
@@ -166,11 +160,9 @@ public class ItemService {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
 
-        // 소프트 삭제 메서드 호출
         item.deleteItem();
     }
 
-    // 공통 ID 검증 메서드
     private void validateId(Long id) {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("유효하지 않은 ID 값입니다.");
@@ -185,26 +177,59 @@ public class ItemService {
             .orElse(false);
     }
 
-    // 💡 [이벤트 리스너] 구독 활성화 이벤트 수신 시 상품 일괄 복구 및 상태 변경 수행
-    @EventListener
-    @Transactional
+    /**
+     * 💡 [구독 활성화 이벤트 리스너]
+     * - AFTER_COMMIT: 구독 트랜잭션이 완전히 성공(COMMIT)된 직후에 실행됩니다.
+     * - REQUIRES_NEW: 독립된 새로운 트랜잭션에서 안전하게 상품 상태를 변경합니다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void handleShopSubscriptionActivated(ShopSubscriptionActivatedEvent event) {
         restoreAndActivateItemsByShopId(event.getShopId());
-        log.info("[이벤트 수신 성공] 가게 ID: {}의 상품들이 복구 및 ON_SALE로 전환되었습니다.", event.getShopId());
+        log.info("[구독 활성화 이벤트 처리 완료] 가게 ID: {}의 상품들이 복구 및 ON_SALE로 전환되었습니다.", event.getShopId());
     }
 
+    /**
+     * 💡 [구독 취소 이벤트 리스너 추가]
+     * - 구독이 취소된 경우 커밋 직후 상품들을 CLOSED 상태로 전환합니다.
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void handleShopSubscriptionCanceled(ShopSubscriptionCanceledEvent event) {
+        closeItemsByShopId(event.getShopId());
+        log.info("[구독 취소 이벤트 처리 완료] 가게 ID: {}의 상품들이 CLOSED(판매 중지) 상태로 전환되었습니다.", event.getShopId());
+    }
 
-    // 특정 샵의 구독 재개/복구 시, 만료로 인해 소프트 삭제되었거나
-    // 닫혀 있던(CLOSED) 모든 상품들을 일괄 복구하고 ON_SALE 상태로 전환합니다.
+    /**
+     * 💡 [방어 가드 적용] 폐점되거나 존재하지 않는 샵의 상품 부활 원천 차단
+     */
     @Transactional
     public void restoreAndActivateItemsByShopId(Long shopId) {
-        // 1. 소프트 삭제된 상품들 조회 후 복구 처리
+        Shop shop = shopRepository.findById(shopId).orElse(null);
+        if (shop == null || shop.isDeleted()) {
+            log.warn("[상품 복구 스킵] 존재하지 않거나 이미 폐점(삭제)된 샵입니다. shopId: {}", shopId);
+            return;
+        }
+
         List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
         for (Item item : expiredItems) {
             item.restore(ItemStatus.ON_SALE);
         }
 
-        // 2. 삭제되지 않고 단순히 상태만 CLOSED였던 상품들 일괄 상태 변경
         itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
+    }
+
+    /**
+     * 💡 [방어 가드 적용] 폐점되거나 존재하지 않는 샵의 상품 판매 중지 스킵
+     */
+    @Transactional
+    public void closeItemsByShopId(Long shopId) {
+        Shop shop = shopRepository.findById(shopId).orElse(null);
+        if (shop == null || shop.isDeleted()) {
+            log.warn("[상품 상태 변경 스킵] 존재하지 않거나 이미 폐점(삭제)된 샵입니다. shopId: {}", shopId);
+            return;
+        }
+
+        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.ON_SALE, ItemStatus.CLOSED);
     }
 }
