@@ -29,7 +29,7 @@ public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
     private final ShopRepository shopRepository;
-    private final ApplicationEventPublisher eventPublisher; // 💡 ItemService 대신 이벤트 퍼블리셔 주입
+    private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopSubscriptionProcessor subscriptionProcessor;
@@ -109,6 +109,12 @@ public class ShopSubscriptionService {
             LocalDate currentEndDate = existingSubscription.getEndDate() != null ? existingSubscription.getEndDate() : LocalDate.now();
             LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
 
+            // 💡 방어 로직: 연장하려는 총 일수가 오늘 기준 최대 허용 기간(1095일)을 넘지 않는지 검증
+            long totalDaysFromNow = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), baseDate.plusDays(request.getDays()));
+            if (totalDaysFromNow > MAX_DAYS) {
+                throw new BadRequestException("구독 기간은 오늘부터 최대 3년(1095일)까지만 누적 연장할 수 있습니다.");
+            }
+
             startDate = baseDate;
             endDate = baseDate.plusDays(request.getDays());
 
@@ -149,6 +155,29 @@ public class ShopSubscriptionService {
             log.error("[구독 중복 생성 충돌] 가게 ID: {}", shopId, e);
             throw new BadRequestException("이미 처리 중이거나 존재하는 구독 정보(또는 결제 번호)입니다.");
         }
+    }
+
+    /**
+     * 💡 [추가] 구독 취소 및 상품 차단 이벤트 발행 로직
+     */
+    @Transactional
+    public void cancelSubscription(Long userId, Long shopId) {
+        Shop shop = shopRepository.findById(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인의 가게 구독만 취소할 수 있습니다.");
+        }
+
+        ShopSubscription subscription = subscriptionRepository.findActiveByShopIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("활성화된 구독 정보를 찾을 수 없습니다."));
+
+        subscription.cancel();
+
+        // 💡 구독 취소 이벤트 발행 (이벤트를 통해 Item 측에서 상품들을 CLOSED 처리하도록 위임)
+        eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
+
+        log.info("[구독 취소 완료] 가게 ID: {} | 구독 취소 이벤트가 발행되었습니다.", shopId);
     }
 
     public ShopSubscriptionResponse findById(Long userId, Long shopId) {

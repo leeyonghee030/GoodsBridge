@@ -123,4 +123,9 @@ public class ShopSubscription {
             this.status = status;
         }
     }
+
+    public void cancel() {
+        this.status = ShopSubscriptionStatus.CANCELLED;
+        // 필요에 따라 취소 시점이나 추가 비즈니스 로직을 여기에 반영할 수 있습니다.
+    }
 }
