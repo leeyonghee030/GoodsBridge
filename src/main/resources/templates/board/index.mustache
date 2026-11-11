@@ -16,7 +16,7 @@
         <button type="submit" style="width: auto; display: inline-block;">검색</button>
         <button type="button" id="sort-toggle" class="btn-secondary" style="width: auto; display: inline-block;">최신순</button>
     </form>
-    <div id="board-list">
+    <div id="board-list" class="board-list-box">
         {{^boards}}<p class="empty">아직 등록된 게시글이 없습니다.</p>{{/boards}}
         {{#boards}}
         <a class="payment-row" href="/test/board/{{id}}" style="text-decoration: none; color: inherit;">
@@ -97,20 +97,33 @@ const errorText = async (res, fallback) => {
         </a>`;
     }
 
+    let loadingMore = false;
     async function loadMore() {
-        if (currentPage >= totalPages) return;
+        if (loadingMore || currentPage >= totalPages) return;
+        loadingMore = true;
         loadMoreStatus.hidden = false;
         const query = new URLSearchParams({ page: currentPage, size: 10, sort: 'id,' + sortDirection });
         if (currentKeyword) query.set('keyword', currentKeyword);
         const res = await pageFetch('/api/boards?' + query.toString());
         loadMoreStatus.hidden = true;
-        if (!res.ok) return;
+        if (!res.ok) { loadingMore = false; return; }
         const page = await res.json();
         list.insertAdjacentHTML('beforeend', (page.content || []).map(rowHtml).join(''));
         totalPages = page.totalPages;
         currentPage += 1;
         loadMoreButton.hidden = currentPage >= totalPages;
+        loadingMore = false;
     }
+
+    // 고정 높이 목록 안에서 맨 아래 근처까지 스크롤하면 다음 글을 자동으로 불러옴
+    let listScrollTimer;
+    list.addEventListener('scroll', () => {
+        // 스크롤하는 동안에만 스크롤바 표시
+        list.classList.add('is-scrolling');
+        clearTimeout(listScrollTimer);
+        listScrollTimer = setTimeout(() => list.classList.remove('is-scrolling'), 600);
+        if (list.scrollTop + list.clientHeight >= list.scrollHeight - 60) loadMore();
+    });
 
     loadMoreButton.hidden = currentPage >= totalPages;
     loadMoreButton.addEventListener('click', loadMore);
@@ -125,6 +138,7 @@ const errorText = async (res, fallback) => {
         const page = await res.json();
         const rows = page.content || [];
         list.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="empty">아직 등록된 게시글이 없습니다.</p>';
+        list.scrollTop = 0;
         totalPages = page.totalPages;
         currentPage = 1;
         loadMoreButton.hidden = currentPage >= totalPages;
@@ -157,13 +171,13 @@ const errorText = async (res, fallback) => {
     document.getElementById('close-create').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
 
-    // ===== 관련 상품 검색/선택 (로드된 목록을 글자 입력마다 즉시 클라이언트에서 필터링) =====
+    // ===== 관련 상품 검색/선택 (처음에는 100개만 불러오고, 글자를 입력하면 검색해서 찾기) =====
     let allItemsForSearch = [];
     let itemsLoaded = false;
 
     async function loadItemsForSearch() {
         if (itemsLoaded) return;
-        const res = await pageFetch('/api/items?size=200');
+        const res = await pageFetch('/api/items?size=100');
         if (!res.ok) return;
         itemsLoaded = true;
         const page = await res.json();
@@ -183,11 +197,13 @@ const errorText = async (res, fallback) => {
         itemSearchResults.style.width = rect.width + 'px';
     }
 
-    function renderItemResults(matches) {
+    // more: 처음 불러온 100개가 전부가 아닐 수 있다는 안내, pending: 서버 검색 결과를 기다리는 중
+    function renderItemResults(matches, more = false, pending = false) {
         positionDropdown();
         itemSearchResults.innerHTML = matches.length
             ? matches.map(item => `<div class="autocomplete-item" data-id="${item.id}" data-title="${esc(item.title)}">${esc(item.title)}</div>`).join('')
-            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+              + (more ? '<div class="autocomplete-item empty">최대 100개까지 보여요. 검색어를 입력해 더 찾아보세요</div>' : '')
+            : `<div class="autocomplete-item empty">${pending ? '검색 중...' : '검색 결과가 없습니다'}</div>`;
         itemSearchResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
             boardItemIdInput.value = el.dataset.id;
             itemSearchInput.value = el.dataset.title;
@@ -195,12 +211,26 @@ const errorText = async (res, fallback) => {
         }));
     }
 
-    function showItemResults() {
+    // 검색어가 없으면 처음 불러온 100개, 있으면 글자를 입력할 때마다 바로 서버에 검색 요청
+    // (서버가 keyword 를 지원하면 전체에서 찾고, 아니면 받은 100개 안에서 걸러낸다)
+    const ITEM_SEARCH_LIMIT = 100;
+    let itemSearchSeq = 0;
+    async function showItemResults() {
         const keyword = itemSearchInput.value.trim().toLowerCase();
-        const matches = keyword
-            ? allItemsForSearch.filter(item => item.title.toLowerCase().includes(keyword))
-            : allItemsForSearch;
-        renderItemResults(matches);
+        if (!keyword) {
+            itemSearchSeq++;
+            renderItemResults(allItemsForSearch, allItemsForSearch.length >= ITEM_SEARCH_LIMIT);
+            return;
+        }
+        const seq = ++itemSearchSeq;
+        // 이미 받아 둔 목록에서 먼저 바로 보여주고, 서버 검색 결과가 오면 교체
+        renderItemResults(allItemsForSearch.filter(item => item.title.toLowerCase().includes(keyword)), false, true);
+        const res = await pageFetch('/api/items?size=' + ITEM_SEARCH_LIMIT + '&keyword=' + encodeURIComponent(keyword));
+        // 그 사이 더 새로운 글자가 입력됐다면 이 응답은 버린다 (늦게 도착한 이전 결과가 덮어쓰지 않게)
+        if (!res.ok || seq !== itemSearchSeq) return;
+        const found = ((await res.json()).content || []).filter(item => item.title.toLowerCase().includes(keyword));
+        if (seq !== itemSearchSeq) return;
+        renderItemResults(found);
     }
 
     itemSearchInput.addEventListener('focus', async () => {
