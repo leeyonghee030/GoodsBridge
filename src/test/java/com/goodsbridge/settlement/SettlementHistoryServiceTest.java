@@ -29,15 +29,15 @@ class SettlementHistoryServiceTest {
     void calculate_savesSettlementWhenNew() {
         Shop shop = mock(Shop.class);
         Payment payment = mock(Payment.class);
-        when(settlementHistoryRepository.existsByPaymentAndType(payment, SettlementHistoryType.AUCTION_FEE))
+        when(settlementHistoryRepository.existsByPaymentAndType(payment, SettlementHistoryType.AUCTION_SALE))
             .thenReturn(false);
 
-        settlementHistoryService.calculate(shop, payment, 50_000, SettlementHistoryType.AUCTION_FEE);
+        settlementHistoryService.calculate(shop, payment, 50_000, SettlementHistoryType.AUCTION_SALE);
 
         ArgumentCaptor<SettlementHistory> captor = ArgumentCaptor.forClass(SettlementHistory.class);
         verify(settlementHistoryRepository).save(captor.capture());
         assertEquals(50_000, captor.getValue().getAmount());
-        assertEquals(SettlementHistoryType.AUCTION_FEE, captor.getValue().getType());
+        assertEquals(SettlementHistoryType.AUCTION_SALE, captor.getValue().getType());
     }
 
     @Test

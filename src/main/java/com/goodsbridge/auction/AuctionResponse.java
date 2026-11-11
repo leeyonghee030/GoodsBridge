@@ -15,6 +15,9 @@ public class AuctionResponse {
     private LocalDateTime deadline;
     private Integer depositAmount;
     private Status status;
+    private boolean balancePaid;            // 낙찰 잔금 결제 완료 여부
+    private Integer balanceAmount;          // 낙찰 성공 시 낙찰자가 낼 잔금 (낙찰가 - 보증금)
+    private LocalDateTime balanceDueAt;     // 잔금 결제 기한
 
     public AuctionResponse(Auction auction) {
         this.id = auction.getId();
@@ -27,6 +30,9 @@ public class AuctionResponse {
         this.deadline = auction.getDeadline();
         this.depositAmount = auction.getDepositAmount();
         this.status = auction.getStatus();
+        this.balancePaid = auction.isBalancePaid();
+        this.balanceAmount = auction.getStatus() == Status.ENDED_SUCCESS ? auction.getBalanceAmount() : null;
+        this.balanceDueAt = auction.getBalanceDueAt();
     }
 
     public static AuctionResponse from(Auction auction) {
