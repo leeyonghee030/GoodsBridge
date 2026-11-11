@@ -60,6 +60,14 @@ public class ExchangeRequest {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    // 만날 시간: 한쪽이 제안하고 상대가 확정하면 고정된다 (기존 행은 null이므로 Boolean)
+    private LocalDateTime meetingAt;
+    private Long meetingProposerId;
+    private Boolean meetingConfirmed;
+
+    // 가게가 두 사람 모두 방문 체크한 시각. 이 시각부터 정산 유예 시간(5분)이 지나면 완료 처리/정산한다. 그 전에는 체크를 되돌릴 수 있다.
+    private LocalDateTime bothCheckedAt;
+
     @Builder
     public ExchangeRequest(ExchangeItem exchangeItemA, Item itemB, String message, String paymentIdB, Shop shop, Integer depositAmountB) {
 
@@ -106,6 +114,26 @@ public class ExchangeRequest {
         this.userBShowed = userBShowed;
     }
 
+    // 교환 당사자(게시글 주인 A 또는 제안자 B)인지
+    public boolean isParticipant(Long userId) {
+        return isOwner(userId) || isProposer(userId);
+    }
+
+    public boolean isMeetingConfirmed() {
+        return Boolean.TRUE.equals(this.meetingConfirmed);
+    }
+
+    // 만날 시간 제안 (확정 전에는 누구나 다시 제안해서 덮어쓸 수 있다)
+    public void proposeMeeting(Long proposerId, LocalDateTime meetingAt) {
+        this.meetingAt = meetingAt;
+        this.meetingProposerId = proposerId;
+        this.meetingConfirmed = false;
+    }
+
+    public void confirmMeeting() {
+        this.meetingConfirmed = true;
+    }
+
     // 상태 변경
     public void updateStatus(ExchangeRequestStatus status) {
         this.status = status;
@@ -141,6 +169,15 @@ public class ExchangeRequest {
             this.status = ExchangeRequestStatus.EXPIRED_PARTIAL;
         } else {
             this.status = ExchangeRequestStatus.EXPIRED_BOTH;
+        }
+    }
+
+    // 둘 다 체크되면 유예 시작 시각을 기록하고, 하나라도 해제되면 지운다
+    public void refreshBothChecked() {
+        if (isBothShowed()) {
+            if (this.bothCheckedAt == null) this.bothCheckedAt = LocalDateTime.now();
+        } else {
+            this.bothCheckedAt = null;
         }
     }
 

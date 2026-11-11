@@ -392,7 +392,7 @@
         if (action === 'reuse') openItemFormWith(item, false);
         if (action === 'edit') openItemFormWith(item, true);
         if (action === 'delete') {
-            if (!confirm(`'${item.title}'을(를) 삭제할까요?`)) return;
+            if (!(await gbConfirm(`'${item.title}'을(를) 삭제할까요?`))) return;
             const res = await pageFetch('/api/items/' + item.id, { method: 'DELETE' });
             if (!res.ok) { alert(await errorText(res, '삭제에 실패했습니다.')); return; }
             myItemsAll = myItemsAll.filter(i => i.id !== item.id);
@@ -415,6 +415,7 @@
         const isShopOwner = !!(page && page.content && page.content.length > 0);
         openItemCreateButton.hidden = isShopOwner;
         document.getElementById('open-my-items').hidden = isShopOwner;
+        document.getElementById('open-create').hidden = isShopOwner;   // 가게 사장님은 교환글을 올리지 않는다
     });
     {{/userId}}
 

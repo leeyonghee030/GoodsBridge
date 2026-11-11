@@ -186,6 +186,48 @@ public class ExchangeService {
             .map(ExchangeItemResponse::from).toList();
     }
 
+    //교환 게시글 수정 (원하는 것, 교환 장소) - 주인만, 모집중일 때만
+    @Transactional
+    public ExchangeItemResponse updateExchangeItem(Long id, Long userId, String wantDescription, Long shopId) {
+        ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글입니다."));
+        if (!exchangeItem.isOwner(userId)) {
+            throw new ForbiddenException("게시글 주인만 수정할 수 있습니다.");
+        }
+        if (!exchangeItem.isOpen()) {
+            throw new BadRequestException("모집중인 게시글만 수정할 수 있습니다.");
+        }
+        if (wantDescription == null || wantDescription.isBlank()) {
+            throw new BadRequestException("원하는 것을 적어주세요.");
+        }
+        Shop shop = shopRepository.findById(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+        if (shop.getStatus() != ShopStatus.APPROVED) {
+            throw new BadRequestException("입점 승인된 가게만 교환장소로 지정할 수 있습니다.");
+        }
+        exchangeItem.update(wantDescription.trim(), shop);
+        return ExchangeItemResponse.from(exchangeItem);
+    }
+
+    //교환 게시글 삭제 - 주인만, 모집중이고 대기 중인 신청이 없을 때만 (올린 상품 자체는 내 아이템에 그대로 남는다)
+    @Transactional
+    public void deleteExchangeItem(Long id, Long userId) {
+        ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글입니다."));
+        if (!exchangeItem.isOwner(userId)) {
+            throw new ForbiddenException("게시글 주인만 삭제할 수 있습니다.");
+        }
+        if (!exchangeItem.isOpen()) {
+            throw new BadRequestException("모집중인 게시글만 삭제할 수 있습니다.");
+        }
+        if (!exchangeRequestRepository.findActiveRequestsByItem(exchangeItem).isEmpty()) {
+            throw new BadRequestException("대기 중인 교환 신청이 있어요. 먼저 거절하거나 처리한 뒤 삭제해주세요.");
+        }
+        exchangeCommentRepository.deleteByExchangeItemId(id);
+        exchangeRequestRepository.deleteByExchangeItemId(id);
+        exchangeItemRepository.deleteById(id);
+    }
+
     //교환 게시글 상세
     public ExchangeItemResponse getExchangeItem(Long id) {
         ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
@@ -204,10 +246,17 @@ public class ExchangeService {
             .map(ExchangeRequestResponse::from).toList();
     }
 
-    //교환 신청
-    @Transactional
-    public ExchangeRequestResponse proposeExchange(Long exchangeItemId, ExchangeRequestCreateRequest request, Long userId) {
-        Item item = itemRepository.findById(request.getItemBId())
+    // 제안 대상 검증 결과 (제안/사전확인에서 공통 사용)
+    private record ProposalTarget(Item item, ExchangeItem exchangeItem) {}
+
+    // 결제창을 띄우기 전에 클라이언트가 먼저 호출해서, 결제 후 신청이 거절되는 일이 없게 한다.
+    // propose 와 같은 검증을 쓰기 때문에 두 곳의 기준이 어긋나지 않는다.
+    public void checkProposal(Long exchangeItemId, Long itemBId, Long userId) {
+        validateProposal(exchangeItemId, itemBId, userId);
+    }
+
+    private ProposalTarget validateProposal(Long exchangeItemId, Long itemBId, Long userId) {
+        Item item = itemRepository.findById(itemBId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
         //1. 로그인한사람이랑 아이템 주인 같은지
         if (!item.getSellerUserId().equals(userId)) {
@@ -219,17 +268,30 @@ public class ExchangeService {
         if (exchangeItem.getUser().getId().equals(userId)) {
             throw new ForbiddenException("자기 자신의 게시글에는 제안할 수 없습니다.");
         }
-        //3. 게시글 올린 아이템을 교환으로하는게아닌지? 중복
-        List<ExchangeRequestStatus> statuses = new ArrayList<>();
-        statuses.add(ExchangeRequestStatus.PENDING);
-        statuses.add(ExchangeRequestStatus.CONFIRMED);
-        if (exchangeRequestRepository.existsByItemBAndStatusIn(request.getItemBId(), statuses)) {
-            throw new BadRequestException("이미 다른 제안에 쓰이고 있는 아이템입니다.");
-        }
-        //4. 아직 교환신정 가능한지
+        //3. 아직 교환신정 가능한지
         if (!exchangeItem.isOpen()) {
             throw new BadRequestException("이미 매칭되었거나 마감된 게시글입니다.");
         }
+        //4. 판매중인(삭제/교환완료되지 않은) 상품만 제안 가능
+        if (item.isDeleted() || item.getStatus() != ItemStatus.ON_SALE) {
+            throw new BadRequestException("판매 중인 상품만 교환 제안에 쓸 수 있습니다.");
+        }
+        //5. 이 아이템이 다른 PENDING/CONFIRMED 제안에 이미 쓰이고 있으면 중복 제안 불가 (한 게시글에 서로 다른 상품으로 여러 번 신청하는 것은 가능)
+        List<ExchangeRequestStatus> statuses = new ArrayList<>();
+        statuses.add(ExchangeRequestStatus.PENDING);
+        statuses.add(ExchangeRequestStatus.CONFIRMED);
+        if (exchangeRequestRepository.existsByItemBAndStatusIn(itemBId, statuses)) {
+            throw new BadRequestException("이미 다른 교환 신청에 쓰이고 있는 상품입니다.");
+        }
+        return new ProposalTarget(item, exchangeItem);
+    }
+
+    //교환 신청
+    @Transactional
+    public ExchangeRequestResponse proposeExchange(Long exchangeItemId, ExchangeRequestCreateRequest request, Long userId) {
+        ProposalTarget target = validateProposal(exchangeItemId, request.getItemBId(), userId);
+        Item item = target.item();
+        ExchangeItem exchangeItem = target.exchangeItem();
         //5. 보증금(아이템가의 20%, 최소 2000원) 계산 후 결제 검증
         int depositAmount = Math.max(Math.round(item.getPrice() * 0.2f), 2000);
         String paymentId = paymentService.verify(request.getPaymentId(), depositAmount, PaymentPurpose.EXCHANGE_DEPOSIT, userId);
@@ -328,6 +390,120 @@ public class ExchangeService {
         return ExchangeRequestResponse.from(exchangeRequest);
     }
 
+    // 가게 사장님 화면용 교환 목록 (내 가게 것만, 탭별 + 검색, 최신 100건까지)
+    private static final List<ExchangeRequestStatus> SHOP_WAITING = List.of(ExchangeRequestStatus.CONFIRMED);
+    private static final List<ExchangeRequestStatus> SHOP_DONE = List.of(
+        ExchangeRequestStatus.COMPLETED, ExchangeRequestStatus.EXPIRED_PARTIAL, ExchangeRequestStatus.EXPIRED_BOTH);
+
+    // 내 가게(삭제되지 않은)가 있는 사장님인지
+    public boolean isShopOwner(Long userId) {
+        return shopRepository.findAllByOwnerUserIdAndDeletedFalse(userId, org.springframework.data.domain.Pageable.ofSize(1)).hasContent();
+    }
+
+    public ShopExchangeListResponse getShopExchanges(Long userId, String tab, String keyword) {
+        if (!isShopOwner(userId)) {
+            throw new ForbiddenException("가게 사장님만 이용할 수 있습니다.");
+        }
+        List<ExchangeRequestStatus> statuses = "done".equals(tab) ? SHOP_DONE : SHOP_WAITING;
+        String kw = keyword == null ? "" : keyword.trim().replaceFirst("^#", "").toLowerCase();
+        int limit = ShopExchangeListResponse.LIMIT;
+        // 한 건 더 가져와서 100건을 넘는지 판단한다
+        List<ExchangeRequest> list = exchangeRequestRepository.searchShopExchanges(
+            userId, statuses, kw, org.springframework.data.domain.PageRequest.of(0, limit + 1));
+        boolean limited = list.size() > limit;
+        if (limited) list = list.subList(0, limit);
+
+        java.util.Map<Long, String> nicknames = new java.util.HashMap<>();
+        userRepository.findAllById(list.stream().map(e -> e.getItemB().getSellerUserId()).distinct().toList())
+            .forEach(u -> nicknames.put(u.getId(), u.getNickname()));
+        List<ShopExchangeResponse> items = list.stream()
+            .map(e -> ShopExchangeResponse.from(e, nicknames.get(e.getItemB().getSellerUserId())))
+            .toList();
+        return new ShopExchangeListResponse(
+            exchangeRequestRepository.countShopExchanges(userId, SHOP_WAITING),
+            exchangeRequestRepository.countShopExchanges(userId, SHOP_DONE),
+            items, limited);
+    }
+
+    // 가게 교환 관리 상단: 오늘 방문 예정 + 교환 수수료 수익(오늘/이번 달/누적)
+    public ShopExchangeSummaryResponse getShopSummary(Long userId) {
+        if (!isShopOwner(userId)) {
+            throw new ForbiddenException("가게 사장님만 이용할 수 있습니다.");
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        List<ExchangeRequest> meetings = exchangeRequestRepository.findShopMeetingsBetween(
+            userId, today.atStartOfDay(), today.plusDays(1).atStartOfDay());
+        java.util.Map<Long, String> nicknames = new java.util.HashMap<>();
+        userRepository.findAllById(meetings.stream().map(e -> e.getItemB().getSellerUserId()).distinct().toList())
+            .forEach(u -> nicknames.put(u.getId(), u.getNickname()));
+        List<ShopExchangeResponse> todayItems = meetings.stream()
+            .map(e -> ShopExchangeResponse.from(e, nicknames.get(e.getItemB().getSellerUserId())))
+            .toList();
+        LocalDateTime monthStart = today.withDayOfMonth(1).atStartOfDay();
+        return new ShopExchangeSummaryResponse(todayItems,
+            sumExchangeFee(userId, today.atStartOfDay(), null),
+            sumExchangeFee(userId, monthStart, null),
+            sumExchangeFee(userId, monthStart.minusMonths(1), monthStart),
+            monthFeeRecords(userId, monthStart));
+    }
+
+    // 이번 달 수수료 정산 내역: 정산 기록(사람별)을 교환 1건 기준으로 묶어서 최신순으로 (최대 200건)
+    private List<ShopExchangeSummaryResponse.FeeRecord> monthFeeRecords(Long ownerUserId, LocalDateTime from) {
+        List<Object[]> rows = entityManager.createQuery("""
+            select s.createdAt, s.amount, s.type, e.id, pu.nickname
+            from SettlementHistory s join s.payment p join p.user pu, ExchangeRequest e
+            where s.shop.ownerUserId = :owner and s.createdAt >= :from
+            and s.type in (com.goodsbridge.settlement.SettlementHistoryType.EXCHANGE_FEE,
+                           com.goodsbridge.settlement.SettlementHistoryType.NO_SHOW_FEE)
+            and (e.paymentIdA = p.paymentId or e.paymentIdB = p.paymentId)
+            order by s.createdAt desc, s.id desc
+            """, Object[].class)
+            .setParameter("owner", ownerUserId).setParameter("from", from).getResultList();
+
+        java.util.Map<Long, List<Object[]>> byExchange = new java.util.LinkedHashMap<>();
+        for (Object[] r : rows) byExchange.computeIfAbsent((Long) r[3], k -> new ArrayList<>()).add(r);
+        if (byExchange.isEmpty()) return List.of();
+
+        java.util.Map<Long, ExchangeRequest> exchanges = new java.util.HashMap<>();
+        exchangeRequestRepository.findAllById(byExchange.keySet()).forEach(e -> exchanges.put(e.getId(), e));
+        java.util.Map<Long, String> nicknames = new java.util.HashMap<>();
+        userRepository.findAllById(exchanges.values().stream().map(e -> e.getItemB().getSellerUserId()).distinct().toList())
+            .forEach(u -> nicknames.put(u.getId(), u.getNickname()));
+
+        List<ShopExchangeSummaryResponse.FeeRecord> records = new ArrayList<>();
+        for (var entry : byExchange.entrySet()) {
+            ExchangeRequest e = exchanges.get(entry.getKey());
+            if (e == null) continue;
+            List<Object[]> group = entry.getValue();
+            long total = 0;
+            List<ShopExchangeSummaryResponse.Part> parts = new ArrayList<>();
+            for (Object[] r : group) {
+                long amount = ((Number) r[1]).longValue();
+                total += amount;
+                parts.add(new ShopExchangeSummaryResponse.Part((String) r[4], amount));
+            }
+            String kind = group.get(0)[2] == com.goodsbridge.settlement.SettlementHistoryType.EXCHANGE_FEE ? "COMPLETED" : "NO_SHOW";
+            records.add(new ShopExchangeSummaryResponse.FeeRecord(
+                e.getId(), (LocalDateTime) group.get(0)[0], kind, total,
+                e.getExchangeItemA().getUser().getNickname(), nicknames.get(e.getItemB().getSellerUserId()), parts));
+            if (records.size() >= 200) break;
+        }
+        return records;
+    }
+
+    // 교환으로 가게가 가져간 수수료(정상 교환 수수료 + 불참 차감액) 합계
+    private long sumExchangeFee(Long ownerUserId, LocalDateTime from, LocalDateTime to) {
+        Long sum = entityManager.createQuery("""
+            select coalesce(sum(s.amount), 0) from SettlementHistory s
+            where s.shop.ownerUserId = :owner and s.createdAt >= :from and s.createdAt < :to
+            and s.type in (com.goodsbridge.settlement.SettlementHistoryType.EXCHANGE_FEE,
+                           com.goodsbridge.settlement.SettlementHistoryType.NO_SHOW_FEE)
+            """, Long.class)
+            .setParameter("owner", ownerUserId).setParameter("from", from)
+            .setParameter("to", to == null ? LocalDateTime.of(2999, 1, 1, 0, 0) : to).getSingleResult();
+        return sum == null ? 0 : sum;
+    }
+
     //    --------체크인
     @Transactional
     public ExchangeRequestResponse checkIn(Long id, Long userId, ExchangeCheckInRequest request) {
@@ -348,11 +524,21 @@ public class ExchangeService {
         if (request.getUserBShowed() != null) {
             exchangeRequest.checkInB(request.getUserBShowed());
         }
-        if (exchangeRequest.isBothShowed()) {
-            exchangeRequest.updateStatus(ExchangeRequestStatus.COMPLETED);
-            settle(exchangeRequest);
-        }
+        // 둘 다 체크돼도 바로 정산하지 않는다. 실수로 눌렀을 때 되돌릴 수 있게 유예 시간 뒤에 정산한다.
+        exchangeRequest.refreshBothChecked();
         return ExchangeRequestResponse.from(exchangeRequest);
+    }
+
+    // 가게가 두 사람 모두 체크한 뒤 유예 시간(5분)이 지나면 교환 완료 처리 + 보증금 정산
+    public static final int COMPLETE_GRACE_MINUTES = 5;
+
+    @Scheduled(fixedDelay = 30000)
+    @Transactional
+    public void completeAfterGrace() {
+        for (ExchangeRequest e : exchangeRequestRepository.findReadyToComplete(LocalDateTime.now().minusMinutes(COMPLETE_GRACE_MINUTES))) {
+            e.updateStatus(ExchangeRequestStatus.COMPLETED);
+            settle(e);
+        }
     }
 
     //---- 데스라인 스케줄러

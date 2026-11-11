@@ -1970,3 +1970,47 @@ button.link-button:hover { background: none; color: var(--color-text); }
 }
 
 .todo { color: var(--color-muted); font-size: 0.9rem; font-style: italic; }
+
+/* ===== 안내/확인 대화상자 (alert / confirm / prompt 대체, header.mustache 의 gbDialog 가 사용) ===== */
+.gb-dialog-backdrop { z-index: 300; animation: gb-fade .15s ease; }
+.gb-dialog { max-width: 340px; padding: 1.75rem 1.5rem 1.25rem; text-align: center; animation: gb-pop .18s ease; }
+.gb-dialog-msg { margin: 0 0 1.25rem; font-size: 0.95rem; font-weight: var(--fw-medium); line-height: 1.6; color: var(--color-text); white-space: pre-line; word-break: keep-all; }
+.gb-dialog-input { width: 100%; margin: -0.25rem 0 1.25rem; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.9rem; }
+.gb-dialog-input:focus { outline: none; border-color: var(--color-dark); }
+.gb-dialog-actions { display: flex; gap: 0.5rem; }
+.gb-dialog-actions button { flex: 1; padding: 0.65rem 0; border-radius: 8px; font: inherit; font-size: 0.88rem; font-weight: var(--fw-semibold); }
+.gb-dialog-actions .gb-ok { border: 1px solid var(--color-dark); background: var(--color-dark); color: #fff; }
+.gb-dialog-actions .gb-ok:hover { background: var(--color-dark-hover); }
+.gb-dialog-actions .gb-cancel { border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text-soft); }
+.gb-dialog-actions .gb-cancel:hover { background: var(--color-surface); }
+@keyframes gb-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gb-pop { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
+
+/* ===== 마이페이지 상단 탭 (내 정보 / 교환 내역) ===== */
+.my-tabs { display: flex; gap: 1.25rem; margin: 0 0 1.25rem; border-bottom: 1px solid var(--color-border); }
+.my-tabs.my-tabs-page { margin: 0 1.5rem 1.25rem; }
+.my-tabs a { padding: 0.6rem 0.1rem; font-size: 0.95rem; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.my-tabs a.active { color: var(--color-text); font-weight: var(--fw-bold); border-bottom-color: var(--color-dark); }
+
+/* ===== 내 교환 게시글 카드 오른쪽 위 ⋯ 메뉴 (fragments/exchange-post-actions) ===== */
+.card.has-kebab { position: relative; }
+.post-kebab { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 3; }
+.post-kebab .post-kebab-btn { width: 30px; height: 30px; padding: 0; border: 1px solid var(--color-border); border-radius: 50%; background: rgba(255,255,255,0.92); color: var(--color-text); font-size: 1.1rem; line-height: 1; letter-spacing: 0; }
+.post-kebab .post-kebab-btn:hover { background: var(--color-surface); }
+.post-kebab-menu { position: absolute; top: 34px; right: 0; min-width: 84px; padding: 4px; background: #fff; border: 1px solid var(--color-border); border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); }
+.post-kebab-menu[hidden] { display: none; }
+.post-kebab-menu button { display: block; width: 100%; padding: 0.45rem 0.7rem; border: 0; border-radius: 6px; background: transparent; color: var(--color-text); font: inherit; font-size: 0.82rem; font-weight: var(--fw-medium); text-align: left; }
+.post-kebab-menu button:hover { background: var(--color-surface); }
+.post-kebab-menu button.danger { color: #C0392B; }
+
+/* ===== 게시판 목록: 글이 늘어나도 세로 길이가 변하지 않게 고정 높이(최소=최대) + 넘치면 내부 스크롤 ===== */
+.board-list-box { height: 440px; overflow-y: auto; border: 1px solid var(--color-border); border-radius: 8px; padding: 0 1rem; scrollbar-width: thin; }
+.board-list-box .empty { height: 100%; display: flex; align-items: center; justify-content: center; padding: 0; }
+
+/* 게시판 목록 스크롤바: 스크롤하는 동안에만 보이게 (JS가 스크롤 시 is-scrolling 을 토글) */
+.board-list-box { scrollbar-color: transparent transparent; }
+.board-list-box.is-scrolling { scrollbar-color: var(--color-border) transparent; }
+.board-list-box::-webkit-scrollbar { width: 6px; }
+.board-list-box::-webkit-scrollbar-track { background: transparent; }
+.board-list-box::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
+.board-list-box.is-scrolling::-webkit-scrollbar-thumb { background: var(--color-border); }

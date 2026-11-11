@@ -1,0 +1,739 @@
+{{> fragments/header}}
+<script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+
+<style>
+.my-sub { margin: 0 1.5rem 1.25rem; }
+.my-sub .filter-chip small { margin-left: 0.3rem; opacity: 0.7; }
+.my-empty { margin: 1rem 1.5rem; padding: 3rem 1.5rem; text-align: center; background: var(--color-surface); border: 1px dashed var(--color-border); border-radius: 16px; }
+.my-empty[hidden] { display: none; }
+.my-empty-icon { width: 64px; height: 64px; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: var(--color-text-soft); background: #fff; border: 1px solid var(--color-border); border-radius: 50%; }
+.my-empty strong { display: block; font-size: 1rem; margin-bottom: 0.4rem; }
+.my-empty p { margin: 0; font-size: 0.85rem; color: var(--color-muted); line-height: 1.5; }
+.my-empty-link { display: inline-block; margin-top: 1.1rem; padding: 0.55rem 1.2rem; background: var(--color-dark); color: #fff; border-radius: 999px; font-size: 0.82rem; text-decoration: none; }
+/* 탭 한 줄 배치: [내 교환글 | 신청 | 교환]  ·  세부 탭 (좁은 화면에서는 아래로 줄바꿈) */
+.my-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.1rem; }
+#main-tabs { margin: 0; gap: 2px; padding: 3px; background: var(--color-surface); border-radius: 10px; }
+#main-tabs .filter-chip, #main-tabs .filter-chip:hover, #main-tabs .filter-chip.active, #main-tabs .filter-chip.active:hover {
+    background: none; border: 0; border-radius: 8px; padding: 0.4rem 0.9rem;
+    font-size: 0.88rem; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--color-muted); }
+#main-tabs .filter-chip:hover { color: var(--color-text); }
+#main-tabs .filter-chip.active, #main-tabs .filter-chip.active:hover { background: #fff; color: var(--color-text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+#main-tabs .filter-chip small { font-size: 0.72rem; font-weight: 500; opacity: 0.6; margin-left: 0.3rem; }
+.my-settle { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px dashed var(--color-border); font-size: 0.78rem; color: var(--color-muted); }
+.my-settle span { display: flex; flex-direction: column; gap: 0.15rem; white-space: nowrap; }
+.my-settle b { color: var(--color-text); font-size: 0.92rem; font-weight: 500; margin: 0; }
+.my-settle .note { grid-column: span 2; justify-content: flex-end; align-self: end; }
+.my-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; }
+.my-subtabs[hidden] { display: none; }
+.my-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--color-muted); cursor: pointer; }
+.my-subtabs button:hover { background: none; color: var(--color-text); }
+.my-subtabs button.active, .my-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.my-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+
+.my-card { position: relative; cursor: pointer; }
+.my-card .my-pair { display: flex; align-items: center; gap: 0.5rem; margin: 0.6rem 0; }
+.my-card .my-pair .card-image { flex: 1; aspect-ratio: 1 / 1; min-width: 0; }
+.my-card .my-pair .my-swap { color: var(--color-muted); font-size: 1.1rem; }
+.my-card .card-meta { margin: 0.15rem 0; }
+.my-badge { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--color-surface); border: 1px solid var(--color-border); font-size: 0.72rem; color: var(--color-text-soft); }
+.my-badge.dark { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+
+.my-modal .modal-card { max-width: 560px; scrollbar-width: thin; scrollbar-color: #c9c9c9 transparent; }
+.my-modal .modal-card::-webkit-scrollbar { display: block; width: 8px; }
+.my-modal .modal-card::-webkit-scrollbar-thumb { background: #c9c9c9; border-radius: 4px; }
+.my-modal .modal-card::-webkit-scrollbar-track { background: transparent; }
+.my-modal h1 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+.my-modal h2 { font-size: 0.9rem; margin: 1.1rem 0 0.4rem; }
+.my-modal .my-items { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.my-modal .my-items .card-meta { margin: 0.4rem 0 0; font-size: 0.78rem; line-height: 1.35; }
+.my-modal .my-items .card-image { aspect-ratio: auto; height: 110px; }
+.my-modal .my-items .card-image img, .my-card .card-image img { object-fit: contain; }
+.my-modal .my-items .card-image, .my-card .card-image { background: #fff; }
+.my-modal .my-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; }
+.my-modal .my-actions button, .my-modal .my-actions a { width: auto; padding: 0.45rem 0.9rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); font: inherit; font-size: 0.82rem; text-decoration: none; color: var(--color-text); }
+.my-modal .my-actions .primary { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.my-meeting { border: 1px solid var(--color-border); border-radius: 12px; background: #fff; overflow: hidden; font-size: 0.88rem; }
+.my-meeting .mt-body { padding: 0.9rem 1rem; }
+.my-meeting .mt-caption { font-size: 0.74rem; color: var(--color-muted); }
+.my-meeting .mt-date { margin-top: 0.2rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; }
+.my-meeting .mt-date small { margin-left: 0.4rem; font-size: 0.78rem; font-weight: 400; color: var(--color-muted); }
+.my-meeting .mt-empty { color: var(--color-muted); line-height: 1.5; }
+.my-meeting .mt-confirm { display: block; width: 100%; margin-top: 0.75rem; padding: 0.6rem; border: 0; border-radius: 8px; background: var(--color-dark); color: #fff; font: inherit; font-size: 0.85rem; font-weight: 500; }
+.my-meeting .mt-wait { margin-top: 0.6rem; padding: 0.45rem 0.7rem; border-radius: 8px; background: var(--color-surface); color: var(--color-text-soft); font-size: 0.78rem; }
+.my-meeting .mt-propose { padding: 0.8rem 1rem; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.my-meeting .mt-propose label { display: block; margin-bottom: 0.4rem; font-size: 0.74rem; color: var(--color-muted); }
+.my-meeting .row { display: flex; gap: 0.4rem; }
+.my-meeting input[type="datetime-local"] { flex: 1; min-width: 0; padding: 0.45rem 0.6rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; font: inherit; font-size: 0.84rem; }
+.my-meeting .mt-propose button { width: auto; flex: none; padding: 0.45rem 0.9rem; border: 1px solid var(--color-dark); border-radius: 8px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 0.82rem; }
+.my-meeting .my-hint { margin: 0.5rem 0 0; }
+.my-meeting.fixed { border-color: var(--color-dark); }
+.my-meeting.fixed .mt-body { background: var(--color-dark); color: #fff; }
+.my-meeting.fixed .mt-caption, .my-meeting.fixed .mt-date small { color: rgba(255,255,255,0.7); }
+.my-meeting.fixed .my-hint { color: rgba(255,255,255,0.7); }
+.my-chat { border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+.my-chat-log { height: 220px; overflow-y: auto; padding: 0.7rem; background: var(--color-surface); display: flex; flex-direction: column; gap: 0.4rem; }
+.my-chat-log .notice { align-self: stretch; padding: 0.6rem 0.8rem; border-radius: 10px; background: #fff; border: 1px solid var(--color-border); color: var(--color-text-soft); font-size: 0.78rem; line-height: 1.5; text-align: center; }
+.my-chat-log .empty { margin: auto; color: var(--color-muted); font-size: 0.82rem; }
+.my-bubble { max-width: 75%; padding: 0.4rem 0.7rem; border-radius: 12px; font-size: 0.85rem; line-height: 1.45; word-break: break-word; white-space: pre-wrap; background: #fff; border: 1px solid var(--color-border); align-self: flex-start; }
+.my-bubble.mine { align-self: flex-end; background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.my-bubble small { display: block; margin-top: 0.15rem; font-size: 0.65rem; opacity: 0.6; }
+.my-chat-form { display: flex; gap: 0.4rem; padding: 0.5rem; border-top: 1px solid var(--color-border); background: #fff; }
+.my-visit { display: flex; gap: 0.9rem; align-items: center; margin-top: 1rem; padding: 0.85rem 1rem; border-radius: 12px; background: var(--color-dark); color: #fff; }
+.my-visit .vn { flex: none; padding-right: 0.9rem; border-right: 1px solid rgba(255,255,255,0.25); font-size: 1.3rem; font-weight: 600; text-align: center; }
+.my-visit .vn small { display: block; font-size: 0.66rem; font-weight: 400; opacity: 0.7; }
+.my-visit .vt strong { display: block; font-size: 0.86rem; font-weight: 600; }
+.my-visit .vm { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: baseline; margin-top: 0.4rem; font-size: 0.78rem; }
+.my-visit .vm b { font-size: 0.95rem; font-weight: 600; }
+.my-visit .vm.none { opacity: 0.8; }
+.my-visit .vt p { margin: 0.25rem 0 0; font-size: 0.74rem; line-height: 1.5; opacity: 0.8; }
+.my-receipt { margin-top: 1rem; padding: 0.9rem 1rem; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; }
+.my-receipt .rc-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; font-size: 0.9rem; font-weight: 600; }
+.my-receipt .rc-title span { font-size: 0.72rem; font-weight: 500; color: var(--color-muted); }
+.my-receipt .rc-row { display: flex; justify-content: space-between; padding: 0.3rem 0; font-size: 0.85rem; color: var(--color-text-soft); }
+.my-receipt .rc-row.total { margin-top: 0.3rem; padding-top: 0.6rem; border-top: 1px dashed var(--color-border); color: var(--color-text); font-weight: 600; font-size: 0.95rem; }
+.my-receipt .rc-note { margin: 0.6rem 0 0; font-size: 0.74rem; line-height: 1.5; color: var(--color-muted); }
+.my-postlink { position: absolute; top: 2.85rem; right: 1.1rem; font-size: 0.72rem; color: var(--color-muted); text-decoration: underline; }
+.my-postlink:hover { color: var(--color-text); }
+.my-chat-form input { flex: 1; min-width: 0; width: auto; padding: 0.5rem 0.7rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.85rem; }
+.my-chat-form button { width: auto; flex: none; padding: 0.5rem 1rem; border: 0; border-radius: 8px; background: var(--color-dark); color: #fff; font: inherit; font-size: 0.82rem; }
+.my-chat-form button:disabled, .my-chat-form input:disabled { opacity: 0.5; }
+.my-chat-log.past { height: 140px; }
+.my-chat-status { padding: 0.3rem 0.7rem; font-size: 0.7rem; color: var(--color-muted); background: #fff; border-bottom: 1px solid var(--color-border); }
+/* .card-grid 의 display:grid 가 hidden 속성을 덮어쓰지 않게 */
+#my-grid[hidden] { display: none; }
+.my-groups { margin: 0 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.my-groups[hidden] { display: none; }
+.my-group { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; background: #fff; }
+.my-group-head { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 1rem; background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+.my-thumb { width: 56px; height: 56px; flex: none; border-radius: 8px; background: #fff; border: 1px solid var(--color-border); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 0.6rem; color: var(--color-muted); }
+.my-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.my-thumb.sm { width: 48px; height: 48px; }
+.my-group-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.my-group-title strong { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.my-group-title small { font-size: 0.78rem; color: var(--color-muted); }
+.my-group-link { flex: none; font-size: 0.78rem; color: var(--color-text-soft); text-decoration: underline; }
+.my-group-head { cursor: pointer; }
+.my-group-chev { flex: none; font-size: 0.8rem; color: var(--color-muted); transition: transform .15s; }
+.my-group.open .my-group-chev { transform: rotate(180deg); }
+.my-group:not(.open) .my-group-head { border-bottom: 0; }
+.my-group:not(.open) .my-group-row { display: none; }
+.my-group-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+.my-group-row:last-child { border-bottom: 0; }
+.my-group-row:hover { background: var(--color-surface); }
+.my-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.my-row-main strong { font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.my-row-main small { font-size: 0.75rem; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.my-row-actions { display: flex; gap: 0.4rem; flex: none; }
+.my-row-actions button { width: auto; padding: 0.4rem 0.9rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 0.8rem; }
+.my-row-actions button.primary { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.my-hint { font-size: 0.78rem; color: var(--color-muted); margin: 0.3rem 0 0; }
+</style>
+
+<h1 class="page-title">마이페이지</h1>
+<nav class="my-tabs my-tabs-page">
+    <a href="/update">내 정보</a>
+    <a href="/my/exchange" class="active">교환 내역</a>
+</nav>
+
+<div class="my-sub">
+    <div class="filter-chip-grid" id="main-tabs"></div>
+    <div class="my-subtabs" id="sub-tabs" hidden></div>
+</div>
+
+<div id="my-empty" class="my-empty" hidden></div>
+<div class="card-grid" id="my-grid"></div>
+<div class="my-groups" id="my-groups" hidden></div>
+
+<!-- 신청 상세: 만날 시간 + 채팅 -->
+<div class="modal-backdrop my-modal" id="req-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="req-close">✕</button>
+        <div id="req-body"></div>
+    </div>
+</div>
+
+{{> fragments/exchange-post-actions}}
+
+<script>
+(() => {
+    const ME = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const errorText = async (res, fallback) => { const e = await res.json().catch(() => null); return (e && e.message) || fallback; };
+    const STATUS = {
+        PENDING: '대기 중', REJECTED: '거절됨', CANCELLED: '취소됨', PROPOSAL_EXPIRED: '제안 만료',
+        CONFIRMED: '확정됨', COMPLETED: '완료됨', EXPIRED_PARTIAL: '한쪽 불참', EXPIRED_BOTH: '양쪽 불참'
+    };
+    const POST_STATUS = { OPEN: '모집중', MATCHED: '매칭완료', CLOSED: '마감' };
+    const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    const fmt = iso => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return `${d.getMonth() + 1}/${d.getDate()}(${DAYS[d.getDay()]}) ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    const toLocalInput = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const thumb = (url, alt) => url ? `<img src="${esc(url)}" alt="${esc(alt)}">` : '이미지 없음';
+    const portoneStoreId = '{{portoneStoreId}}';
+    const portoneChannelKey = '{{portoneChannelKey}}';
+    // TODO(데모 종료 후 제거): 데모 모드(app.demo.enabled)에서는 교환 보증금 결제를 건너뛴다. 서버(DemoPaymentService)도 PortOne 검증을 생략한다.
+    const skipPayment = '{{skipPayment}}' === 'true';
+    async function payDeposit(totalAmount) {
+        if (skipPayment) return { paymentId: `demo-${crypto.randomUUID()}` };
+        const result = await PortOne.requestPayment({
+            storeId: portoneStoreId, channelKey: portoneChannelKey,
+            paymentId: `goodsbridge-exchange-${crypto.randomUUID()}`,
+            orderName: '교환 보증금', totalAmount, currency: 'KRW', payMethod: 'CARD'
+        });
+        if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+        return result;
+    }
+    const img = (url, alt) => `<div class="card-image">${url ? `<img src="${esc(url)}" alt="${esc(alt)}">` : '이미지 없음'}</div>`;
+
+    let posts = [], requests = [], tab = 'posts', group = 'posts';
+    const grid = document.getElementById('my-grid');
+    const empty = document.getElementById('my-empty');
+    const groupsEl = document.getElementById('my-groups');
+
+    // 확정됨: 수락되어 교환 전인 건 (만날 시간 합의 여부와 무관) / 완료: 가게에서 실제 교환까지 끝난 건
+    const isFailed = r => r.status === 'EXPIRED_PARTIAL' || r.status === 'EXPIRED_BOTH'; // 불참으로 끝난 교환
+    const isDone = r => r.status === 'COMPLETED'; // 실제로 만나서 교환(현장 체크인)까지 끝난 건만 완료
+    const isConfirmed = r => r.status === 'CONFIRMED'; // 수락됐지만 아직 교환 전 (만날 시간 확정 여부와 무관)
+    const mineOnly = r => r.proposerUserId === ME || r.ownerUserId === ME;
+    // 취소됨 탭: 취소/거절/제안 만료처럼 더 진행되지 않는 신청 (보낸 신청 기준)
+    const isClosed = r => ['CANCELLED', 'REJECTED', 'PROPOSAL_EXPIRED'].includes(r.status);
+    const newestFirst = (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || b.id - a.id;
+    // 비어 있을 때 보여주는 안내 (아이콘 + 제목 + 설명 + 이동 버튼)
+    const EMPTY = {
+        posts: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg>', title: '아직 올린 교환글이 없어요', desc: '가지고 있는 굿즈를 올리고 원하는 굿즈와 바꿔보세요.', link: ['/exchange', '교환 게시판 가기'] },
+        received: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/></svg>', title: '받은 교환 신청이 없어요', desc: '내 교환글에 신청이 오면 여기에서 수락하거나 거절할 수 있어요.' },
+        sent: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14"/><path d="M21 3l-7 18-4-7-7-4z"/></svg>', title: '보낸 교환 신청이 없어요', desc: '마음에 드는 교환글을 찾아 내 굿즈로 신청해보세요.', link: ['/exchange', '교환글 둘러보기'] },
+        closed: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></svg>', title: '취소·거절된 신청이 없어요', desc: '취소되거나 거절된 신청이 생기면 여기에 모아 보여드려요.' },
+        confirmed: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 12l3 3 7-7"/><rect x="3" y="3" width="18" height="18" rx="4"/></svg>', title: '확정된 교환이 없어요', desc: '신청이 수락되면 여기에서 만날 시간을 정하고 채팅할 수 있어요.' },
+        failed: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/></svg>', title: '실패한 교환이 없어요', desc: '약속 장소에 나타나지 않아 무산된 교환이 생기면 여기에 모아 보여드려요.' },
+        done: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/></svg>', title: '완료된 교환이 아직 없어요', desc: '만날 시간까지 확정된 교환이 여기에 쌓여요.' },
+        login: { icon: '<svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>', title: '로그인이 필요해요', desc: '로그인 후 내 교환 내역을 볼 수 있어요.' }
+    };
+    function setEmpty(key) {
+        const e = EMPTY[key] || EMPTY.received;
+        empty.innerHTML = `<div class="my-empty-icon">${e.icon}</div>
+            <strong>${e.title}</strong>
+            <p>${e.desc}</p>
+            ${e.link ? `<a class="my-empty-link" href="${e.link[0]}">${e.link[1]}</a>` : ''}`;
+    }
+
+    const sentList = () => requests.filter(r => r.proposerUserId === ME && !isClosed(r) && !isConfirmed(r) && !isDone(r) && !isFailed(r)).sort(newestFirst);
+    const closedList = () => requests.filter(r => r.proposerUserId === ME && isClosed(r)).sort(newestFirst);
+    // 받은 신청: 수락한 다른 신청 때문에 자동 취소된 건 등 CANCELLED 는 받은 사람에게 보여줄 필요가 없어 숨긴다
+    const receivedList = () => requests.filter(r => r.ownerUserId === ME && r.status !== 'CANCELLED' && !isConfirmed(r) && !isDone(r) && !isFailed(r));
+    const confirmedList = () => requests.filter(r => mineOnly(r) && isConfirmed(r)).sort(newestFirst);
+    const failedList = () => requests.filter(r => mineOnly(r) && isFailed(r)).sort(newestFirst);
+    const doneList = () => requests.filter(r => mineOnly(r) && isDone(r)).sort(newestFirst);
+
+    // ---------- 목록 ----------
+    function meetingLine(r) {
+        if (r.status !== 'CONFIRMED' && !r.meetingAt) return '';
+        if (r.meetingConfirmed) return `<p class="card-meta">✓ 만남 확정 ${fmt(r.meetingAt)}</p>`;
+        if (r.meetingAt) return `<p class="card-meta">만날 시간 제안됨 ${fmt(r.meetingAt)}</p>`;
+        return r.status === 'CONFIRMED' ? '<p class="card-meta">만날 시간 미정</p>' : '';
+    }
+
+    function renderPosts() {
+        grid.innerHTML = posts.map(p => {
+            const pending = requests.filter(r => r.exchangeItemAId === p.id && r.status === 'PENDING').length;
+            return `<div class="card my-card has-kebab" data-post="${p.id}" data-post-id="${p.id}">
+                ${p.status === 'OPEN' ? gbPostActions.kebabHtml() : ''}
+                <span class="card-tag">■ ${esc(POST_STATUS[p.status] || p.status)}${pending ? ` · 받은 신청 ${pending}` : ''}</span>
+                ${img(p.itemImageUrl, p.itemTitle)}
+                <p class="card-title">${esc(p.itemTitle)}</p>
+                <p class="card-meta">원하는 것: ${esc(p.wantDescription)}</p>
+                <p class="card-meta">교환장소: ${esc(p.shopName)}</p>
+            </div>`;
+        }).join('');
+        empty.hidden = posts.length > 0;
+        setEmpty('posts');
+        grid.querySelectorAll('[data-post]').forEach(el => el.addEventListener('click', e => {
+            if (e.target.closest('.post-kebab')) return;
+            location.href = '/exchange/' + el.dataset.post;
+        }));
+    }
+
+    // 보증금 정산 요약: 서버 정산식(ExchangeService.settle)과 같은 비율로 환불액/수수료(가게 몫)를 보여준다
+    function settleLine(r) {
+        if (!(r.status === 'COMPLETED' || r.status === 'EXPIRED_BOTH' || r.status === 'EXPIRED_PARTIAL' || r.status === 'CONFIRMED')) return '';
+        const mineIsA = r.ownerUserId === ME;
+        const deposit = Number((mineIsA ? r.depositAmountA : r.depositAmountB) || 0);
+        if (!deposit) return '';
+        if (r.status === 'CONFIRMED') {
+            return `<div class="my-settle"><span>내 보증금 <b>${money(deposit)}</b></span><span class="note">교환 후 정산돼요</span></div>`;
+        }
+        const { refund } = settleOf(r);
+        return `<div class="my-settle">
+            <span>내 보증금 <b>${money(deposit)}</b></span>
+            <span>환불금 <b>${money(refund)}</b></span>
+            <span>수수료 <b>${money(deposit - refund)}</b></span>
+        </div>`;
+    }
+
+    // 내 기준 정산 결과 (서버 정산식과 동일)
+    function settleOf(r) {
+        const mineIsA = r.ownerUserId === ME;
+        const deposit = Number((mineIsA ? r.depositAmountA : r.depositAmountB) || 0);
+        const showed = mineIsA ? r.userAShowed : r.userBShowed;
+        const refund = r.status === 'COMPLETED' ? Math.round(deposit * 0.75)
+            : r.status === 'EXPIRED_BOTH' ? Math.round(deposit * 0.5)
+            : (showed ? deposit : 0);
+        const reason = r.status === 'COMPLETED' ? '교환이 정상적으로 완료되어 보증금의 25%가 수수료로 차감됐어요.'
+            : r.status === 'EXPIRED_BOTH' ? '양쪽 모두 약속 장소에 나타나지 않아 보증금의 절반이 차감됐어요.'
+            : showed ? '상대가 나타나지 않았지만 약속을 지켜 보증금 전액을 돌려받았어요.'
+            : '약속 장소에 나타나지 않아 보증금 전액이 차감됐어요.';
+        return { deposit, refund, fee: deposit - refund, reason };
+    }
+
+    // 확정된 교환: 가게 도착 후 사장님께 교환번호를 알려야 방문이 인정되고 보증금을 돌려받는다는 안내
+    function visitGuide(r) {
+        if (r.status !== 'CONFIRMED') return '';
+        const when = r.meetingConfirmed && r.meetingAt
+            ? `<div class="vm"><span>확정된 만날 시간</span><b>${fmt(r.meetingAt)}</b></div>`
+            : '<div class="vm none"><span>확정된 만날 시간이 아직 없어요. 아래 채팅과 만날 시간에서 먼저 정해주세요.</span></div>';
+        return `<div class="my-visit">
+            <div class="vn"><small>교환번호</small>#${r.id}</div>
+            <div class="vt"><strong>가게에 도착하면 사장님께 교환번호와 확정된 만날 시간을 보여주세요</strong>
+                ${when}
+                <p>두 가지가 맞아야 사장님이 방문을 인증해 줘요. 인증되어야 보증금을 돌려받을 수 있고, 방문 기한(${fmt(r.deadline)})까지 인증되지 않으면 보증금이 차감돼요.</p></div>
+        </div>`;
+    }
+
+    // 정산이 끝난 교환(완료/불참)의 영수증. 채팅보다 위에 보여준다.
+    function receiptHtml(r) {
+        if (!['COMPLETED', 'EXPIRED_BOTH', 'EXPIRED_PARTIAL'].includes(r.status)) return '';
+        const { deposit, refund, fee, reason } = settleOf(r);
+        if (!deposit) return '';
+        return `<div class="my-receipt">
+            <div class="rc-title">정산 영수증<span>${esc(STATUS[r.status])}</span></div>
+            <div class="rc-row"><span>내 보증금(예치)</span><span>${money(deposit)}</span></div>
+            <div class="rc-row"><span>수수료 (가게 몫)</span><span>− ${money(fee)}</span></div>
+            <div class="rc-row total"><span>환불 금액</span><span>${money(refund)}</span></div>
+            <p class="rc-note">${reason}${refund > 0 ? '<br>환불은 결제한 카드로 돌아가요.' : ''}</p>
+        </div>`;
+    }
+
+    function renderRequests(list, mine) {
+        grid.innerHTML = list.map(r => {
+            const mineIsA = r.ownerUserId === ME;
+            const my = mineIsA ? { url: r.itemImageUrl, title: r.itemTitle } : { url: r.itemBImageUrl, title: r.itemBTitle };
+            const other = mineIsA ? { url: r.itemBImageUrl, title: r.itemBTitle } : { url: r.itemImageUrl, title: r.itemTitle };
+            return `<div class="card my-card" data-req="${r.id}">
+                <span class="card-tag">■ ${esc(STATUS[r.status] || r.status)}</span>
+                <div class="my-pair">${img(my.url, my.title)}<span class="my-swap">⇄</span>${img(other.url, other.title)}</div>
+                <p class="card-title">${esc(my.title)} ⇄ ${esc(other.title)}</p>
+                <p class="card-meta">교환장소: ${esc(r.shopName)}</p>
+                <p class="card-meta">신청일 ${fmt(r.createdAt)}</p>
+                ${r.status === 'CONFIRMED' ? `<p class="card-meta">교환번호 #${r.id}</p>` : ''}
+                ${meetingLine(r)}
+                ${settleLine(r)}
+            </div>`;
+        }).join('');
+        empty.hidden = list.length > 0;
+        setEmpty(mine);
+        grid.querySelectorAll('[data-req]').forEach(el => el.addEventListener('click', () => openRequest(Number(el.dataset.req))));
+    }
+
+    // 1단계: 내 교환글 / 신청 / 교환, 2단계: 각 묶음 안의 세부 탭
+    const GROUPS = [
+        { key: 'posts', label: '내 교환글', tabs: [], count: () => posts.length },
+        { key: 'requests', label: '신청', count: () => sentList().length + receivedList().length, tabs: [
+            { key: 'received', label: '받은 신청', count: () => receivedList().length },
+            { key: 'sent', label: '보낸 신청', count: () => sentList().length },
+            { key: 'closed', label: '취소됨', count: () => closedList().length }] },
+        { key: 'exchanges', label: '교환', count: () => confirmedList().length + doneList().length + failedList().length, tabs: [
+            { key: 'confirmed', label: '확정됨', count: () => confirmedList().length },
+            { key: 'done', label: '완료된 교환', count: () => doneList().length },
+            { key: 'failed', label: '실패한 교환', count: () => failedList().length }] }
+    ];
+
+    function renderTabs() {
+        document.getElementById('main-tabs').innerHTML = GROUPS.map(g =>
+            `<button type="button" class="filter-chip${g.key === group ? ' active' : ''}" data-group="${g.key}">${g.label}<small>${g.count()}</small></button>`).join('');
+        const sub = document.getElementById('sub-tabs');
+        const current = GROUPS.find(g => g.key === group);
+        sub.hidden = current.tabs.length === 0;
+        sub.innerHTML = current.tabs.map(t =>
+            `<button type="button" class="${t.key === tab ? 'active' : ''}" data-tab="${t.key}">${t.label}<small>${t.count()}</small></button>`).join('');
+    }
+
+    function render() {
+        renderTabs();
+        grid.hidden = tab === 'received';
+        groupsEl.hidden = tab !== 'received';
+        if (tab === 'posts') renderPosts();
+        else if (tab === 'sent') renderRequests(sentList(), 'sent');
+        else if (tab === 'closed') renderRequests(closedList(), 'closed');
+        else if (tab === 'confirmed') renderRequests(confirmedList(), 'confirmed');
+        else if (tab === 'failed') renderRequests(failedList(), 'failed');
+        else if (tab === 'done') renderRequests(doneList(), 'done');
+        else renderReceivedGroups();
+    }
+
+    // ---------- 받은 신청: 같은 게시글에 온 신청끼리 묶어서 보기 ----------
+    function meetingShort(r) {
+        if (r.meetingConfirmed) return ` · ✓ 만남 확정 ${fmt(r.meetingAt)}`;
+        if (r.meetingAt) return ` · 시간 제안됨 ${fmt(r.meetingAt)}`;
+        return '';
+    }
+
+    const openGroups = new Set(); // 펼쳐진 게시글 묶음 (기본은 전부 접힘)
+
+    function renderReceivedGroups() {
+        const list = receivedList();
+        const groups = new Map();
+        list.forEach(r => {
+            if (!groups.has(r.exchangeItemAId)) groups.set(r.exchangeItemAId, []);
+            groups.get(r.exchangeItemAId).push(r);
+        });
+        // 대기 중인 신청이 있는 게시글을 위로, 그 안에서도 대기 중 신청을 위로
+        const ordered = [...groups.entries()].map(([postId, rows]) => {
+            rows.sort((a, b) => (b.status === 'PENDING') - (a.status === 'PENDING') || b.id - a.id);
+            return { postId, rows, pending: rows.filter(r => r.status === 'PENDING').length };
+        }).sort((a, b) => (b.pending > 0) - (a.pending > 0) || b.rows[0].id - a.rows[0].id);
+
+        groupsEl.innerHTML = ordered.map(({ postId, rows, pending }) => {
+            const first = rows[0];
+            return `<section class="my-group${openGroups.has(postId) ? ' open' : ''}" data-post="${postId}">
+                <header class="my-group-head">
+                    <div class="my-thumb">${thumb(first.itemImageUrl, first.itemTitle)}</div>
+                    <div class="my-group-title">
+                        <strong>${esc(first.itemTitle)}</strong>
+                        <small>받은 신청 ${rows.length}건${pending ? ` · 대기 중 ${pending}건` : ''}</small>
+                    </div>
+                    <a class="my-group-link" href="/exchange/${postId}">게시글 보기</a>
+                    <span class="my-group-chev" aria-hidden="true">▼</span>
+                </header>
+                ${rows.map(r => `<div class="my-group-row" data-req="${r.id}">
+                    <div class="my-thumb sm">${thumb(r.itemBImageUrl, r.itemBTitle)}</div>
+                    <div class="my-row-main">
+                        <strong>${esc(r.itemBTitle)}</strong>
+                        <small>${r.message ? `"${esc(r.message)}" · ` : ''}상대 보증금 ${money(r.depositAmountB)}${meetingShort(r)}</small>
+                    </div>
+                    <span class="my-badge ${r.status === 'CONFIRMED' ? 'dark' : ''}">${esc(STATUS[r.status] || r.status)}</span>
+                    ${r.status === 'PENDING' ? `<div class="my-row-actions">
+                        <button type="button" class="primary" data-accept="${r.id}">수락</button>
+                        <button type="button" data-reject="${r.id}">거절</button>
+                    </div>` : ''}
+                </div>`).join('')}
+            </section>`;
+        }).join('');
+        empty.hidden = list.length > 0;
+        setEmpty('received');
+    }
+
+    // 묶음 안의 수락/거절 버튼, 행 클릭(상세: 만날 시간/채팅)
+    groupsEl.addEventListener('click', e => {
+        const accept = e.target.closest('[data-accept]');
+        const reject = e.target.closest('[data-reject]');
+        if (accept) { e.stopPropagation(); acceptRequest(requests.find(r => r.id === Number(accept.dataset.accept))); return; }
+        if (reject) { e.stopPropagation(); rejectRequest(requests.find(r => r.id === Number(reject.dataset.reject))); return; }
+        if (e.target.closest('a')) return;
+        const head = e.target.closest('.my-group-head');
+        if (head) {
+            const group = head.closest('.my-group');
+            const id = Number(group.dataset.post);
+            group.classList.toggle('open');
+            if (group.classList.contains('open')) openGroups.add(id); else openGroups.delete(id);
+            return;
+        }
+        const row = e.target.closest('[data-req]');
+        if (row) openRequest(Number(row.dataset.req));
+    });
+
+    // ---------- 수락 / 거절 ----------
+    async function acceptRequest(r) {
+        if (!r) return;
+        if (!skipPayment && !window.PortOne) { alert('포트원 SDK를 불러오지 못했습니다.'); return; }
+        const guide = skipPayment ? ' (데모: 결제 생략)' : '';
+        if (!(await gbConfirm(`'${r.itemBTitle}'와(과)\n교환할까요?\n\n내 보증금 ${money(r.acceptDepositAmount)}${guide}\n수락하면 다른 신청은 자동 취소돼요`))) return;
+        try {
+            const result = await payDeposit(r.acceptDepositAmount);
+            const res = await pageFetch('/api/exchange-requests/' + r.id + '/accept', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: result.paymentId })
+            });
+            if (!res.ok) throw new Error(await errorText(res, '수락에 실패했습니다.'));
+            if (current) closeRequest();
+            await load();
+            alert('교환이 확정되었습니다.\n신청 카드를 눌러 채팅으로 만날 시간을 정해보세요.');
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    async function rejectRequest(r) {
+        if (!r) return;
+        if (!(await gbConfirm(`'${r.itemBTitle}' 교환 신청을 거절할까요?\n신청자의 보증금은 전액 환불돼요.`))) return;
+        const res = await pageFetch(`/api/exchange-requests/${r.id}/reject`, { method: 'POST' });
+        if (!res.ok) { alert(await errorText(res, '거절에 실패했습니다.')); return; }
+        if (current) closeRequest();
+        await load();
+    }
+
+    async function load() {
+        if (ME === null) {
+            empty.hidden = false;
+            setEmpty('login');
+            return;
+        }
+        const [pRes, rRes] = await Promise.all([pageFetch('/api/exchange-items/me'), pageFetch('/api/exchange-requests/me')]);
+        posts = pRes.ok ? await pRes.json() : [];
+        requests = rRes.ok ? await rRes.json() : [];
+        posts.sort((a, b) => b.id - a.id);
+        requests.sort((a, b) => b.id - a.id);
+        render();
+    }
+
+    document.getElementById('main-tabs').addEventListener('click', e => {
+        const btn = e.target.closest('[data-group]');
+        if (!btn) return;
+        group = btn.dataset.group;
+        const g = GROUPS.find(x => x.key === group);
+        tab = g.tabs.length ? g.tabs[0].key : 'posts';
+        render();
+    });
+
+    document.getElementById('sub-tabs').addEventListener('click', e => {
+        const btn = e.target.closest('[data-tab]');
+        if (!btn) return;
+        tab = btn.dataset.tab;
+        render();
+    });
+
+    // ---------- 신청 상세 (만날 시간 + 채팅) ----------
+    const reqModal = document.getElementById('req-modal');
+    const reqBody = document.getElementById('req-body');
+    let current = null, stomp = null, messages = [];
+
+    const chatOpen = r => ['CONFIRMED', 'COMPLETED', 'EXPIRED_PARTIAL', 'EXPIRED_BOTH'].includes(r.status);
+
+    function meetingPanel(r) {
+        const iAmProposer = r.meetingProposerId === ME;
+        const dateHtml = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()}(${DAYS[d.getDay()]}) ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        if (r.meetingConfirmed) {
+            return `<div class="my-meeting fixed"><div class="mt-body">
+                <div class="mt-caption">만날 시간 확정 ✓</div>
+                <div class="mt-date">${dateHtml(r.meetingAt)}<small>${esc(r.shopName)}</small></div>
+                <p class="my-hint">확정된 시간은 변경할 수 없어요. 가게에서 이 시간에 맞춰 교환을 진행해요.</p>
+            </div></div>`;
+        }
+        if (r.status !== 'CONFIRMED') {
+            return `<div class="my-meeting"><div class="mt-body">${r.meetingAt
+                ? `<div class="mt-caption">제안된 시간</div><div class="mt-date">${dateHtml(r.meetingAt)}</div>`
+                : '<div class="mt-empty">만날 시간을 정하지 못했어요.</div>'}</div></div>`;
+        }
+        const max = r.deadline ? toLocalInput(new Date(r.deadline)) : '';
+        const min = toLocalInput(new Date(Date.now() + 60000));
+        let body;
+        if (!r.meetingAt) {
+            body = '<div class="mt-empty">아직 정해진 시간이 없어요.<br>채팅으로 이야기하고 편한 시간을 제안해 보세요.</div>';
+        } else if (iAmProposer) {
+            body = `<div class="mt-caption">내가 제안한 시간</div><div class="mt-date">${dateHtml(r.meetingAt)}</div>
+                <div class="mt-wait">상대가 확정하면 고정돼요. 상대가 다른 시간을 제안하면 여기서 확정할 수 있어요.</div>`;
+        } else {
+            body = `<div class="mt-caption">상대가 제안한 시간</div><div class="mt-date">${dateHtml(r.meetingAt)}</div>
+                <button type="button" class="mt-confirm" id="meeting-confirm">이 시간으로 확정</button>`;
+        }
+        return `<div class="my-meeting">
+            <div class="mt-body">${body}</div>
+            <div class="mt-propose">
+                <label for="meeting-input">${r.meetingAt ? '다른 시간 제안하기' : '시간 제안하기'}</label>
+                <div class="row">
+                    <input type="datetime-local" id="meeting-input" min="${min}" ${max ? `max="${max}"` : ''}>
+                    <button type="button" id="meeting-propose">${r.meetingAt ? '다시 제안' : '제안'}</button>
+                </div>
+                <p class="my-hint">방문 기한(${fmt(r.deadline)}) 안의 시간만 정할 수 있어요.</p>
+            </div>
+        </div>`;
+    }
+
+    function actionsFor(r) {
+        const mineIsA = r.ownerUserId === ME;
+        const buttons = [];
+        if (r.status === 'PENDING' && mineIsA) {
+            buttons.push('<button type="button" class="primary" data-act="accept">수락</button>');
+            buttons.push('<button type="button" data-act="reject">거절</button>');
+        }
+        if (r.status === 'PENDING' && !mineIsA) buttons.push('<button type="button" data-act="cancel">신청 취소</button>');
+        return buttons.length ? `<div class="my-actions">${buttons.join('')}</div>` : '';
+    }
+
+    function renderRequestModal() {
+        const r = current;
+        const mineIsA = r.ownerUserId === ME;
+        const my = mineIsA ? { url: r.itemImageUrl, title: r.itemTitle } : { url: r.itemBImageUrl, title: r.itemBTitle };
+        const other = mineIsA ? { url: r.itemBImageUrl, title: r.itemBTitle } : { url: r.itemImageUrl, title: r.itemTitle };
+        reqBody.innerHTML = `
+            <a class="my-postlink" href="/exchange/${r.exchangeItemAId}">게시글 보기 ↗</a>
+            <h1>교환 상세 <span class="my-badge dark">${esc(STATUS[r.status] || r.status)}</span> <span class="my-badge">${mineIsA ? '내가 게시자(A)' : '내가 신청자(B)'}</span></h1>
+            <div class="my-items">
+                <div>${img(my.url, my.title)}<p class="card-meta">내 상품 · ${esc(my.title)}</p></div>
+                <div>${img(other.url, other.title)}<p class="card-meta">상대 상품 · ${esc(other.title)}</p></div>
+            </div>
+            <p class="card-meta">교환장소: ${esc(r.shopName)}${r.message ? ` · 제안 메시지: ${esc(r.message)}` : ''}</p>
+            ${actionsFor(r)}
+            ${visitGuide(r)}
+            ${receiptHtml(r)}
+            ${chatOpen(r) ? (r.status === 'CONFIRMED' ? `<h2>채팅</h2>
+                <div class="my-chat">
+                    <div class="my-chat-status" id="chat-status">연결 중...</div>
+                    <div class="my-chat-log" id="chat-log"></div>
+                    <form class="my-chat-form" id="chat-form">
+                        <input id="chat-input" type="text" maxlength="500" placeholder="메시지를 입력하세요" autocomplete="off">
+                        <button type="submit">전송</button>
+                    </form>
+                </div>` : `<h2>지난 대화</h2>
+                <div class="my-chat">
+                    <div class="my-chat-log past" id="chat-log"></div>
+                </div>`) : (r.status === 'PENDING' ? '<p class="my-hint">신청이 수락되면 채팅으로 만날 시간을 정할 수 있어요.</p>' : '')}
+            ${chatOpen(r) || r.meetingAt ? `<h2>만날 시간</h2>${meetingPanel(r)}` : ''}
+        `;
+        bindRequestModal();
+        if (chatOpen(r)) renderChat();
+    }
+
+    function renderChat() {
+        const log = document.getElementById('chat-log');
+        if (!log) return;
+        const notice = current && current.status === 'CONFIRMED' && !current.meetingConfirmed
+            ? '<div class="notice">교환이 확정됐어요.<br>아래 <b>만날 시간</b>에서 시간을 제안하고, 채팅으로 편한 시간을 조율해 주세요.</div>' : '';
+        log.innerHTML = notice + (messages.length
+            ? messages.map(m => `<div class="my-bubble ${m.senderUserId === ME ? 'mine' : ''}">${esc(m.content)}<small>${fmt(m.createdAt)}</small></div>`).join('')
+            : `<span class="empty">${current && current.status === 'CONFIRMED' ? '아직 메시지가 없어요. 먼저 인사해 보세요 :)' : '주고받은 대화가 없어요.'}</span>`);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    function setChatStatus(text) {
+        const el = document.getElementById('chat-status');
+        if (el) el.textContent = text;
+    }
+
+    // 양쪽이 동시에 시간을 제안하면 알림이 뒤섞여 도착해서 서로 다른 상태를 보게 될 수 있다.
+    // 그래서 시간 관련 변경 뒤에는 서버에 저장된 최신 상태를 다시 받아 화면을 맞춘다.
+    async function refreshCurrent() {
+        if (!current) return;
+        const id = current.id;
+        const res = await pageFetch('/api/exchange-requests/me');
+        if (!res.ok || !current || current.id !== id) return;
+        requests = (await res.json()).sort((a, b) => b.id - a.id);
+        const next = requests.find(r => r.id === id);
+        if (!next) return;
+        const changed = next.meetingAt !== current.meetingAt || next.meetingProposerId !== current.meetingProposerId
+            || next.meetingConfirmed !== current.meetingConfirmed || next.status !== current.status;
+        current = next;
+        render();
+        if (changed) renderRequestModal();
+    }
+
+    function updateRequest(next) {
+        const idx = requests.findIndex(r => r.id === next.id);
+        if (idx >= 0) requests[idx] = next;
+        if (current && current.id === next.id) current = next;
+        render();
+    }
+
+    function bindRequestModal() {
+        reqBody.querySelectorAll('[data-act]').forEach(btn => btn.addEventListener('click', async () => {
+            const act = btn.dataset.act;
+            if (act === 'accept') { await acceptRequest(current); return; }
+            if (act === 'reject') { await rejectRequest(current); return; }
+            const ok = await gbConfirm(act === 'reject' ? '이 교환 신청을 거절할까요?\n신청자의 보증금은 전액 환불돼요.' : '교환 신청을 취소할까요?\n보증금은 전액 환불돼요.');
+            if (!ok) return;
+            const res = await pageFetch(`/api/exchange-requests/${current.id}/${act}`, { method: 'POST' });
+            if (!res.ok) { alert(await errorText(res, '처리에 실패했습니다.')); return; }
+            closeRequest();
+            load();
+        }));
+        const proposeBtn = document.getElementById('meeting-propose');
+        if (proposeBtn) proposeBtn.addEventListener('click', async () => {
+            const value = document.getElementById('meeting-input').value;
+            if (!value) { alert('만날 날짜와 시간을 선택해주세요.'); return; }
+            const res = await pageFetch(`/api/exchange-requests/${current.id}/meeting`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meetingAt: value })
+            });
+            if (!res.ok) { alert(await errorText(res, '시간 제안에 실패했습니다.')); return; }
+            updateRequest(await res.json());
+            renderRequestModal();
+            refreshCurrent();
+        });
+        const confirmBtn = document.getElementById('meeting-confirm');
+        if (confirmBtn) confirmBtn.addEventListener('click', async () => {
+            if (!(await gbConfirm(`${fmt(current.meetingAt)}에 만나는 것으로 확정할까요?\n확정 후에는 변경할 수 없어요.`))) return;
+            const res = await pageFetch(`/api/exchange-requests/${current.id}/meeting/confirm`, { method: 'POST' });
+            if (!res.ok) { alert(await errorText(res, '확정에 실패했습니다.')); return; }
+            updateRequest(await res.json());
+            renderRequestModal();
+        });
+        const form = document.getElementById('chat-form');
+        if (form) form.addEventListener('submit', e => {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const content = input.value.trim();
+            if (!content) return;
+            if (!stomp || !stomp.connected) { alert('채팅 연결이 끊겼어요. 잠시 후 다시 시도해주세요.'); return; }
+            stomp.publish({ destination: `/app/exchange-requests/${current.id}/chat`, body: JSON.stringify({ content }) });
+            input.value = '';
+        });
+    }
+
+    function connectChat(r) {
+        stomp = new StompJs.Client({
+            brokerURL: `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`,
+            reconnectDelay: 3000
+        });
+        stomp.onConnect = () => {
+            setChatStatus('실시간 연결됨');
+            if (r.status !== 'CONFIRMED') return;
+            stomp.subscribe(`/topic/exchange-requests/${r.id}`, frame => {
+                const event = JSON.parse(frame.body);
+                if (event.type === 'CHAT' && event.message) {
+                    if (!messages.some(m => m.id === event.message.id)) messages.push(event.message);
+                    renderChat();
+                } else if (event.type === 'MEETING' && event.request) {
+                    refreshCurrent();
+                }
+            });
+        };
+        stomp.onWebSocketClose = () => setChatStatus('연결이 끊겼어요. 다시 연결하는 중...');
+        stomp.onStompError = frame => setChatStatus('연결 오류: ' + (frame.headers.message || ''));
+        stomp.activate();
+    }
+
+    async function openRequest(id) {
+        current = requests.find(r => r.id === id);
+        if (!current) return;
+        messages = [];
+        reqModal.hidden = false;
+        renderRequestModal();
+        if (chatOpen(current)) {
+            const res = await pageFetch(`/api/exchange-requests/${id}/messages`);
+            if (res.ok) { messages = await res.json(); renderChat(); }
+            if (current && current.id === id && current.status === 'CONFIRMED') connectChat(current);
+        }
+    }
+
+    function closeRequest() {
+        reqModal.hidden = true;
+        if (stomp) { stomp.deactivate(); stomp = null; }
+        current = null;
+    }
+    document.getElementById('req-close').addEventListener('click', closeRequest);
+    reqModal.addEventListener('click', e => { if (e.target === reqModal) closeRequest(); });
+
+    // 내 교환글 카드의 ⋯ 메뉴(수정/삭제)
+    gbPostActions.bind(grid, id => posts.find(p => p.id === id), load);
+
+    // 알림 등에서 /my/exchange?request={신청ID} 로 들어오면 그 교환 팝업을 바로 연다
+    load().then(() => {
+        const id = Number(new URLSearchParams(location.search).get('request'));
+        if (id && requests.some(r => r.id === id)) openRequest(id);
+    });
+})();
+</script>

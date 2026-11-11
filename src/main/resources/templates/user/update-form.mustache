@@ -1,6 +1,10 @@
 {{> fragments/header}}
 
 <div class="container profile-container">
+<nav class="my-tabs">
+    <a href="/update" class="active">내 정보</a>
+    <a href="/my/exchange">교환 내역</a>
+</nav>
 <h1>회원 정보 수정</h1>
 
 <div class="profile-grid">
@@ -10,7 +14,7 @@
             <img src="{{user.profileImage}}" alt="" class="profile-avatar-image">
             <form action="/user/profile-image/delete" method="post" class="inline-form">
                 <button type="submit" class="link-button"
-                        onclick="return confirm('사진을 삭제하시겠습니까?');">프로필 사진 삭제
+                        onclick="event.preventDefault(); const f = this.form; gbConfirm('사진을 삭제하시겠습니까?').then(ok => { if (ok) f.submit(); });">프로필 사진 삭제
                 </button>
             </form>
         {{/user.profileImage}}

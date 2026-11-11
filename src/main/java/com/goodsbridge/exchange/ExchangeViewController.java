@@ -28,6 +28,10 @@ public class ExchangeViewController {
     @Value("${portone.channel-key}")
     private String channelKey;
 
+    // TODO(데모 종료 후 제거): 데모 모드에서는 교환 보증금 결제창을 건너뛴다
+    @Value("${app.demo.enabled:false}")
+    private boolean skipPayment;
+
     //   교환 보증금 정산( 교환 수락, 가게(check-in))
     //교환수락
     @PostMapping("/api/exchange-requests/{id}/accept")
@@ -93,6 +97,7 @@ public class ExchangeViewController {
         model.addAttribute("userId", currentUserId);
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
+        model.addAttribute("skipPayment", skipPayment);
         return "exchange/detail";
     }
 
@@ -170,6 +175,49 @@ public class ExchangeViewController {
         return ResponseEntity.ok().body(itemResponseList);
     }
 
+    //교환 게시글 수정 (원하는 것, 교환장소)
+    @ResponseBody
+    @PatchMapping("/api/exchange-items/{id}")
+    public ResponseEntity<ExchangeItemResponse> updateExchangeItem(@PathVariable Long id,
+                                                                   @RequestBody ExchangeItemUpdateRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        return ResponseEntity.ok(exchangeService.updateExchangeItem(id, userId, request.getWantDescription(), request.getShopId()));
+    }
+
+    //교환 게시글 삭제
+    @ResponseBody
+    @DeleteMapping("/api/exchange-items/{id}")
+    public ResponseEntity<Void> deleteExchangeItem(@PathVariable Long id) {
+        exchangeService.deleteExchangeItem(id, SecurityUtil.getCurrentUserId());
+        return ResponseEntity.noContent().build();
+    }
+
+    //마이페이지 교환 내역 화면 (내 교환글 / 보낸 신청 / 받은 신청)
+    @GetMapping("/my/exchange")
+    public String myExchange(Model model) {
+        Long userId = SecurityUtil.getCurrentUserIdOrNull();
+        // 가게 사장님은 개인 교환 내역 대신 가게 교환 관리 화면을 쓴다 (데모에서 가게로 전환해도 같은 주소에서 바로 맞는 화면으로)
+        if (userId != null && exchangeService.isShopOwner(userId)) {
+            return "redirect:/shop/exchange";
+        }
+        model.addAttribute("userId", userId);
+        model.addAttribute("portoneStoreId", storeId);
+        model.addAttribute("portoneChannelKey", channelKey);
+        model.addAttribute("skipPayment", skipPayment);
+        return "exchange/my";
+    }
+
+    //결제창을 띄우기 전에 신청 가능한지 미리 확인 (불가능하면 400/403/404 + 사유)
+    @ResponseBody
+    @PostMapping("/api/exchange-items/{id}/propose/check")
+    public ResponseEntity<Void> checkProposal(@PathVariable Long id, @RequestBody ExchangeProposeCheckRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        request.validate();
+        exchangeService.checkProposal(id, request.getItemBId(), userId);
+        return ResponseEntity.noContent().build();
+    }
+
     //교환 제안 → 제안자(B) 보증금 결제 검증
     @ResponseBody
     @PostMapping("/api/exchange-items/{id}/propose")
@@ -182,6 +230,7 @@ public class ExchangeViewController {
     }
 
     //게시글 주인(A) 거절 → B 보증금 100% 환불,
+    @ResponseBody
     @PostMapping("/api/exchange-requests/{id}/reject")
     public void rejectExchangeRequest(@PathVariable Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
@@ -189,10 +238,39 @@ public class ExchangeViewController {
     }
 
     //제안자(B)가 본인 제안 취소 → B 보증금 100% 환불,
+    @ResponseBody
     @PostMapping("/api/exchange-requests/{id}/cancel")
     public void cancelExchangeRequest(@PathVariable Long id) {
         Long userId = SecurityUtil.getCurrentUserId();
         exchangeService.cancelExchange(id, userId);
+    }
+
+    //가게 사장님: 내 가게의 교환 목록 (교환번호로 찾아 방문 체크)
+    @ResponseBody
+    @GetMapping("/api/exchange-requests/shop")
+    public ResponseEntity<ShopExchangeListResponse> getShopExchanges(
+        @RequestParam(defaultValue = "waiting") String tab,
+        @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(exchangeService.getShopExchanges(SecurityUtil.getCurrentUserId(), tab, keyword));
+    }
+
+    //가게 사장님: 오늘 방문 예정 + 교환 수수료 수익 요약
+    @ResponseBody
+    @GetMapping("/api/exchange-requests/shop/summary")
+    public ResponseEntity<ShopExchangeSummaryResponse> getShopSummary() {
+        return ResponseEntity.ok(exchangeService.getShopSummary(SecurityUtil.getCurrentUserId()));
+    }
+
+    //가게 사장님 교환 관리 화면
+    @GetMapping("/shop/exchange")
+    public String shopExchange(Model model) {
+        Long userId = SecurityUtil.getCurrentUserIdOrNull();
+        // 가게 사장님이 아니면(다른 계정으로 전환했거나 로그아웃 상태) 개인 교환 내역으로 돌려보낸다
+        if (userId == null || !exchangeService.isShopOwner(userId)) {
+            return "redirect:/my/exchange";
+        }
+        model.addAttribute("userId", userId);
+        return "exchange/shop";
     }
 
     //내 교환 현황

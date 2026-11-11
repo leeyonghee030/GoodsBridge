@@ -18,10 +18,7 @@
         <p>원하는 것: {{item.wantDescription}}</p>
         <p class="card-meta">교환장소: {{item.shopName}} · <span class="badge">{{item.status}}</span></p>
 
-        <section id="requests-section" hidden>
-            <h2>받은 제안</h2>
-            <div id="requests-list"></div>
-        </section>
+        <p id="owner-requests-hint" class="card-meta" hidden>받은 교환 신청은 <a href="/my/exchange">마이페이지 &gt; 교환 내역</a>에서 확인하고 수락·거절할 수 있어요.</p>
 
         <section id="comments-section" class="exchange-comments">
             <h2>댓글</h2>
@@ -35,6 +32,21 @@
 </div>
 </div>
 
+<style>
+.deposit-info { margin: 0 0 0.8rem; padding: 0.8rem 0.9rem; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-size: 0.82rem; }
+.deposit-info .di-row { display: flex; justify-content: space-between; align-items: baseline; }
+.deposit-info .di-row strong { font-size: 1rem; font-weight: 600; }
+.deposit-info .di-hint { margin: 0.25rem 0 0; font-size: 0.74rem; color: var(--color-muted); }
+.deposit-info .di-table { width: 100%; margin-top: 0.6rem; border-collapse: collapse; font-size: 0.76rem; }
+.deposit-info .di-table td { padding: 0.35rem 0; border-top: 1px dashed var(--color-border); color: var(--color-text-soft); vertical-align: top; }
+.deposit-info .di-table td:last-child { text-align: right; white-space: nowrap; color: var(--color-text); }
+.deposit-info .di-table small { display: block; color: var(--color-muted); font-size: 0.7rem; }
+.deposit-info .di-foot { margin: 0.5rem 0 0; font-size: 0.72rem; line-height: 1.5; color: var(--color-muted); }
+.deposit-info .di-agree { display: flex; align-items: center; gap: 0.4rem; margin-top: 0.7rem; padding-top: 0.7rem; border-top: 1px solid var(--color-border); font-size: 0.8rem; font-weight: 500; cursor: pointer; }
+.deposit-info .di-agree input { width: auto; margin: 0; }
+#propose-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.deposit-info .di-rules { margin: 0.6rem 0 0; padding: 0.6rem 0 0 1.1rem; border-top: 1px dashed var(--color-border); font-size: 0.74rem; line-height: 1.6; color: var(--color-text-soft); }
+</style>
 <div class="modal-backdrop" id="propose-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" id="close-propose">✕</button>
@@ -48,7 +60,14 @@
         <p>
             <textarea id="proposeMessage" placeholder="A에게 보낼 메시지" rows="3"></textarea>
         </p>
-        <button id="propose-button" type="button">제안하기</button>
+        <div class="deposit-info" id="deposit-info">
+            <div class="di-row"><span>내가 낼 보증금</span><strong id="di-amount">-</strong></div>
+            <p class="di-hint" id="di-hint">내 상품을 고르면 보증금이 계산돼요. (상품가의 20%, 최소 2,000원)</p>
+            <table class="di-table" id="di-table"></table>
+            <p class="di-foot">수수료(차감액)는 교환을 중개한 가게의 몫이에요. 신청이 거절되거나 내가 취소하면 전액 환불돼요.</p>
+            <label class="di-agree"><input type="checkbox" id="di-agree"> 보증금 규정을 모두 읽었고 동의합니다.</label>
+        </div>
+        <button id="propose-button" type="button" disabled>제안하기</button>
         <p id="propose-message" class="form-message"></p>
     </div>
 </div>
@@ -72,6 +91,19 @@
     const portoneStoreId = '{{portoneStoreId}}';
     const portoneChannelKey = '{{portoneChannelKey}}';
     const isOwner = currentUserId !== null && currentUserId === ownerUserId;
+    const postOpen = '{{item.status}}' === 'OPEN';
+    // TODO(데모 종료 후 제거): 데모 모드(app.demo.enabled)에서는 교환 보증금 결제를 건너뛴다. 서버(DemoPaymentService)도 PortOne 검증을 생략한다.
+    const skipPayment = '{{skipPayment}}' === 'true';
+    async function payDeposit(totalAmount) {
+        if (skipPayment) return { paymentId: `demo-${crypto.randomUUID()}` };
+        const result = await PortOne.requestPayment({
+            storeId: portoneStoreId, channelKey: portoneChannelKey,
+            paymentId: `goodsbridge-exchange-${crypto.randomUUID()}`,
+            orderName: '교환 보증금', totalAmount, currency: 'KRW', payMethod: 'CARD'
+        });
+        if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+        return result;
+    }
 
     // ===== 댓글 목록: 스크롤 중에만 스크롤바 표시 (게시판 상세와 동일) =====
     const commentsList = document.getElementById('comments-list');
@@ -117,20 +149,77 @@
         const proposeModal = document.getElementById('propose-modal');
         const openPropose = document.getElementById('open-propose');
         openPropose.hidden = false;
-        openPropose.addEventListener('click', () => { proposeModal.hidden = false; });
+        if (!postOpen) {
+            openPropose.disabled = true;
+            openPropose.textContent = '신청 마감';
+            return;
+        }
+        // 열 때마다 신청 중인 아이템 표시를 서버 기준으로 다시 불러온다 (방금 신청한 아이템도 바로 '신청 중'으로 보이게)
+        openPropose.addEventListener('click', () => {
+            proposeModal.hidden = false; loadProposeItems();
+            const ag = document.getElementById('di-agree'); ag.checked = false; document.getElementById('propose-button').disabled = true;
+        });
         document.getElementById('close-propose').addEventListener('click', () => { proposeModal.hidden = true; });
-        const res = await pageFetch('/api/items/me');
+        await loadProposeItems();
+    }
+
+    // 내 아이템 목록을 다시 채운다. 이미 대기/확정된 다른 신청에 쓰이고 있는 아이템은 '· 신청 중'으로 표시하고 선택할 수 없게 한다.
+    async function loadProposeItems() {
+        const [res, myRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/exchange-requests/me')]);
         if (!res.ok) return;
         const items = await res.json();
+        const myRequests = myRes.ok ? await myRes.json() : [];
+        const usedItemIds = new Set(myRequests
+            .filter(r => r.proposerUserId === currentUserId && ['PENDING', 'CONFIRMED'].includes(r.status))
+            .map(r => r.itemBId));
         const select = document.getElementById('proposeItemId');
+        const selected = select.value;
+        while (select.options.length > 1) select.remove(1);   // 첫 번째 안내 옵션만 남기고 비움
         items.filter(item => item.status === 'ON_SALE').forEach(item => {
             const option = document.createElement('option');
             option.value = item.id;
             option.dataset.price = item.price;
-            option.textContent = `${item.title} (${money(item.price)})`;
+            const used = usedItemIds.has(item.id);
+            option.disabled = used;
+            option.textContent = `${item.title} (${money(item.price)})${used ? ' · 신청 중' : ''}`;
             select.appendChild(option);
         });
+        // 이전에 골라 둔 아이템이 아직 신청 가능하면 유지, 아니면 안내 옵션으로
+        select.value = [...select.options].some(o => o.value === selected && !o.disabled) ? selected : '';
     }
+
+    // 정산 규정표 (서버 정산식과 동일). 보증금을 알면 금액까지 같이 보여준다.
+    function renderRules(amount) {
+        const won = r => amount === null ? '' : money(Math.round(amount * r));
+        const row = (title, sub, ratio, r) => `<tr><td>${title}<small>${sub}</small></td><td>${ratio}${amount === null ? '' : `<small>${won(r)}</small>`}</td></tr>`;
+        document.getElementById('di-table').innerHTML =
+            row('교환 성공', '서로 나타나 교환 완료', '75% 환불', 0.75)
+            + row('양쪽 모두 불참', '둘 다 나타나지 않음', '50% 환불', 0.5)
+            + row('상대만 불참', '나는 약속을 지킴', '100% 환불', 1)
+            + row('나만 불참', '내가 나타나지 않음', '환불 없음', 0);
+    }
+    renderRules(null);
+
+    // 규정에 동의해야 제안할 수 있다
+    const agree = document.getElementById('di-agree');
+    agree.addEventListener('change', () => { document.getElementById('propose-button').disabled = !agree.checked; });
+
+    // 아이템을 고르면 내가 낼 보증금을 바로 보여준다
+    document.getElementById('proposeItemId').addEventListener('change', e => {
+        const opt = e.target.options[e.target.selectedIndex];
+        const amount = document.getElementById('di-amount');
+        const hint = document.getElementById('di-hint');
+        if (!e.target.value) {
+            amount.textContent = '-';
+            renderRules(null);
+            hint.textContent = '내 상품을 고르면 보증금이 계산돼요. (상품가의 20%, 최소 2,000원)';
+            return;
+        }
+        const price = Number(opt.dataset.price);
+        amount.textContent = money(deposit(price));
+        renderRules(deposit(price));
+        hint.textContent = `내 상품가 ${money(price)}의 20%` + (deposit(price) === 2000 && price * 0.2 < 2000 ? ' → 최소 보증금 2,000원 적용' : '') + (skipPayment ? ' · 데모: 결제 생략' : '');
+    });
 
     document.getElementById('propose-button').addEventListener('click', async () => {
         const message = document.getElementById('propose-message');
@@ -144,71 +233,38 @@
             proposeMessageInput.focus();
             return;
         }
-        if (!window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }
+        if (!skipPayment && !window.PortOne) { message.textContent = '포트원 SDK를 불러오지 못했습니다.'; message.className = 'form-message error'; return; }
+        // 결제창을 띄우기 전에 서버에서 신청 가능한지 먼저 확인 (결제 후에 거절되지 않도록)
+        message.textContent = '신청 가능 여부를 확인하는 중입니다.'; message.className = 'form-message';
+        const checkRes = await pageFetch('/api/exchange-items/' + exchangeItemId + '/propose/check', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ itemBId: Number(select.value) })
+        });
+        if (!checkRes.ok) { message.textContent = await errorText(checkRes, '교환을 신청할 수 없습니다.'); message.className = 'form-message error'; return; }
         const depositAmount = deposit(Number(selectedOption.dataset.price));
-        message.textContent = '결제창을 여는 중입니다.'; message.className = 'form-message';
+        message.textContent = skipPayment ? '신청하는 중입니다. (데모: 결제 생략)' : '결제창을 여는 중입니다.'; message.className = 'form-message';
         try {
-            const result = await PortOne.requestPayment({
-                storeId: portoneStoreId, channelKey: portoneChannelKey,
-                paymentId: `goodsbridge-exchange-${crypto.randomUUID()}`,
-                orderName: '교환 보증금', totalAmount: depositAmount, currency: 'KRW', payMethod: 'CARD'
-            });
-            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+            const result = await payDeposit(depositAmount);
             const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/propose', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ itemBId: Number(select.value), message: document.getElementById('proposeMessage').value.trim(), paymentId: result.paymentId })
             });
             if (!res.ok) throw new Error(await errorText(res, '제안에 실패했습니다.'));
-            message.textContent = '제안이 완료되었습니다.'; message.className = 'form-message';
+            message.textContent = '';
+            document.getElementById('propose-modal').hidden = true;
+            document.getElementById('proposeMessage').value = '';
+            await loadProposeItems();
+            alert('교환 신청이 완료되었습니다.\n상대가 수락하면 마이페이지 교환 내역에서 채팅할 수 있어요.');
         } catch (error) {
             message.textContent = error.message; message.className = 'form-message error';
         }
     });
 
-    // ===== 받은 제안 (A) =====
-    async function loadRequests() {
-        if (!isOwner) return;
-        document.getElementById('requests-section').hidden = false;
-        const res = await pageFetch('/api/exchange-items/' + exchangeItemId + '/requests');
-        const list = document.getElementById('requests-list');
-        if (!res.ok) { list.innerHTML = '<p class="empty-state">제안을 불러오지 못했습니다.</p>'; return; }
-        const requests = await res.json();
-        list.innerHTML = requests.length
-            ? requests.map(r => `<div class="comment-row"><p>${esc(r.message)} · 보증금 ${money(r.depositAmountB)}</p><div class="btn-row"><button type="button" data-accept="${r.id}">수락</button><button type="button" class="btn-secondary" data-reject="${r.id}">거절</button></div></div>`).join('')
-            : '<p class="empty-state">아직 받은 제안이 없습니다.</p>';
-        list.querySelectorAll('[data-reject]').forEach(button => button.addEventListener('click', async () => {
-            const res = await pageFetch('/api/exchange-requests/' + button.dataset.reject + '/reject', { method: 'POST' });
-            if (!res.ok) { alert('거절에 실패했습니다.'); return; }
-            loadRequests();
-        }));
-        list.querySelectorAll('[data-accept]').forEach(button => button.addEventListener('click', () => acceptRequest(button.dataset.accept)));
-    }
-
-    async function acceptRequest(requestId) {
-        if (!window.PortOne) { alert('포트원 SDK를 불러오지 못했습니다.'); return; }
-        const depositAmount = deposit(itemPrice);
-        try {
-            const result = await PortOne.requestPayment({
-                storeId: portoneStoreId, channelKey: portoneChannelKey,
-                paymentId: `goodsbridge-exchange-${crypto.randomUUID()}`,
-                orderName: '교환 보증금', totalAmount: depositAmount, currency: 'KRW', payMethod: 'CARD'
-            });
-            if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
-            const res = await pageFetch('/api/exchange-requests/' + requestId + '/accept', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paymentId: result.paymentId })
-            });
-            if (!res.ok) throw new Error(await errorText(res, '수락에 실패했습니다.'));
-            alert('교환이 확정되었습니다.');
-            location.reload();
-        } catch (error) {
-            alert(error.message);
-        }
-    }
+    // 받은 제안의 수락/거절은 마이페이지 교환 내역에서 한다 (게시글 주인에게 안내만 표시)
+    if (isOwner) document.getElementById('owner-requests-hint').hidden = false;
 
     loadComments();
     setupProposeSection();
-    loadRequests();
 })();
 </script>
 

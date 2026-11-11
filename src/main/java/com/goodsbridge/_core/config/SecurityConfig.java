@@ -52,7 +52,8 @@ public class SecurityConfig {
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/join", "/api/login",
                     "/css/**", "/js/**", "/img/**", "/favicon.ico", "/images/**", "/api/email/**",
-                    "/test/**", "/exchange/**"
+                    // /shop/exchange: 가게 사장님 화면. 사장님이 아니면 컨트롤러가 /my/exchange 로 보낸다 (401 빈 화면 방지)
+                    "/test/**", "/exchange/**", "/demo/**", "/my/**", "/shop/exchange"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()

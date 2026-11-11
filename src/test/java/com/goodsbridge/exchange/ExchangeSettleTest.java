@@ -57,7 +57,7 @@ class ExchangeSettleTest {
 
     @BeforeEach
     void setUp() {
-        exchangeItemA = mock(ExchangeItem.class);
+        exchangeItemA = mock(ExchangeItem.class, org.mockito.Answers.RETURNS_DEEP_STUBS);
         itemB = mock(Item.class);
         shop = mock(Shop.class);
 
@@ -75,19 +75,51 @@ class ExchangeSettleTest {
         exchangeRequest.updateStatus(ExchangeRequestStatus.CONFIRMED);
     }
 
+    private ExchangeCheckInRequest checkInRequest(Boolean a, Boolean b) {
+        ExchangeCheckInRequest request = new ExchangeCheckInRequest();
+        ReflectionTestUtils.setField(request, "userAShowed", a);
+        ReflectionTestUtils.setField(request, "userBShowed", b);
+        return request;
+    }
+
     @Test
-    void checkIn_bothShowed_refunds75PercentEach() {
+    void checkIn_bothShowed_startsGraceAndDoesNotSettleYet() {
         when(exchangeRequestRepository.findById(100L)).thenReturn(Optional.of(exchangeRequest));
         when(shop.isOwner(1L)).thenReturn(true);
+
+        exchangeService.checkIn(100L, 1L, checkInRequest(true, true));
+
+        // 실수로 눌렀을 때 되돌릴 수 있도록 유예(5분) 동안은 정산하지 않는다
+        assertEquals(ExchangeRequestStatus.CONFIRMED, exchangeRequest.getStatus());
+        org.junit.jupiter.api.Assertions.assertNotNull(exchangeRequest.getBothCheckedAt());
+        verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
+    }
+
+    @Test
+    void checkIn_uncheckDuringGrace_cancelsGrace() {
+        when(exchangeRequestRepository.findById(100L)).thenReturn(Optional.of(exchangeRequest));
+        when(shop.isOwner(1L)).thenReturn(true);
+
+        exchangeService.checkIn(100L, 1L, checkInRequest(true, true));
+        exchangeService.checkIn(100L, 1L, checkInRequest(null, false));
+
+        org.junit.jupiter.api.Assertions.assertNull(exchangeRequest.getBothCheckedAt());
+        assertEquals(ExchangeRequestStatus.CONFIRMED, exchangeRequest.getStatus());
+    }
+
+    @Test
+    void completeAfterGrace_refunds75PercentEach() {
+        exchangeRequest.checkInA(true);
+        exchangeRequest.checkInB(true);
+        exchangeRequest.refreshBothChecked();
+        ReflectionTestUtils.setField(exchangeRequest, "bothCheckedAt", java.time.LocalDateTime.now().minusMinutes(6));
+        when(exchangeRequestRepository.findReadyToComplete(any())).thenReturn(List.of(exchangeRequest));
         when(paymentRepository.findByPaymentId("pay-a")).thenReturn(Optional.of(mock(Payment.class)));
         when(paymentRepository.findByPaymentId("pay-b")).thenReturn(Optional.of(mock(Payment.class)));
 
-        ExchangeCheckInRequest request = new ExchangeCheckInRequest();
-        ReflectionTestUtils.setField(request, "userAShowed", true);
-        ReflectionTestUtils.setField(request, "userBShowed", true);
+        exchangeService.completeAfterGrace();
 
-        exchangeService.checkIn(100L, 1L, request);
-
+        assertEquals(ExchangeRequestStatus.COMPLETED, exchangeRequest.getStatus());
         verify(paymentService).refund("pay-a", 7_500, "교환 정산 환불");
         verify(paymentService).refund("pay-b", 7_500, "교환 정산 환불");
         verify(settlementHistoryService, times(2)).calculate(eq(shop), any(Payment.class), eq(2_500), eq(SettlementHistoryType.EXCHANGE_FEE));

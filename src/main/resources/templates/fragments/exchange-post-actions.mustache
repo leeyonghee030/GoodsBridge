@@ -1,0 +1,127 @@
+<!-- 내 교환 게시글의 ⋯ 메뉴(수정/삭제)와 수정 모달. 교환 게시판, 마이페이지에서 공통으로 사용.
+     사용법: gbPostActions.kebabHtml() 로 카드에 메뉴를 넣고, gbPostActions.bind(컨테이너, 게시글 찾기 함수, 변경 후 콜백) 한 번 호출 -->
+<div class="modal-backdrop" id="post-edit-modal" hidden>
+    <div class="modal-card" style="max-width: 440px;">
+        <button type="button" class="modal-close" id="post-edit-close">✕</button>
+        <h1>교환 게시글 수정</h1>
+        <form id="post-edit-form">
+            <p>
+                <label for="post-edit-want" class="sr-only">원하는 것</label>
+                <textarea id="post-edit-want" rows="3" placeholder="원하는 것을 적어주세요" required></textarea>
+            </p>
+            <p style="position: relative;">
+                <label for="post-edit-shop-name" class="sr-only">교환장소</label>
+                <input id="post-edit-shop-name" type="text" placeholder="교환장소(가게) 이름을 검색하세요" autocomplete="off" required>
+                <input id="post-edit-shop-id" type="hidden">
+                <span id="post-edit-shop-results" class="autocomplete-list"></span>
+            </p>
+            <button type="submit">저장</button>
+            <p id="post-edit-message" class="form-message"></p>
+        </form>
+    </div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const errorText = async (res, fallback) => { const e = await res.json().catch(() => null); return (e && e.message) || fallback; };
+
+    const modal = document.getElementById('post-edit-modal');
+    const message = document.getElementById('post-edit-message');
+    let editing = null, onChanged = null, shopTimer;
+
+    function closeMenus(except) {
+        document.querySelectorAll('.post-kebab-menu').forEach(m => { if (m !== except) m.hidden = true; });
+    }
+    document.addEventListener('click', () => closeMenus());
+
+    function openEdit(post) {
+        editing = post;
+        document.getElementById('post-edit-want').value = post.wantDescription || '';
+        document.getElementById('post-edit-shop-name').value = post.shopName || '';
+        document.getElementById('post-edit-shop-id').value = post.shopId || '';
+        document.getElementById('post-edit-shop-results').innerHTML = '';
+        message.textContent = '';
+        modal.hidden = false;
+    }
+    document.getElementById('post-edit-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+
+    document.getElementById('post-edit-shop-name').addEventListener('input', e => {
+        document.getElementById('post-edit-shop-id').value = '';
+        clearTimeout(shopTimer);
+        const keyword = e.target.value.trim();
+        const results = document.getElementById('post-edit-shop-results');
+        if (!keyword) { results.innerHTML = ''; return; }
+        shopTimer = setTimeout(async () => {
+            const res = await pageFetch('/api/shops?name=' + encodeURIComponent(keyword));
+            if (!res.ok) return;
+            const shops = (await res.json()).content || [];
+            results.innerHTML = shops.length
+                ? shops.map(s => `<div class="autocomplete-item" data-id="${s.id}" data-name="${esc(s.name)}">${esc(s.name)} · ${esc(s.region || '')}</div>`).join('')
+                : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+            results.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
+                document.getElementById('post-edit-shop-id').value = el.dataset.id;
+                document.getElementById('post-edit-shop-name').value = el.dataset.name;
+                results.innerHTML = '';
+            }));
+        }, 250);
+    });
+
+    document.getElementById('post-edit-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        message.className = 'form-message error';
+        const shopId = document.getElementById('post-edit-shop-id').value;
+        if (!shopId) { message.textContent = '목록에서 가게를 선택해주세요.'; return; }
+        const res = await pageFetch('/api/exchange-items/' + editing.id, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wantDescription: document.getElementById('post-edit-want').value.trim(), shopId: Number(shopId) })
+        });
+        if (!res.ok) { message.textContent = await errorText(res, '수정에 실패했습니다.'); return; }
+        modal.hidden = true;
+        if (onChanged) await onChanged();
+    });
+
+    window.gbPostActions = {
+        // 카드 오른쪽 위 ⋯ 버튼 + 드롭다운 마크업
+        kebabHtml() {
+            return `<div class="post-kebab">
+                <button type="button" class="post-kebab-btn" aria-label="더보기">⋯</button>
+                <div class="post-kebab-menu" hidden>
+                    <button type="button" data-post-edit>수정</button>
+                    <button type="button" class="danger" data-post-delete>삭제</button>
+                </div>
+            </div>`;
+        },
+        // container 안의 카드들(나중에 추가되는 카드 포함)에 클릭 처리를 한 번만 연결
+        // resolvePost(id, cardElement) 는 { id, itemTitle, wantDescription, shopId, shopName } 를 돌려줘야 한다
+        bind(container, resolvePost, changed) {
+            onChanged = changed;
+            container.addEventListener('click', async e => {
+                const toggle = e.target.closest('.post-kebab-btn');
+                const edit = e.target.closest('[data-post-edit]');
+                const del = e.target.closest('[data-post-delete]');
+                if (!toggle && !edit && !del) return;
+                e.preventDefault();   // 카드가 <a> 여도 이동하지 않게
+                e.stopPropagation();
+                const card = e.target.closest('[data-post-id]');
+                if (toggle) {
+                    const menu = toggle.nextElementSibling;
+                    closeMenus(menu);
+                    menu.hidden = !menu.hidden;
+                    return;
+                }
+                closeMenus();
+                const post = resolvePost(Number(card.dataset.postId), card);
+                if (!post) return;
+                if (edit) { openEdit(post); return; }
+                if (!(await gbConfirm(`'${post.itemTitle}' 게시글을 삭제할까요?\n올린 상품은 내 아이템에 그대로 남아요.`))) return;
+                const res = await pageFetch('/api/exchange-items/' + post.id, { method: 'DELETE' });
+                if (!res.ok) { alert(await errorText(res, '삭제에 실패했습니다.')); return; }
+                if (onChanged) await onChanged();
+            });
+        }
+    };
+})();
+</script>
