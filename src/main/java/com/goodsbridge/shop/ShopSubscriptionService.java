@@ -86,8 +86,9 @@ public class ShopSubscriptionService {
             throw new ForbiddenException("본인의 가게만 구독을 시작하거나 갱신할 수 있습니다.");
         }
 
-        ShopSubscription existingSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
-        boolean isActive = existingSubscription != null && existingSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
+        // 💡 1. 현재 활성화된(ACTIVE) 구독이 있는지 확인
+        ShopSubscription activeSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
+        boolean isActive = activeSubscription != null && activeSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
 
         // 외부 결제 검증
         paymentService.verify(
@@ -98,16 +99,13 @@ public class ShopSubscriptionService {
         );
 
         boolean setupFeePaid = true;
-        boolean isExpiredOrCancelled = (existingSubscription != null &&
-            (existingSubscription.getStatus() == ShopSubscriptionStatus.EXPIRED ||
-                existingSubscription.getStatus() == ShopSubscriptionStatus.CANCELLED));
-
         LocalDate startDate;
         LocalDate endDate;
         ShopSubscription subscription;
 
         if (isActive) {
-            LocalDate currentEndDate = existingSubscription.getEndDate() != null ? existingSubscription.getEndDate() : LocalDate.now();
+            // 💡 2. 이미 활성화된 구독이 있는 경우에만 기존 구독 객체를 연장(Extend) 처리
+            LocalDate currentEndDate = activeSubscription.getEndDate() != null ? activeSubscription.getEndDate() : LocalDate.now();
             LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
 
             // 💡 [보완] 연장하려는 총 일수가 오늘 기준 최대 허용 기간(1095일)을 넘지 않는지 검증
@@ -119,35 +117,32 @@ public class ShopSubscriptionService {
             startDate = baseDate;
             endDate = baseDate.plusDays(request.getDays());
 
-            existingSubscription.extendSubscription(startDate, endDate, setupFeePaid, request.getPaymentId());
-            subscription = existingSubscription;
+            activeSubscription.extendSubscription(startDate, endDate, setupFeePaid, request.getPaymentId());
+            subscription = activeSubscription;
         } else {
+            // 💡 3. 활성 구독이 없는 경우 (최초 구독이거나, 이미 만료/취소된 상태인 경우)
+            // 기존 만료 건을 억지로 update하지 않고, 완전히 새로운 구독 행(Row)을 생성하여 insert 함으로써 paymentId 유니크 충돌 원천 차단
             startDate = LocalDate.now();
             endDate = startDate.plusDays(request.getDays());
 
-            subscription = subscriptionRepository.findByShopId(shopId)
-                .map(sub -> {
-                    sub.update(startDate, endDate, setupFeePaid, ShopSubscriptionStatus.ACTIVE, request.getPaymentId());
-                    return sub;
-                })
-                .orElseGet(() -> ShopSubscription.builder()
-                    .shopId(shopId)
-                    .setupFeePaid(setupFeePaid)
-                    .startDate(startDate)
-                    .endDate(endDate)
-                    .status(ShopSubscriptionStatus.ACTIVE)
-                    .paymentId(request.getPaymentId())
-                    .build());
+            // 혹시 기존에 남아있던 만료/취소 데이터가 있다면 안전하게 소프트 삭제 상태로 확실히 처리하거나 방치 (여기서는 새 엔티티 생성)
+            subscription = ShopSubscription.builder()
+                .shopId(shopId)
+                .setupFeePaid(setupFeePaid)
+                .startDate(startDate)
+                .endDate(endDate)
+                .status(ShopSubscriptionStatus.ACTIVE)
+                .paymentId(request.getPaymentId())
+                .build();
         }
 
         try {
             Long subscriptionId = subscriptionRepository.save(subscription).getId();
 
-            if (isExpiredOrCancelled || existingSubscription == null) {
-                // 💡 [이벤트 발행] 직접 호출 대신 이벤트를 발행하여 결합도를 완전히 제거합니다.
+            // 💡 4. 활성 구독이 아니었던 상태에서 새로 구독이 활성화되었으므로 이벤트 발행 (상품 부활)
+            if (!isActive) {
                 eventPublisher.publishEvent(new ShopSubscriptionActivatedEvent(shopId));
-
-                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
+                log.info("[구독 활성화/재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
             }
 
             return subscriptionId;
