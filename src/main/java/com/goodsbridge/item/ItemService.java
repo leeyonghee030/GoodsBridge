@@ -68,8 +68,17 @@ public class ItemService {
         return itemRepository.save(item).getId();
     }
 
-    // 전체 상품 목록 조회 필터링 검색 (페이징 크기 제한 및 최신순 기본 정렬 적용)
+    // 전체 상품 목록 조회 필터링 검색 (제목 검색어 없음)
     public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, Pageable pageable) {
+        return findAll(categoryId, region, saleType, null, pageable);
+    }
+
+    // 전체 상품 목록 조회 필터링 검색 (페이징 크기 제한 및 최신순 기본 정렬 적용, keyword 는 제목에 포함된 글자로 검색)
+    public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, String keyword, Pageable pageable) {
+        String titleKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
+        if (titleKeyword != null && titleKeyword.length() > 100) {
+            titleKeyword = titleKeyword.substring(0, 100);
+        }
         int pageSize = pageable.getPageSize();
 
         // 1. 페이징 사이즈 방어 로직 (최대 100개 제한)
@@ -84,7 +93,7 @@ public class ItemService {
 
         pageable = PageRequest.of(pageable.getPageNumber(), pageSize, sort);
 
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(categoryId, region, saleType, pageable);
+        Page<Item> itemPage = itemRepository.searchItemsWithFilterAndKeyword(categoryId, region, saleType, titleKeyword, pageable);
         return itemPage.map(ItemResponse::from);
     }
 

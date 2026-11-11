@@ -56,8 +56,9 @@ public class ItemViewController {
         @RequestParam(required = false) Long categoryId,
         @RequestParam(required = false) String region,
         @RequestParam(required = false) SaleType saleType,
+        @RequestParam(required = false) String keyword,
         Pageable pageable) {
-        Page<ItemResponse> items = itemService.findAll(categoryId, region, saleType, pageable);
+        Page<ItemResponse> items = itemService.findAll(categoryId, region, saleType, keyword, pageable);
         return ResponseEntity.ok(items);
     }
 
