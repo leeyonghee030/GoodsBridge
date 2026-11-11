@@ -8,6 +8,8 @@ import com.goodsbridge.exchange.dto.*;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationService;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
@@ -42,6 +44,7 @@ public class ExchangeService {
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
     private final PaymentService paymentService;
+    private final NotificationService notificationService;
     private final PaymentRepository paymentRepository;
     private final EntityManager entityManager;
     private final ExchangeCommentRepository exchangeCommentRepository;
@@ -284,6 +287,17 @@ public class ExchangeService {
             e.updateStatus(ExchangeRequestStatus.CANCELLED);
         }
         exchangeRequest.updateDeadlineForVisit();
+
+        // TODO - 교환 신청 메시지 생성
+        notificationService.createNotification(
+            userId,
+            Notification.Type.EXCHANGE_APPROVED,
+            "교환 신청 승인",
+            "신청한 교환이 승인되었습니다.",
+            Notification.ReferenceType.EXCHANGE,
+            exchangeRequest.getId()
+        );
+
         return ExchangeRequestResponse.from(exchangeRequest);
     }
 
@@ -366,13 +380,13 @@ public class ExchangeService {
         settlementHistoryService.calculate(e.getShop(), paymentB, feeB, type);
 
         if (e.getStatus() == ExchangeRequestStatus.EXPIRED_BOTH ||
-            e.getStatus() == ExchangeRequestStatus.EXPIRED_PARTIAL){
+            e.getStatus() == ExchangeRequestStatus.EXPIRED_PARTIAL) {
             e.getExchangeItemA().getItem().updateStatus(ItemStatus.ON_SALE);
             e.getItemB().updateStatus(ItemStatus.ON_SALE);
         }
         e.getExchangeItemA().updateStatus(ExchangeItemStatus.CLOSED);
     }
 
-        // -------------------------
+    // -------------------------
 
 }
