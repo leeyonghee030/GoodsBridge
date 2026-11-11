@@ -252,14 +252,6 @@ public class ShopSubscriptionService {
         return totalProcessedCount;
     }
 
-    public boolean isSubscriptionActive(Long shopId) {
-        return subscriptionRepository.findByShopId(shopId)
-            .map(sub -> sub.getStatus() == ShopSubscriptionStatus.ACTIVE
-                && sub.getEndDate() != null
-                && !sub.getEndDate().isBefore(LocalDate.now()))
-            .orElse(false);
-    }
-
     private void validateAdmin(Long userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));

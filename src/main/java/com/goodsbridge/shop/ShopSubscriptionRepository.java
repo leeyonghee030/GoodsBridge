@@ -50,9 +50,11 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
     // 중복 결제 방어를 위한 paymentId 존재 여부 확인
     boolean existsByPaymentId(String paymentId);
 
-    /**
-     * 소프트 삭제된(deleted_at이 채워진) 데이터도 무시하지 않고 ID로 안전하게 조회
-     */
-    @Query(value = "SELECT * FROM shop_subscription_tb WHERE id = :id", nativeQuery = true)
-    Optional<ShopSubscription> findByIdIgnoreRestriction(@Param("id") Long id);
+
+
+    boolean existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+        Long shopId,
+        ShopSubscriptionStatus status,
+        LocalDate today
+    );
 }
