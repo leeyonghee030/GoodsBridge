@@ -693,7 +693,7 @@
                                     cancelButton.style.marginTop = '1rem';
                                     cancelButton.textContent = '경매 취소 (입찰이 없을 때만 가능)';
                                     cancelButton.addEventListener('click', async () => {
-                                        if (!confirm('이 경매를 취소하시겠습니까?')) return;
+                                        if (!(await gbConfirm('이 경매를 취소하시겠습니까?'))) return;
                                         cancelButton.disabled = true;
                                         try {
                                             const cancelResponse = await apiFetch(`/api/auctions/${id}/cancel`, {method: 'PATCH'});
