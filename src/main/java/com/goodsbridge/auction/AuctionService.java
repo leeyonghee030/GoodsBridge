@@ -4,13 +4,8 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
-import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
-import com.goodsbridge.payment.Payment;
-import com.goodsbridge.payment.PaymentPurpose;
-import com.goodsbridge.payment.PaymentRepository;
-import com.goodsbridge.payment.PaymentService;
-import com.goodsbridge.payment.PaymentStatus;
+import com.goodsbridge.payment.*;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -30,7 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -40,7 +34,6 @@ import java.time.LocalDateTime;
 public class AuctionService {
     private final AuctionRepository auctionRepository;
     private final ShopRepository shopRepository;
-    private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
@@ -64,6 +57,7 @@ public class AuctionService {
             LockModeType.PESSIMISTIC_WRITE
         );
 
+        // 상품잉 없는 경우
         if (item == null) {
             throw new NotFoundException("상품을 찾을 수 없습니다.");
         }
@@ -78,6 +72,7 @@ public class AuctionService {
             throw new BadRequestException("판매 중인 상품만 경매에 등록할 수 있습니다.");
         }
 
+        // 상품이 현재 경매중인 경우
         if (auctionRepository.existsByItemIdAndStatus(item.getId(), Status.ACTIVE)) {
             throw new BadRequestException("이미 진행 중인 경매가 있는 상품입니다.");
         }
@@ -126,6 +121,7 @@ public class AuctionService {
 
         boolean isOwner = auction.getShop().isOwner(userId);
         boolean isAdmin = user.getRole() == Role.ADMIN;
+        // 가게 주인과 관리자만 경매를 마감할 수 있다.
         if (!isOwner && !isAdmin) {
             throw new ForbiddenException("경매를 마감할 권한이 없습니다.");
         }
@@ -134,11 +130,7 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
-    /**
-     * 경매 취소.
-     *  - 가게 주인: 입찰이 아직 없는 진행 중 경매만 취소할 수 있다.
-     *  - 관리자: 입찰이 있어도 취소할 수 있다. (모든 입찰자의 보증금은 스케줄러가 100% 환불한다)
-     */
+    // 경매 취소 - 가게 주인은 경매 입찰자가 없으면 취소한다.
     @Transactional
     public AuctionResponse cancel(Long userId, Long id) {
         Auction auction = auctionRepository.findByIdLock(id)
@@ -149,12 +141,14 @@ public class AuctionService {
 
         boolean isOwner = auction.getShop().isOwner(userId);
         boolean isAdmin = user.getRole() == Role.ADMIN;
+        // 가게 주인과 관리자만 경매를 취소할 수 있다.
         if (!isOwner && !isAdmin) {
             throw new ForbiddenException("경매를 취소할 권한이 없습니다.");
         }
         if (auction.getStatus() != Status.ACTIVE) {
             throw new BadRequestException("진행 중인 경매만 취소할 수 있습니다.");
         }
+        // 입찰이 있는 경우 가게 주인은 경매를 취소할 수 없고, 관리자만 권한이 있다.
         if (!isAdmin && auction.getCurrentWinner() != null) {
             throw new BadRequestException("입찰이 있는 경매는 관리자만 취소할 수 있습니다.");
         }
@@ -163,6 +157,7 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
+    // 경매 마감
     private void closeInternal(Auction auction) {
         if (auction.getStatus() != Status.ACTIVE) {
             throw new BadRequestException("진행 중인 경매만 마감할 수 있습니다.");
