@@ -22,6 +22,10 @@ public class Auction {
     // 테스트에서는 분으로 테스트
     public static final int BALANCE_DUE_MINUTES = 2;
 
+    // 기존 DB 스키마 호환용. 안티 스나이핑 연장 로직은 사용하지 않는다.
+    @Column(name = "extension_count", nullable = false)
+    private int extensionCount = 0;
+
     @Id
     @GeneratedValue
     private Long id;
