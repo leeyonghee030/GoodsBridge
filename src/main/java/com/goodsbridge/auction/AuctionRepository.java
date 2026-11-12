@@ -46,6 +46,14 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     boolean existsByItemIdAndStatus(@Param("itemId") Long itemId, @Param("status") Status status);
 
+    // 상품이 주어진 상태들 중 하나의 경매에 걸려 있는지 확인 (일반 구매 차단용)
+    @Query("""
+        select case when count(a) > 0 then true else false end
+        from Auction a
+        where a.item.id = :itemId and a.status in :statuses
+        """)
+    boolean existsByItemIdAndStatusIn(@Param("itemId") Long itemId, @Param("statuses") Collection<Status> statuses);
+
     // 현재 1위(낙찰 후보) 유저 id - 트랜잭션 밖에서 지연로딩 없이 쓰려고 스칼라로 조회
     @Query("select a.currentWinner.id from Auction a where a.id = :id")
     Long findWinnerUserId(@Param("id") Long id);

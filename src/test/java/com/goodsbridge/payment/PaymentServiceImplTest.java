@@ -177,4 +177,88 @@ class PaymentServiceImplTest {
 
         verifyNoInteractions(portOnePaymentService);
     }
+
+
+    @Test
+    void release_allowsPartiallyCancelledPayment() {
+        Payment payment = Payment.builder().paymentId("payment-1")
+            .user(mock(User.class)).amount(10_000).purpose(PaymentPurpose.PURCHASE).build();
+        payment.refund(3_000);
+        when(paymentRepository.findByPaymentIdLock("payment-1")).thenReturn(java.util.Optional.of(payment));
+
+        paymentService.release("payment-1");
+
+        assertEquals(PaymentStatus.RELEASED, payment.getStatus());
+        verifyNoInteractions(portOnePaymentService);
+    }
+
+    @Test
+    void cancelUnrecorded_cancelsPaidPortOnePaymentThatWasNeverRecorded() {
+        when(paymentRepository.existsByPaymentId("payment-1")).thenReturn(false);
+        when(portOnePaymentService.getPayment("payment-1")).thenReturn(paidPortOnePayment(7_000));
+        when(portOnePaymentService.cancelPayment("payment-1", 7_000, "자동 취소")).thenReturn(succeededCancel());
+
+        paymentService.cancelUnrecorded("payment-1", "자동 취소");
+
+        verify(portOnePaymentService).cancelPayment("payment-1", 7_000, "자동 취소");
+    }
+
+    @Test
+    void cancelUnrecorded_neverCancelsAnAlreadyRecordedPayment() {
+        when(paymentRepository.existsByPaymentId("payment-1")).thenReturn(true);
+
+        paymentService.cancelUnrecorded("payment-1", "자동 취소");
+
+        verifyNoInteractions(portOnePaymentService);
+    }
+
+    @Test
+    void cancelUnrecorded_skipsPaymentThatIsNotPaidOnPortOne() {
+        PaymentResponse.PortOnePayment portOnePayment = paidPortOnePayment(7_000);
+        portOnePayment.setStatus("CANCELLED");
+        when(paymentRepository.existsByPaymentId("payment-1")).thenReturn(false);
+        when(portOnePaymentService.getPayment("payment-1")).thenReturn(portOnePayment);
+
+        paymentService.cancelUnrecorded("payment-1", "자동 취소");
+
+        verify(portOnePaymentService, never()).cancelPayment(any(), anyInt(), any());
+    }
+
+    @Test
+    void cancelUnrecorded_doesNothingForBlankPaymentId() {
+        paymentService.cancelUnrecorded(" ", "자동 취소");
+        paymentService.cancelUnrecorded(null, "자동 취소");
+
+        verifyNoInteractions(paymentRepository, portOnePaymentService);
+    }
+
+    @Test
+    void cancelUnrecorded_doesNotThrowWhenPortOneCancelFails() {
+        when(paymentRepository.existsByPaymentId("payment-1")).thenReturn(false);
+        when(portOnePaymentService.getPayment("payment-1")).thenReturn(paidPortOnePayment(7_000));
+        when(portOnePaymentService.cancelPayment("payment-1", 7_000, "자동 취소"))
+            .thenThrow(new com.goodsbridge._core.exception.InternalServerException("결제 서버에 연결할 수 없습니다."));
+
+        // 원래 구매 실패 예외가 가려지지 않도록 예외를 삼키고 로그만 남긴다.
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+            () -> paymentService.cancelUnrecorded("payment-1", "자동 취소"));
+    }
+
+    private static PaymentResponse.PortOnePayment paidPortOnePayment(int total) {
+        PaymentResponse.PortOnePayment portOnePayment = new PaymentResponse.PortOnePayment();
+        portOnePayment.setStatus("PAID");
+        portOnePayment.setPgTxId("pg-1");
+        PaymentResponse.PortOnePayment.Amount amount = new PaymentResponse.PortOnePayment.Amount();
+        amount.setTotal(total);
+        portOnePayment.setAmount(amount);
+        return portOnePayment;
+    }
+
+    private static PaymentResponse.PortOneCancel succeededCancel() {
+        PaymentResponse.PortOneCancel cancel = new PaymentResponse.PortOneCancel();
+        PaymentResponse.PortOneCancel.Cancellation cancellation = new PaymentResponse.PortOneCancel.Cancellation();
+        cancellation.setStatus("SUCCEEDED");
+        cancel.setCancellation(cancellation);
+        return cancel;
+    }
 }

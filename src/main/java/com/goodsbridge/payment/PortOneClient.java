@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Getter
@@ -27,10 +29,28 @@ public class PortOneClient {
 
     private static final String PAYMENT_URL = "https://api.portone.io/payments";
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    // paymentId 는 URL 경로에 그대로 붙으므로 영문/숫자/-/_ 만 허용한다 (경로·쿼리 삽입 방지)
+    private static final Pattern PAYMENT_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,100}$");
+
+    private final RestTemplate restTemplate = createRestTemplate();
+
+    // 연결 3초 / 응답 10초 타임아웃 (외부 호출이 DB 락을 오래 쥐지 않도록)
+    private static RestTemplate createRestTemplate() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(java.time.Duration.ofSeconds(3));
+        factory.setReadTimeout(java.time.Duration.ofSeconds(10));
+        return new RestTemplate(factory);
+    }
+
+    private static void validatePaymentId(String paymentId) {
+        if (paymentId == null || !PAYMENT_ID_PATTERN.matcher(paymentId).matches()) {
+            throw new BadRequestException("paymentId 형식이 올바르지 않습니다.");
+        }
+    }
 
     // PortOne 결제 단건 조회
     public PaymentResponse.PortOnePayment getPayment(String paymentId) {
+        validatePaymentId(paymentId);
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set(HttpHeaders.AUTHORIZATION, "PortOne " + apiSecret);
@@ -67,6 +87,7 @@ public class PortOneClient {
         if (paymentId == null || paymentId.isBlank() || amount <= 0) {
             throw new BadRequestException("결제 취소 요청 값이 올바르지 않습니다.");
         }
+        validatePaymentId(paymentId);
         try {
             HttpHeaders headers = new HttpHeaders();
             headers.set(HttpHeaders.AUTHORIZATION, "PortOne " + apiSecret);
