@@ -57,6 +57,19 @@ VALUES (
            'https://example.com/hoodie.jpg', FALSE, NOW()
        );
 
+-- 교환/경매 거부 테스트용 상품 (item_id = 3)
+INSERT INTO item_tb (
+    seller_user_id, shop_id, category_id,
+    title, description, price, sale_type,
+    status, image_url, paused_by_subscription, created_at
+)
+VALUES (
+           2, 2, 3,
+           '교환용 도서', '교환 테스트용 상품입니다.',
+           20000, 'NORMAL', 'ON_SALE',
+           'https://example.com/book.jpg', FALSE, NOW()
+       );
+
 INSERT INTO item_tb (
     seller_user_id, shop_id, category_id,
     title, description, price, sale_type,
@@ -78,10 +91,11 @@ INSERT INTO item_tb (
 VALUES (
            1, 1, 2,
            '홍대 굿즈샵 시그니처 후드티',
-           '가게 활성 상태 상품입니다.',
-           35000, 'NORMAL', 'ON_SALE',
+           '경매 및 동시성 테스트용 상품입니다.',
+           35000, 'AUCTION', 'ON_SALE',
            'https://example.com/shop1_hoodie.jpg', FALSE, NOW()
        );
+
 -- ==========================================
 -- 4. 가게 구독 데이터 (ShopSubscription)
 -- ==========================================

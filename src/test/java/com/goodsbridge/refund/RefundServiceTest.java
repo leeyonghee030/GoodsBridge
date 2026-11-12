@@ -79,6 +79,21 @@ class RefundServiceTest {
     }
 
     @Test
+    void request_rejectsAuctionDepositAndBalanceRefunds() {
+        User user = mock(User.class);
+        for (PaymentPurpose purpose : new PaymentPurpose[]{
+            PaymentPurpose.AUCTION_DEPOSIT, PaymentPurpose.AUCTION_BALANCE}) {
+            Payment payment = Payment.builder().paymentId("auction-" + purpose).user(user)
+                .amount(10_000).purpose(purpose).build();
+            when(paymentRepository.findByPaymentId(payment.getPaymentId())).thenReturn(Optional.of(payment));
+
+            assertThrows(BadRequestException.class,
+                () -> refundService.request(1L, request(payment.getPaymentId(), 1_000, "경매 환불")));
+        }
+        verifyNoInteractions(refundRepository);
+    }
+
+    @Test
     void approve_rejectsNonAdmin() {
         User user = mock(User.class);
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
