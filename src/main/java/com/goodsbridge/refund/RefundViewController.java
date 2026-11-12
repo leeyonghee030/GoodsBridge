@@ -1,8 +1,6 @@
 package com.goodsbridge.refund;
 
 import com.goodsbridge._core.util.SecurityUtil;
-import com.goodsbridge.settlement.SettlementHistoryResponse;
-import com.goodsbridge.settlement.SettlementHistoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +14,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RefundViewController {
     private final RefundService refundService;
-    private final SettlementHistoryService settlementHistoryService;
 
     @GetMapping("/test/refund")
     public String index(Model model) {
@@ -47,13 +44,6 @@ public class RefundViewController {
         return ResponseEntity.ok().build();
     }
 
-    // 가게 정산 / 매출 내역 조회
-    @GetMapping("/api/shops/{id}/settlements")
-    public ResponseEntity<List<SettlementHistoryResponse.ListDto>> shopSettlements(@PathVariable Long id) {
-        Long userId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.ok(settlementHistoryService.findByShop(id, userId));
-    }
-
     // 환불 내역 화면 호출 및 조회
     @GetMapping("/api/admin/refunds")
     public ResponseEntity<List<RefundResponse.ListDto>> findAllAdmin() {
@@ -61,11 +51,11 @@ public class RefundViewController {
         return ResponseEntity.ok(refundService.findAllAdmin(adminUserId));
     }
 
-    // 가게 환불 신청
+    // 가게 직접 환불 (하자/불량 등 가게 책임, 관리자 승인 없이 즉시 전체/부분 환불)
     @PostMapping("/api/shops/{shopId}/refunds")
-    public ResponseEntity<RefundResponse.ListDto> requestShopRefund(@PathVariable Long shopId, @RequestBody ShopRefundRequest shopRefundRequest) {
+    public ResponseEntity<RefundResponse.ListDto> refundByShop(@PathVariable Long shopId, @RequestBody ShopRefundRequest shopRefundRequest) {
         Long userId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.status(HttpStatus.CREATED).body(refundService.requestedByShop(userId, shopId, shopRefundRequest));
+        return ResponseEntity.status(HttpStatus.CREATED).body(refundService.refundByShop(userId, shopId, shopRefundRequest));
     }
 
     // 본인 환불 내역
