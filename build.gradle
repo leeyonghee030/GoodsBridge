@@ -64,6 +64,10 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 
+    // .env 의 APP_DEMO_ENABLED=true 가 테스트에도 적용되면 데모 결제 서비스(@Primary)가 테스트용 가짜 결제 서비스와 부딪혀
+    // 컨텍스트 로딩이 실패하고, 실패한 컨텍스트가 공유 H2 테이블을 지워 다른 테스트까지 깨진다. 테스트에서는 데모 모드를 끈다
+    systemProperty 'app.demo.enabled', 'false'
+
     // Windows에서 사용자 홈 경로(및 그 하위 프로젝트 경로)에 비ASCII 문자가 있으면
     // Mockito의 inline mock maker가 bytebuddy 에이전트를 로드하지 못해 모든 테스트가 깨짐.
     // 그 경우에만 OS 드라이브 루트의 영문 경로로 우회 (해당 없는 환경은 기본값 그대로 사용)

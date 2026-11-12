@@ -16,6 +16,7 @@ import com.goodsbridge.shop.ShopStatus;
 import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,8 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // ★ 이벤트 선착순 참가 동시성 테스트 (CLAUDE.md 테스트 우선순위 2위) — 삭제하지 말고 유지
-// 데모 결제 서비스(@Primary)가 켜지면 아래 가짜 결제 서비스와 충돌하므로 데모 모드는 끈다
-@SpringBootTest(properties = "app.demo.enabled=false")
+@SpringBootTest
 @ActiveProfiles("test")
 class EventParticipationConcurrencyTest {
 
@@ -77,6 +77,19 @@ class EventParticipationConcurrencyTest {
     @Autowired private ShopRepository shopRepository;
     @Autowired private ItemRepository itemRepository;
     @Autowired private ShopEventRepository shopEventRepository;
+    @Autowired private EventParticipationRepository eventParticipationRepository;
+
+    private Long createdEventId;
+
+    // 같은 H2 를 쓰는 다른 테스트가 상품을 지울 때 이벤트가 상품을 참조해 FK 오류가 나지 않도록, 만든 이벤트/참가 데이터를 정리한다
+    @AfterEach
+    void tearDown() {
+        if (createdEventId == null) {
+            return;
+        }
+        eventParticipationRepository.deleteAll(eventParticipationRepository.findJoinedByShopEventId(createdEventId));
+        shopEventRepository.deleteById(createdEventId);
+    }
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -114,6 +127,7 @@ class EventParticipationConcurrencyTest {
             .feeAmount(1000)
             .deadline(LocalDateTime.now().plusDays(1))
             .build());
+        createdEventId = shopEvent.getId();
 
         List<User> participants = new ArrayList<>();
         for (int i = 0; i < threadCount; i++) {

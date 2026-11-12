@@ -13,9 +13,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +42,7 @@ class ShopApprovalAndChainCodeTest {
     @Mock UserRepository userRepository;
     @Mock ItemRepository itemRepository;
     @Mock ShopSubscriptionRepository subscriptionRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     @InjectMocks ShopService shopService;
 
     @BeforeEach
@@ -75,20 +78,22 @@ class ShopApprovalAndChainCodeTest {
     // ===== 승인 취소 =====
 
     @Test
-    void reject_approvedShop_closesOnSaleItemsAndCancelsActiveSubscription() {
+    void reject_approvedShop_cancelsActiveSubscriptionAndPublishesCancelEvent() {
         Shop shop = shop(ShopStatus.APPROVED);
         ShopSubscription subscription = mock(ShopSubscription.class);
         givenAdminAndShop(shop);
-        when(subscriptionRepository.findActiveByShopIdWithLock(SHOP_ID)).thenReturn(Optional.of(subscription));
+        when(subscriptionRepository.findActiveByShopIdWithLock(eq(SHOP_ID), eq(ShopSubscriptionStatus.ACTIVE), any(LocalDate.class)))
+            .thenReturn(List.of(subscription));
 
         shopService.reject(ADMIN_ID, SHOP_ID);
 
         assertEquals(ShopStatus.REJECTED, shop.getStatus());
-        // 판매중 상품만 닫는 메서드를 써야 판매완료 상품은 그대로 남는다 (전체 삭제 메서드를 쓰면 안 됨)
-        ArgumentCaptor<LocalDateTime> now = ArgumentCaptor.forClass(LocalDateTime.class);
-        verify(itemRepository).closeOnSaleByShopId(eq(SHOP_ID), now.capture());
-        verify(itemRepository, never()).softDeleteByShopId(any(), any());
-        verify(subscription).delete();
+        verify(subscription).cancel();
+        // 판매중 상품 판매 중지는 구독 취소 이벤트 리스너가 맡는다 (판매완료 상품은 유지). 상품을 직접 지우면 안 됨
+        ArgumentCaptor<ShopSubscriptionCanceledEvent> event = ArgumentCaptor.forClass(ShopSubscriptionCanceledEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertEquals(SHOP_ID, event.getValue().getShopId());
+        verifyNoInteractions(itemRepository);
     }
 
     @Test
@@ -101,6 +106,7 @@ class ShopApprovalAndChainCodeTest {
         assertEquals(ShopStatus.REJECTED, shop.getStatus());
         verifyNoInteractions(itemRepository);
         verifyNoInteractions(subscriptionRepository);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

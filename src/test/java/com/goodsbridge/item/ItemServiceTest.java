@@ -29,9 +29,10 @@ class ItemServiceTest {
     private ItemRepository itemRepository;
 
     @Test
-    @DisplayName("유효한 카테고리 ID로 상품 등록(create)을 요청하면 상품이 정상적으로 생성된다")
+    @DisplayName("유효한 카테고리 ID와 샵 ID로 상품 등록(create)을 요청하면 상품이 정상적으로 생성된다")
     void create_success() {
         ItemCreateRequest request = new ItemCreateRequest();
+        request.setShopId(1L); // 💡 data.sql의 활성 구독 샵 ID 필수 지정
         request.setCategoryId(1L);
         request.setTitle("새로운 상품");
         request.setDescription("설명입니다.");
@@ -53,6 +54,7 @@ class ItemServiceTest {
     @DisplayName("존재하지 않는 카테고리 ID로 상품 등록을 요청하면 NotFoundException이 발생한다")
     void create_fail_categoryNotFound() {
         ItemCreateRequest request = new ItemCreateRequest();
+        request.setShopId(1L); // 💡 샵 ID 지정하여 카테고리 검증 단계까지 진입하도록 설정
         request.setCategoryId(9999L);
         request.setTitle("실패할 상품");
         request.setPrice(10000);
@@ -69,7 +71,6 @@ class ItemServiceTest {
     void findAllByUserId_test() {
         List<ItemResponse> myItems = itemService.findAllByUserId(1L);
 
-        // 개수 고정값 검증 대신 1번 유저 상품들만 조회되었는지 검증
         assertThat(myItems).isNotEmpty();
         assertThat(myItems).allMatch(item -> item.getSellerUserId().equals(1L));
     }
@@ -78,10 +79,12 @@ class ItemServiceTest {
     @DisplayName("본인의 상품이 아닌 경우 수정(update)을 시도하면 ForbiddenException이 발생한다")
     void update_fail_forbidden() {
         ItemUpdateRequest updateRequest = new ItemUpdateRequest();
+        updateRequest.setShopId(1L); // 💡 필수 샵 ID 지정
         updateRequest.setCategoryId(1L);
         updateRequest.setTitle("수정 시도 제목");
         updateRequest.setPrice(20000);
         updateRequest.setSaleType(SaleType.NORMAL);
+        updateRequest.setStatus(ItemStatus.ON_SALE); // 💡 필수 상태값 지정
 
         Long otherUserId = 2L;
 

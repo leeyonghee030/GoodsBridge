@@ -279,7 +279,8 @@ class RefundServiceTest {
 
         refundService.approve(1L, 7L);
 
-        verify(item).deleteItem();
+        verify(item).pauseBySubscription();
+        verify(item, never()).deleteItem();
         verify(item, never()).updateStatus(ItemStatus.ON_SALE);
         verify(purchaseRepository).delete(purchase);
     }

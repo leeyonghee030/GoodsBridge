@@ -3,19 +3,19 @@ package com.goodsbridge.shop;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
-import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,12 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-// 관리자 구독 취소와 구독 만료 처리가 "판매중 상품만" 닫는지 검증한다 (DB 없이 Mockito 로)
+// 관리자 구독 취소: 구독을 CANCELLED 로 바꾸고 취소 이벤트를 발행해 판매중 상품 판매 중지를 리스너에 맡기는지 검증 (DB 없이 Mockito 로)
+// 구독 만료 처리는 ShopSubscriptionProcessorTest 가 검증한다
 @ExtendWith(MockitoExtension.class)
 class ShopSubscriptionCancelAndExpiryTest {
 
@@ -40,44 +40,46 @@ class ShopSubscriptionCancelAndExpiryTest {
 
     @Mock ShopSubscriptionRepository subscriptionRepository;
     @Mock ShopRepository shopRepository;
-    @Mock ItemRepository itemRepository;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock UserRepository userRepository;
     @Mock PaymentService paymentService;
-    @Mock ShopSubscriptionProcessor subscriptionProcessor;
+    @Mock ShopSubscriptionBatchService batchService;
     @InjectMocks ShopSubscriptionService service;
 
     // ===== 관리자 구독 취소 =====
 
     @Test
-    void cancelByAdmin_marksCancelledAndClosesOnlyOnSaleItems() {
+    void cancelByAdmin_marksCancelledAndPublishesCancelEvent() {
         givenAdmin();
         ShopSubscription subscription = subscription(ShopSubscriptionStatus.ACTIVE, LocalDate.now().plusDays(100));
-        when(subscriptionRepository.findByIdWithLock(SUB_ID)).thenReturn(Optional.of(subscription));
+        givenSubscription(subscription);
 
         service.cancelByAdmin(ADMIN_ID, SUB_ID);
 
         assertEquals(ShopSubscriptionStatus.CANCELLED, subscription.getStatus());
-        verify(itemRepository).closeOnSaleByShopId(eq(SHOP_ID), any(LocalDateTime.class));
-        verify(itemRepository, never()).softDeleteByShopId(any(), any());
+        ArgumentCaptor<ShopSubscriptionCanceledEvent> event = ArgumentCaptor.forClass(ShopSubscriptionCanceledEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertEquals(SHOP_ID, event.getValue().getShopId());
     }
 
     @Test
     void cancelByAdmin_rejectsAlreadyEndedSubscription() {
         givenAdmin();
         ShopSubscription subscription = subscription(ShopSubscriptionStatus.EXPIRED, LocalDate.now().minusDays(1));
-        when(subscriptionRepository.findByIdWithLock(SUB_ID)).thenReturn(Optional.of(subscription));
+        givenSubscription(subscription);
 
         assertThrows(BadRequestException.class, () -> service.cancelByAdmin(ADMIN_ID, SUB_ID));
         assertEquals(ShopSubscriptionStatus.EXPIRED, subscription.getStatus());
-        verifyNoInteractions(itemRepository);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
     void cancelByAdmin_rejectsUnknownSubscription() {
         givenAdmin();
-        when(subscriptionRepository.findByIdWithLock(SUB_ID)).thenReturn(Optional.empty());
+        when(subscriptionRepository.findShopIdById(SUB_ID)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> service.cancelByAdmin(ADMIN_ID, SUB_ID));
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -87,56 +89,32 @@ class ShopSubscriptionCancelAndExpiryTest {
         when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(user));
 
         assertThrows(ForbiddenException.class, () -> service.cancelByAdmin(ADMIN_ID, SUB_ID));
-        verifyNoInteractions(itemRepository);
+        verifyNoInteractions(subscriptionRepository, eventPublisher);
     }
 
-    // ===== 취소/만료된 구독은 상품 등록이 막힌다 (isSubscriptionActive) =====
+    // ===== 구독 활성 여부 (환불 후 상품 재오픈 판단용) =====
 
     @Test
-    void isSubscriptionActive_falseWhenCancelledOrExpiredByDate() {
-        when(subscriptionRepository.findByShopId(SHOP_ID))
-            .thenReturn(Optional.of(subscription(ShopSubscriptionStatus.CANCELLED, LocalDate.now().plusDays(30))));
+    void isSubscriptionActive_checksActiveAndNotExpired() {
+        when(subscriptionRepository.existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+            eq(SHOP_ID), eq(ShopSubscriptionStatus.ACTIVE), any(LocalDate.class))).thenReturn(true);
+        assertTrue(service.isSubscriptionActive(SHOP_ID));
+
+        when(subscriptionRepository.existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+            eq(SHOP_ID), eq(ShopSubscriptionStatus.ACTIVE), any(LocalDate.class))).thenReturn(false);
         assertFalse(service.isSubscriptionActive(SHOP_ID));
-
-        when(subscriptionRepository.findByShopId(SHOP_ID))
-            .thenReturn(Optional.of(subscription(ShopSubscriptionStatus.ACTIVE, LocalDate.now().minusDays(1))));
-        assertFalse(service.isSubscriptionActive(SHOP_ID));
-
-        when(subscriptionRepository.findByShopId(SHOP_ID))
-            .thenReturn(Optional.of(subscription(ShopSubscriptionStatus.ACTIVE, LocalDate.now())));
-        assertTrue(service.isSubscriptionActive(SHOP_ID));   // 만료 당일까지는 유효
-    }
-
-    // ===== 구독 만료 처리: 판매중 상품만 닫는다 =====
-
-    @Test
-    void expiry_closesOnlyOnSaleItemsAndKeepsSoldOnes() {
-        ShopSubscriptionProcessor processor = new ShopSubscriptionProcessor(itemRepository, subscriptionRepository);
-        ShopSubscription subscription = subscription(ShopSubscriptionStatus.ACTIVE, LocalDate.now().minusDays(1));
-        when(subscriptionRepository.findByIdWithLock(SUB_ID)).thenReturn(Optional.of(subscription));
-
-        boolean processed = processor.processSingleSubscriptionById(SUB_ID);
-
-        assertTrue(processed);
-        assertEquals(ShopSubscriptionStatus.EXPIRED, subscription.getStatus());
-        verify(itemRepository).closeOnSaleByShopId(eq(SHOP_ID), any(LocalDateTime.class));
-        verify(itemRepository, never()).softDeleteByShopId(any(), any());
-    }
-
-    @Test
-    void expiry_skipsSubscriptionThatWasExtendedMeanwhile() {
-        ShopSubscriptionProcessor processor = new ShopSubscriptionProcessor(itemRepository, subscriptionRepository);
-        ShopSubscription subscription = subscription(ShopSubscriptionStatus.ACTIVE, LocalDate.now().plusDays(10));
-        when(subscriptionRepository.findByIdWithLock(SUB_ID)).thenReturn(Optional.of(subscription));
-
-        assertFalse(processor.processSingleSubscriptionById(SUB_ID));
-        verifyNoInteractions(itemRepository);
     }
 
     private void givenAdmin() {
         User admin = mock(User.class);
         when(admin.getRole()).thenReturn(Role.ADMIN);
         when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(admin));
+    }
+
+    private void givenSubscription(ShopSubscription subscription) {
+        when(subscriptionRepository.findShopIdById(SUB_ID)).thenReturn(Optional.of(SHOP_ID));
+        when(shopRepository.findByIdWithLock(SHOP_ID)).thenReturn(Optional.of(mock(Shop.class)));
+        when(subscriptionRepository.findByIdWithLock(SUB_ID)).thenReturn(Optional.of(subscription));
     }
 
     private static ShopSubscription subscription(ShopSubscriptionStatus status, LocalDate endDate) {
