@@ -5,23 +5,49 @@
     <p>포트원 결제 검증 결과와 환불 가능한 결제를 확인합니다.</p>
 </section>
 <section class="panel">
-    <div class="section-title"><h2>결제 목록</h2><button id="reload-payments" type="button">새로고침</button></div>
+    <div class="section-title"><h2>결제 목록</h2>
+        <button id="reload-payments" type="button">새로고침</button>
+    </div>
     <div id="payment-list"><p class="empty">결제내역을 불러오는 중입니다.</p></div>
 </section>
-<section class="panel"><p class="eyebrow">PAYMENT FLOW</p><p>실제 결제는 <a href="/test/purchase">구매 화면</a>에서 포트원 테스트 결제를 진행할 수 있습니다.</p></section>
+<section class="panel"><p class="eyebrow">PAYMENT FLOW</p>
+    <p>실제 결제는 <a href="/test/purchase">구매 화면</a>에서 포트원 테스트 결제를 진행할 수 있습니다.</p></section>
 <script>
-(() => {
-    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
-    const list = document.getElementById('payment-list');
-    const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
-    const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    async function load() {
-        const response = await pageFetch('/api/payments/me');
-        if (!response.ok) { list.innerHTML = '<p class="error">로그인 후 결제내역을 확인할 수 있습니다.</p>'; return; }
-        const payments = await response.json();
-        list.innerHTML = payments.length ? payments.map(payment => `<article class="payment-row"><div><strong>${escapeHtml(payment.paymentId)}</strong><small>${escapeHtml(payment.paymentPurpose || '')}</small></div><span>${escapeHtml(payment.paymentStatus || '')}</span><div><strong>${money(payment.amount)}</strong><small>환불 ${money(payment.refundedAmount)}</small></div></article>`).join('') : '<p class="empty">결제내역이 없습니다.</p>';
-    }
-    document.getElementById('reload-payments').addEventListener('click', load); load();
-})();
+    (() => {
+        const pageFetch = (path, options = {}) => fetch(path, Object.assign({credentials: 'same-origin'}, options));
+        const list = document.getElementById('payment-list');
+        const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
+        const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            "'": '&#39;',
+            '"': '&quot;'
+        }[c]));
+        const purposeLabel = {
+            PURCHASE: '상점 구매', AUCTION_DEPOSIT: '경매 보증금', AUCTION_BALANCE: '경매 잔금',
+            EXCHANGE_DEPOSIT: '교환 예치금', EVENT_FEE: '이벤트 참가비', SHOP_SUBSCRIPTION: '가게 구독'
+        };
+        const statusLabel = {
+            READY: '준비',
+            PAID: '결제 완료',
+            RELEASED: '지급 완료',
+            PARTIAL_CANCELLED: '일부 환불',
+            CANCELLED: '전체 환불'
+        };
+
+        async function load() {
+            const response = await pageFetch('/api/payments/me');
+            if (!response.ok) {
+                list.innerHTML = '<p class="error">로그인 후 결제내역을 확인할 수 있습니다.</p>';
+                return;
+            }
+            const payments = await response.json();
+            list.innerHTML = payments.length ? payments.map(payment => `<article class="payment-row"><div><strong>${escapeHtml(payment.paymentId)}</strong><small>${escapeHtml(purposeLabel[payment.paymentPurpose] || payment.paymentPurpose || '')}</small></div><span>${escapeHtml(statusLabel[payment.paymentStatus] || payment.paymentStatus || '')}</span><div><strong>${money(payment.amount)}</strong><small>환불 ${money(payment.refundedAmount)}</small></div></article>`).join('') : '<p class="empty">결제내역이 없습니다.</p>';
+        }
+
+        document.getElementById('reload-payments').addEventListener('click', load);
+        load();
+    })();
 </script>
 {{> fragments/footer}}

@@ -100,9 +100,10 @@ public class Payment {
             : PaymentStatus.PARTIAL_CANCELLED;
     }
 
+    // 판매자에게 지급 처리 (부분 환불된 결제는 남은 금액만 지급 대상이다)
     public void release() {
         if (status == PaymentStatus.RELEASED) return;
-        if (status != PaymentStatus.PAID) {
+        if (status != PaymentStatus.PAID && status != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("Release할 수 없는 결제 상태입니다.");
         }
         this.status = PaymentStatus.RELEASED;

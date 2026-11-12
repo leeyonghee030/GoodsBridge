@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -125,5 +126,38 @@ public class PaymentServiceImpl implements PaymentService {
         Payment payment = paymentRepository.findByPaymentIdLock(paymentId)
             .orElseThrow(() -> new BadRequestException("결제 내역을 찾을 수 없습니다."));
         payment.release();
+    }
+
+    // 서버 거절로 구매가 실패했을 때 PortOne 에 남은 승인 결제를 자동 취소
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void cancelUnrecorded(String paymentId, String reason) {
+        if (paymentId == null || paymentId.isBlank()) {
+            return;
+        }
+        try {
+            // 이미 정상 처리(기록)된 결제는 절대 취소하지 않는다. 새 트랜잭션이라 커밋된 결과만 보인다.
+            if (paymentRepository.existsByPaymentId(paymentId)) {
+                return;
+            }
+            PaymentResponse.PortOnePayment portOnePayment = portOnePaymentService.getPayment(paymentId);
+            if (portOnePayment == null || !"PAID".equals(portOnePayment.getStatus())
+                || portOnePayment.getAmount() == null
+                || portOnePayment.getAmount().getTotal() == null
+                || portOnePayment.getAmount().getTotal() <= 0) {
+                return;
+            }
+            PaymentResponse.PortOneCancel result = portOnePaymentService
+                .cancelPayment(paymentId, portOnePayment.getAmount().getTotal(), reason);
+            if (result == null || result.getCancellation() == null
+                || !"SUCCEEDED".equals(result.getCancellation().getStatus())) {
+                log.error("자동 취소 미완료 - 수동 취소 필요 paymentId={}", paymentId);
+                return;
+            }
+            log.info("서버 거절로 결제 자동 취소 완료 - paymentId={}, amount={}",
+                paymentId, portOnePayment.getAmount().getTotal());
+        } catch (RuntimeException e) {
+            log.error("자동 취소 실패 - 수동 취소 필요 paymentId={}", paymentId, e);
+        }
     }
 }
