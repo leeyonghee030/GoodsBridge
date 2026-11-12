@@ -6,6 +6,9 @@ import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.*;
+import com.goodsbridge.purchase.Purchase;
+import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.purchase.PurchaseSource;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -38,6 +41,7 @@ public class AuctionService {
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
     private final BidRepository bidRepository;
+    private final PurchaseRepository purchaseRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final EntityManager entityManager;
 
@@ -208,20 +212,30 @@ public class AuctionService {
         if (balance <= 0) {
             throw new BadRequestException("결제할 잔금이 없습니다.");
         }
+        request.validateDeliveryAddress();
 
         String balancePaymentId = paymentService.verify(
             request.getPaymentId(), balance, PaymentPurpose.AUCTION_BALANCE, userId);
         auction.completeBalance(balancePaymentId);
         auction.getItem().updateStatus(ItemStatus.SOLD);
 
-        // 가게 정산: 기존 규칙(낙찰가 전액 기록)을 유지하되, 실제로 돈이 다 들어온 이 시점에 남긴다
+        purchaseRepository.save(Purchase.builder()
+            .item(auction.getItem())
+            .user(auction.getCurrentWinner())
+            .paymentId(balancePaymentId)
+            .deliveryAddress(request.getDeliveryAddress().trim())
+            .source(PurchaseSource.AUCTION)
+            .amount(auction.getCurrentPrice())
+            .build());
+
+        // 가게 정산: 실제로 잔금 결제가 완료된 시점에 보증금 + 잔금인 낙찰가 전액을 기록한다.
         Payment payment = paymentRepository.findByPaymentId(balancePaymentId)
             .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
-        int auctionFee = auction.getCurrentPrice();
+        int auctionSettlementAmount = auction.getAuctionSettlementAmount();
         settlementHistoryService.calculate(
             auction.getShop(),
             payment,
-            auctionFee,
+            auctionSettlementAmount,
             SettlementHistoryType.AUCTION_SALE
         );
         return new AuctionResponse(auction);

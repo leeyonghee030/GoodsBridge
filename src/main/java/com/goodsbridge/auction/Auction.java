@@ -22,10 +22,6 @@ public class Auction {
     // 테스트에서는 분으로 테스트
     public static final int BALANCE_DUE_MINUTES = 2;
 
-    // 안티 스나이핑 용
-    @Column(name = "extension_count", nullable = false)
-    private int extensionCount = 0;
-
     @Id
     @GeneratedValue
     private Long id;
@@ -106,18 +102,14 @@ public class Auction {
         this.status = Status.CANCELLED;
     }
 
-    /**
-     * [경매 마감 시간 유형]
-     * 하드 클로징 : 정해진 마감 시간이 되면 입찰 여부와 관계없이 종료함
-     * 소프트 클로징  : 마감 직전에 입찰이 들어오면 종료 시간 연장
-     * 연장형 : 입찰이 계속 들어오는 동안 일정 시간식 연장
-     * 단계별 연장 : 최초 입찰 발생 시 연장하고, 이후 입찰마다 추가 연장
-     */
-    // 하드 클로징으로 경매 마감 진행함
-
     // 잔금 = 낙찰가 - 이미 낸 보증금
     public int getBalanceAmount() {
         return Math.max(0, currentPrice - depositAmount);
+    }
+
+    // 경매 낙찰 성사 시 가게가 정산받는 금액은 보증금 + 잔금, 즉 낙찰가 전액이다.
+    public int getAuctionSettlementAmount() {
+        return currentPrice;
     }
 
     public boolean isBalancePaid() {
