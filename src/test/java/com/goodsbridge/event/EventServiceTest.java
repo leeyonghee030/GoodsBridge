@@ -4,6 +4,7 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge.event.dto.EventParticipationRequest;
 import com.goodsbridge.event.dto.EventParticipationResponse;
+import com.goodsbridge.event.dto.ShopEventRequest;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.payment.Payment;
@@ -14,6 +15,8 @@ import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.shop.ShopStatus;
+import com.goodsbridge.shop.ShopSubscriptionService;
 import com.goodsbridge.user.Status;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -66,6 +69,7 @@ class EventServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock TransactionTemplate transactionTemplate;
+    @Mock ShopSubscriptionService shopSubscriptionService;
     @InjectMocks EventService eventService;
 
     private static final Long EVENT_ID = 1L;
@@ -77,6 +81,8 @@ class EventServiceTest {
         // 실제 트랜잭션 없이 콜백만 바로 실행
         lenient().when(transactionTemplate.execute(any())).thenAnswer(inv ->
             ((TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
+        // 기본은 구독 중인 가게 (구독 종료 케이스는 각 테스트에서 덮어씀)
+        lenient().when(shopSubscriptionService.isSubscriptionActive(any())).thenReturn(true);
     }
 
     private ShopEvent event(int capacity, LocalDateTime deadline) {
@@ -152,6 +158,36 @@ class EventServiceTest {
 
         verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
         verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+    }
+
+    // ---------- 구독 종료된 가게의 이벤트
+
+    @Test
+    @DisplayName("가게 구독이 끊긴 이벤트는 신규 참가를 막고, 이미 승인된 결제는 자동 취소한다")
+    void join_subscriptionEnded_rejectedAndPaymentCancelled() {
+        joinable(event(5, LocalDateTime.now().plusDays(1)));
+        when(shopSubscriptionService.isSubscriptionActive(any())).thenReturn(false);
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1")));
+
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+    }
+
+    @Test
+    @DisplayName("구독 중이 아닌 가게는 이벤트를 열 수 없다")
+    void createEvent_subscriptionInactive_rejected() {
+        Shop shop = Shop.builder().ownerUserId(USER_ID).name("가게").region("서울").address("주소").status(ShopStatus.APPROVED).build();
+        when(shopRepository.findById(2L)).thenReturn(Optional.of(shop));
+        when(itemRepository.findById(3L)).thenReturn(Optional.of(mock(Item.class)));
+        when(shopSubscriptionService.isSubscriptionActive(2L)).thenReturn(false);
+        ShopEventRequest request = new ShopEventRequest();
+        ReflectionTestUtils.setField(request, "itemId", 3L);
+
+        assertThrows(ForbiddenException.class, () -> eventService.save(2L, USER_ID, request));
+
+        verify(shopEventRepository, never()).save(any());
     }
 
     // ---------- C. 번호표

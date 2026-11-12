@@ -18,6 +18,7 @@ import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
+import com.goodsbridge.shop.ShopSubscriptionService;
 import com.goodsbridge.user.Status;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -47,6 +48,7 @@ public class EventService {
     private final PaymentRepository paymentRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final TransactionTemplate transactionTemplate;
+    private final ShopSubscriptionService shopSubscriptionService;
 
     /// ---------EventParticipation service
 
@@ -78,6 +80,10 @@ public class EventService {
         // 마감시간 확인 (스케줄러가 1분마다 돌아서 상태만으로는 마감 직후를 못 막는다)
         if (!shopEvent.isBeforeDeadline(LocalDateTime.now())) {
             throw new BadRequestException("마감된 이벤트입니다");
+        }
+        // 가게 구독이 끊기면 신규 참가만 막는다 (이미 참가한 사람은 그대로 유지)
+        if (!shopSubscriptionService.isSubscriptionActive(shopEvent.getShop().getId())) {
+            throw new BadRequestException("가게 구독이 종료되어 참가할 수 없는 이벤트입니다");
         }
         //유저 상태확인
         if (user.getStatus() != Status.ACTIVE){
@@ -189,6 +195,10 @@ public class EventService {
         }
         if (shop.getStatus() != ShopStatus.APPROVED){
             throw new BadRequestException("입점 승인된 가게만 이벤트를 할수있습니다.");
+        }
+        // 상품 등록과 같이 구독 중인 가게만 이벤트를 열 수 있다
+        if (!shopSubscriptionService.isSubscriptionActive(id)) {
+            throw new ForbiddenException("구독 중인 가게만 이벤트를 열 수 있습니다.");
         }
         //아이템이 로그인 유저께
         if (!item.getSellerUserId().equals(userId)){
