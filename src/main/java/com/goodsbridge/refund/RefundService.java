@@ -8,6 +8,7 @@ import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentStatus;
 import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
@@ -66,7 +67,8 @@ public class RefundService {
     @Transactional
     public void reject(Long adminUserId, Long refundId, String rejectReason) {
         validateAdmin(adminUserId);
-        Refund refund = refundRepository.findById(refundId)
+        // approve 와 동시에 실행돼도 상태가 덮어써지지 않도록 같은 행 잠금을 사용한다.
+        Refund refund = refundRepository.findByIdLock(refundId)
             .orElseThrow(() -> new NotFoundException("환불 요청을 찾을 수 없습니다."));
         if (!refund.isPending()) {
             throw new BadRequestException("대기 중인 환불 요청만 거절할 수 있습니다.");
@@ -101,7 +103,11 @@ public class RefundService {
         // purchase_tb.item_id가 unique이므로 기존 구매 행은 재구매 전에 제거한다.
         if (payment.getStatus() == PaymentStatus.CANCELLED && payment.getPurpose() == PaymentPurpose.PURCHASE) {
             purchaseRepository.findByPaymentId(payment.getPaymentId()).ifPresent(purchase -> {
-                purchase.getItem().updateStatus(ItemStatus.ON_SALE);
+                // SOLD 였던 상품만 다시 연다 (판매 종료(CLOSED)한 상품까지 되살리지 않는다)
+                Item item = purchase.getItem();
+                if (item.getStatus() == ItemStatus.SOLD) {
+                    item.updateStatus(ItemStatus.ON_SALE);
+                }
                 purchaseRepository.delete(purchase);
             });
         }
