@@ -89,4 +89,15 @@ public class DemoPaymentService implements PaymentService {
     public void release(String paymentId) {
         real.release(paymentId);
     }
+
+    // 구매가 서버에서 거절됐을 때 PortOne 승인 결제 자동 취소 (#75).
+    // 이 클래스가 @Primary 라 넘겨주지 않으면 데모 모드에서 기본 구현(아무것도 안 함)이 쓰인다.
+    // 데모 결제(demo-pay-)는 PortOne 에 없으므로 건너뛰고, 실제 결제만 원래 서비스로 자동 취소한다.
+    @Override
+    public void cancelUnrecorded(String paymentId, String reason) {
+        if (paymentId != null && paymentId.startsWith(DEMO_PREFIX)) {
+            return;
+        }
+        real.cancelUnrecorded(paymentId, reason);
+    }
 }
