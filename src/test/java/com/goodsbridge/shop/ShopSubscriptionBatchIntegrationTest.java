@@ -183,8 +183,11 @@ class ShopSubscriptionBatchIntegrationTest {
         assertThat(closedItemA.getStatus())
             .isEqualTo(ItemStatus.CLOSED);
 
-        // 구독 만료로 인한 판매 중지이므로 상품 자체는 삭제하지 않는다.
+// 구독 만료로 인한 판매 중지이므로 상품 자체는 삭제하지 않는다.
         assertThat(closedItemA.isDeleted()).isFalse();
+
+// 구독 만료로 인해 중지된 상품인지 확인한다.
+        assertThat(closedItemA.isPausedBySubscription()).isTrue();
 
         // 5. 상품 B의 판매 상태 확인
         Item closedItemB =
@@ -195,5 +198,8 @@ class ShopSubscriptionBatchIntegrationTest {
             .isEqualTo(ItemStatus.CLOSED);
 
         assertThat(closedItemB.isDeleted()).isFalse();
+
+// 구독 만료로 인해 중지된 상품인지 확인한다.
+        assertThat(closedItemB.isPausedBySubscription()).isTrue();
     }
 }

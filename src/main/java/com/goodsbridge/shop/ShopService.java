@@ -144,7 +144,10 @@ public class ShopService {
                 ShopSubscriptionStatus.ACTIVE,
                 LocalDate.now()
             )
-            .forEach(ShopSubscription::delete);
+            .forEach(subscription -> {
+                subscription.cancel();
+                subscription.delete();
+            });
     }
 
     /**

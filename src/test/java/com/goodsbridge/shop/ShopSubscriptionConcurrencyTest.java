@@ -41,7 +41,6 @@ class ShopSubscriptionConcurrencyTest {
     void concurrentSubscriptionCreationTest() throws InterruptedException {
 
         // given
-
         User savedUser = userRepository.save(
             User.builder()
                 .email("test_owner@goodsbridge.com")
@@ -151,6 +150,33 @@ class ShopSubscriptionConcurrencyTest {
                 }
             }
 
+            // then: 동시성 결과 검증
+            System.out.println(
+                "=== [동시성 테스트 결과] 성공: "
+                    + successCount
+                    + ", 중복 방어: "
+                    + duplicateExceptionCount
+            );
+
+            assertThat(unexpectedExceptions)
+                .as("예상하지 못한 예외가 발생하면 안 된다.")
+                .isEmpty();
+
+            assertThat(successCount).isEqualTo(1);
+
+            assertThat(duplicateExceptionCount)
+                .isEqualTo(threadCount - 1);
+
+            // 실제 DB에도 구독 이력이 한 건만 남아 있어야 한다.
+            List<ShopSubscription> savedSubscriptions =
+                subscriptionRepository.findAll()
+                    .stream()
+                    .filter(subscription ->
+                        testShopId.equals(subscription.getShopId()))
+                    .toList();
+
+            assertThat(savedSubscriptions).hasSize(1);
+
         } finally {
 
             // 모든 작업 종료 후 테스트 데이터 정리
@@ -184,34 +210,6 @@ class ShopSubscriptionConcurrencyTest {
                 throw e;
             }
         }
-
-        // then
-
-        System.out.println(
-            "=== [동시성 테스트 결과] 성공: "
-                + successCount
-                + ", 중복 방어: "
-                + duplicateExceptionCount
-        );
-
-        assertThat(unexpectedExceptions)
-            .as("예상하지 못한 예외가 발생하면 안 된다.")
-            .isEmpty();
-
-        assertThat(successCount).isEqualTo(1);
-
-        assertThat(duplicateExceptionCount)
-            .isEqualTo(threadCount - 1);
-
-        // 실제 DB에도 구독 이력이 한 건만 남아 있어야 한다.
-        List<ShopSubscription> savedSubscriptions =
-            subscriptionRepository.findAll()
-                .stream()
-                .filter(subscription ->
-                    testShopId.equals(subscription.getShopId()))
-                .toList();
-
-        assertThat(savedSubscriptions).hasSize(1);
     }
 
     // 중복 결제 예외인지 확인

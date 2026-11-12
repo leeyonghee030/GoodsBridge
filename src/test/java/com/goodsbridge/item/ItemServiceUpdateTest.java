@@ -123,7 +123,7 @@ class ItemServiceUpdateTest {
         // when & then
         assertThatThrownBy(() -> itemService.create(userId, request))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("상품을 등록하려면 가게 선택이 필수입니다.");
+            .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
 
         verify(itemRepository, never()).save(any(Item.class));
     }
@@ -149,9 +149,9 @@ class ItemServiceUpdateTest {
             .willReturn(Optional.of(mockShop));
 
         // when & then
-        assertThatThrownBy(() -> itemService.create(loginUserId, request))
+        assertThatThrownBy(() -> itemService.create(loginUserId,request ))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
+            .hasMessageContaining("본인 소유의 가게에서만 상품을 등록하거나 수정할 수 있습니다.");
 
         verify(itemRepository, never()).save(any(Item.class));
     }
@@ -296,7 +296,7 @@ class ItemServiceUpdateTest {
         assertThatThrownBy(() ->
             itemService.update(userId, itemId, request))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("상품 수정 시 가게 선택은 필수입니다.");
+            .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
     }
 
     @Test
@@ -337,10 +337,9 @@ class ItemServiceUpdateTest {
             .willReturn(Optional.of(mockShop));
 
         // when & then
-        assertThatThrownBy(() ->
-            itemService.update(loginUserId, itemId, request))
+        assertThatThrownBy(() -> itemService.update(loginUserId, itemId, request))
             .isInstanceOf(ForbiddenException.class)
-            .hasMessageContaining("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
+            .hasMessageContaining("본인 소유의 가게에서만 상품을 등록하거나 수정할 수 있습니다.");
     }
 
     @Test
@@ -386,5 +385,129 @@ class ItemServiceUpdateTest {
             itemService.update(userId, itemId, request))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
+    }
+    @Test
+    @DisplayName("구독 이력이 없는 가게는 상품을 등록할 수 없다")
+    void create_withoutSubscription_fail() {
+        // given
+        Long userId = 1L;
+        Long shopId = 10L;
+
+        ItemCreateRequest request = new ItemCreateRequest();
+        request.setShopId(shopId);
+        request.setCategoryId(1L);
+        request.setTitle("테스트 상품");
+        request.setPrice(10000);
+        request.setSaleType(SaleType.NORMAL);
+
+        Shop shop = createApprovedShop(userId);
+
+        when(shopRepository.findByIdWithLock(shopId))
+            .thenReturn(Optional.of(shop));
+
+        when(shopSubscriptionRepository
+            .existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+                eq(shopId),
+                eq(ShopSubscriptionStatus.ACTIVE),
+                any(LocalDate.class)
+            ))
+            .thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> itemService.create(userId, request))
+            .isInstanceOf(ForbiddenException.class)
+            .hasMessage("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+
+        verify(itemRepository, never()).save(any(Item.class));
+    }
+
+
+    @Test
+    @DisplayName("ACTIVE 상태라도 구독 만료일이 지났으면 상품을 등록할 수 없다")
+    void create_expiredActiveSubscription_fail() {
+        // given
+        Long userId = 1L;
+        Long shopId = 10L;
+
+        ItemCreateRequest request = new ItemCreateRequest();
+        request.setShopId(shopId);
+        request.setCategoryId(1L);
+        request.setTitle("만료된 구독 상품");
+        request.setPrice(10000);
+        request.setSaleType(SaleType.NORMAL);
+
+        Shop shop = createApprovedShop(userId);
+
+        when(shopRepository.findByIdWithLock(shopId))
+            .thenReturn(Optional.of(shop));
+
+        // 만료된 ACTIVE 구독은 유효한 구독으로 조회되지 않는다.
+        when(shopSubscriptionRepository
+            .existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+                eq(shopId),
+                eq(ShopSubscriptionStatus.ACTIVE),
+                any(LocalDate.class)
+            ))
+            .thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> itemService.create(userId, request))
+            .isInstanceOf(ForbiddenException.class)
+            .hasMessage("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+
+        verify(itemRepository, never()).save(any(Item.class));
+    }
+    @Test
+    @DisplayName("구독 만료 스케줄러 실행 전이라도 만료된 구독은 상품을 수정할 수 없다")
+    void update_expiredActiveSubscription_fail() {
+        // given
+        Long userId = 1L;
+        Long shopId = 10L;
+        Long itemId = 100L;
+
+        Shop shop = createApprovedShop(userId);
+
+        Category category = Category.builder()
+            .name("테스트 카테고리")
+            .build();
+
+        Item item = Item.builder()
+            .sellerUserId(userId)
+            .shopId(shopId)
+            .category(category)
+            .title("기존 상품")
+            .price(10000)
+            .saleType(SaleType.NORMAL)
+            .status(ItemStatus.ON_SALE)
+            .build();
+
+        ItemUpdateRequest request = new ItemUpdateRequest();
+        request.setShopId(shopId);
+        request.setCategoryId(1L);
+        request.setTitle("수정할 상품");
+        request.setPrice(20000);
+        request.setSaleType(SaleType.NORMAL);
+        request.setStatus(ItemStatus.ON_SALE);
+
+        when(itemRepository.findByIdAndDeletedFalse(itemId))
+            .thenReturn(Optional.of(item));
+
+        when(shopRepository.findByIdWithLock(shopId))
+            .thenReturn(Optional.of(shop));
+
+        when(shopSubscriptionRepository
+            .existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+                eq(shopId),
+                eq(ShopSubscriptionStatus.ACTIVE),
+                any(LocalDate.class)
+            ))
+            .thenReturn(false);
+
+        // when & then
+        assertThatThrownBy(() -> itemService.update(userId, itemId, request))
+            .isInstanceOf(ForbiddenException.class)
+            .hasMessage("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
+
+        verify(itemRepository, never()).save(any(Item.class));
     }
 }
