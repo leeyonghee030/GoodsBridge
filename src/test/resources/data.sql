@@ -29,22 +29,72 @@ VALUES (1, '부산 피규어 창고', '부산', '부산광역시 해운대구', 
 
 -- ==========================================
 -- 3. 아이템 데이터 (Item)
--- [수정] 모든 상품은 shop_id가 필수이므로 null 데이터를 모두 제거하고 유효한 샵에 매핑합니다.
 -- ==========================================
 
--- [홍대 굿즈샵 소속 상품 (shop_id = 1)] - 활성 및 구독 연동 테스트용
-INSERT INTO item_tb (seller_user_id, shop_id, category_id, title, description, price, sale_type, status, image_url, created_at)
-VALUES (1L, 1L, 1L, '한정판 피규어', '미개봉 새상품입니다.', 45000, 'NORMAL', 'ON_SALE', 'https://example.com/fig.jpg', NOW());
+-- 홍대 굿즈샵 소속 상품 (shop_id = 1)
 
-INSERT INTO item_tb (seller_user_id, shop_id, category_id, title, description, price, sale_type, status, image_url, created_at)
-VALUES (1L, 1L, 2L, '후드티 A', '편안한 후드티', 30000, 'NORMAL', 'ON_SALE', 'https://example.com/hoodie.jpg', NOW());
+INSERT INTO item_tb (
+    seller_user_id, shop_id, category_id,
+    title, description, price, sale_type,
+    status, image_url, paused_by_subscription, created_at
+)
+VALUES (
+           1, 1, 1,
+           '한정판 피규어', '미개봉 새상품입니다.',
+           45000, 'NORMAL', 'ON_SALE',
+           'https://example.com/fig.jpg', FALSE, NOW()
+       );
 
-INSERT INTO item_tb (seller_user_id, shop_id, category_id, title, description, price, sale_type, status, image_url, created_at)
-VALUES (1L, 1L, 1L, '홍대 굿즈샵 한정 피규어', '가게 구독 상태에 따라 판매 상태가 연동되는 상품입니다.', 55000, 'NORMAL', 'CLOSED', 'https://example.com/shop1_fig.jpg', NOW());
+INSERT INTO item_tb (
+    seller_user_id, shop_id, category_id,
+    title, description, price, sale_type,
+    status, image_url, paused_by_subscription, created_at
+)
+VALUES (
+           1, 1, 2,
+           '후드티 A', '편안한 후드티',
+           30000, 'NORMAL', 'ON_SALE',
+           'https://example.com/hoodie.jpg', FALSE, NOW()
+       );
 
-INSERT INTO item_tb (seller_user_id, shop_id, category_id, title, description, price, sale_type, status, image_url, created_at)
-VALUES (1L, 1L, 2L, '홍대 굿즈샵 시그니처 후드티', '가게 활성 상태 상품입니다.', 35000, 'NORMAL', 'ON_SALE', 'https://example.com/shop1_hoodie.jpg', NOW());
+-- 교환/경매 거부 테스트용 상품 (item_id = 3)
+INSERT INTO item_tb (
+    seller_user_id, shop_id, category_id,
+    title, description, price, sale_type,
+    status, image_url, paused_by_subscription, created_at
+)
+VALUES (
+           2, 2, 3,
+           '교환용 도서', '교환 테스트용 상품입니다.',
+           20000, 'NORMAL', 'ON_SALE',
+           'https://example.com/book.jpg', FALSE, NOW()
+       );
 
+INSERT INTO item_tb (
+    seller_user_id, shop_id, category_id,
+    title, description, price, sale_type,
+    status, image_url, paused_by_subscription, created_at
+)
+VALUES (
+           1, 1, 1,
+           '홍대 굿즈샵 한정 피규어',
+           '가게 구독 상태에 따라 판매 상태가 연동되는 상품입니다.',
+           55000, 'NORMAL', 'CLOSED',
+           'https://example.com/shop1_fig.jpg', FALSE, NOW()
+       );
+
+INSERT INTO item_tb (
+    seller_user_id, shop_id, category_id,
+    title, description, price, sale_type,
+    status, image_url, paused_by_subscription, created_at
+)
+VALUES (
+           1, 1, 2,
+           '홍대 굿즈샵 시그니처 후드티',
+           '경매 및 동시성 테스트용 상품입니다.',
+           35000, 'AUCTION', 'ON_SALE',
+           'https://example.com/shop1_hoodie.jpg', FALSE, NOW()
+       );
 
 -- ==========================================
 -- 4. 가게 구독 데이터 (ShopSubscription)

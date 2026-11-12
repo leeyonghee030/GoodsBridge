@@ -111,7 +111,7 @@ class AuctionServiceCloseExpiredTest {
 
     @Test
     void closeExpired_rejectsAuctionWhoseDeadlineHasNotPassed() {
-        // 안티 스나이핑으로 마감이 연장된 경매가 스케줄러 조회 직후 다시 미래 시각이 된 경우
+        // 스케줄러 조회와 단건 처리 사이에 아직 미래 시각이면 안전하게 종료하지 않는다.
         Auction auction = new Auction(mock(Shop.class), null, 10_000, LocalDateTime.now().plusMinutes(5), 1_000);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
 

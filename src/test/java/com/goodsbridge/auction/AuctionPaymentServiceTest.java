@@ -11,6 +11,9 @@ import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentStatus;
+import com.goodsbridge.purchase.Purchase;
+import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.purchase.PurchaseSource;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -49,6 +52,7 @@ class AuctionPaymentServiceTest {
     @Mock PaymentRepository paymentRepository;
     @Mock PaymentService paymentService;
     @Mock BidRepository bidRepository;
+    @Mock PurchaseRepository purchaseRepository;
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock jakarta.persistence.EntityManager entityManager;
     @Mock Auction auction;
@@ -69,6 +73,7 @@ class AuctionPaymentServiceTest {
         lenient().when(auction.isBalanceOverdue(any(LocalDateTime.class))).thenReturn(false);
         lenient().when(auction.getBalanceAmount()).thenReturn(9_000);
         lenient().when(auction.getCurrentPrice()).thenReturn(10_000);
+        lenient().when(auction.getAuctionSettlementAmount()).thenReturn(10_000);
         lenient().when(auction.getShop()).thenReturn(shop);
         lenient().when(auction.getItem()).thenReturn(item);
     }
@@ -76,16 +81,21 @@ class AuctionPaymentServiceTest {
     // ===================== payBalance =====================
 
     @Test
-    void payBalance_verifiesPayment_marksItemSold_andRecordsFullAuctionSale() {
+    void payBalance_verifiesPayment_marksItemSold_andRecordsTenPercentAuctionFee() {
         when(paymentService.verify("balance-1", 9_000, PaymentPurpose.AUCTION_BALANCE, 2L))
             .thenReturn("balance-1");
         when(paymentRepository.findByPaymentId("balance-1")).thenReturn(Optional.of(payment));
 
-        auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1"));
+        auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구"));
 
         verify(paymentService).verify("balance-1", 9_000, PaymentPurpose.AUCTION_BALANCE, 2L);
         verify(auction).completeBalance("balance-1");
         verify(item).updateStatus(ItemStatus.SOLD);
+        verify(purchaseRepository).save(argThat(purchase ->
+            purchase.getSource() == PurchaseSource.AUCTION
+                && purchase.getAmount() == 10_000
+                && "서울시 마포구".equals(purchase.getDeliveryAddress())
+                && "balance-1".equals(purchase.getPaymentId())));
         verify(settlementHistoryService).calculate(
             shop, payment, 10_000, SettlementHistoryType.AUCTION_SALE);
     }
@@ -95,7 +105,7 @@ class AuctionPaymentServiceTest {
         when(auction.isBalanceOverdue(any(LocalDateTime.class))).thenReturn(true);
 
         assertThrows(BadRequestException.class,
-            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
+            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
         verifyNoInteractions(paymentService);
         verifyNoInteractions(settlementHistoryService);
@@ -129,7 +139,7 @@ class AuctionPaymentServiceTest {
         when(auction.getStatus()).thenReturn(Status.ACTIVE);
 
         assertThrows(BadRequestException.class,
-            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
+            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
         verifyNoInteractions(paymentService);
     }
@@ -180,7 +190,7 @@ class AuctionPaymentServiceTest {
             .thenThrow(new BadRequestException("결제 검증에 실패했습니다."));
 
         assertThrows(BadRequestException.class,
-            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
+            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
         verify(auction, never()).completeBalance(any());
         verify(item, never()).updateStatus(any());
@@ -194,7 +204,7 @@ class AuctionPaymentServiceTest {
         when(paymentRepository.findByPaymentId("balance-1")).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class,
-            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
+            () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
         verifyNoInteractions(settlementHistoryService);
     }

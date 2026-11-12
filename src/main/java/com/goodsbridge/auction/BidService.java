@@ -83,7 +83,6 @@ public class BidService {
             .build());
 
         auction.updateCurrentBid(request.getBidAmount(), user);
-        auction.extendIfNearDeadline(LocalDateTime.now());
 
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);

@@ -66,6 +66,9 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
 
+                // 토큰 재발급은 Access Token이 만료된 뒤에도 Refresh Token 쿠키만으로 호출할 수 있어야 한다.
+                .requestMatchers(HttpMethod.POST, "/api/auth/reissue").permitAll()
+
                 .anyRequest().authenticated()
             )
 

@@ -27,7 +27,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         select a
         from Auction a
         where a.status = :status
-          and a.deadline < :deadline
+          and a.deadline <= :deadline
         """)
     Page<Auction> findByStatusAndDeadlineBefore(@Param("status") Status status,
                                                 @Param("deadline") LocalDateTime deadline,
