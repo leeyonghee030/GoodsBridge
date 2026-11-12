@@ -16,6 +16,7 @@ import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.shop.ShopSubscriptionService;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -35,6 +36,7 @@ public class RefundService {
     private final ShopRepository shopRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final PurchaseRepository purchaseRepository;
+    private final ShopSubscriptionService shopSubscriptionService;
 
     // 환불 요청
     @Transactional
@@ -106,7 +108,12 @@ public class RefundService {
                 // SOLD 였던 상품만 다시 연다 (판매 종료(CLOSED)한 상품까지 되살리지 않는다)
                 Item item = purchase.getItem();
                 if (item.getStatus() == ItemStatus.SOLD) {
-                    item.updateStatus(ItemStatus.ON_SALE);
+                    // 구독이 만료된 가게의 상품은 다시 팔지 않고 닫아 둔다 (재구독하면 다른 마감 상품과 함께 복구된다)
+                    if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
+                        item.deleteItem();
+                    } else {
+                        item.updateStatus(ItemStatus.ON_SALE);
+                    }
                 }
                 purchaseRepository.delete(purchase);
             });

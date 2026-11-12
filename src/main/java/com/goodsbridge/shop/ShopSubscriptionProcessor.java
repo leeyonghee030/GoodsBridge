@@ -49,8 +49,8 @@ public class ShopSubscriptionProcessor {
             subscription.delete();
             subscriptionRepository.save(subscription);
 
-            // 4. 연관 상품 일괄 소프트 삭제 및 상태 마감 처리 (CLOSED)
-            itemRepository.softDeleteByShopId(shopId, now);
+            // 4. 판매중인 상품만 소프트 삭제 및 마감 처리 (CLOSED). 판매완료 상품은 배송/환불 처리를 위해 유지
+            itemRepository.closeOnSaleByShopId(shopId, now);
 
             log.info("[구독 만료 처리 성공] shopId: {}, subscriptionId: {}", shopId, subscription.getId());
             return true;

@@ -75,6 +75,15 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         """)
     void softDeleteByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
 
+    // 구독 만료용: 판매중(ON_SALE) 상품만 닫는다. 판매완료(SOLD) 상품은 구매/배송/환불 처리를 위해 그대로 둔다
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        UPDATE Item i
+        SET i.deleted = true, i.deletedAt = :now, i.status = 'CLOSED'
+        WHERE i.shopId = :shopId AND i.deleted = false AND i.status = 'ON_SALE'
+        """)
+    void closeOnSaleByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
         UPDATE Item i

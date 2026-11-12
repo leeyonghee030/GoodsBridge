@@ -21,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Slf4j
@@ -188,6 +189,19 @@ public class ShopSubscriptionService {
 
         // 2. 기존 커서 페이징 배치 로직 호출
         return processExpiredSubscriptions();
+    }
+
+    // 관리자: 구독 중인 가게의 구독을 취소한다. 판매중 상품은 닫고(재구독하면 복구), 판매완료 상품은 배송/환불 처리를 위해 유지한다
+    @Transactional
+    public void cancelByAdmin(Long adminUserId, Long subscriptionId) {
+        validateAdmin(adminUserId);
+        ShopSubscription subscription = subscriptionRepository.findByIdWithLock(subscriptionId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
+        if (subscription.getStatus() != ShopSubscriptionStatus.ACTIVE) {
+            throw new BadRequestException("구독 중인 가게만 구독을 취소할 수 있습니다.");
+        }
+        subscription.updateStatus(ShopSubscriptionStatus.CANCELLED);
+        itemRepository.closeOnSaleByShopId(subscription.getShopId(), LocalDateTime.now());
     }
 
     // [스케줄러 & 관리자 공용] 커서 페이징을 활용한 만료 구독 일괄 처리 핵심 로직

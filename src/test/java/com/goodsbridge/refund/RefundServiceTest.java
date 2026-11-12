@@ -9,6 +9,7 @@ import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.shop.ShopSubscriptionService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
@@ -43,6 +44,7 @@ class RefundServiceTest {
     @Mock ShopRepository shopRepository;
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock PurchaseRepository purchaseRepository;
+    @Mock ShopSubscriptionService shopSubscriptionService;
     @InjectMocks RefundService refundService;
 
     @Test
@@ -231,6 +233,7 @@ class RefundServiceTest {
     void approve_fullRefundReopensSoldItemAndRemovesPurchase() {
         Item item = mock(Item.class);
         when(item.getStatus()).thenReturn(ItemStatus.SOLD);
+        when(item.getShopId()).thenReturn(null);   // 가게 상품이 아니면 구독과 무관하게 다시 연다
         Purchase purchase = fullRefundSetup(item);
 
         refundService.approve(1L, 7L);
@@ -248,6 +251,36 @@ class RefundServiceTest {
         refundService.approve(1L, 7L);
 
         verify(item, never()).updateStatus(any());
+        verify(purchaseRepository).delete(purchase);
+    }
+
+    @Test
+    void approve_fullRefundReopensShopItemWhenSubscriptionActive() {
+        Item item = mock(Item.class);
+        when(item.getStatus()).thenReturn(ItemStatus.SOLD);
+        when(item.getShopId()).thenReturn(5L);
+        when(shopSubscriptionService.isSubscriptionActive(5L)).thenReturn(true);
+        Purchase purchase = fullRefundSetup(item);
+
+        refundService.approve(1L, 7L);
+
+        verify(item).updateStatus(ItemStatus.ON_SALE);
+        verify(item, never()).deleteItem();
+        verify(purchaseRepository).delete(purchase);
+    }
+
+    @Test
+    void approve_fullRefundKeepsShopItemClosedWhenSubscriptionExpired() {
+        Item item = mock(Item.class);
+        when(item.getStatus()).thenReturn(ItemStatus.SOLD);
+        when(item.getShopId()).thenReturn(5L);
+        when(shopSubscriptionService.isSubscriptionActive(5L)).thenReturn(false);
+        Purchase purchase = fullRefundSetup(item);
+
+        refundService.approve(1L, 7L);
+
+        verify(item).deleteItem();
+        verify(item, never()).updateStatus(ItemStatus.ON_SALE);
         verify(purchaseRepository).delete(purchase);
     }
 
