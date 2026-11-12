@@ -13,16 +13,29 @@ import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
 
+    /**
+     * 상품 ID로 삭제되지 않은 상품 조회
+     */
     Optional<Item> findByIdAndDeletedFalse(Long id);
 
+    /**
+     * 판매자 ID로 삭제되지 않은 상품 목록 조회
+     */
     List<Item> findBySellerUserIdAndDeletedFalse(Long userId);
 
-    // 💡 누락된 메서드 추가 (CategoryService에서 사용)
+    /**
+     * 카테고리에 속한 삭제되지 않은 상품 개수 조회
+     */
     Long countByCategoryIdAndDeletedFalse(Long categoryId);
 
-    // 💡 오타 수정: IS NULL C -> IS NULL
+    /**
+     * 상품 검색 및 필터링
+     *
+     * 카테고리, 지역, 판매 유형을 조건으로 상품을 검색합니다.
+     */
     @Query("""
-        SELECT i FROM Item i
+        SELECT i
+        FROM Item i
         JOIN FETCH i.category c
         LEFT JOIN Shop s ON i.shopId = s.id
         WHERE (:categoryId IS NULL OR c.id = :categoryId)
@@ -37,26 +50,77 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         Pageable pageable
     );
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    /**
+     * 가게 삭제 시 소속 상품 전체 소프트 삭제
+     *
+     * 구독 취소 및 만료에서는 사용하지 않습니다.
+     */
+    @Modifying(
+        clearAutomatically = true,
+        flushAutomatically = true
+    )
     @Query("""
         UPDATE Item i
-        SET i.deleted = true, i.deletedAt = :now, i.status = 'CLOSED'
-        WHERE i.shopId = :shopId AND i.deleted = false
+           SET i.deleted = true,
+               i.deletedAt = :now,
+               i.status = :closed,
+               i.pausedBySubscription = false,
+               i.version = i.version + 1
+         WHERE i.shopId = :shopId
+           AND i.deleted = false
         """)
-    void softDeleteByShopId(@Param("shopId") Long shopId, @Param("now") LocalDateTime now);
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-        UPDATE Item i
-        SET i.status = :targetStatus
-        WHERE i.shopId = :shopId AND i.status = :sourceStatus
-        """)
-    void updateStatusByShopIdAndStatus(
+    int softDeleteByShopId(
         @Param("shopId") Long shopId,
-        @Param("sourceStatus") ItemStatus sourceStatus,
-        @Param("targetStatus") ItemStatus targetStatus
+        @Param("now") LocalDateTime now,
+        @Param("closed") ItemStatus closed
     );
 
-    @Query("SELECT i FROM Item i WHERE i.shopId = :shopId AND i.deletedAt IS NOT NULL")
-    List<Item> findAllDeletedByShopId(@Param("shopId") Long shopId);
+    /**
+     * 구독 취소 및 만료 시 상품 판매 중지
+     *
+     * 현재 ON_SALE 상태인 상품만 CLOSED로 변경합니다.
+     * 구독 때문에 중지된 상품임을 pausedBySubscription으로 표시합니다.
+     */
+    @Modifying(
+        clearAutomatically = true,
+        flushAutomatically = true
+    )
+    @Query("""
+        UPDATE Item i
+           SET i.status = :closed,
+               i.pausedBySubscription = true,
+               i.version = i.version + 1
+         WHERE i.shopId = :shopId
+           AND i.status = :onSale
+           AND i.deleted = false
+        """)
+    int pauseItemsBySubscription(
+        @Param("shopId") Long shopId,
+        @Param("onSale") ItemStatus onSale,
+        @Param("closed") ItemStatus closed
+    );
+
+    /**
+     * 구독 재활성화 시 상품 판매 재개
+     *
+     * 구독으로 중지된 상품만 ON_SALE로 복구합니다.
+     * 점주가 직접 CLOSED 처리한 상품은 복구하지 않습니다.
+     */
+    @Modifying(
+        clearAutomatically = true,
+        flushAutomatically = true
+    )
+    @Query("""
+        UPDATE Item i
+           SET i.status = :onSale,
+               i.pausedBySubscription = false,
+               i.version = i.version + 1
+         WHERE i.shopId = :shopId
+           AND i.pausedBySubscription = true
+           AND i.deleted = false
+        """)
+    int resumeItemsBySubscription(
+        @Param("shopId") Long shopId,
+        @Param("onSale") ItemStatus onSale
+    );
 }

@@ -4,9 +4,6 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.util.SecurityUtil;
-import com.goodsbridge.item.Item;
-import com.goodsbridge.item.ItemRepository;
-import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.user.Role;
@@ -14,13 +11,16 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 @Slf4j
@@ -31,10 +31,10 @@ public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
     private final ShopRepository shopRepository;
-    private final ItemRepository itemRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
-    private final ShopSubscriptionProcessor subscriptionProcessor;
+    private final ShopSubscriptionBatchService batchService;
 
     private static final int PRICE_PER_DAY = 1000;
     private static final int MAX_DAYS = 1095; // 한 번에 최대 3년(1095일) 제한
@@ -87,8 +87,26 @@ public class ShopSubscriptionService {
             throw new ForbiddenException("본인의 가게만 구독을 시작하거나 갱신할 수 있습니다.");
         }
 
-        ShopSubscription existingSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
-        boolean isActive = existingSubscription != null && existingSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
+        // 💡 1. 현재 활성화된(ACTIVE) 구독이 있는지 확인
+        List<ShopSubscription> activeSubscriptions =
+            subscriptionRepository.findActiveByShopIdWithLock(
+                shopId,
+                ShopSubscriptionStatus.ACTIVE,
+                LocalDate.now()
+            );
+
+        if (activeSubscriptions.size() > 1) {
+            throw new IllegalStateException(
+                "하나의 가게에 유효한 ACTIVE 구독이 여러 건 존재합니다. shopId: " + shopId
+            );
+        }
+
+        ShopSubscription activeSubscription =
+            activeSubscriptions.isEmpty()
+                ? null
+                : activeSubscriptions.get(0);
+
+        boolean isActive = activeSubscription != null;
 
         // 외부 결제 검증
         paymentService.verify(
@@ -99,49 +117,50 @@ public class ShopSubscriptionService {
         );
 
         boolean setupFeePaid = true;
-        boolean isExpiredOrCancelled = (existingSubscription != null &&
-            (existingSubscription.getStatus() == ShopSubscriptionStatus.EXPIRED ||
-                existingSubscription.getStatus() == ShopSubscriptionStatus.CANCELLED));
-
         LocalDate startDate;
         LocalDate endDate;
         ShopSubscription subscription;
 
         if (isActive) {
-            LocalDate currentEndDate = existingSubscription.getEndDate() != null ? existingSubscription.getEndDate() : LocalDate.now();
+            // 💡 2. 이미 활성화된 구독이 있는 경우에만 기존 구독 객체를 연장(Extend) 처리
+            LocalDate currentEndDate = activeSubscription.getEndDate() != null ? activeSubscription.getEndDate() : LocalDate.now();
             LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
+
+            // 💡 [보완] 연장하려는 총 일수가 오늘 기준 최대 허용 기간(1095일)을 넘지 않는지 검증
+            long totalDaysFromNow = ChronoUnit.DAYS.between(LocalDate.now(), baseDate.plusDays(request.getDays()));
+            if (totalDaysFromNow > MAX_DAYS) {
+                throw new BadRequestException("구독 기간은 오늘부터 최대 3년(1095일)까지만 누적 연장할 수 있습니다.");
+            }
 
             startDate = baseDate;
             endDate = baseDate.plusDays(request.getDays());
 
-            existingSubscription.extendSubscription(startDate, endDate, setupFeePaid, request.getPaymentId());
-            subscription = existingSubscription;
+            activeSubscription.extendSubscription(startDate, endDate, setupFeePaid, request.getPaymentId());
+            subscription = activeSubscription;
         } else {
+            // 💡 3. 활성 구독이 없는 경우 (최초 구독이거나, 이미 만료/취소된 상태인 경우)
+            // 기존 만료 건을 억지로 update하지 않고, 완전히 새로운 구독 행(Row)을 생성하여 insert 함으로써 paymentId 유니크 충돌 원천 차단
             startDate = LocalDate.now();
             endDate = startDate.plusDays(request.getDays());
 
-            subscription = subscriptionRepository.findByShopId(shopId)
-                .map(sub -> {
-                    sub.update(startDate, endDate, setupFeePaid, ShopSubscriptionStatus.ACTIVE, request.getPaymentId());
-                    return sub;
-                })
-                .orElseGet(() -> ShopSubscription.builder()
-                    .shopId(shopId)
-                    .setupFeePaid(setupFeePaid)
-                    .startDate(startDate)
-                    .endDate(endDate)
-                    .status(ShopSubscriptionStatus.ACTIVE)
-                    .paymentId(request.getPaymentId())
-                    .build());
+            // 혹시 기존에 남아있던 만료/취소 데이터가 있다면 안전하게 소프트 삭제 상태로 확실히 처리하거나 방치 (여기서는 새 엔티티 생성)
+            subscription = ShopSubscription.builder()
+                .shopId(shopId)
+                .setupFeePaid(setupFeePaid)
+                .startDate(startDate)
+                .endDate(endDate)
+                .status(ShopSubscriptionStatus.ACTIVE)
+                .paymentId(request.getPaymentId())
+                .build();
         }
 
         try {
-            Long subscriptionId = subscriptionRepository.save(subscription).getId();
+            Long subscriptionId = subscriptionRepository.saveAndFlush(subscription).getId();
 
-            if (isExpiredOrCancelled || existingSubscription == null) {
-                restoreAndActivateItemsByShopId(shopId);
-
-                log.info("[일 단위 구독 재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
+            // 💡 4. 활성 구독이 아니었던 상태에서 새로 구독이 활성화되었으므로 이벤트 발행 (상품 부활)
+            if (!isActive) {
+                eventPublisher.publishEvent(new ShopSubscriptionActivatedEvent(shopId));
+                log.info("[구독 활성화/재개 성공] 가게 ID: {} | 상품들이 복구 및 ON_SALE로 전환되었습니다.", shopId);
             }
 
             return subscriptionId;
@@ -152,15 +171,57 @@ public class ShopSubscriptionService {
         }
     }
 
+    /**
+     * 💡 [추가] 구독 취소 및 상품 차단 이벤트 발행 로직
+     */
+    @Transactional
+    public void cancelSubscription(Long userId, Long shopId) {
+        Shop shop = shopRepository.findByIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인의 가게 구독만 취소할 수 있습니다.");
+        }
+
+        List<ShopSubscription> activeSubscriptions =
+            subscriptionRepository.findActiveByShopIdWithLock(
+                shopId,
+                ShopSubscriptionStatus.ACTIVE,
+                LocalDate.now()
+            );
+
+        if (activeSubscriptions.isEmpty()) {
+            throw new NotFoundException("활성화된 구독 정보를 찾을 수 없습니다.");
+        }
+
+        if (activeSubscriptions.size() > 1) {
+            throw new IllegalStateException(
+                "유효한 ACTIVE 구독이 여러 건 존재합니다. shopId: " + shopId
+            );
+        }
+
+        ShopSubscription subscription = activeSubscriptions.get(0);
+        subscription.cancel();
+
+        // 💡 구독 취소 이벤트 발행 (이벤트를 통해 Item 측에서 상품들을 CLOSED 처리하도록 위임)
+        eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
+
+        log.info("[구독 취소 완료] 가게 ID: {} | 구독 취소 이벤트가 발행되었습니다.", shopId);
+    }
+
     public ShopSubscriptionResponse findById(Long userId, Long shopId) {
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+
+        if (shop.isDeleted()) {
+            throw new BadRequestException("삭제된 가게는 구독을 취소할 수 없습니다.");
+        }
 
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("본인의 가게 구독 정보만 조회 가능합니다.");
         }
 
-        ShopSubscription subscription = subscriptionRepository.findByShopId(shopId)
+        ShopSubscription subscription = subscriptionRepository.findFirstByShopIdOrderByIdDesc(shopId)
             .orElseThrow(() -> new NotFoundException("구독 정보가 존재하지 않습니다."));
 
         return ShopSubscriptionResponse.from(subscription);
@@ -173,78 +234,24 @@ public class ShopSubscriptionService {
             .toList();
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int processExpiredSubscriptionsByAdmin() {
-        // 1. 현재 요청을 보낸 사용자의 ID를 추출하여 관리자 권한 검증
+
         Long adminUserId = SecurityUtil.getCurrentUserId();
+
         User adminUser = userRepository.findById(adminUserId)
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
+            .orElseThrow(() ->
+                new NotFoundException("사용자를 찾을 수 없습니다."));
 
         if (adminUser.getRole() != Role.ADMIN) {
-            throw new ForbiddenException("관리자 권한만 구독 만료 배치를 수동 실행할 수 있습니다.");
+            throw new ForbiddenException("관리자만 실행할 수 있습니다.");
         }
 
-        log.info("[관리자 수동 트리거] 관리자(ID: {})에 의해 만료 구독 배치 강제 실행", adminUserId);
+        log.info("[관리자 요청] 만료 구독 일괄 처리 시작");
 
-        // 2. 기존 커서 페이징 배치 로직 호출
-        return processExpiredSubscriptions();
+        return batchService.processExpiredSubscriptions();
     }
 
-    // [스케줄러 & 관리자 공용] 커서 페이징을 활용한 만료 구독 일괄 처리 핵심 로직
-    @Transactional(readOnly = true)
-    public int processExpiredSubscriptions() {
-        int pageSize = 100;
-        Long lastId = 0L;
-        int totalProcessedCount = 0;
-        LocalDate today = LocalDate.now();
-
-        log.info("[커서 페이징 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
-
-        while (true) {
-            Pageable pageable = PageRequest.of(0, pageSize);
-            List<ShopSubscription> expiredSubscriptions =
-                subscriptionRepository.findExpiredActiveSubscriptionsAfterId(lastId, today, pageable);
-
-            if (expiredSubscriptions.isEmpty()) {
-                break;
-            }
-
-            for (ShopSubscription subscription : expiredSubscriptions) {
-                lastId = subscription.getId();
-
-                try {
-                    // 개별 트랜잭션(REQUIRES_NEW)으로 분리된 프로세서 호출
-                    boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
-                    if (success) {
-                        totalProcessedCount++;
-                    }
-                } catch (Exception e) {
-                    log.error("[배치 개별 실패 격리] subscriptionId: {}, 사유: {}", subscription.getId(), e.getMessage());
-                }
-            }
-        }
-
-        log.info("[커서 페이징 배치 완료] 총 {}건의 만료 구독 처리 완료", totalProcessedCount);
-        return totalProcessedCount;
-    }
-
-    public boolean isSubscriptionActive(Long shopId) {
-        return subscriptionRepository.findByShopId(shopId)
-            .map(sub -> sub.getStatus() == ShopSubscriptionStatus.ACTIVE
-                && sub.getEndDate() != null
-                && !sub.getEndDate().isBefore(LocalDate.now()))
-            .orElse(false);
-    }
-
-    // 구독 재개 시, 만료로 소프트 삭제되었거나 CLOSED 상태였던 상품들을 일괄 복구하고 ON_SALE로 전환
-    // (ItemService 대신 ItemRepository를 직접 사용 — ItemService가 이 서비스에 의존하고 있어 순환 참조 방지)
-    private void restoreAndActivateItemsByShopId(Long shopId) {
-        List<Item> expiredItems = itemRepository.findAllDeletedByShopId(shopId);
-        for (Item item : expiredItems) {
-            item.restore(ItemStatus.ON_SALE);
-        }
-        itemRepository.updateStatusByShopIdAndStatus(shopId, ItemStatus.CLOSED, ItemStatus.ON_SALE);
-    }
 
     private void validateAdmin(Long userId) {
         User user = userRepository.findById(userId)

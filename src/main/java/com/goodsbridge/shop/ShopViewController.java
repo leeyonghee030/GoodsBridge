@@ -61,6 +61,48 @@ public class ShopViewController {
         return ResponseEntity.noContent().build();
     }
 
+    // --- 💡 [추가] 가게 구독 관련 API 엔드포인트 ---
+
+    /**
+     * 가게 구독 생성 (또는 연장)
+     * POST /api/shops/{shopId}/subscription
+     */
+    @PostMapping("/api/shops/{shopId}/subscription")
+    public ResponseEntity<Long> createSubscription(
+        @PathVariable Long shopId,
+        @RequestBody ShopSubscriptionRequest request
+    ) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        Long subscriptionId = shopSubscriptionService.create(userId, shopId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(subscriptionId);
+    }
+
+    /**
+     * 가게 구독 정보 단건 조회
+     * GET /api/shops/{shopId}/subscription
+     */
+    @GetMapping("/api/shops/{shopId}/subscription")
+    public ResponseEntity<ShopSubscriptionResponse> getSubscription(
+        @PathVariable Long shopId
+    ) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        ShopSubscriptionResponse response = shopSubscriptionService.findById(userId, shopId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 가게 구독 자발적 취소
+     * POST /api/shops/{shopId}/subscription/cancel
+     */
+    @PostMapping("/api/shops/{shopId}/subscription/cancel")
+    public ResponseEntity<Void> cancelSubscription(
+        @PathVariable Long shopId
+    ) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        shopSubscriptionService.cancelSubscription(userId, shopId);
+        return ResponseEntity.ok().build();
+    }
+
     // --- 관리자 전용 API ---
 
     @GetMapping("/api/admin/shops/search")

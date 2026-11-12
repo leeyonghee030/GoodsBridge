@@ -45,7 +45,6 @@ class ItemRepositoryTest {
     void findBySellerUserId_test() {
         List<Item> myItems = itemRepository.findBySellerUserIdAndDeletedFalse(1L);
 
-        // 개수 고정값 검증 대신 소유주 일치 여부만 검증하여 확장성 확보
         assertThat(myItems).isNotEmpty();
         assertThat(myItems).allMatch(item -> item.getSellerUserId().equals(1L));
     }
@@ -55,13 +54,14 @@ class ItemRepositoryTest {
     void searchItemsWithFilter_test() {
         Pageable pageable = PageRequest.of(0, 10);
 
+        // data.sql에 존재하는 카테고리 ID 1L(굿즈/피규어)과 SaleType.NORMAL로 검색
         Page<Item> result = itemRepository.searchItemsWithFilter(1L, null, SaleType.NORMAL, pageable);
 
         assertThat(result).isNotNull();
         assertThat(result.getContent()).isNotEmpty();
         assertThat(result.getContent())
             .extracting(Item::getTitle)
-            .contains("홍대 굿즈샵 한정 피규어"); // 💡 조회된 실제 데이터명으로 수정
+            .contains("홍대 굿즈샵 한정 피규어"); // data.sql의 실제 데이터명과 일치
     }
 
     @Test
