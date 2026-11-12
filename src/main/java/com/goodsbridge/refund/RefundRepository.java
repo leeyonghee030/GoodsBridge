@@ -45,6 +45,15 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         """)
     boolean existsPendingByPaymentId(@Param("paymentId") String paymentId);
 
+    // 관리자에게 거절된 적이 있는 결제인지 (거절 후 같은 결제로 다시 환불 요청 방지)
+    @Query("""
+            select count(r) > 0
+            from Refund r
+            where r.payment.paymentId = :paymentId
+              and r.status = com.goodsbridge.refund.Status.REJECTED
+        """)
+    boolean existsRejectedByPaymentId(@Param("paymentId") String paymentId);
+
     /**
      * LOCK : 여러 트랜잭션이 동시에 같은 데이터를 수정하거나 조회할 때 발생할 수 있는 동시성 문제 방기
      * 비관적 락 : 다른 트랜잭션이 동시에 수정하지 못하도록 DB에서 잠금
