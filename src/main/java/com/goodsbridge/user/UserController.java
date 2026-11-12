@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -24,6 +26,16 @@ public class UserController {
     private final KakaoLoginService kakaoLoginService;
     private final AuthService authService;
     private final UserService userService;
+
+    // 내 정보 화면의 가게 구독 결제용 (데모 모드에서는 결제창을 건너뛴다)
+    @Value("${portone.store-id}")
+    private String portoneStoreId;
+
+    @Value("${portone.channel-key}")
+    private String portoneChannelKey;
+
+    @Value("${app.demo.enabled:false}")
+    private boolean skipPayment;
 
     @GetMapping("/")
     public String index(@AuthenticationPrincipal Long userId, Model model) {
@@ -53,9 +65,17 @@ public class UserController {
 
     // GET http://localhost:8080/update
     @GetMapping("/update")
-    public String updateForm(@AuthenticationPrincipal Long userId, Model model) {
+    public String updateForm(@AuthenticationPrincipal Long userId, Authentication authentication, Model model) {
         model.addAttribute("userId", userId);
+        // 관리자는 내 정보 화면이 필요 없어서 관리자 화면으로 보낸다
+        if (authentication != null && authentication.getAuthorities().stream()
+            .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return "redirect:/test/admin/shops";
+        }
         model.addAttribute("user", userService.findUpdateForm(userId));
+        model.addAttribute("portoneStoreId", portoneStoreId);
+        model.addAttribute("portoneChannelKey", portoneChannelKey);
+        model.addAttribute("skipPayment", skipPayment);
         return "user/update-form";
     }
 

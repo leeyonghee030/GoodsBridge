@@ -73,7 +73,7 @@
     </div>
     <a href="/test/board">BOARD</a>
     {{#userId}}
-    <a href="/my/exchange" id="nav-mypage">MY PAGE</a>
+    <a href="/update" id="nav-mypage">MY PAGE</a>
     <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
     {{/userId}}
     {{^userId}}
@@ -86,7 +86,9 @@
         <button type="button" data-demo="user-a">A</button>
         <button type="button" data-demo="user-b">B</button>
         <button type="button" data-demo="shop">가게</button>
+        <button type="button" data-demo="shop-b">가게B</button>
         <button type="button" data-demo="admin">관리자</button>
+        <button type="button" class="demo-pay" data-demo-pay title="클릭할 때마다 바뀝니다. 결제 X: 결제창 생략, 결제 O: 실제 결제"></button>
         <button type="button" class="demo-reset" data-demo-reset>초기화</button>
     </div>
 </div>
@@ -168,6 +170,10 @@
 </div>
 {{/userId}}
 
+<script>
+// 시연용: 데모 모드에서 결제창을 건너뛸지 (기본은 건너뜀). 'real' 이면 실제 PortOne 결제를 한다. 브라우저에만 저장된다.
+window.gbPaySkip = () => { try { return localStorage.getItem('gbDemoPay') !== 'real'; } catch (e) { return true; } };
+</script>
 <!-- 시연용 계정 전환 (app.demo.enabled=true 일 때만 /demo/status 가 응답해서 표시됨) -->
 <style>
 #demo-switch{position:fixed;top:5.5rem;right:1.5rem;z-index:90;transition:top .2s ease}
@@ -177,7 +183,8 @@
 #demo-switch .demo-menu{position:absolute;top:calc(100% + 4px);right:0;display:flex;flex-direction:column;min-width:3.5rem;padding:3px;background:var(--color-dark);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
 #demo-switch .demo-menu button{padding:.25rem .7rem;border-radius:7px;background:transparent;color:#fff;font-size:.72rem;font-weight:500;text-align:left;white-space:nowrap}
 #demo-switch .demo-menu button.active{background:#fff;color:var(--color-dark);font-weight:700}
-#demo-switch .demo-menu .demo-reset{margin-top:3px;border-top:1px solid #444;border-radius:0 0 7px 7px;color:var(--color-muted)}
+#demo-switch .demo-menu .demo-pay{margin-top:3px;border-top:1px solid #444;border-radius:0;color:#ffd166}
+#demo-switch .demo-menu .demo-reset{margin-top:0;border-top:1px solid #444;border-radius:0 0 7px 7px;color:var(--color-muted)}
 #demo-switch .demo-menu button:hover{background:#fff;color:var(--color-dark)}
 </style>
 <script>
@@ -189,8 +196,11 @@ fetch('/demo/status', { credentials: 'same-origin' })
         const toggle = bar.querySelector('.demo-toggle');
         const menu = bar.querySelector('.demo-menu');
         bar.hidden = false;
+        // 관리자 계정이면 마이페이지 자리가 입점/구독 관리로 연결된다
+        const adminNav = document.getElementById('nav-mypage');
+        if (data.current === 'admin' && adminNav) { adminNav.href = '/test/admin/shops'; adminNav.textContent = 'ADMIN'; }
         // 지금 선택된 계정 표시 (토글 라벨 + 메뉴 강조)
-        const names = { 'user-a': 'A', 'user-b': 'B', 'shop': '가게', 'admin': '관리자' };
+        const names = { 'user-a': 'A', 'user-b': 'B', 'shop': '가게', 'shop-b': '가게B', 'admin': '관리자' };
         if (names[data.current]) {
             toggle.textContent = 'DEMO · ' + names[data.current];
             bar.querySelector('[data-demo="' + data.current + '"]').classList.add('active');
@@ -204,6 +214,14 @@ fetch('/demo/status', { credentials: 'same-origin' })
         window.addEventListener('resize', place);
         toggle.addEventListener('click', () => { menu.hidden = !menu.hidden; toggle.setAttribute('aria-expanded', String(!menu.hidden)); });
         document.addEventListener('click', e => { if (!bar.contains(e.target)) { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); } });
+        // 결제 O / 결제 X 토글: 눌러서 바꾸고 새로고침한다 (결제 X = 결제창 생략)
+        const payBtn = bar.querySelector('[data-demo-pay]');
+        const showPay = () => { payBtn.textContent = window.gbPaySkip() ? '결제 X' : '결제 O'; };
+        showPay();
+        payBtn.addEventListener('click', () => {
+            try { localStorage.setItem('gbDemoPay', window.gbPaySkip() ? 'real' : 'skip'); } catch (e) { alert('이 브라우저에서는 설정을 저장할 수 없어요.'); return; }
+            location.reload();
+        });
         bar.querySelector('[data-demo-reset]').addEventListener('click', async () => {
             if (!(await gbConfirm('시연 데이터를 처음 상태로 초기화할까요?\n교환 요청·댓글·구매 등 시연 중 만든 내용이 사라집니다.'))) return;
             const res = await fetch('/demo/reset', { method: 'POST', credentials: 'same-origin' });
@@ -219,12 +237,13 @@ fetch('/demo/status', { credentials: 'same-origin' })
 
 {{#userId}}
 <script>
-// 가게 사장님이면 마이페이지가 '가게 교환 관리'로 연결된다 (가게 계정에는 개인 교환 내역이 없으므로 탭도 바꾼다)
+// 가게 사장님이면 내 정보 화면의 탭이 '가게 교환 관리 / 판매 상품 관리'로 바뀐다 (가게 계정에는 개인 교환/구매 내역이 없다)
 fetch('/api/shops/me', { credentials: 'same-origin' })
     .then(r => r.ok ? r.json() : null)
     .then(d => {
         if (!(d && d.content && d.content.length)) return;
-        document.getElementById('nav-mypage').href = '/shop/exchange';
+        // 가게는 체인점 성격이라 개인 구매 내역 탭을 두지 않는다
+        document.querySelectorAll('.my-tabs a[href="/my/purchases"]').forEach(a => a.remove());
         if (location.pathname === '/my/exchange') return;   // 개인 교환 내역 화면을 직접 연 경우는 그대로 둔다
         document.querySelectorAll('.my-tabs a[href="/my/exchange"]').forEach(a => {
             a.href = '/shop/exchange'; a.textContent = '가게 교환 관리';

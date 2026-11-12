@@ -725,8 +725,8 @@ textarea:focus {
     .detail-grid { grid-template-columns: 1fr; }
 }
 
-/* 가게 마이페이지(가게 교환 관리 / 판매 상품 관리): 내 정보와 같은 카드 모양, 폭은 화면의 90% */
-.container.my-card { max-width: none; width: 90%; margin: 2rem auto 3rem; padding: 2rem 2.25rem; }
+/* 가게 마이페이지(가게 교환 관리 / 판매 상품 관리): 내 정보와 같은 카드 모양, 폭은 화면의 75% */
+.container.my-card { max-width: none; width: 75%; margin: 2rem auto 3rem; padding: 2rem 2.25rem; }
 .container.my-card a.related-item-link { font-weight: inherit; }   /* 카드 공통 링크 굵기(.container a) 대신 원래 목록 굵기 */
 .container.my-card .related-item-link:hover { text-decoration: none; }
 @media (max-width: 640px) { .container.my-card { width: auto; margin: 1rem; padding: 1.25rem 1rem; } }

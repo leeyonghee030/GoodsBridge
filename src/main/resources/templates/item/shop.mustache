@@ -116,6 +116,14 @@
 .si-period-months button.active small { color: rgba(255,255,255,0.75); }
 .si-period-months button.is-empty { color: var(--color-muted); }
 .si-period-months button:disabled { opacity: 0.35; cursor: default; }
+.si-sub-notice { display: flex; flex-direction: column; gap: 0.4rem; margin: 0 0 0.9rem; }
+.si-sub-notice .si-sub-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.7rem 0.95rem; border-radius: 10px; font-size: 0.82rem; line-height: 1.45; }
+.si-sub-notice .si-sub-row.is-off { background: #FDECEA; color: #A93226; }
+.si-sub-notice .si-sub-row.is-soon { background: #FFF6E5; color: #8A5A00; }
+.si-sub-notice .si-sub-row.is-ok { background: var(--color-surface); color: var(--color-muted); }
+.si-sub-notice a { flex: none; font-weight: 500; font-size: 0.78rem; color: inherit; text-decoration: none; white-space: nowrap; opacity: 0.85; transition: opacity .15s; }
+.si-sub-notice a::after { content: ' ›'; }
+.si-sub-notice a:hover { opacity: 1; text-decoration: none; }
 </style>
 
 <!-- 내 정보 화면처럼 탭과 내용을 하나의 카드 안에 둔다 -->
@@ -124,8 +132,10 @@
     <a href="/update">내 정보</a>
     <a href="/shop/exchange">가게 교환 관리</a>
     <a href="/shop/items" class="active">판매 상품 관리</a>
-    <a href="/my/purchases">구매 내역</a>
 </nav>
+
+<!-- 구독이 없거나 만료됐거나 곧 만료되면 안내 (상품 등록/수정은 구독 중인 가게만 가능) -->
+<div class="si-sub-notice" id="si-sub-notice" hidden></div>
 
 <div class="si-wrap">
     <div class="si-bar">
@@ -824,6 +834,45 @@
     });
 
     load();
+})();
+</script>
+
+<script>
+(() => {
+    const box = document.getElementById('si-sub-notice');
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const ymd = iso => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const NOTICE_DAYS = 60;   // 만료 며칠 전부터 안내를 보여줄지 (그전에는 숨김)
+    const SOON_DAYS = 7;      // 이 안에 만료되면 노란색으로 강조
+
+    async function load() {
+        const meRes = await fetch('/api/shops/me', { credentials: 'same-origin' });
+        if (!meRes.ok) return;
+        const shops = ((await meRes.json()).content || []).filter(s => s.status === 'APPROVED');
+        const rows = [];
+        for (const shop of shops) {
+            let sub = null;
+            try {
+                const r = await fetch(`/api/shops/${shop.id}/subscription`, { credentials: 'same-origin' });
+                if (r.ok) sub = await r.json();
+            } catch (e) { /* 구독 없음으로 취급 */ }
+            const left = sub ? Math.round((new Date(...String(sub.endDate).split('-').map((n, i) => Number(n) - (i === 1 ? 1 : 0))) - new Date(new Date().toDateString())) / 86400000) : null;
+            const name = esc(shop.name);
+            if (!sub) {
+                rows.push(`<div class="si-sub-row is-off"><span><b>${name}</b> · 아직 구독하지 않았어요. 구독해야 상품을 등록할 수 있어요.</span><a href="/update">구독하기</a></div>`);
+            } else if (sub.status !== 'ACTIVE' || left < 0) {
+                const why = sub.status === 'CANCELLED' ? '구독이 취소되었어요' : `구독이 ${ymd(sub.endDate)}에 만료되었어요`;
+                rows.push(`<div class="si-sub-row is-off"><span><b>${name}</b> · ${why}. 상품 등록과 수정이 막혀 있고, 판매 중이던 상품은 닫혔어요.</span><a href="/update">구독하기</a></div>`);
+            } else if (left <= SOON_DAYS) {
+                const when = left === 0 ? '오늘' : `${left}일 뒤(${ymd(sub.endDate)})`;
+                rows.push(`<div class="si-sub-row is-soon"><span><b>${name}</b> · 구독이 ${when} 만료돼요. 만료되면 판매 중인 상품이 닫혀요.</span><a href="/update">구독 연장</a></div>`);
+            } else if (left <= NOTICE_DAYS) {
+                rows.push(`<div class="si-sub-row is-ok"><span><b>${name}</b> · 구독이 ${left}일 뒤(${ymd(sub.endDate)}) 만료돼요.</span><a href="/update">구독 연장</a></div>`);
+            }
+        }
+        if (rows.length) { box.innerHTML = rows.join(''); box.hidden = false; }
+    }
+    load().catch(() => {});
 })();
 </script>
 

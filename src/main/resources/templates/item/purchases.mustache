@@ -66,6 +66,10 @@
     // 구매 상태: 환불 내역이 있으면 환불, 그다음 구매 확정, 나머지는 배송 단계
     const STATES = [['ALL', '전체'], ['PREPARING', '배송 준비중'], ['SHIPPED', '배송중'], ['DELIVERED', '배송 완료'], ['CONFIRMED', '구매 확정'], ['REFUND', '환불']];
     const stateOf = p => p.refunds.length ? 'REFUND' : p.purchaseStatus === 'CONFIRMED' ? 'CONFIRMED' : p.deliveryStatus;
+    // 환불 거절 / 부분 환불 완료 건은 아직 확정 전이면 '배송 완료' 탭에도 보여서 구매 확정이나 재환불을 할 수 있게 한다
+    const isActionable = p => p.deliveryStatus === 'DELIVERED' && p.purchaseStatus === 'PAID'
+        && p.refundableAmount > 0 && !p.refunds.some(r => r.status === 'REQUESTED');
+    const inTab = (p, key) => stateOf(p) === key || (key === 'DELIVERED' && p.refunds.length > 0 && isActionable(p));
     const badgeOf = p => {
         const s = stateOf(p);
         if (s === 'REFUND') {
@@ -83,10 +87,10 @@
     let sub = 'ALL';
 
     function render() {
-        const count = key => key === 'ALL' ? purchases.length : purchases.filter(p => stateOf(p) === key).length;
+        const count = key => key === 'ALL' ? purchases.length : purchases.filter(p => inTab(p, key)).length;
         subtabs.innerHTML = STATES.map(([key, label]) =>
             `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
-        const rows = sub === 'ALL' ? purchases : purchases.filter(p => stateOf(p) === sub);
+        const rows = sub === 'ALL' ? purchases : purchases.filter(p => inTab(p, sub));
         if (rows.length === 0) {
             listEl.innerHTML = `<p class="empty">${sub === 'ALL' ? '아직 구매한 상품이 없어요.' : STATES.find(x => x[0] === sub)[1] + ' 상태인 구매가 없어요.'}</p>`;
             return;
@@ -137,15 +141,15 @@
             </dl>
             ${delivered && !pending ? `
             <button type="button" class="pu-confirm" id="pu-confirm">구매 확정</button>
-            <p class="pu-note">상품을 잘 받으셨다면 배송 완료 후 3일 안에 구매 확정을 눌러 주세요. 확정하면 환불 신청을 할 수 없어요.</p>` : ''}
+            <p class="pu-note">상품을 잘 받으셨다면 구매 확정을 눌러 주세요. 확정하면 환불 신청을 할 수 없어요.</p>` : ''}
             ${p.deliveryStatus !== 'DELIVERED' && p.purchaseStatus === 'PAID' ? '<p class="pu-note">배송이 완료되면 구매 확정과 환불 신청을 할 수 있어요.</p>' : ''}
 
-            <h2>환불</h2>
+            ${p.refunds.length || p.deliveryStatus === 'DELIVERED' ? '<h2>환불</h2>' : ''}
             ${p.refunds.length ? p.refunds.map(r => `
                 <div class="pu-refund-row">
                     <strong>${refundLabel(r, p)}</strong> · ${money(r.amount)} <small>(${date(r.requestedAt)})</small><br>
                     <small>사유: ${esc(r.reason)}${r.rejectReason ? ' / 거절 사유: ' + esc(r.rejectReason) : ''}</small>
-                </div>`).join('') : '<p class="pu-note">환불 내역이 없어요.</p>'}
+                </div>`).join('') : (p.deliveryStatus === 'DELIVERED' ? '<p class="pu-note">환불 내역이 없어요.</p>' : '')}
             ${canRefund ? `
             <form id="pu-refund-form" style="margin-top:0.8rem;">
                 <span class="price-input">
