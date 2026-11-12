@@ -20,17 +20,19 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
      * 💡 [ID 커서 페이징 쿼리]
      * 마지막으로 처리한 subscription ID보다 큰 데이터 중 만료된 ACTIVE 구독을 조회합니다.
      */
+    // 만료된 ACTIVE 구독을 ID 커서 방식으로 조회
     @Query("""
         SELECT s FROM ShopSubscription s
         WHERE s.id > :lastId
           AND s.endDate < :today
-          AND s.status = 'ACTIVE'
+          AND s.status = :status
           AND s.deletedAt IS NULL
         ORDER BY s.id ASC
         """)
     List<ShopSubscription> findExpiredActiveSubscriptionsAfterId(
         @Param("lastId") Long lastId,
         @Param("today") LocalDate today,
+        @Param("status") ShopSubscriptionStatus status,
         Pageable pageable
     );
 
@@ -39,15 +41,15 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
     @Query("SELECT s FROM ShopSubscription s WHERE s.id = :id")
     Optional<ShopSubscription> findByIdWithLock(@Param("id") Long id);
 
-    // 유효한 ACTIVE 구독 조회 및 비관적 락
+    // 유효한 ACTIVE 구독 조회 (비관적 락)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-    SELECT s FROM ShopSubscription s
-    WHERE s.shopId = :shopId
-      AND s.status = :status
-      AND s.endDate >= :today
-    ORDER BY s.id DESC
-    """)
+        SELECT s FROM ShopSubscription s
+        WHERE s.shopId = :shopId
+          AND s.status = :status
+          AND s.endDate >= :today
+        ORDER BY s.id DESC
+        """)
     List<ShopSubscription> findActiveByShopIdWithLock(
         @Param("shopId") Long shopId,
         @Param("status") ShopSubscriptionStatus status,

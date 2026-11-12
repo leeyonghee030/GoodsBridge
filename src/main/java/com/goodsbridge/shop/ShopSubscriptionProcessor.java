@@ -40,6 +40,10 @@ public class ShopSubscriptionProcessor {
 
         // 2. ACTIVE 상태인 구독만 처리
         if (subscription.getStatus() != ShopSubscriptionStatus.ACTIVE) {
+            log.debug(
+                "ACTIVE 상태가 아니므로 만료 처리를 건너뜁니다. subscriptionId={}",
+                subscriptionId
+            );
             return false;
         }
 
@@ -48,6 +52,11 @@ public class ShopSubscriptionProcessor {
 
         if (subscription.getEndDate() == null
             || !subscription.getEndDate().isBefore(today)) {
+
+            log.debug(
+                "아직 만료되지 않은 구독입니다. subscriptionId={}",
+                subscriptionId
+            );
             return false;
         }
 
@@ -57,13 +66,13 @@ public class ShopSubscriptionProcessor {
         subscription.expire();
 
         // 5. 구독 만료 이벤트 발행
-        // 실제 상품 판매 중지는 트랜잭션 커밋 이후 실행됩니다.
+        // AFTER_COMMIT 리스너에서 실제 상품 판매 중지를 처리합니다.
         eventPublisher.publishEvent(
             new ShopSubscriptionExpiredEvent(shopId)
         );
 
-        log.info(
-            "구독 만료 처리 완료. subscriptionId={}, shopId={}",
+        log.debug(
+            "구독 만료 상태 변경 및 이벤트 발행. subscriptionId={}, shopId={}",
             subscriptionId,
             shopId
         );

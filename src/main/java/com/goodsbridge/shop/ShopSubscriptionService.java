@@ -259,7 +259,12 @@ public class ShopSubscriptionService {
         while (true) {
             Pageable pageable = PageRequest.of(0, pageSize);
             List<ShopSubscription> expiredSubscriptions =
-                subscriptionRepository.findExpiredActiveSubscriptionsAfterId(lastId, today, pageable);
+                subscriptionRepository.findExpiredActiveSubscriptionsAfterId(
+                    lastId,
+                    today,
+                    ShopSubscriptionStatus.ACTIVE,
+                    pageable
+                );
 
             if (expiredSubscriptions.isEmpty()) {
                 break;

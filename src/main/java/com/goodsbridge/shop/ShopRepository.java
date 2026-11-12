@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ShopRepository extends JpaRepository<Shop, Long> {
@@ -117,4 +118,19 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
         @Param("status") ShopStatus status,
         Pageable pageable
     );
+    /**
+     * 삭제되지 않은 가게 ID를 커서 방식으로 조회
+     */
+    @Query("""
+    SELECT s.id
+    FROM Shop s
+    WHERE s.id > :lastId
+      AND s.deleted = false
+    ORDER BY s.id ASC
+    """)
+    List<Long> findNotDeletedShopIdsAfterId(
+        @Param("lastId") Long lastId,
+        Pageable pageable
+    );
+
 }
