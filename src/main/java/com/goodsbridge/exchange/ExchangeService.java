@@ -9,6 +9,7 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.notification.NotificationService;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
@@ -25,6 +26,7 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +51,7 @@ public class ExchangeService {
     private final EntityManager entityManager;
     private final ExchangeCommentRepository exchangeCommentRepository;
     private final SettlementHistoryService settlementHistoryService;
+    private final ApplicationEventPublisher publisher;
 
     //교환 댓글 service--------------
     @Transactional
@@ -289,13 +292,16 @@ public class ExchangeService {
         exchangeRequest.updateDeadlineForVisit();
 
         // TODO - 교환 신청 메시지 생성
-        notificationService.createNotification(
-            userId,
-            Notification.Type.EXCHANGE_APPROVED,
-            "교환 신청 승인",
-            "신청한 교환이 승인되었습니다.",
-            Notification.ReferenceType.EXCHANGE,
-            exchangeRequest.getId()
+        publisher.publishEvent(
+            new NotificationEvent(
+                // 이거 교환 신청한 유저 맞지?
+                exchangeRequest.getExchangeItemA().getId(),
+                Notification.Type.EXCHANGE_APPROVED,
+                "교환 신청 승인",
+                "신청한 교환이 승인되었습니다.",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
         );
 
         return ExchangeRequestResponse.from(exchangeRequest);

@@ -57,6 +57,7 @@ public class SseService {
             );
         } catch (IOException e) {
             removeEmitter(userId, emitter);
+            emitter.completeWithError(e);
         }
 
         log.info("SSE 연결 추가 - 사용자 ID: {}, 현재 연결 수: {}",
