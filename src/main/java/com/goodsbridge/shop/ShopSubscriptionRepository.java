@@ -13,7 +13,8 @@ import java.util.Optional;
 
 public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscription, Long> {
 
-    Optional<ShopSubscription> findByShopId(Long shopId);
+    // 가게의 가장 최근 구독 이력 조회
+    Optional<ShopSubscription> findFirstByShopIdOrderByIdDesc(Long shopId);
 
     /**
      * 💡 [ID 커서 페이징 쿼리]
@@ -38,10 +39,20 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
     @Query("SELECT s FROM ShopSubscription s WHERE s.id = :id")
     Optional<ShopSubscription> findByIdWithLock(@Param("id") Long id);
 
-    // 구독 연장/결제 시 동시성 제어를 위한 비관적 락 (Pessimistic Write) 조회
+    // 유효한 ACTIVE 구독 조회 및 비관적 락
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT s FROM ShopSubscription s WHERE s.shopId = :shopId AND s.status = 'ACTIVE'")
-    Optional<ShopSubscription> findActiveByShopIdWithLock(@Param("shopId") Long shopId);
+    @Query("""
+    SELECT s FROM ShopSubscription s
+    WHERE s.shopId = :shopId
+      AND s.status = :status
+      AND s.endDate >= :today
+    ORDER BY s.id DESC
+    """)
+    List<ShopSubscription> findActiveByShopIdWithLock(
+        @Param("shopId") Long shopId,
+        @Param("status") ShopSubscriptionStatus status,
+        @Param("today") LocalDate today
+    );
 
     // 소프트 삭제된 구독 조회용 쿼리 (Native Query)
     @Query(value = "SELECT * FROM shop_subscription_tb WHERE shop_id = :shopId AND deleted_at IS NOT NULL LIMIT 1", nativeQuery = true)

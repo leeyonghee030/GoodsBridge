@@ -87,8 +87,25 @@ public class ShopSubscriptionService {
         }
 
         // 💡 1. 현재 활성화된(ACTIVE) 구독이 있는지 확인
-        ShopSubscription activeSubscription = subscriptionRepository.findActiveByShopIdWithLock(shopId).orElse(null);
-        boolean isActive = activeSubscription != null && activeSubscription.getStatus() == ShopSubscriptionStatus.ACTIVE;
+        List<ShopSubscription> activeSubscriptions =
+            subscriptionRepository.findActiveByShopIdWithLock(
+                shopId,
+                ShopSubscriptionStatus.ACTIVE,
+                LocalDate.now()
+            );
+
+        if (activeSubscriptions.size() > 1) {
+            throw new IllegalStateException(
+                "하나의 가게에 유효한 ACTIVE 구독이 여러 건 존재합니다. shopId: " + shopId
+            );
+        }
+
+        ShopSubscription activeSubscription =
+            activeSubscriptions.isEmpty()
+                ? null
+                : activeSubscriptions.get(0);
+
+        boolean isActive = activeSubscription != null;
 
         // 외부 결제 검증
         paymentService.verify(
@@ -137,7 +154,7 @@ public class ShopSubscriptionService {
         }
 
         try {
-            Long subscriptionId = subscriptionRepository.save(subscription).getId();
+            Long subscriptionId = subscriptionRepository.saveAndFlush(subscription).getId();
 
             // 💡 4. 활성 구독이 아니었던 상태에서 새로 구독이 활성화되었으므로 이벤트 발행 (상품 부활)
             if (!isActive) {
@@ -165,9 +182,24 @@ public class ShopSubscriptionService {
             throw new ForbiddenException("본인의 가게 구독만 취소할 수 있습니다.");
         }
 
-        ShopSubscription subscription = subscriptionRepository.findActiveByShopIdWithLock(shopId)
-            .orElseThrow(() -> new NotFoundException("활성화된 구독 정보를 찾을 수 없습니다."));
+        List<ShopSubscription> activeSubscriptions =
+            subscriptionRepository.findActiveByShopIdWithLock(
+                shopId,
+                ShopSubscriptionStatus.ACTIVE,
+                LocalDate.now()
+            );
 
+        if (activeSubscriptions.isEmpty()) {
+            throw new NotFoundException("활성화된 구독 정보를 찾을 수 없습니다.");
+        }
+
+        if (activeSubscriptions.size() > 1) {
+            throw new IllegalStateException(
+                "유효한 ACTIVE 구독이 여러 건 존재합니다. shopId: " + shopId
+            );
+        }
+
+        ShopSubscription subscription = activeSubscriptions.get(0);
         subscription.cancel();
 
         // 💡 구독 취소 이벤트 발행 (이벤트를 통해 Item 측에서 상품들을 CLOSED 처리하도록 위임)
@@ -184,7 +216,7 @@ public class ShopSubscriptionService {
             throw new ForbiddenException("본인의 가게 구독 정보만 조회 가능합니다.");
         }
 
-        ShopSubscription subscription = subscriptionRepository.findByShopId(shopId)
+        ShopSubscription subscription = subscriptionRepository.findFirstByShopIdOrderByIdDesc(shopId)
             .orElseThrow(() -> new NotFoundException("구독 정보가 존재하지 않습니다."));
 
         return ShopSubscriptionResponse.from(subscription);
