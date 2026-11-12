@@ -68,5 +68,7 @@ portone:
     channel-key: ${PORTONE_CHANNEL_KEY}
 
 app:
+    # 입점 신청 시 입력해야 하는 체인점 코드 (본사가 각 지점에 알려준다)
+    chain-code: ${CHAIN_CODE:GB-CHAIN-2026}
     demo:
         enabled: ${APP_DEMO_ENABLED:false}

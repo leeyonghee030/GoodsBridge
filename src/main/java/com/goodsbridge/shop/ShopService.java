@@ -1,5 +1,6 @@
 package com.goodsbridge.shop;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.ItemRepository;
@@ -7,6 +8,7 @@ import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,9 +26,15 @@ public class ShopService {
     private final ItemRepository itemRepository;
     private final ShopSubscriptionRepository subscriptionRepository;
 
+    @Value("${app.chain-code}")
+    private String chainCode;
+
     @Transactional
     public ShopResponse create(Long userId, ShopCreateRequest requestDto) {
         requestDto.validate();
+        if (!chainCode.equals(requestDto.getChainCode() == null ? null : requestDto.getChainCode().trim())) {
+            throw new BadRequestException("체인점 코드가 올바르지 않습니다.");
+        }
 
         Shop shop = Shop.builder()
             .ownerUserId(userId)
@@ -98,7 +106,14 @@ public class ShopService {
     public void reject(Long adminUserId, Long shopId) {
         validateAdmin(adminUserId);
         Shop shop = findActiveShopEntity(shopId);
+        boolean wasApproved = shop.getStatus() == ShopStatus.APPROVED;
         shop.updateStatus(ShopStatus.REJECTED);
+
+        // 승인된 가게의 승인을 취소하면 구독과 판매중 상품도 함께 정리한다 (판매완료 상품은 배송/환불 처리를 위해 유지)
+        if (wasApproved) {
+            itemRepository.closeOnSaleByShopId(shopId, LocalDateTime.now());
+            subscriptionRepository.findActiveByShopIdWithLock(shopId).ifPresent(ShopSubscription::delete);
+        }
     }
 
     @Transactional
