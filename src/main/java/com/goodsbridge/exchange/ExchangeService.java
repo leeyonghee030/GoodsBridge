@@ -282,6 +282,20 @@ public class ExchangeService {
         exchangeRequest.getItemB().updateStatus(ItemStatus.SOLD);
         exchangeRequest.getExchangeItemA().getItem().updateStatus(ItemStatus.SOLD);
         exchangeRequest.updateStatus(ExchangeRequestStatus.CONFIRMED);
+
+        // TODO - Transaction 이전에 로드 입력
+        publisher.publishEvent(
+            new NotificationEvent(
+                // 이거 교환 신청한 유저 맞지?
+                exchangeRequest.getItemB().getSellerUserId(),
+                Notification.Type.EXCHANGE_APPROVED,
+                "교환 신청 승인",
+                "신청한 교환이 승인되었습니다.",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
+        );
+
         // a 한테 교환신청한 다른 b 들 환불
         List<ExchangeRequest> exchangeRequestList = exchangeRequestRepository.findActiveRequestsByItem(exchangeRequest.getExchangeItemA());
         for (ExchangeRequest e : exchangeRequestList) {
@@ -290,19 +304,6 @@ public class ExchangeService {
             e.updateStatus(ExchangeRequestStatus.CANCELLED);
         }
         exchangeRequest.updateDeadlineForVisit();
-
-        // TODO - 교환 신청 메시지 생성
-        publisher.publishEvent(
-            new NotificationEvent(
-                // 이거 교환 신청한 유저 맞지?
-                exchangeRequest.getExchangeItemA().getId(),
-                Notification.Type.EXCHANGE_APPROVED,
-                "교환 신청 승인",
-                "신청한 교환이 승인되었습니다.",
-                Notification.ReferenceType.EXCHANGE,
-                exchangeRequest.getId()
-            )
-        );
 
         return ExchangeRequestResponse.from(exchangeRequest);
     }
