@@ -15,3 +15,11 @@ spring:
     sql:
         init:
             mode: always # 항상 data.sql 실행
+
+# 💡 PortOne 테스트용 가짜 설정값 추가 (Placeholder 에러 방지)
+portone:
+    channel-key: test-channel-key
+    api-key: test-api-key
+    api-secret: test-api-secret
+
+
