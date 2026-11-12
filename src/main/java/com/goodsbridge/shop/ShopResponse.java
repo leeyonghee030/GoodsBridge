@@ -2,7 +2,6 @@ package com.goodsbridge.shop;
 
 import lombok.Getter;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Getter

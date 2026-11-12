@@ -56,6 +56,7 @@ class CategoryAndItemVerificationTest {
         Category savedCategory = categoryRepository.findById(categoryId).orElseThrow();
         Item dummyItem = Item.builder()
             .sellerUserId(1L)
+            .shopId(1L)
             .category(savedCategory)
             .title("테스트 상품")
             .price(10000)
@@ -76,7 +77,7 @@ class CategoryAndItemVerificationTest {
         // given: data.sql의 기존 카테고리(ID 1: 굿즈/피규어, ID 2: 의류 등) 중 '의류'(ID: 2)에 상품 추가
         Category clothingCategory = categoryRepository.findById(2L).orElseThrow();
 
-        itemRepository.save(Item.builder().sellerUserId(1L).category(clothingCategory).title("추가된 의류 상품 1").price(15000).saleType(SaleType.NORMAL).build());
+        itemRepository.save(Item.builder().sellerUserId(1L).shopId(1L).category(clothingCategory).title("추가된 의류 상품 1").price(15000).saleType(SaleType.NORMAL).build());
 
         // when: 카테고리 전체 목록 조회 (가나다순 정렬)
         List<CategoryResponse> responses = categoryService.findAll();
