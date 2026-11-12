@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Service
@@ -138,8 +139,12 @@ public class ShopService {
         // 5. 활성 구독이 있다면 실제 소프트 삭제
         // 구독 취소나 만료 이벤트와는 구분합니다.
         subscriptionRepository
-            .findActiveByShopIdWithLock(shopId)
-            .ifPresent(ShopSubscription::delete);
+            .findActiveByShopIdWithLock(
+                shopId,
+                ShopSubscriptionStatus.ACTIVE,
+                LocalDate.now()
+            )
+            .forEach(ShopSubscription::delete);
     }
 
     /**

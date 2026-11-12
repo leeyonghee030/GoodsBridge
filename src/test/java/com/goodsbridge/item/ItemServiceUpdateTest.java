@@ -1,3 +1,4 @@
+
 package com.goodsbridge.item;
 
 import com.goodsbridge._core.exception.BadRequestException;
@@ -9,20 +10,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDate;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
-@ActiveProfiles("test")
 @ExtendWith(MockitoExtension.class)
 class ItemServiceUpdateTest {
 
@@ -39,13 +36,36 @@ class ItemServiceUpdateTest {
     private ShopRepository shopRepository;
 
     @Mock
-    private ShopSubscriptionRepository shopSubscriptionRepository; // 💡 ShopSubscriptionService 대신 Repository Mock 주입
+    private ShopSubscriptionRepository shopSubscriptionRepository;
+
+    // 승인된 가게 생성
+    private Shop createApprovedShop(Long ownerUserId) {
+        return Shop.builder()
+            .ownerUserId(ownerUserId)
+            .name("테스트 샵")
+            .region("서울")
+            .status(ShopStatus.APPROVED)
+            .build();
+    }
+
+    // 유효한 구독 여부 Mock 설정
+    private void mockActiveSubscription(boolean active) {
+        given(shopSubscriptionRepository
+            .existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+                eq(10L),
+                eq(ShopSubscriptionStatus.ACTIVE),
+                any(LocalDate.class)
+            ))
+            .willReturn(active);
+    }
 
     @Test
-    @DisplayName("성공: 유효한 가게 ID, 소유자 일치, 구독 활성화 상태인 경우 상품 등록 성공")
+    @DisplayName("성공: 본인 소유의 승인된 가게이고 구독이 활성화된 경우 상품 등록 성공")
     void createItem_Success() {
+
         // given
         Long userId = 1L;
+
         ItemCreateRequest request = new ItemCreateRequest();
         request.setShopId(10L);
         request.setCategoryId(1L);
@@ -53,35 +73,31 @@ class ItemServiceUpdateTest {
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
-        Shop mockShop = Shop.builder()
-            .ownerUserId(userId)
-            .name("테스트 샵")
-            .region("서울")
+        Shop mockShop = createApprovedShop(userId);
+
+        Category mockCategory = Category.builder()
+            .name("굿즈")
             .build();
 
-        Category mockCategory = Category.builder().name("굿즈").build();
+        given(shopRepository.findByIdWithLock(10L))
+            .willReturn(Optional.of(mockShop));
 
-        // 💡 활성 구독 엔티티 스텁 설정 (status: ACTIVE, endDate: 미래)
-        ShopSubscription activeSubscription = ShopSubscription.builder()
-            .shopId(10L)
-            .status(ShopSubscriptionStatus.ACTIVE)
-            .startDate(LocalDate.now().minusDays(5))
-            .endDate(LocalDate.now().plusDays(25))
-            .build();
+        mockActiveSubscription(true);
 
-        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionRepository.findByShopId(anyLong())).willReturn(Optional.of(activeSubscription));
-        given(categoryRepository.findById(anyLong())).willReturn(Optional.of(mockCategory));
-        given(itemRepository.save(any(Item.class))).willReturn(
-            Item.builder()
-                .sellerUserId(userId)
-                .shopId(10L)
-                .category(mockCategory)
-                .title("테스트 상품")
-                .price(10000)
-                .saleType(SaleType.NORMAL)
-                .build()
-        );
+        given(categoryRepository.findById(1L))
+            .willReturn(Optional.of(mockCategory));
+
+        given(itemRepository.save(any(Item.class)))
+            .willReturn(
+                Item.builder()
+                    .sellerUserId(userId)
+                    .shopId(10L)
+                    .category(mockCategory)
+                    .title("테스트 상품")
+                    .price(10000)
+                    .saleType(SaleType.NORMAL)
+                    .build()
+            );
 
         // when
         itemService.create(userId, request);
@@ -91,9 +107,12 @@ class ItemServiceUpdateTest {
     }
 
     @Test
-    @DisplayName("실패: shopId가 누락(null)된 경우 BadRequestException 발생")
+    @DisplayName("실패: shopId가 누락된 경우 BadRequestException 발생")
     void createItem_Fail_NullShopId() {
+
+        // given
         Long userId = 1L;
+
         ItemCreateRequest request = new ItemCreateRequest();
         request.setShopId(null);
         request.setCategoryId(1L);
@@ -101,6 +120,7 @@ class ItemServiceUpdateTest {
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
+        // when & then
         assertThatThrownBy(() -> itemService.create(userId, request))
             .isInstanceOf(BadRequestException.class)
             .hasMessageContaining("상품을 등록하려면 가게 선택이 필수입니다.");
@@ -109,8 +129,10 @@ class ItemServiceUpdateTest {
     }
 
     @Test
-    @DisplayName("실패: 요청한 가게의 소유자(owner)가 아닌 경우 ForbiddenException 발생")
+    @DisplayName("실패: 가게 소유자가 아닌 경우 ForbiddenException 발생")
     void createItem_Fail_NotOwner() {
+
+        // given
         Long loginUserId = 1L;
         Long otherOwnerId = 2L;
 
@@ -121,14 +143,12 @@ class ItemServiceUpdateTest {
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
-        Shop mockShop = Shop.builder()
-            .ownerUserId(otherOwnerId)
-            .name("타인 샵")
-            .region("부산")
-            .build();
+        Shop mockShop = createApprovedShop(otherOwnerId);
 
-        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
+        given(shopRepository.findByIdWithLock(10L))
+            .willReturn(Optional.of(mockShop));
 
+        // when & then
         assertThatThrownBy(() -> itemService.create(loginUserId, request))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("본인 소유의 가게에만 상품을 등록할 수 있습니다.");
@@ -139,7 +159,10 @@ class ItemServiceUpdateTest {
     @Test
     @DisplayName("실패: 가게 구독이 활성화되지 않은 경우 ForbiddenException 발생")
     void createItem_Fail_InactiveSubscription() {
+
+        // given
         Long userId = 1L;
+
         ItemCreateRequest request = new ItemCreateRequest();
         request.setShopId(10L);
         request.setCategoryId(1L);
@@ -147,15 +170,14 @@ class ItemServiceUpdateTest {
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
-        Shop mockShop = Shop.builder()
-            .ownerUserId(userId)
-            .name("테스트 샵")
-            .region("서울")
-            .build();
+        Shop mockShop = createApprovedShop(userId);
 
-        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionRepository.findByShopId(anyLong())).willReturn(Optional.empty()); // 💡 구독 정보 없음 (비활성)
+        given(shopRepository.findByIdWithLock(10L))
+            .willReturn(Optional.of(mockShop));
 
+        mockActiveSubscription(false);
+
+        // when & then
         assertThatThrownBy(() -> itemService.create(userId, request))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
@@ -164,8 +186,10 @@ class ItemServiceUpdateTest {
     }
 
     @Test
-    @DisplayName("성공: 유효한 요청으로 본인 소유 및 구독 중인 샵의 상품 정보 수정 성공")
+    @DisplayName("성공: 본인 소유의 구독 중인 가게 상품 정보 수정 성공")
     void updateItem_Success() {
+
+        // given
         Long userId = 1L;
         Long itemId = 100L;
 
@@ -178,7 +202,9 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
-        Category mockCategory = Category.builder().name("기존").build();
+        Category mockCategory = Category.builder()
+            .name("기존")
+            .build();
 
         Item mockItem = Item.builder()
             .sellerUserId(userId)
@@ -190,26 +216,23 @@ class ItemServiceUpdateTest {
             .status(ItemStatus.ON_SALE)
             .build();
 
-        Shop mockShop = Shop.builder()
-            .ownerUserId(userId)
-            .name("테스트 샵")
-            .region("서울")
-            .build();
+        Shop mockShop = createApprovedShop(userId);
 
-        ShopSubscription activeSubscription = ShopSubscription.builder()
-            .shopId(10L)
-            .status(ShopSubscriptionStatus.ACTIVE)
-            .startDate(LocalDate.now().minusDays(5))
-            .endDate(LocalDate.now().plusDays(25))
-            .build();
+        given(itemRepository.findByIdAndDeletedFalse(itemId))
+            .willReturn(Optional.of(mockItem));
 
-        given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
-        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionRepository.findByShopId(anyLong())).willReturn(Optional.of(activeSubscription));
-        given(categoryRepository.findById(anyLong())).willReturn(Optional.of(mockCategory));
+        given(shopRepository.findByIdWithLock(10L))
+            .willReturn(Optional.of(mockShop));
 
+        mockActiveSubscription(true);
+
+        given(categoryRepository.findById(1L))
+            .willReturn(Optional.of(mockCategory));
+
+        // when
         itemService.update(userId, itemId, request);
 
+        // then
         assertThat(mockItem.getTitle()).isEqualTo("수정된 상품 제목");
         assertThat(mockItem.getPrice()).isEqualTo(20000);
     }
@@ -217,6 +240,8 @@ class ItemServiceUpdateTest {
     @Test
     @DisplayName("실패: 상품 소유자가 아닌 유저가 수정 시도 시 ForbiddenException 발생")
     void updateItem_Fail_NotItemOwner() {
+
+        // given
         Long loginUserId = 1L;
         Long itemOwnerId = 2L;
         Long itemId = 100L;
@@ -229,7 +254,9 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
-        Category mockCategory = Category.builder().name("기존").build();
+        Category mockCategory = Category.builder()
+            .name("기존")
+            .build();
 
         Item mockItem = Item.builder()
             .sellerUserId(itemOwnerId)
@@ -239,16 +266,21 @@ class ItemServiceUpdateTest {
             .price(15000)
             .build();
 
-        given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
+        given(itemRepository.findByIdAndDeletedFalse(itemId))
+            .willReturn(Optional.of(mockItem));
 
-        assertThatThrownBy(() -> itemService.update(loginUserId, itemId, request))
+        // when & then
+        assertThatThrownBy(() ->
+            itemService.update(loginUserId, itemId, request))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("해당 상품에 대한 권한이 없습니다.");
     }
 
     @Test
-    @DisplayName("실패: 상품 수정 시 shopId가 누락(null)된 경우 BadRequestException 발생")
+    @DisplayName("실패: 상품 수정 시 shopId가 누락된 경우 BadRequestException 발생")
     void updateItem_Fail_NullShopId() {
+
+        // given
         Long userId = 1L;
         Long itemId = 100L;
 
@@ -260,14 +292,18 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
-        assertThatThrownBy(() -> itemService.update(userId, itemId, request))
+        // when & then
+        assertThatThrownBy(() ->
+            itemService.update(userId, itemId, request))
             .isInstanceOf(BadRequestException.class)
             .hasMessageContaining("상품 수정 시 가게 선택은 필수입니다.");
     }
 
     @Test
-    @DisplayName("실패: 수정하려는 샵의 소유자가 아닌 경우 ForbiddenException 발생")
+    @DisplayName("실패: 수정하려는 가게의 소유자가 아닌 경우 ForbiddenException 발생")
     void updateItem_Fail_NotShopOwner() {
+
+        // given
         Long loginUserId = 1L;
         Long otherShopOwnerId = 2L;
         Long itemId = 100L;
@@ -280,7 +316,9 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
-        Category mockCategory = Category.builder().name("기존").build();
+        Category mockCategory = Category.builder()
+            .name("기존")
+            .build();
 
         Item mockItem = Item.builder()
             .sellerUserId(loginUserId)
@@ -290,22 +328,26 @@ class ItemServiceUpdateTest {
             .price(15000)
             .build();
 
-        Shop mockShop = Shop.builder()
-            .ownerUserId(otherShopOwnerId)
-            .name("타인 샵")
-            .build();
+        Shop mockShop = createApprovedShop(otherShopOwnerId);
 
-        given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
-        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
+        given(itemRepository.findByIdAndDeletedFalse(itemId))
+            .willReturn(Optional.of(mockItem));
 
-        assertThatThrownBy(() -> itemService.update(loginUserId, itemId, request))
+        given(shopRepository.findByIdWithLock(10L))
+            .willReturn(Optional.of(mockShop));
+
+        // when & then
+        assertThatThrownBy(() ->
+            itemService.update(loginUserId, itemId, request))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("본인 소유의 가게로만 상품을 지정하거나 수정할 수 있습니다.");
     }
 
     @Test
-    @DisplayName("실패: 수정하려는 샵의 구독이 만료되었거나 활성화되지 않은 경우 ForbiddenException 발생")
+    @DisplayName("실패: 수정하려는 가게의 구독이 비활성화된 경우 ForbiddenException 발생")
     void updateItem_Fail_InactiveSubscription() {
+
+        // given
         Long userId = 1L;
         Long itemId = 100L;
 
@@ -317,7 +359,9 @@ class ItemServiceUpdateTest {
         request.setSaleType(SaleType.NORMAL);
         request.setStatus(ItemStatus.ON_SALE);
 
-        Category mockCategory = Category.builder().name("기존").build();
+        Category mockCategory = Category.builder()
+            .name("기존")
+            .build();
 
         Item mockItem = Item.builder()
             .sellerUserId(userId)
@@ -327,16 +371,19 @@ class ItemServiceUpdateTest {
             .price(15000)
             .build();
 
-        Shop mockShop = Shop.builder()
-            .ownerUserId(userId)
-            .name("테스트 샵")
-            .build();
+        Shop mockShop = createApprovedShop(userId);
 
-        given(itemRepository.findByIdAndDeletedFalse(itemId)).willReturn(Optional.of(mockItem));
-        given(shopRepository.findByIdWithLock(anyLong())).willReturn(Optional.of(mockShop));
-        given(shopSubscriptionRepository.findByShopId(anyLong())).willReturn(Optional.empty()); // 💡 구독 비활성 스텁
+        given(itemRepository.findByIdAndDeletedFalse(itemId))
+            .willReturn(Optional.of(mockItem));
 
-        assertThatThrownBy(() -> itemService.update(userId, itemId, request))
+        given(shopRepository.findByIdWithLock(10L))
+            .willReturn(Optional.of(mockShop));
+
+        mockActiveSubscription(false);
+
+        // when & then
+        assertThatThrownBy(() ->
+            itemService.update(userId, itemId, request))
             .isInstanceOf(ForbiddenException.class)
             .hasMessageContaining("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
     }

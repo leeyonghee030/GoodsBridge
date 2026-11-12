@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -16,20 +17,18 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
     // 가게의 가장 최근 구독 이력 조회
     Optional<ShopSubscription> findFirstByShopIdOrderByIdDesc(Long shopId);
 
-    /**
-     * 💡 [ID 커서 페이징 쿼리]
-     * 마지막으로 처리한 subscription ID보다 큰 데이터 중 만료된 ACTIVE 구독을 조회합니다.
-     */
-    // 만료된 ACTIVE 구독을 ID 커서 방식으로 조회
+    // 만료된 ACTIVE 구독 ID만 커서 방식으로 조회
+    @Transactional(readOnly = true)
     @Query("""
-        SELECT s FROM ShopSubscription s
-        WHERE s.id > :lastId
-          AND s.endDate < :today
-          AND s.status = :status
-          AND s.deletedAt IS NULL
-        ORDER BY s.id ASC
-        """)
-    List<ShopSubscription> findExpiredActiveSubscriptionsAfterId(
+    SELECT s.id
+    FROM ShopSubscription s
+    WHERE s.id > :lastId
+      AND s.endDate < :today
+      AND s.status = :status
+      AND s.deletedAt IS NULL
+    ORDER BY s.id ASC
+    """)
+    List<Long> findExpiredActiveSubscriptionIdsAfterId(
         @Param("lastId") Long lastId,
         @Param("today") LocalDate today,
         @Param("status") ShopSubscriptionStatus status,

@@ -16,6 +16,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -33,7 +34,7 @@ public class ShopSubscriptionService {
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
-    private final ShopSubscriptionProcessor subscriptionProcessor;
+    private final ShopSubscriptionBatchService batchService;
 
     private static final int PRICE_PER_DAY = 1000;
     private static final int MAX_DAYS = 1095; // 한 번에 최대 3년(1095일) 제한
@@ -212,6 +213,10 @@ public class ShopSubscriptionService {
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
+        if (shop.isDeleted()) {
+            throw new BadRequestException("삭제된 가게는 구독을 취소할 수 없습니다.");
+        }
+
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("본인의 가게 구독 정보만 조회 가능합니다.");
         }
@@ -229,65 +234,24 @@ public class ShopSubscriptionService {
             .toList();
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int processExpiredSubscriptionsByAdmin() {
-        // 1. 현재 요청을 보낸 사용자의 ID를 추출하여 관리자 권한 검증
+
         Long adminUserId = SecurityUtil.getCurrentUserId();
+
         User adminUser = userRepository.findById(adminUserId)
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
+            .orElseThrow(() ->
+                new NotFoundException("사용자를 찾을 수 없습니다."));
 
         if (adminUser.getRole() != Role.ADMIN) {
-            throw new ForbiddenException("관리자 권한만 구독 만료 배치를 수동 실행할 수 있습니다.");
+            throw new ForbiddenException("관리자만 실행할 수 있습니다.");
         }
 
-        log.info("[관리자 수동 트리거] 관리자(ID: {})에 의해 만료 구독 배치 강제 실행", adminUserId);
+        log.info("[관리자 요청] 만료 구독 일괄 처리 시작");
 
-        // 2. 기존 커서 페이징 배치 로직 호출
-        return processExpiredSubscriptions();
+        return batchService.processExpiredSubscriptions();
     }
 
-    // [스케줄러 & 관리자 공용] 커서 페이징을 활용한 만료 구독 일괄 처리 핵심 로직
-    @Transactional(readOnly = true)
-    public int processExpiredSubscriptions() {
-        int pageSize = 100;
-        Long lastId = 0L;
-        int totalProcessedCount = 0;
-        LocalDate today = LocalDate.now();
-
-        log.info("[커서 페이징 배치 시작] 만료 구독 일괄 처리 (PageSize: {})", pageSize);
-
-        while (true) {
-            Pageable pageable = PageRequest.of(0, pageSize);
-            List<ShopSubscription> expiredSubscriptions =
-                subscriptionRepository.findExpiredActiveSubscriptionsAfterId(
-                    lastId,
-                    today,
-                    ShopSubscriptionStatus.ACTIVE,
-                    pageable
-                );
-
-            if (expiredSubscriptions.isEmpty()) {
-                break;
-            }
-
-            for (ShopSubscription subscription : expiredSubscriptions) {
-                lastId = subscription.getId();
-
-                try {
-                    // 개별 트랜잭션(REQUIRES_NEW)으로 분리된 프로세서 호출
-                    boolean success = subscriptionProcessor.processSingleSubscriptionById(subscription.getId());
-                    if (success) {
-                        totalProcessedCount++;
-                    }
-                } catch (Exception e) {
-                    log.error("[배치 개별 실패 격리] subscriptionId: {}, 사유: {}", subscription.getId(), e.getMessage());
-                }
-            }
-        }
-
-        log.info("[커서 페이징 배치 완료] 총 {}건의 만료 구독 처리 완료", totalProcessedCount);
-        return totalProcessedCount;
-    }
 
     private void validateAdmin(Long userId) {
         User user = userRepository.findById(userId)

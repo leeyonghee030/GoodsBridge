@@ -26,7 +26,7 @@ public class ShopSubscriptionProcessor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public boolean processSingleSubscriptionById(Long subscriptionId) {
 
-        // 1. 대상 구독 ID로 가게 ID 확인
+        // 1. 구독 ID로 가게 ID 확인
         Long shopId = subscriptionRepository.findShopIdById(subscriptionId)
             .orElse(null);
 
@@ -56,22 +56,12 @@ public class ShopSubscriptionProcessor {
             return false;
         }
 
-        // 5. 최신 구독인지 확인
-        Long latestId = subscriptionRepository
-            .findFirstByShopIdOrderByIdDesc(shopId)
-            .map(ShopSubscription::getId)
-            .orElse(null);
-
-        if (!subscriptionId.equals(latestId)) {
-            return false;
-        }
-
-        // 6. ACTIVE 상태 확인
+        // 5. ACTIVE 상태 확인
         if (subscription.getStatus() != ShopSubscriptionStatus.ACTIVE) {
             return false;
         }
 
-        // 7. 만료일 확인
+        // 6. 만료일 확인
         LocalDate today = LocalDate.now();
 
         if (subscription.getEndDate() == null
@@ -79,16 +69,33 @@ public class ShopSubscriptionProcessor {
             return false;
         }
 
-        // 8. 구독 만료 처리
+        // 7. 만료된 구독 처리
         subscription.expire();
 
-        // 9. 커밋 후 상품 판매 중지 이벤트 발행
+        // 8. 최신 구독인지 확인
+        Long latestId = subscriptionRepository
+            .findFirstByShopIdOrderByIdDesc(shopId)
+            .map(ShopSubscription::getId)
+            .orElse(null);
+
+        // 9. 과거 구독이면 이력만 EXPIRED 처리하고 종료
+        if (!subscriptionId.equals(latestId)) {
+            log.info(
+                "과거 구독 만료 이력 정리 완료. subscriptionId={}, shopId={}",
+                subscriptionId,
+                shopId
+            );
+
+            return true;
+        }
+
+        // 10. 최신 구독이 만료된 경우에만 이벤트 발행
         eventPublisher.publishEvent(
             new ShopSubscriptionExpiredEvent(shopId)
         );
 
         log.info(
-            "구독 만료 처리 완료. subscriptionId={}, shopId={}",
+            "최신 구독 만료 처리 완료. subscriptionId={}, shopId={}",
             subscriptionId,
             shopId
         );
