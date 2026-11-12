@@ -75,10 +75,7 @@ public class ItemService {
 
     // 전체 상품 목록 조회 필터링 검색 (페이징 크기 제한 및 최신순 기본 정렬 적용, keyword 는 제목에 포함된 글자로 검색)
     public Page<ItemResponse> findAll(Long categoryId, String region, SaleType saleType, String keyword, Pageable pageable) {
-        String titleKeyword = (keyword == null || keyword.isBlank()) ? null : keyword.trim();
-        if (titleKeyword != null && titleKeyword.length() > 100) {
-            titleKeyword = titleKeyword.substring(0, 100);
-        }
+        String titleKeyword = titleKeyword(keyword);
         int pageSize = pageable.getPageSize();
 
         // 1. 페이징 사이즈 방어 로직 (최대 100개 제한)
@@ -95,6 +92,28 @@ public class ItemService {
 
         Page<Item> itemPage = itemRepository.searchItemsWithFilterAndKeyword(categoryId, region, saleType, titleKeyword, pageable);
         return itemPage.map(ItemResponse::from);
+    }
+
+    // SHOP 목록: 가게 상품만, 기본 정렬은 판매중 먼저(판매완료는 뒤로) + 최신순
+    public Page<ItemResponse> findShopItems(Long categoryId, String region, SaleType saleType, String keyword, ItemStatus status, Pageable pageable) {
+        String titleKeyword = titleKeyword(keyword);
+        int pageSize = Math.min(pageable.getPageSize(), MAX_PAGE_SIZE);
+        // ItemStatus 는 문자열로 저장되어 ON_SALE < SOLD 순서라 오름차순이면 판매중이 앞에 온다
+        // 등록일이 같으면(시연 데이터는 같은 시각으로 고정됨) 등록 순서(id)대로 — 기준이 없으면 DB 가 임의로 섞는다
+        Sort sort = Sort.by(Sort.Direction.ASC, "status")
+            .and(pageable.getSort().isUnsorted() ? Sort.by(Sort.Direction.DESC, "createdAt") : pageable.getSort())
+            .and(Sort.by(Sort.Direction.ASC, "id"));
+        pageable = PageRequest.of(pageable.getPageNumber(), pageSize, sort);
+        return itemRepository.searchShopItems(categoryId, region, saleType, titleKeyword, status, pageable).map(ItemResponse::from);
+    }
+
+    // 제목 검색어: 비어 있으면 null, 앞뒤 공백 제거, 최대 100자
+    private String titleKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 
     // 상품 단건 상세 조회
