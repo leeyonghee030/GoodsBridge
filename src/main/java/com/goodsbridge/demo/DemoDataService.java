@@ -20,9 +20,19 @@ import com.goodsbridge.settlement.SettlementHistoryRepository;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
+import com.goodsbridge.purchase.Purchase;
+import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.refund.Refund;
+import com.goodsbridge.refund.RefundRepository;
+import com.goodsbridge.refund.RefundType;
+import com.goodsbridge.refund.RequestedBy;
+import com.goodsbridge.refund.Status;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
+import com.goodsbridge.shop.ShopSubscription;
+import com.goodsbridge.shop.ShopSubscriptionRepository;
+import com.goodsbridge.shop.ShopSubscriptionStatus;
 import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -35,6 +45,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -56,11 +67,14 @@ public class DemoDataService {
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
+    private final ShopSubscriptionRepository shopSubscriptionRepository;
     private final CategoryJpaRepository categoryRepository;
     private final ItemRepository itemRepository;
     private final ExchangeItemRepository exchangeItemRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final PaymentRepository paymentRepository;
+    private final PurchaseRepository purchaseRepository;
+    private final RefundRepository refundRepository;
     private final SettlementHistoryRepository settlementHistoryRepository;
     private final ExchangeMessageRepository exchangeMessageRepository;
     private final PasswordEncoder passwordEncoder;
@@ -76,6 +90,7 @@ public class DemoDataService {
         jdbcTemplate.update("update user_tb set role = 'ADMIN' where id = ?", admin.getId());
 
         Shop shop = findOrCreateShop(shopOwner);
+        resetSubscription(shop);
 
         // 이전 시연(또는 테스트)에서 쌓인 데모 가게의 수수료 기록도 초기화해서 수익 요약이 시드 데이터와 맞게 한다
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shop.getId());
@@ -109,6 +124,19 @@ public class DemoDataService {
         return shop;
     }
 
+    // 구독 중인 가게만 상품을 등록할 수 있으므로, 데모 가게는 항상 1년짜리 활성 구독으로 되돌린다
+    private void resetSubscription(Shop shop) {
+        jdbcTemplate.update("delete from shop_subscription_tb where shop_id = ?", shop.getId());
+        shopSubscriptionRepository.save(ShopSubscription.builder()
+            .shopId(shop.getId())
+            .paymentId("demo-subscription-" + UUID.randomUUID())
+            .setupFeePaid(true)
+            .startDate(LocalDate.now())
+            .endDate(LocalDate.now().plusYears(1))
+            .status(ShopSubscriptionStatus.ACTIVE)
+            .build());
+    }
+
     // 시연 계정이 만든 상품/교환글과 거기에 딸린 데이터를 외래키 순서대로 지운다.
     private void deleteDemoData(List<Long> userIds) {
         String u = "(" + String.join(",", userIds.stream().map(String::valueOf).toList()) + ")";
@@ -119,6 +147,8 @@ public class DemoDataService {
         jdbcTemplate.update("delete from exchange_message_tb where exchange_request_id in (select id from exchange_request_tb where exchange_itemaid in " + exchangeItems + " or itembid in " + items + ")");
         jdbcTemplate.update("delete from exchange_request_tb where exchange_itemaid in " + exchangeItems + " or itembid in " + items);
         jdbcTemplate.update("delete from exchange_item_tb where user_id in " + u + " or item_id in " + items);
+        jdbcTemplate.update("delete from refund_tb where requester_user_id in " + u
+            + " or payment_id in (select id from payment_tb where payment_id in (select payment_id from purchase_tb where item_id in " + items + "))");
         jdbcTemplate.update("delete from purchase_tb where item_id in " + items);
         jdbcTemplate.update("delete from bid_tb where auction_id in (select id from auction_tb where item_id in " + items + ")");
         jdbcTemplate.update("delete from auction_tb where item_id in " + items);
@@ -137,11 +167,12 @@ public class DemoDataService {
         List<Long> pinnedItemIds = new ArrayList<>();
         List<Long> pinnedExchangeIds = new ArrayList<>();
         List<ExchangeItem> aPosts = new ArrayList<>();
+        List<Item> shopItems = new ArrayList<>();
 
         for (Category category : categories) {
             for (int n = 1; n <= 2; n++) {
                 // 가게(페르소나)가 파는 상품
-                pinnedItemIds.add(itemRepository.save(Item.builder()
+                Item shopItem = itemRepository.save(Item.builder()
                     .sellerUserId(shopOwner.getId())
                     .shopId(shop.getId())
                     .category(category)
@@ -151,7 +182,9 @@ public class DemoDataService {
                     .saleType(SaleType.NORMAL)
                     .status(ItemStatus.ON_SALE)
                     .imageUrl(images.get(cursor[0]++ % images.size()))
-                    .build()).getId());
+                    .build());
+                shopItems.add(shopItem);
+                pinnedItemIds.add(shopItem.getId());
 
                 // 교환A가 올린 교환글
                 Item mine = itemRepository.save(Item.builder()
@@ -210,6 +243,8 @@ public class DemoDataService {
                 seedRequest(aPosts.get((int) sc[0] % aPosts.size()), bItems.get((int) sc[1] - 1), userB, shop, (String) sc[2]);
             }
         }
+
+        seedSales(shopItems, userB, shop);
 
         // 최신순 정렬에서 시연 데이터가 항상 맨 앞에 오도록 생성일을 먼 미래로 고정
         Timestamp pinned = Timestamp.valueOf(LocalDateTime.now().plusYears(10));
@@ -294,6 +329,81 @@ public class DemoDataService {
     }
 
     // 서버 정산(ExchangeService.settle)과 같이 가게가 가져간 수수료를 기록
+    // 가게 판매 상품 관리 시연: 신청B가 가게 상품을 구매한 내역 (배송 단계별 + 환불 요청/부분환불/거절)
+    // 실제 PortOne 결제 없이 결제/구매/환불 기록만 만든다
+    private void seedSales(List<Item> shopItems, User buyer, Shop shop) {
+        // 뒤의 두 건은 판매 정산(오늘/이번 달) 시연용 구매 확정 건
+        String[] scenarios = { "PREPARING", "SHIPPED", "CONFIRMED", "PARTIAL_REFUND", "REFUND_REQUESTED", "REFUND_REJECTED", "CONFIRMED", "CONFIRMED" };
+        int[] monthsAgo = { 0, 0, 1, 1, 0, 2, 0, 0 };
+        int[] daysAgo = { 0, 0, 0, 0, 0, 0, 1, 7 };
+        String[] addresses = {
+            "서울시 마포구 와우산로 21, 3층", "부산시 해운대구 해운대로 570, 1203호", "대구시 중구 동성로 12",
+            "인천시 연수구 송도과학로 32, 701호", "광주시 서구 상무중앙로 7", "대전시 유성구 대학로 99, 202호",
+            "수원시 영통구 광교중앙로 140, 905호", "제주시 연동 신대로 20"
+        };
+        // 카테고리별로 두 번째 상품(28,000원)을 골라 판매완료로 만든다 (첫 번째는 판매중으로 남긴다)
+        List<Item> targets = new ArrayList<>();
+        for (int i = 1; i < shopItems.size() && targets.size() < scenarios.length; i += 2) targets.add(shopItems.get(i));
+
+        for (int n = 0; n < targets.size(); n++) {
+            Item item = targets.get(n);
+            String state = scenarios[n];
+            Payment payment = paymentRepository.save(Payment.builder()
+                .paymentId("demo-sale-" + UUID.randomUUID())
+                .pgTxId("demo")
+                .user(buyer)
+                .amount(item.getPrice())
+                .purpose(PaymentPurpose.PURCHASE)
+                .build());
+            Purchase purchase = Purchase.builder()
+                .item(item).user(buyer).paymentId(payment.getPaymentId()).deliveryAddress(addresses[n])
+                .build();
+            if (!state.equals("PREPARING")) purchase.ship("CJ" + (500100200300L + n));
+            // 지난달 이전 주문(구매 확정/부분 환불/환불 거절)은 이미 배송이 끝난 상태
+            if (state.equals("CONFIRMED") || state.equals("PARTIAL_REFUND") || state.equals("REFUND_REJECTED")) purchase.markDelivered();
+            if (state.equals("CONFIRMED")) purchase.confirm();
+            purchaseRepository.save(purchase);
+            item.updateStatus(ItemStatus.SOLD);
+
+            switch (state) {
+                case "PARTIAL_REFUND" -> {
+                    Refund refund = demoRefund(payment, buyer, 5000, "구성품 일부 누락 (부분 환불)", RequestedBy.USER, Status.REQUESTED);
+                    refund.approve();
+                    payment.refund(5000);
+                }
+                case "REFUND_REQUESTED" -> demoRefund(payment, buyer, item.getPrice(), "단순 변심으로 환불 요청합니다", RequestedBy.USER, Status.REQUESTED);
+                // 상품을 받은 구매자가 포장 파손으로 일부 환불을 요청했지만, 상품 자체는 이상이 없어 거절된 경우
+                case "REFUND_REJECTED" -> demoRefund(payment, buyer, 3000, "받은 상품 포장 박스가 찢어져 있어요", RequestedBy.USER, Status.REQUESTED)
+                    .reject("보내주신 사진 확인 결과 상품 자체에는 손상이 없어 거절합니다");
+                default -> { }
+            }
+
+            // 기간 필터 시연용으로 구매일/환불 요청일을 이번 달·저번 달·두 달 전으로 나눈다
+            // (환불 승인/거절 변경이 나중에 flush 되며 날짜를 덮어쓰지 않도록 먼저 flush)
+            refundRepository.flush();
+            LocalDateTime purchasedAt = LocalDateTime.now().minusMonths(monthsAgo[n]).minusDays(daysAgo[n]).minusHours(n + 1);
+            LocalDateTime refundAt = monthsAgo[n] == 0 ? LocalDateTime.now().minusMinutes(30) : purchasedAt.plusHours(20);
+            jdbcTemplate.update("update purchase_tb set created_at = ? where payment_id = ?", Timestamp.valueOf(purchasedAt), payment.getPaymentId());
+            jdbcTemplate.update("update refund_tb set created_at = ? where payment_id = ?", Timestamp.valueOf(refundAt), payment.getId());
+
+            // 구매 확정되면 판매 금액이 가게 정산(PURCHASE_FEE)으로 기록된다 (PurchaseService.confirm 과 같은 금액)
+            if (state.equals("CONFIRMED")) {
+                recordFee(shop, payment, item.getPrice(), SettlementHistoryType.PURCHASE_FEE);
+                settlementHistoryRepository.flush();
+                LocalDateTime settledAt = purchasedAt.plusDays(2).isAfter(LocalDateTime.now()) ? LocalDateTime.now().minusMinutes(20) : purchasedAt.plusDays(2);
+                jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'PURCHASE_FEE'",
+                    Timestamp.valueOf(settledAt), payment.getId());
+            }
+        }
+    }
+
+    private Refund demoRefund(Payment payment, User requester, int amount, String reason, RequestedBy by, Status status) {
+        return refundRepository.save(Refund.builder()
+            .payment(payment).user(requester).reason(reason).requestedAmount(amount)
+            .status(status).requestedBy(by).type(RefundType.PURCHASE)
+            .build());
+    }
+
     private void recordFee(Shop shop, Payment payment, int fee, SettlementHistoryType type) {
         settlementHistoryRepository.save(new SettlementHistory(shop, payment, fee, type));
     }

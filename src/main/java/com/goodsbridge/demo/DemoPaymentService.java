@@ -38,19 +38,31 @@ public class DemoPaymentService implements PaymentService {
     @Override
     @Transactional
     public String verify(String paymentId, int expectedAmount, PaymentPurpose purpose, Long userId) {
+        // TODO(데모 종료 후 제거): 상품 구매도 화면이 만든 demo-pay- 결제번호면 PortOne 없이 통과시킨다.
+        // PurchaseService 는 요청의 paymentId 로 구매를 저장하므로, 같은 번호로 결제 행을 만들어야 구매/정산/환불이 연결된다.
+        if (purpose == PaymentPurpose.PURCHASE && paymentId != null && paymentId.startsWith(DEMO_PREFIX)) {
+            saveDemoPayment(paymentId, expectedAmount, purpose, userId);
+            log.info("[DEMO] 상품 구매 결제 생략 - paymentId={}, userId={}, amount={}", paymentId, userId, expectedAmount);
+            return paymentId;
+        }
         if (purpose != PaymentPurpose.EXCHANGE_DEPOSIT) {
             return real.verify(paymentId, expectedAmount, purpose, userId);
         }
         String demoPaymentId = DEMO_PREFIX + UUID.randomUUID();
-        paymentRepository.save(Payment.builder()
-            .paymentId(demoPaymentId)
-            .pgTxId("demo")
-            .user(entityManager.getReference(User.class, userId))
-            .amount(expectedAmount)
-            .purpose(purpose)
-            .build());
+        saveDemoPayment(demoPaymentId, expectedAmount, purpose, userId);
         log.info("[DEMO] 교환 보증금 결제 생략 - paymentId={}, userId={}, amount={}", demoPaymentId, userId, expectedAmount);
         return demoPaymentId;
+    }
+
+    // PortOne 없이 결제 완료(PAID) 행만 저장한다 (정산/환불이 이 행을 참조)
+    private void saveDemoPayment(String paymentId, int amount, PaymentPurpose purpose, Long userId) {
+        paymentRepository.save(Payment.builder()
+            .paymentId(paymentId)
+            .pgTxId("demo")
+            .user(entityManager.getReference(User.class, userId))
+            .amount(amount)
+            .purpose(purpose)
+            .build());
     }
 
     @Override
