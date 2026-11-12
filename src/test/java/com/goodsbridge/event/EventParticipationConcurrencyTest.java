@@ -38,7 +38,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // ★ 이벤트 선착순 참가 동시성 테스트 (CLAUDE.md 테스트 우선순위 2위) — 삭제하지 말고 유지
-@SpringBootTest
+// 데모 결제 서비스(@Primary)가 켜지면 아래 가짜 결제 서비스와 충돌하므로 데모 모드는 끈다
+@SpringBootTest(properties = "app.demo.enabled=false")
 @ActiveProfiles("test")
 class EventParticipationConcurrencyTest {
 

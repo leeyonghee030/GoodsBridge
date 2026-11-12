@@ -43,6 +43,14 @@ public interface EventParticipationRepository extends JpaRepository<EventPartici
         , @Param("shopEventId") Long shopEventId);
 
 
+    // 다음 번호표 계산용. 취소로 인원이 줄어도 번호표가 겹치지 않도록 지금까지 발급한 최대 번호를 본다
+    @Query("select coalesce(max(e.ticketNumber), 0) from EventParticipation e where e.shopEvent.id = :shopEventId")
+    int findMaxTicketNumber(@Param("shopEventId") Long shopEventId);
+
+    // 이벤트의 현재 참가자 (가게 취소 환불, 마감 정산용)
+    @Query("select e from EventParticipation e where e.shopEvent.id = :shopEventId and e.status = 'JOINED'")
+    List<EventParticipation> findJoinedByShopEventId(@Param("shopEventId") Long shopEventId);
+
     //소프트삭제
     @Query("""
     update  EventParticipation e

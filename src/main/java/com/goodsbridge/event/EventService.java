@@ -9,8 +9,12 @@ import com.goodsbridge.event.dto.ShopEventRequest;
 import com.goodsbridge.event.dto.ShopEventResponse;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.settlement.SettlementHistoryService;
+import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
@@ -21,7 +25,9 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,10 +44,25 @@ public class EventService {
     private final EventParticipationRepository eventParticipationRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final PaymentRepository paymentRepository;
+    private final SettlementHistoryService settlementHistoryService;
+    private final TransactionTemplate transactionTemplate;
 
     /// ---------EventParticipation service
-    @Transactional
+
+    // 참가 신청. 유저는 이미 PortOne 결제를 마치고 오므로, 서버가 거절하면(정원초과/중복/마감 등) 결제를 자동 취소한다.
+    // 참가 처리 트랜잭션(이벤트 행 잠금)을 먼저 끝낸 뒤 취소해야, PortOne 호출 동안 다른 신청자가 잠금을 기다리지 않는다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public EventParticipationResponse saveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
+        try {
+            return transactionTemplate.execute(status -> doSaveEventParticipation(id, userid, request));
+        } catch (RuntimeException e) {
+            paymentService.cancelUnrecorded(request.getPaymentId(), "이벤트 참가 실패로 인한 자동 취소");
+            throw e;
+        }
+    }
+
+    private EventParticipationResponse doSaveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
         //조회
          ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(()->{
                 throw new NotFoundException("존재하지 않는 이벤트입니다");}
@@ -53,6 +74,10 @@ public class EventService {
         // 이벤트 상태확인
         if (shopEvent.getStatus() != ShopEventStatus.OPEN){
             throw new ForbiddenException("진행중인 이벤트에 참여가능합니다");
+        }
+        // 마감시간 확인 (스케줄러가 1분마다 돌아서 상태만으로는 마감 직후를 못 막는다)
+        if (!shopEvent.isBeforeDeadline(LocalDateTime.now())) {
+            throw new BadRequestException("마감된 이벤트입니다");
         }
         //유저 상태확인
         if (user.getStatus() != Status.ACTIVE){
@@ -70,10 +95,13 @@ public class EventService {
         }
         //결제 확인
         String paymentId = paymentService.verify(request.getPaymentId(), shopEvent.getFeeAmount(), PaymentPurpose.EVENT_FEE, userid);
+        // 번호표는 인원수가 아니라 지금까지 발급한 최대 번호 + 1 (취소로 인원이 줄어도 번호가 겹치지 않게)
+        int ticketNumber = eventParticipationRepository.findMaxTicketNumber(id) + 1;
+        shopEvent.increaseCurrentCount();
         EventParticipation eventParticipation = EventParticipation.builder()
             .shopEvent(shopEvent)
             .user(user)
-            .ticketNumber(shopEvent.increaseCurrentCount())
+            .ticketNumber(ticketNumber)
             .paymentId(paymentId)
             .build();
 
@@ -88,8 +116,8 @@ public class EventService {
 
     @Transactional
     public void cancelEventParticipation(Long id, Long userid) {
-        //조회
-        ShopEvent shopEvent = shopEventRepository.findById(id).orElseThrow(()->{
+        //조회 (참가 신청과 동시에 인원수를 바꾸므로 같은 잠금을 건다)
+        ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(()->{
             throw new NotFoundException("존재하지 않는 이벤트입니다");}
         );
 
@@ -100,6 +128,13 @@ public class EventService {
         if (user.getStatus() != Status.ACTIVE){
             throw new ForbiddenException("활성화된 사용자만 참여 가능합니다");
         }
+        // 취소된 이벤트는 가게 취소 때 이미 전원 환불됐고, 마감 후에는 환불하지 않는다
+        if (shopEvent.getStatus() == ShopEventStatus.CANCELLED) {
+            throw new BadRequestException("취소된 이벤트입니다");
+        }
+        if (!shopEvent.isBeforeDeadline(LocalDateTime.now())) {
+            throw new BadRequestException("마감된 이벤트는 참가 취소할 수 없습니다");
+        }
         if (!eventParticipationRepository.existsByShopEvent_IdAndUser_Id(userid, id)) {
             throw new NotFoundException("참가 내역을 찾을 수 없습니다");
         }
@@ -109,6 +144,8 @@ public class EventService {
         );
         paymentService.refund(eventParticipation.getPaymentId(),shopEvent.getFeeAmount(),"이벤트 참가 취소");
         eventParticipationRepository.cancelByUserIdAndShopEventId(userid,id);
+        // 자리 반납 (정원이 차서 마감됐던 이벤트는 다시 모집중)
+        shopEvent.decreaseCurrentCount();
     }
 
 
@@ -116,9 +153,17 @@ public class EventService {
     @Transactional
     public void autoCloseShopEvents() {
         LocalDateTime now = LocalDateTime.now();
-        List<ShopEvent> shopEvents = shopEventRepository.findByStatusAndDeadlineBefore(ShopEventStatus.OPEN, now);
+        List<ShopEvent> shopEvents = shopEventRepository.findSettleTargets(now);
         for (ShopEvent shopEvent : shopEvents) {
             shopEvent.updateStatus(ShopEventStatus.CLOSED);
+            // 마감 시점에 남아있는 참가자 기준으로 참가비 전액을 가게 정산에 기록 (마감 후엔 참가 취소 불가)
+            for (EventParticipation participation : eventParticipationRepository.findJoinedByShopEventId(shopEvent.getId())) {
+                Payment payment = paymentRepository.findByPaymentId(participation.getPaymentId()).orElse(null);
+                if (payment != null) {
+                    settlementHistoryService.calculate(shopEvent.getShop(), payment, shopEvent.getFeeAmount(), SettlementHistoryType.EVENT_FEE);
+                }
+            }
+            shopEvent.markSettled();
         }
     }
 
@@ -176,19 +221,23 @@ public class EventService {
 
     @Transactional
     public void cancelShopEvent(Long id, Long userId) {
-        //가게id랑 userid 같은지 가게 주인인지
-         ShopEvent shopEvent = shopEventRepository.findById(id).orElseThrow(()->{
+        //가게id랑 userid 같은지 가게 주인인지 (참가 신청/취소와 동시에 처리되지 않도록 잠금)
+         ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(()->{
             throw new NotFoundException("존재하지 않는 이벤트입니다");
         });
         if (!shopEvent.isShop(userId)){
             throw new ForbiddenException("본인 가게이벤트만 삭제할수있습니다");
         }
-        //가게이벤트 오픈이였는지
-        if (!shopEvent.isOpen()){
+        // 마감시간 전이면 취소 가능 (정원이 차서 CLOSED 된 이벤트도 포함). 마감 후에는 이미 진행/정산된 이벤트
+        if (shopEvent.getStatus() == ShopEventStatus.CANCELLED || !shopEvent.isBeforeDeadline(LocalDateTime.now())){
             throw new ForbiddenException("이벤트가 진행중일떄 삭제 가능합니다");
         }
 
-        //나중에 로직 생기면 그떄 포트원으로 환불처리
+        // 참가자 전원 참가비 환불
+        for (EventParticipation participation : eventParticipationRepository.findJoinedByShopEventId(id)) {
+            paymentService.refund(participation.getPaymentId(), shopEvent.getFeeAmount(), "가게 이벤트 취소");
+            participation.refund();
+        }
         //상태 업데이트
         shopEvent.updateStatus(ShopEventStatus.CANCELLED);
     }

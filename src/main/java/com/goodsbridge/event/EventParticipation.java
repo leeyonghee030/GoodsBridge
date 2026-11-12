@@ -62,5 +62,8 @@ public class EventParticipation {
         return this.status == EventParticipationStatus.JOINED;
     }
 
-    //
+    // 가게가 이벤트를 취소해 환불된 참가
+    public void refund() {
+        this.status = EventParticipationStatus.REFUNDED;
+    }
 }

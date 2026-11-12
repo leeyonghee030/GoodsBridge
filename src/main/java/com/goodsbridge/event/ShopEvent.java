@@ -43,6 +43,10 @@ public class ShopEvent {
     @Column(nullable = false)
     private ShopEventStatus status;
 
+    // 마감 후 가게 정산(SettlementHistory)까지 끝났는지. 스케줄러가 한 번만 정산하도록 표시
+    @Column(nullable = false)
+    private boolean settled;
+
     @CreationTimestamp
     private LocalDateTime createdAt;
 
@@ -80,5 +84,21 @@ public class ShopEvent {
 
     public Integer  increaseCurrentCount() {
         return ++this.currentCount;
+    }
+
+    // 참가 취소로 자리가 나면 인원을 줄이고, 정원이 차서 마감됐던 이벤트는 다시 모집중으로 연다
+    public void decreaseCurrentCount() {
+        this.currentCount--;
+        if (this.status == ShopEventStatus.CLOSED) {
+            this.status = ShopEventStatus.OPEN;
+        }
+    }
+
+    public boolean isBeforeDeadline(LocalDateTime now) {
+        return now.isBefore(this.deadline);
+    }
+
+    public void markSettled() {
+        this.settled = true;
     }
 }
