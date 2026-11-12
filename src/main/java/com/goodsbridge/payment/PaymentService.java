@@ -28,4 +28,12 @@ public interface PaymentService {
 
     /** 구매자 수령 확인 이후 대금을 판매자에게 지급 처리합니다 (PAID -> RELEASED, 멱등). */
     void release(String paymentId);
+
+    /**
+     * 서버가 요청을 거절했는데 PortOne 에서는 이미 승인(PAID)된 결제를 전액 자동 취소합니다.
+     * DB 에 기록된 결제는 건드리지 않으며, 취소에 실패해도 예외를 던지지 않고 로그만 남깁니다
+     * (호출한 쪽의 원래 예외가 가려지지 않게 하기 위함).
+     */
+    default void cancelUnrecorded(String paymentId, String reason) {
+    }
 }

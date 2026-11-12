@@ -38,4 +38,36 @@ class PaymentTest {
         assertEquals(7_000, payment.getRefundableAmount());
         assertEquals(PaymentStatus.PARTIAL_CANCELLED, payment.getStatus());
     }
+
+
+    @Test
+    void 부분환불된_결제도_지급처리할_수_있다() {
+        Payment payment = Payment.builder()
+            .paymentId("payment-1")
+            .user(mock(User.class))
+            .amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE)
+            .build();
+        payment.refund(3_000);
+
+        payment.release();
+
+        assertEquals(PaymentStatus.RELEASED, payment.getStatus());
+        assertEquals(3_000, payment.getRefundedAmount());
+        assertEquals(7_000, payment.getRefundableAmount());
+    }
+
+    @Test
+    void 전체환불된_결제는_지급처리할_수_없다() {
+        Payment payment = Payment.builder()
+            .paymentId("payment-1")
+            .user(mock(User.class))
+            .amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE)
+            .build();
+        payment.refund(10_000);
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, payment::release);
+        assertEquals(PaymentStatus.CANCELLED, payment.getStatus());
+    }
 }

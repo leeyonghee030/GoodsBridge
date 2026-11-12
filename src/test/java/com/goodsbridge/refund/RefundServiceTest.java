@@ -1,5 +1,7 @@
 package com.goodsbridge.refund;
 
+import com.goodsbridge.item.Item;
+import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
@@ -8,6 +10,7 @@ import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.settlement.SettlementHistoryType;
+import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -177,5 +180,106 @@ class RefundServiceTest {
 
         verifyNoInteractions(paymentService, settlementHistoryService);
         assertTrue(payment.getRefundableAmount() == 10_000);
+    }
+
+
+    @Test
+    void reject_locksRefundRowAndStoresRejectReason() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+        Refund refund = pendingRefund(3_000);
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+
+        refundService.reject(7L, 1L, "상품 상태 확인 불가");
+
+        assertEquals(Status.REJECTED, refund.getStatus());
+        assertEquals("상품 상태 확인 불가", refund.getRejectReason());
+        // approve 와 동시에 실행돼도 덮어쓰지 않도록 잠금 조회만 사용한다.
+        verify(refundRepository, never()).findById(any());
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void reject_requiresReason() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+        Refund refund = pendingRefund(3_000);
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+
+        assertThrows(BadRequestException.class, () -> refundService.reject(7L, 1L, " "));
+
+        assertEquals(Status.REQUESTED, refund.getStatus());
+    }
+
+    @Test
+    void reject_cannotRejectAlreadyApprovedRefund() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+        Refund refund = pendingRefund(3_000);
+        refund.approve();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+
+        assertThrows(BadRequestException.class, () -> refundService.reject(7L, 1L, "사유"));
+
+        assertEquals(Status.APPROVED, refund.getStatus());
+    }
+
+    @Test
+    void approve_fullRefundReopensSoldItemAndRemovesPurchase() {
+        Item item = mock(Item.class);
+        when(item.getStatus()).thenReturn(ItemStatus.SOLD);
+        Purchase purchase = fullRefundSetup(item);
+
+        refundService.approve(1L, 7L);
+
+        verify(item).updateStatus(ItemStatus.ON_SALE);
+        verify(purchaseRepository).delete(purchase);
+    }
+
+    @Test
+    void approve_fullRefundDoesNotReopenItemThatSellerClosed() {
+        Item item = mock(Item.class);
+        when(item.getStatus()).thenReturn(ItemStatus.CLOSED);
+        Purchase purchase = fullRefundSetup(item);
+
+        refundService.approve(1L, 7L);
+
+        verify(item, never()).updateStatus(any());
+        verify(purchaseRepository).delete(purchase);
+    }
+
+    // 10,000원 전액 환불 승인 상황을 구성한다 (PortOne 취소 성공 시 Payment 가 전액 환불 처리됨).
+    private Purchase fullRefundSetup(Item item) {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
+            .requestedAmount(10_000).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+        doAnswer(invocation -> {
+            payment.refund(10_000);
+            return null;
+        }).when(paymentService).refund("p-1", 10_000, "환불");
+
+        Purchase purchase = Purchase.builder().item(item).user(mock(User.class)).paymentId("p-1")
+            .deliveryAddress("Seoul").build();
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
+        return purchase;
+    }
+
+    private static Refund pendingRefund(int amount) {
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        return Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
+            .requestedAmount(amount).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
     }
 }
