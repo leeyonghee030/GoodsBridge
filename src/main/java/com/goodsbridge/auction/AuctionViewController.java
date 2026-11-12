@@ -8,9 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
-
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @Controller
@@ -25,12 +24,14 @@ public class AuctionViewController {
     private String channelKey;
 
     @GetMapping("/test/auction")
-
-    public String index(@AuthenticationPrincipal Long userId, Model model) {
+    public String index(@AuthenticationPrincipal Long userId, Authentication authentication, Model model) {
         model.addAttribute("userId", userId);
+        String role = authentication == null ? "" : authentication.getAuthorities().stream()
+            .map(authority -> authority.getAuthority().replaceFirst("^ROLE_", ""))
+            .findFirst().orElse("");
+        model.addAttribute("userRole", role);
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
-
         return "auction/index";
     }
 

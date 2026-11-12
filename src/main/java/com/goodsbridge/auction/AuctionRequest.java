@@ -2,6 +2,7 @@ package com.goodsbridge.auction;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import lombok.Getter;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -26,7 +27,7 @@ public class AuctionRequest {
         }
         long startPriceValue = startPrice;
         long depositAmountValue = depositAmount;
-        // 보증금과 최초 가격간 관계
+        // 보증금은 최초 가격에서 10% ~ 20% 범위 내로 제한
         boolean validDeposit = depositAmountValue * 100 >= startPriceValue * 10
             && depositAmountValue * 100 <= startPriceValue * 20;
         if (!validDeposit) {
