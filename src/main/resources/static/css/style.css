@@ -2018,3 +2018,16 @@ button.link-button:hover { background: none; color: var(--color-text); }
 .board-list-box::-webkit-scrollbar-track { background: transparent; }
 .board-list-box::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; }
 .board-list-box.is-scrolling::-webkit-scrollbar-thumb { background: var(--color-border); }
+
+/* 공통 오류 페이지 (templates/error/*.mustache) */
+.error-page { min-height: 100vh; margin: 0; display: grid; place-items: center; background: var(--color-surface); }
+.error-card { width: min(440px, calc(100% - 32px)); padding: 40px 32px; text-align: center; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 16px; }
+.error-status { margin: 0 0 8px; font-size: 56px; font-weight: var(--fw-black); color: var(--color-text); line-height: 1; }
+.error-card h1 { margin: 0 0 12px; font-size: 22px; font-weight: var(--fw-bold); }
+.error-desc { margin: 0 0 28px; color: var(--color-muted); line-height: 1.6; word-break: keep-all; }
+.error-actions { display: flex; gap: 8px; justify-content: center; }
+.error-btn, .error-btn-ghost { padding: 11px 20px; border-radius: 8px; font-weight: var(--fw-medium); text-decoration: none; }
+.error-btn { color: #fff; background: var(--color-dark); }
+.error-btn:hover { background: var(--color-dark-hover); }
+.error-btn-ghost { color: var(--color-text); border: 1px solid var(--color-border); }
+.error-btn-ghost:hover { background: var(--color-surface); }

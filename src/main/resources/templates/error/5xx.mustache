@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>일시적인 오류가 발생했습니다 | GoodsBridge</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="error-page">
+<main class="error-card">
+    <p class="error-status">{{status}}</p>
+    <h1>일시적인 오류가 발생했습니다</h1>
+    <p class="error-desc">잠시 후 다시 시도해주세요. 문제가 계속되면 관리자에게 문의해주세요.</p>
+    <div class="error-actions">
+        <a href="/" class="error-btn-ghost" onclick="return goBack()">이전 페이지</a>
+        <a href="/" class="error-btn">홈으로</a>
+    </div>
+</main>
+<script>
+    // 주소창에 직접 입력해 들어오면 돌아갈 기록이 없으므로, 사이트 안에서 넘어온 경우에만 뒤로 가고 아니면 홈으로 간다
+    function goBack() {
+        if (document.referrer.startsWith(location.origin)) { history.back(); return false; }
+        return true;
+    }
+</script>
+</body>
+</html>
