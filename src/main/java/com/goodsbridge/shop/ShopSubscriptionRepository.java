@@ -70,4 +70,13 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
         ShopSubscriptionStatus status,
         LocalDate today
     );
+
+    @Query("""
+    SELECT s.shopId
+    FROM ShopSubscription s
+    WHERE s.id = :subscriptionId
+    """)
+    Optional<Long> findShopIdById(
+        @Param("subscriptionId") Long subscriptionId
+    );
 }

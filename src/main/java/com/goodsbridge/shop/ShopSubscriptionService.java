@@ -175,7 +175,7 @@ public class ShopSubscriptionService {
      */
     @Transactional
     public void cancelSubscription(Long userId, Long shopId) {
-        Shop shop = shopRepository.findById(shopId)
+        Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
         if (!shop.isOwner(userId)) {
