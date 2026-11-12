@@ -1,10 +1,42 @@
 {{> fragments/header}}
 
-<div class="container profile-container">
+<style>
+/* 내 정보: 프로필 요약 + 수정은 창(모달)으로 */
+.profile-view { display: flex; align-items: center; gap: 1.5rem; padding: 1.5rem 0.5rem; }
+.profile-view .profile-avatar-image { width: 112px; height: 112px; flex: none; }
+.profile-view-info { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.profile-view-info strong { font-size: 1.25rem; }
+.profile-view-info span { font-size: 0.88rem; color: var(--color-muted); word-break: break-all; }
+.profile-view-info .write-link { align-self: flex-start; width: auto; margin-top: 0.6rem; }
+.profile-view-actions { display: flex; justify-content: flex-end; align-items: center; gap: 1rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.profile-view-actions .profile-danger-zone { margin: 0; }
+.profile-view-actions .profile-danger-zone button { display: inline-block; width: auto; padding: 0.5rem 1rem; font-size: 0.84rem; white-space: nowrap; }
+.modal-card.profile-modal { max-width: 820px; }
+@media (max-width: 640px) { .profile-view { flex-direction: column; text-align: center; } .profile-view-info .write-link { align-self: center; } }
+</style>
+
+<div class="container my-card">
 <nav class="my-tabs">
     <a href="/update" class="active">내 정보</a>
     <a href="/my/exchange">교환 내역</a>
+    <a href="/my/purchases">구매 내역</a>
 </nav>
+
+<div class="profile-view">
+    {{#user.profileImage}}<img src="{{user.profileImage}}" alt="" class="profile-avatar-image">{{/user.profileImage}}
+    {{^user.profileImage}}<div class="profile-avatar-image profile-avatar-empty"><span>프로필 사진 없음</span></div>{{/user.profileImage}}
+    <div class="profile-view-info">
+        <strong>{{#user.nickname}}{{user.nickname}}{{/user.nickname}}</strong>
+        <span>{{user.email}}</span>
+        <button type="button" class="write-link" id="open-profile-edit">회원 정보 수정</button>
+    </div>
+</div>
+</div>
+
+<!-- 회원 정보 수정 창 -->
+<div class="modal-backdrop" id="profile-edit-modal" hidden>
+<div class="modal-card profile-modal">
+<button type="button" class="modal-close" id="close-profile-edit">✕</button>
 <h1>회원 정보 수정</h1>
 
 <div class="profile-grid">
@@ -88,14 +120,24 @@
         <button type="submit">수정하기</button>
     </form>
 </div>
-
-<p><a href="/" class="secondary">메인으로</a></p>
-
-<div class="profile-danger-zone">
-    <form action="/api/withdraw" method="post">
-        <button type="submit" class="secondary">회원탈퇴</button>
-    </form>
+<div class="profile-view-actions">
+    <div class="profile-danger-zone">
+        <form action="/api/withdraw" method="post">
+            <button type="submit" class="secondary"
+                    onclick="event.preventDefault(); const f = this.form; gbConfirm('정말 탈퇴할까요?\n탈퇴하면 계정을 다시 사용할 수 없어요.').then(ok => { if (ok) f.submit(); });">회원탈퇴</button>
+        </form>
+    </div>
 </div>
 </div>
+</div>
+
+<script>
+(() => {
+    const modal = document.getElementById('profile-edit-modal');
+    document.getElementById('open-profile-edit').addEventListener('click', () => { modal.hidden = false; });
+    document.getElementById('close-profile-edit').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.hidden = true; });
+})();
+</script>
 
 {{> fragments/footer}}

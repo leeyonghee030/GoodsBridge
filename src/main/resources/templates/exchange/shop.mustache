@@ -1,7 +1,6 @@
 {{> fragments/header}}
 
 <style>
-.sx-wrap { width: 85%; margin: 0 auto 3rem; }   /* 안내문·탭·목록 전체를 화면 폭의 85%로 가운데 정렬 */
 .sx-lead[hidden] { display: none; }
 .sx-lead { margin: 0.3rem 0 1.2rem; font-size: 0.85rem; color: var(--color-muted); line-height: 1.5; }
 .sx-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; overflow: hidden; }
@@ -113,10 +112,13 @@
 @media (max-width: 560px) { .sx-pair, .sx-who { display: none; } }
 </style>
 
-<h1 class="page-title">마이페이지</h1>
-<nav class="my-tabs my-tabs-page">
+<!-- 내 정보 화면처럼 탭과 내용을 하나의 카드 안에 둔다 -->
+<div class="container my-card">
+<nav class="my-tabs">
     <a href="/update">내 정보</a>
     <a href="/shop/exchange" class="active">가게 교환 관리</a>
+    <a href="/shop/items">판매 상품 관리</a>
+    <a href="/my/purchases">구매 내역</a>
 </nav>
 <div class="sx-wrap">
     <p class="sx-lead" id="sx-lead">손님이 도착하면 교환번호나 닉네임으로 찾아, 온 분을 체크해 주세요.</p>
@@ -149,6 +151,7 @@
 
     <div class="sx-list sx-scroll" id="sx-list" hidden></div>
     <div class="sx-empty" id="sx-empty" hidden></div>
+</div>
 </div>
 
 <div class="modal-backdrop sx-modal" id="sx-modal" hidden>

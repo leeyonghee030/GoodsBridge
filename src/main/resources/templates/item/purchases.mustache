@@ -1,0 +1,214 @@
+{{> fragments/header}}
+
+<style>
+.pu-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: 0 0 0.8rem; }
+.pu-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.pu-subtabs button:hover { background: none; color: var(--color-text); }
+.pu-subtabs button.active, .pu-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+.pu-list .related-item-link { cursor: pointer; }
+.pu-list .empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+.pu-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.pu-badge.is-dark { background: var(--color-dark); color: #fff; }
+.pu-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.pu-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.pu-detail dl { display: grid; grid-template-columns: 6rem 1fr; gap: 0.45rem 0.8rem; margin: 0 0 1rem; font-size: 0.86rem; }
+.pu-detail dt { color: var(--color-muted); }
+.pu-detail dd { margin: 0; word-break: break-all; }
+.pu-detail h2 { font-size: 0.92rem; margin: 1.2rem 0 0.5rem; }
+.pu-detail form { display: flex; flex-direction: column; gap: 0.5rem; }
+.pu-refund-row { padding: 0.55rem 0; border-top: 1px solid var(--color-border); font-size: 0.82rem; }
+.pu-refund-row:first-of-type { border-top: 0; }
+.pu-refund-row small { color: var(--color-muted); }
+.pu-note { font-size: 0.78rem; color: var(--color-muted); margin: 0.3rem 0 0; }
+.pu-confirm { margin-top: 0.4rem; }
+</style>
+
+<!-- 내 정보 / 교환 내역처럼 탭과 내용을 하나의 카드 안에 둔다 -->
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/my/exchange">교환 내역</a>
+    <a href="/my/purchases" class="active">구매 내역</a>
+</nav>
+
+<div class="pu-subtabs" id="pu-subtabs"></div>
+<section class="pu-panel">
+    <div class="pu-list" id="pu-list"><p class="empty">구매 내역을 불러오는 중...</p></div>
+</section>
+</div>
+
+<!-- 구매 상세 창: 배송 정보, 구매 확정, 환불 -->
+<div class="modal-backdrop" id="pu-modal" hidden>
+    <div class="modal-card pu-detail">
+        <button type="button" class="modal-close" id="pu-close">✕</button>
+        <div id="pu-body"></div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const date = iso => iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    const jsonHeaders = { 'Content-Type': 'application/json' };
+
+    const DELIVERY = { PREPARING: '배송 준비중', SHIPPED: '배송중', DELIVERED: '배송 완료' };
+    const REFUND = { REQUESTED: '환불 요청중', APPROVED: '환불 완료', REJECTED: '환불 거절' };
+    const refundLabel = (r, p) => r.status === 'APPROVED' && r.amount < p.price ? '부분 환불 완료' : REFUND[r.status];
+
+    // 구매 상태: 환불 내역이 있으면 환불, 그다음 구매 확정, 나머지는 배송 단계
+    const STATES = [['ALL', '전체'], ['PREPARING', '배송 준비중'], ['SHIPPED', '배송중'], ['DELIVERED', '배송 완료'], ['CONFIRMED', '구매 확정'], ['REFUND', '환불']];
+    const stateOf = p => p.refunds.length ? 'REFUND' : p.purchaseStatus === 'CONFIRMED' ? 'CONFIRMED' : p.deliveryStatus;
+    const badgeOf = p => {
+        const s = stateOf(p);
+        if (s === 'REFUND') {
+            const r = p.refunds[0];
+            return `<span class="pu-badge ${r.status === 'REQUESTED' ? 'is-warn' : ''}">${refundLabel(r, p)}</span>`;
+        }
+        if (s === 'CONFIRMED') return '<span class="pu-badge is-ok">구매 확정</span>';
+        if (s === 'DELIVERED') return '<span class="pu-badge is-dark">배송 완료 · 확정 대기</span>';
+        return `<span class="pu-badge">${DELIVERY[s]}</span>`;
+    };
+
+    const listEl = document.getElementById('pu-list');
+    const subtabs = document.getElementById('pu-subtabs');
+    let purchases = [];
+    let sub = 'ALL';
+
+    function render() {
+        const count = key => key === 'ALL' ? purchases.length : purchases.filter(p => stateOf(p) === key).length;
+        subtabs.innerHTML = STATES.map(([key, label]) =>
+            `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
+        const rows = sub === 'ALL' ? purchases : purchases.filter(p => stateOf(p) === sub);
+        if (rows.length === 0) {
+            listEl.innerHTML = `<p class="empty">${sub === 'ALL' ? '아직 구매한 상품이 없어요.' : STATES.find(x => x[0] === sub)[1] + ' 상태인 구매가 없어요.'}</p>`;
+            return;
+        }
+        listEl.innerHTML = rows.map(p => `
+            <div class="related-item-link" data-id="${p.purchaseId}">
+                <span class="related-item-thumb">${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="">` : '📦'}</span>
+                <span class="related-item-text">
+                    <small>${esc(p.categoryName)}</small>
+                    <strong>${esc(p.itemTitle)}</strong>
+                    <small>${money(p.price)} · ${date(p.purchasedAt)} 구매</small>
+                </span>
+                ${badgeOf(p)}
+            </div>`).join('');
+    }
+
+    async function load() {
+        const res = await pageFetch('/api/items/my-purchases');
+        if (!res.ok) { listEl.innerHTML = '<p class="empty">구매 내역을 불러오지 못했어요.</p>'; return; }
+        purchases = (await res.json()).sort((a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt));
+        render();
+    }
+
+    subtabs.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-sub]');
+        if (b) { sub = b.dataset.sub; render(); }
+    });
+
+    // ===== 구매 상세 창 =====
+    const modal = document.getElementById('pu-modal');
+    const body = document.getElementById('pu-body');
+    let current = null;
+
+    function renderDetail() {
+        const p = current;
+        const pending = p.refunds.some(r => r.status === 'REQUESTED');
+        // 배송 완료 + 아직 확정 전일 때만 구매 확정 / 환불 신청
+        const delivered = p.deliveryStatus === 'DELIVERED' && p.purchaseStatus === 'PAID';
+        const canRefund = delivered && !pending && p.refundableAmount > 0;
+        body.innerHTML = `
+            <h1>${esc(p.itemTitle)}</h1>
+            <dl>
+                <dt>결제 금액</dt><dd>${money(p.price)}</dd>
+                <dt>구매일</dt><dd>${date(p.purchasedAt)}</dd>
+                <dt>배송지</dt><dd>${esc(p.deliveryAddress)}</dd>
+                <dt>배송 상태</dt><dd>${DELIVERY[p.deliveryStatus]}${p.purchaseStatus === 'CONFIRMED' ? ' · 구매 확정' : ''}</dd>
+                <dt>송장번호</dt><dd>${p.trackingNumber ? esc(p.trackingNumber) : '-'}</dd>
+            </dl>
+            ${delivered && !pending ? `
+            <button type="button" class="pu-confirm" id="pu-confirm">구매 확정</button>
+            <p class="pu-note">상품을 잘 받으셨다면 배송 완료 후 3일 안에 구매 확정을 눌러 주세요. 확정하면 환불 신청을 할 수 없어요.</p>` : ''}
+            ${p.deliveryStatus !== 'DELIVERED' && p.purchaseStatus === 'PAID' ? '<p class="pu-note">배송이 완료되면 구매 확정과 환불 신청을 할 수 있어요.</p>' : ''}
+
+            <h2>환불</h2>
+            ${p.refunds.length ? p.refunds.map(r => `
+                <div class="pu-refund-row">
+                    <strong>${refundLabel(r, p)}</strong> · ${money(r.amount)} <small>(${date(r.requestedAt)})</small><br>
+                    <small>사유: ${esc(r.reason)}${r.rejectReason ? ' / 거절 사유: ' + esc(r.rejectReason) : ''}</small>
+                </div>`).join('') : '<p class="pu-note">환불 내역이 없어요.</p>'}
+            ${canRefund ? `
+            <form id="pu-refund-form" style="margin-top:0.8rem;">
+                <span class="price-input">
+                    <input id="pu-refund-amount" type="text" inputmode="numeric" value="${Number(p.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" required>
+                    <span class="price-input-unit">원</span>
+                </span>
+                <textarea id="pu-refund-reason" rows="2" maxlength="500" placeholder="환불 사유 (예: 상품 하자, 구성품 누락)" required></textarea>
+                <button type="submit">환불 신청</button>
+                <p class="pu-note">환불 가능 금액 ${money(p.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.</p>
+            </form>` : (pending ? '<p class="pu-note">처리 대기 중인 환불 요청이 있어요.</p>' : '')}
+            <p id="pu-message" class="form-message"></p>`;
+    }
+
+    listEl.addEventListener('click', ev => {
+        const row = ev.target.closest('[data-id]');
+        if (!row) return;
+        current = purchases.find(p => p.purchaseId === Number(row.dataset.id));
+        if (current) { renderDetail(); modal.hidden = false; }
+    });
+    document.getElementById('pu-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.hidden = true; });
+
+    async function refresh() {
+        await load();
+        current = purchases.find(p => p.purchaseId === current.purchaseId);
+        if (current) renderDetail(); else modal.hidden = true;
+    }
+    const fail = text => { const m = document.getElementById('pu-message'); m.textContent = text; m.className = 'form-message error'; };
+
+    body.addEventListener('input', ev => {
+        if (ev.target.id !== 'pu-refund-amount') return;
+        const digits = ev.target.value.replace(/\D/g, '').replace(/^0+/, '');
+        ev.target.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    });
+
+    body.addEventListener('click', async ev => {
+        if (ev.target.id !== 'pu-confirm') return;
+        if (!(await gbConfirm('구매를 확정할까요?\n확정하면 환불 신청을 할 수 없어요.'))) return;
+        ev.target.disabled = true;
+        const res = await pageFetch(`/api/purchases/${current.purchaseId}/confirm`, { method: 'POST' });
+        if (!res.ok) { fail(await errorText(res, '구매 확정에 실패했습니다.')); ev.target.disabled = false; return; }
+        await refresh();
+    });
+
+    body.addEventListener('submit', async ev => {
+        if (ev.target.id !== 'pu-refund-form') return;
+        ev.preventDefault();
+        const requestedAmount = Number(document.getElementById('pu-refund-amount').value.replace(/\D/g, ''));
+        const reason = document.getElementById('pu-refund-reason').value.trim();
+        if (!requestedAmount) { fail('환불 금액을 입력해주세요.'); return; }
+        if (requestedAmount > current.refundableAmount) { fail('환불 가능 금액을 넘었어요.'); return; }
+        if (!(await gbConfirm(`${money(requestedAmount)} 환불을 신청할까요?`))) return;
+        const btn = ev.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        const res = await pageFetch('/api/refunds', {
+            method: 'POST', headers: jsonHeaders, body: JSON.stringify({ paymentId: current.paymentId, requestedAmount, reason })
+        });
+        if (!res.ok) { fail(await errorText(res, '환불 신청에 실패했습니다.')); btn.disabled = false; return; }
+        await refresh();
+    });
+
+    load();
+})();
+</script>
+
+{{> fragments/footer}}
