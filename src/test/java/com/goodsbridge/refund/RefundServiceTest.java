@@ -79,6 +79,19 @@ class RefundServiceTest {
     }
 
     @Test
+    void request_rejectsPaymentWhoseRefundWasRejectedBefore() {
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+        Payment payment = Payment.builder().paymentId("p-1").user(user).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        when(paymentRepository.findByPaymentId("p-1")).thenReturn(Optional.of(payment));
+        when(refundRepository.existsRejectedByPaymentId("p-1")).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> refundService.request(1L, request("p-1", 3_000, "다시 요청")));
+        verify(refundRepository, never()).save(any());
+    }
+
+    @Test
     void approve_rejectsNonAdmin() {
         User user = mock(User.class);
         when(userRepository.findById(7L)).thenReturn(Optional.of(user));
@@ -281,5 +294,66 @@ class RefundServiceTest {
         return Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
             .requestedAmount(amount).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
             .type(RefundType.PURCHASE).build();
+    }
+
+
+    // ---------- 경매 결제는 환불 불가 ----------
+
+    @Test
+    void request_rejectsAuctionDepositAndBalancePayments() {
+        for (PaymentPurpose purpose : new PaymentPurpose[]{PaymentPurpose.AUCTION_DEPOSIT, PaymentPurpose.AUCTION_BALANCE}) {
+            User user = mock(User.class);
+            when(user.getId()).thenReturn(1L);
+            Payment payment = Payment.builder().paymentId("p-1").user(user).amount(10_000).purpose(purpose).build();
+            when(paymentRepository.findByPaymentId("p-1")).thenReturn(Optional.of(payment));
+
+            BadRequestException e = assertThrows(BadRequestException.class,
+                () -> refundService.request(1L, request("p-1", 3_000, "단순 변심")));
+
+            assertEquals("경매 결제는 환불할 수 없습니다.", e.getMessage());
+        }
+        verify(refundRepository, never()).save(any());
+    }
+
+    @Test
+    void approve_rejectsAuctionPaymentEvenIfRequestWasCreatedBefore() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.AUCTION_BALANCE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
+            .requestedAmount(3_000).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+
+        assertThrows(BadRequestException.class, () -> refundService.approve(1L, 7L));
+
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void requestedByShop_rejectsAuctionPurchasePayment() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(5L)).thenReturn(true);
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.AUCTION_BALANCE).build();
+        when(paymentRepository.findByPaymentId("p-1")).thenReturn(Optional.of(payment));
+        Item item = mock(Item.class);
+        when(item.getShopId()).thenReturn(10L);
+        Purchase purchase = Purchase.builder().item(item).paymentId("p-1").deliveryAddress("Seoul")
+            .source(com.goodsbridge.purchase.PurchaseSource.AUCTION).amount(10_000).build();
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
+
+        com.goodsbridge.refund.ShopRefundRequest request = new com.goodsbridge.refund.ShopRefundRequest();
+        ReflectionTestUtils.setField(request, "paymentId", "p-1");
+        ReflectionTestUtils.setField(request, "requestedAmount", 1_000);
+        ReflectionTestUtils.setField(request, "reason", "불량");
+
+        assertThrows(BadRequestException.class, () -> refundService.requestedByShop(5L, 10L, request));
+
+        verify(refundRepository, never()).save(any());
     }
 }

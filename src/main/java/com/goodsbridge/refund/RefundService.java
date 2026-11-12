@@ -45,6 +45,7 @@ public class RefundService {
         if (!payment.isOwner(userId)) {
             throw new ForbiddenException("본인의 결제만 환불 요청할 수 있습니다.");
         }
+        validateNotAuctionPayment(payment);
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
         }
@@ -54,6 +55,7 @@ public class RefundService {
         if (refundRepository.existsPendingByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리 대기 중인 환불 요청이 있습니다.");
         }
+        validateNotRejectedBefore(request.getPaymentId());
         User user = userRepository.getReferenceById(userId);
         Refund refund = Refund.builder().payment(payment).user(user).reason(request.getReason())
             .requestedAmount(request.getRequestedAmount())
@@ -87,6 +89,7 @@ public class RefundService {
         }
         Payment payment = paymentRepository.findByPaymentIdLock(refund.getPayment().getPaymentId())
             .orElseThrow(() -> new NotFoundException("결제 내역을 찾을 수 없습니다."));
+        validateNotAuctionPayment(payment);
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("결제 완료 상태만 환불할 수 있습니다.");
         }
@@ -159,6 +162,13 @@ public class RefundService {
             SettlementHistoryType.NO_SHOW_FEE);
     }
 
+    // 거절된 적이 있는 결제는 다시 환불 요청할 수 없다. (승인으로 일부 환불된 결제는 남은 금액 요청 가능)
+    private void validateNotRejectedBefore(String paymentId) {
+        if (refundRepository.existsRejectedByPaymentId(paymentId)) {
+            throw new BadRequestException("환불이 거절된 결제는 다시 환불 요청할 수 없습니다.");
+        }
+    }
+
     // 관리자 권환 확인
     private void validateAdmin(Long userId) {
         User user = userRepository.findById(userId)
@@ -196,6 +206,7 @@ public class RefundService {
         if (!shopId.equals(purchase.getItem().getShopId())) {
             throw new ForbiddenException("본인 가게에서 판매된 결제만 환불 신청할 수 있습니다.");
         }
+        validateNotAuctionPayment(payment);
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
         }
@@ -205,6 +216,7 @@ public class RefundService {
         if (refundRepository.existsPendingByPaymentId(shopRefundRequest.getPaymentId())) {
             throw new BadRequestException("이미 처리 대기 중인 환불 요청이 있습니다.");
         }
+        validateNotRejectedBefore(shopRefundRequest.getPaymentId());
         User user = userRepository.getReferenceById(userId);
         Refund refund = Refund.builder()
             .payment(payment)
@@ -217,5 +229,13 @@ public class RefundService {
             .type(RefundType.PURCHASE)
             .build();
         return new RefundResponse.ListDto(refundRepository.save(refund));
+    }
+
+    // 경매 결제(보증금/잔금)는 환불 불가
+    private void validateNotAuctionPayment(Payment payment) {
+        PaymentPurpose purpose = payment.getPurpose();
+        if (purpose == PaymentPurpose.AUCTION_DEPOSIT || purpose == PaymentPurpose.AUCTION_BALANCE) {
+            throw new BadRequestException("경매 결제는 환불할 수 없습니다.");
+        }
     }
 }
