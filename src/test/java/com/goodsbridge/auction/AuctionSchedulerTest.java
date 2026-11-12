@@ -141,6 +141,17 @@ class AuctionSchedulerTest {
         verify(auctionService).markLosersRefunded(11L);
     }
 
+    @Test
+    void autoCloseAuctions_refundsBidsWhenAdminCancelledAuctionIsPendingRefund() {
+        when(auctionRepository.findIdsPendingCancelRefund(Status.CANCELLED)).thenReturn(List.of(40L));
+
+        auctionScheduler.autoCloseAuctions();
+
+        InOrder inOrder = inOrder(auctionService);
+        inOrder.verify(auctionService).refundCancelled(40L);
+        inOrder.verify(auctionService).markLosersRefunded(40L);
+    }
+
     // ===================== 3단계: 잔금 미납 처리 =====================
 
     @Test

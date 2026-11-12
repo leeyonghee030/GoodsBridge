@@ -90,7 +90,7 @@ class BidConcurrencyTest {
             shopRepository.findById(SHOP_ID).orElseThrow(),
             itemRepository.findById(SHOP_ITEM_ID).orElseThrow(),
             START_PRICE,
-            LocalDateTime.now().plusHours(1),   // 안티 스나이핑 연장이 끼어들지 않도록 마감은 넉넉하게
+            LocalDateTime.now().plusHours(1),   // 하드 클로징 경계와 무관하게 동시 입찰만 검증
             DEPOSIT)).getId());
 
         bidderIds = tx.execute(status -> {

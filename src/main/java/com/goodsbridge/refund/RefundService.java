@@ -42,6 +42,7 @@ public class RefundService {
         request.validate();
         Payment payment = paymentRepository.findByPaymentId(request.getPaymentId())
             .orElseThrow(() -> new NotFoundException("결제 내역을 찾을 수 없습니다."));
+        rejectAuctionPayment(payment);
         if (!payment.isOwner(userId)) {
             throw new ForbiddenException("본인의 결제만 환불 요청할 수 있습니다.");
         }
@@ -93,6 +94,7 @@ public class RefundService {
         if (refund.getRequestedAmount() > payment.getRefundableAmount()) {
             throw new BadRequestException("환불 가능 금액을 초과했습니다.");
         }
+        rejectAuctionPayment(payment);
         // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
         // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
         refund.approve();
@@ -110,6 +112,13 @@ public class RefundService {
                 }
                 purchaseRepository.delete(purchase);
             });
+        }
+    }
+
+    private void rejectAuctionPayment(Payment payment) {
+        if (payment.getPurpose() == PaymentPurpose.AUCTION_DEPOSIT
+            || payment.getPurpose() == PaymentPurpose.AUCTION_BALANCE) {
+            throw new BadRequestException("경매 상품의 보증금과 잔금은 환불할 수 없습니다.");
         }
     }
 

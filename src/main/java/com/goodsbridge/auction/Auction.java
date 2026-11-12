@@ -20,14 +20,9 @@ import java.time.LocalDateTime;
 public class Auction {
     // 낙찰 후 잔금 결제 기한(일) - 기한 내 미결제 시 보증금은 가게가 가져간다
     // 테스트에서는 분으로 테스트
-    public static final int BALANCE_DUE_MINUTES = 3;
+    public static final int BALANCE_DUE_MINUTES = 2;
 
-    // 안티 스나이핑 용
-    public static final int EXTENSION_THRESHOLD_MINUTES = 2;
-    public static final int EXTENSION_MINUTES = 5;
-    public static final int MAX_EXTENSION_COUNT = 3;
-
-    // 안티 스나이핑 용
+    // 기존 DB 스키마 호환용. 안티 스나이핑 연장 로직은 사용하지 않는다.
     @Column(name = "extension_count", nullable = false)
     private int extensionCount = 0;
 
@@ -111,24 +106,14 @@ public class Auction {
         this.status = Status.CANCELLED;
     }
 
-    // 안티 스나이핑용
-    public boolean extendIfNearDeadline(LocalDateTime now) {
-        if (now.isBefore(deadline.minusMinutes(EXTENSION_THRESHOLD_MINUTES))) {
-            return false;
-        }
-
-        if (extensionCount >= MAX_EXTENSION_COUNT) {
-            return false;
-        }
-
-        deadline = deadline.plusMinutes(EXTENSION_MINUTES);
-        extensionCount++;
-        return true;
-    }
-
     // 잔금 = 낙찰가 - 이미 낸 보증금
     public int getBalanceAmount() {
         return Math.max(0, currentPrice - depositAmount);
+    }
+
+    // 경매 낙찰 성사 시 가게가 정산받는 금액은 보증금 + 잔금, 즉 낙찰가 전액이다.
+    public int getAuctionSettlementAmount() {
+        return currentPrice;
     }
 
     public boolean isBalancePaid() {

@@ -14,11 +14,10 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 1분마다 아래 네 가지를 순서대로 처리한다. 각 단계는 경매 1건 단위로 실패를 격리한다.
- * 1) 마감 시간이 지난 ACTIVE 경매를 종료 (낙찰이면 잔금 결제 기한 설정)
- * 2) 종료된 경매의 패찰자 보증금 환불 (실패하면 다음 주기에 재시도)
- * 3) 잔금 결제 기한이 지난 낙찰 경매를 미납 처리 (낙찰 무효, 보증금은 가게 몫)
- * 4) 취소된 경매의 입찰자 보증금 전액 환불 (실패하면 다음 주기에 재시도)
+ * 1) 마감 시간이 지난 ACTIVE 경매를 종료
+ * 2) 종료된 경매의 패찰자 보증금 환불
+ * 3) 잔금 결제 기한이 지난 낙찰 경매를 미납 처리
+ * 4) 취소된 경매의 입찰자 보증금 전액 환불
  */
 @Slf4j
 @Component
@@ -29,6 +28,7 @@ public class AuctionScheduler {
     private final AuctionRepository auctionRepository;
     private final AuctionService auctionService;
 
+    // 정해진 시간마다 경매 마감 -> 환불 처리-> 잔금 처리 -> 취소 시 처리
     @Scheduled(fixedDelay = 60000)
     public void autoCloseAuctions() {
         runStep("경매 자동 마감", this::closeExpiredAuctions);

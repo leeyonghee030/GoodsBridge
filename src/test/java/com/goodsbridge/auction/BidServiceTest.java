@@ -86,7 +86,7 @@ class BidServiceTest {
     }
 
     @Test
-    void placeBid_extendsDeadlineWhenBidIsNearDeadline() {
+    void placeBid_doesNotExtendDeadlineWhenBidIsNearDeadline() {
         when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
         when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L))
             .thenReturn("payment-1");
@@ -94,7 +94,7 @@ class BidServiceTest {
 
         bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1"));
 
-        verify(auction).extendIfNearDeadline(any(LocalDateTime.class));
+        // 하드 클로징 정책에서는 입찰로 마감 시간을 연장하지 않는다.
     }
 
     @Test

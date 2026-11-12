@@ -334,6 +334,7 @@
         const state = {page: 1, size: 6, status: '', totalPages: 1};
         // 서버가 못 내려주면(페이지 이동 시 JWT 헤더가 안 실림) ensureUserId()가 /api/users/me로 채운다.
         let currentUserId = '{{userId}}';
+        const currentUserRole = '{{userRole}}';
         const $ = (id) => document.getElementById(id);
         // 결제창에서 오래 대기하면 Access Token(1시간)이 만료되어 결제 후 API가 401로 실패한다.
         // 결제창을 열기 전과 결제 직후에 Refresh Token 쿠키로 세션을 갱신한다. (실패해도 무시: 이후 API가 오류를 알려준다)
@@ -540,6 +541,10 @@
         async function payBalance(auction, button) {
             button.disabled = true;
             try {
+                const addressInput = document.getElementById(`balance-address-${auction.id}`);
+                const deliveryAddress = addressInput?.value?.trim();
+                if (!deliveryAddress) throw new Error('잔금 결제 전에 배송지를 입력해주세요.');
+                if (deliveryAddress.length > 255) throw new Error('배송지는 255자 이하로 입력해주세요.');
                 if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
                 await refreshSession();
                 const paymentResult = await PortOne.requestPayment({
@@ -558,7 +563,7 @@
                 const result = await apiFetch(`/api/auctions/${auction.id}/pay-balance`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({paymentId: paymentResult.paymentId})
+                    body: JSON.stringify({paymentId: paymentResult.paymentId, deliveryAddress})
                 });
                 const body = await result.json().catch(() => ({}));
                 if (!result.ok) throw new Error(body.message || '잔금 결제 처리에 실패했습니다.');
@@ -597,6 +602,7 @@
                 <strong>상품 #${escapeHtml(auction.itemId)}</strong>
                 <span class="auction-muted">현재가 ${money(auction.currentPrice)} · 보증금 ${money(auction.depositAmount)} · 마감 ${escapeHtml(formatTime(auction.deadline))}</span>
                 ${needsPay ? `<span class="auction-muted">잔금 ${money(auction.balanceAmount)} (낙찰가 − 보증금) · 결제 기한 ${auction.balanceDueAt ? escapeHtml(formatTime(auction.balanceDueAt)) : '없음'}</span>
+                <input id="balance-address-${auction.id}" type="text" maxlength="255" required placeholder="배송지를 입력해주세요" style="width:100%; padding:.7rem; margin-top:.5rem;">
                 <button class="auction-action primary" type="button" data-pay="${auction.id}">잔금 ${money(auction.balanceAmount)} 결제하기</button>` : ''}
                 <button class="auction-action" type="button" data-my-detail="${auction.id}">상세 보기</button>
             </article>`;
@@ -648,6 +654,17 @@
                     bidsError = true;
                 }
                 const topBid = bids[0];
+                const bestBidByUser = new Map();
+                bids.forEach((bid) => {
+                    const key = String(bid.userId);
+                    if (!bestBidByUser.has(key) || Number(bid.bidAmount) > Number(bestBidByUser.get(key).bidAmount)) {
+                        bestBidByUser.set(key, bid);
+                    }
+                });
+                const rankedBids = [...bestBidByUser.values()].sort((a, b) => Number(b.bidAmount) - Number(a.bidAmount));
+                const myRank = currentUserId && currentUserId !== 'null'
+                    ? rankedBids.findIndex((bid) => String(bid.userId) === String(currentUserId)) + 1
+                    : 0;
 
                 detail.innerHTML = `
             <div class="auction-detail-head">
@@ -658,6 +675,7 @@
                 <div><small>시작가</small>${money(auction.startPrice)}</div>
                 <div><small>현재가</small><strong>${money(auction.currentPrice)}</strong></div>
                 <div><small>현재 1위</small>${topBid ? escapeHtml(topBid.nickname) : '없음'}</div>
+                <div><small>내 현재 등수</small>${myRank > 0 ? myRank + '위' : '미참여'}</div>
                 <div><small>보증금 (시작가의 10~20%)</small>${money(auction.depositAmount)}</div>
                 <div><small>마감</small>${escapeHtml(formatTime(auction.deadline))}</div>
                 ${auction.status === 'ENDED_SUCCESS' ? `<div><small>낙찰 잔금 (낙찰가 − 보증금)</small>${money(auction.balanceAmount)} · ${auction.balancePaid ? '결제 완료' : '기한 ' + escapeHtml(formatTime(auction.balanceDueAt))}</div>` : ''}
@@ -679,19 +697,20 @@
                         : `<ul class="bid-history">${bids.map((bid) => `<li><span>${escapeHtml(bid.nickname)}</span><span><strong>${money(bid.bidAmount)}</strong> <span class="auction-muted">${escapeHtml(formatTime(bid.createdAt))}</span></span></li>`).join('')}</ul>`}
         `;
 
-                // 가게 주인에게만 보이는 경매 취소 버튼 (입찰이 있으면 서버가 거절한다. 입찰이 있는 경우 취소는 관리자 전용)
+                // 가게 주인 또는 관리자에게 보이는 경매 취소 버튼
                 if (isActive) {
                     try {
+                        const isAdmin = currentUserRole === 'ADMIN';
                         if (currentUserId && currentUserId !== 'null') {
-                            const ownerResponse = await apiFetch(`/api/shops/${auction.shopId}`);
-                            if (ownerResponse.ok) {
-                                const ownerShop = await ownerResponse.json();
-                                if (String(ownerShop.ownerUserId) === String(currentUserId)) {
+                            const ownerResponse = isAdmin ? null : await apiFetch(`/api/shops/${auction.shopId}`);
+                            if (isAdmin || ownerResponse.ok) {
+                                const ownerShop = isAdmin ? null : await ownerResponse.json();
+                                if (isAdmin || String(ownerShop.ownerUserId) === String(currentUserId)) {
                                     const cancelButton = document.createElement('button');
                                     cancelButton.type = 'button';
                                     cancelButton.className = 'auction-action';
                                     cancelButton.style.marginTop = '1rem';
-                                    cancelButton.textContent = '경매 취소 (입찰이 없을 때만 가능)';
+                                    cancelButton.textContent = isAdmin ? '경매 취소 (관리자)' : '경매 취소 (입찰이 없을 때만 가능)';
                                     cancelButton.addEventListener('click', async () => {
                                         if (!confirm('이 경매를 취소하시겠습니까?')) return;
                                         cancelButton.disabled = true;
