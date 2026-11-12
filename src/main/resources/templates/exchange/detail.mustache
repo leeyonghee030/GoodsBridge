@@ -93,7 +93,7 @@
     const isOwner = currentUserId !== null && currentUserId === ownerUserId;
     const postOpen = '{{item.status}}' === 'OPEN';
     // TODO(데모 종료 후 제거): 데모 모드(app.demo.enabled)에서는 교환 보증금 결제를 건너뛴다. 서버(DemoPaymentService)도 PortOne 검증을 생략한다.
-    const skipPayment = '{{skipPayment}}' === 'true';
+    const skipPayment = '{{skipPayment}}' === 'true' && window.gbPaySkip();
     async function payDeposit(totalAmount) {
         if (skipPayment) return { paymentId: `demo-${crypto.randomUUID()}` };
         const result = await PortOne.requestPayment({

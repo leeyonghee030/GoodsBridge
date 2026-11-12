@@ -206,7 +206,7 @@ const errorText = async (res, fallback) => {
     }
 
     // TODO(데모 종료 후 제거): 데모 모드(app.demo.enabled)에서는 PortOne 결제창 없이 바로 결제된 것으로 처리한다 (서버 DemoPaymentService 도 검증 생략)
-    const skipPayment = '{{skipPayment}}' === 'true';
+    const skipPayment = '{{skipPayment}}' === 'true' && window.gbPaySkip();
     async function pay() {
         if (skipPayment) return { paymentId: `demo-pay-${crypto.randomUUID()}` };
         const result = await PortOne.requestPayment({

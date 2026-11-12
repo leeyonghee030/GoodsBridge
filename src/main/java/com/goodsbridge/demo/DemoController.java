@@ -26,6 +26,7 @@ public class DemoController {
         "user-a", DemoDataService.USER_A_EMAIL,
         "user-b", DemoDataService.USER_B_EMAIL,
         "shop", DemoDataService.SHOP_EMAIL,
+        "shop-b", DemoDataService.SHOP_B_EMAIL,
         "admin", DemoDataService.ADMIN_EMAIL
     );
 

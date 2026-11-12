@@ -61,6 +61,7 @@ public class DemoDataService {
     static final String USER_A_EMAIL = "demo-user-a@goodsbridge.demo";
     static final String USER_B_EMAIL = "demo-user-b@goodsbridge.demo";
     static final String SHOP_EMAIL = "demo-shop@goodsbridge.demo";
+    static final String SHOP_B_EMAIL = "demo-shop-b@goodsbridge.demo";
     static final String ADMIN_EMAIL = "demo-admin@goodsbridge.demo";
 
     private static final String FALLBACK_IMAGE = "/img/nav-shop.jpg";
@@ -89,13 +90,21 @@ public class DemoDataService {
         // User 엔티티에 역할 변경 메서드가 없어서 데모 계정만 직접 갱신한다.
         jdbcTemplate.update("update user_tb set role = 'ADMIN' where id = ?", admin.getId());
 
-        Shop shop = findOrCreateShop(shopOwner);
+        Shop shop = findOrCreateShop(shopOwner, "데모 굿즈샵", "서울", "서울시 마포구 데모로 1");
         resetSubscription(shop);
+
+        // 가게B: 입점 승인만 받은 상태로 구독을 처음 시작하는 시연용 가게 (구독/상품 없음)
+        User shopOwnerB = findOrCreateUser(SHOP_B_EMAIL, "데모가게B");
+        Shop shopB = findOrCreateShop(shopOwnerB, "데모 굿즈샵B", "부산", "부산시 해운대구 데모로 2");
+        jdbcTemplate.update("delete from shop_subscription_tb where shop_id = ?", shopB.getId());
+        jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shopB.getId());
+        deleteDemoData(List.of(shopOwnerB.getId()));
 
         // 이전 시연(또는 테스트)에서 쌓인 데모 가게의 수수료 기록도 초기화해서 수익 요약이 시드 데이터와 맞게 한다
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shop.getId());
         deleteDemoData(List.of(userA.getId(), userB.getId(), shopOwner.getId()));
         seed(userA, userB, shopOwner, shop);
+        seedBranches();
     }
 
     private User findOrCreateUser(String email, String nickname) {
@@ -107,14 +116,14 @@ public class DemoDataService {
             .build()));
     }
 
-    private Shop findOrCreateShop(User owner) {
+    private Shop findOrCreateShop(User owner, String name, String region, String address) {
         var existing = shopRepository.findAllByOwnerUserIdAndDeletedFalse(owner.getId(), Pageable.ofSize(1));
         if (existing.isEmpty()) {
             return shopRepository.save(Shop.builder()
                 .ownerUserId(owner.getId())
-                .name("데모 굿즈샵")
-                .region("서울")
-                .address("서울시 마포구 데모로 1")
+                .name(name)
+                .region(region)
+                .address(address)
                 .status(ShopStatus.APPROVED)
                 .build());
         }
@@ -135,6 +144,45 @@ public class DemoDataService {
             .endDate(LocalDate.now().plusYears(1))
             .status(ShopSubscriptionStatus.ACTIVE)
             .build());
+    }
+
+    // 관리자 입점/구독 관리 시연: 체인점 지점들의 입점 신청 상태와 구독 현황 (로그인하지 않는 지점 주인 계정으로 만든다)
+    // { 이름, 지역, 주소, 입점상태, 구독(NONE/ACTIVE/EXPIRING/EXPIRED), 신청 며칠 전 }
+    private void seedBranches() {
+        String[][] branches = {
+            { "(테스트) 홍대점", "서울", "서울시 마포구 어울마당로 12", "PENDING", "NONE", "0" },
+            { "(테스트) 강남점", "서울", "서울시 강남구 테헤란로 8길 21", "PENDING", "NONE", "1" },
+            { "(테스트) 부산점", "부산", "부산시 해운대구 센텀로 45", "REJECTED", "NONE", "6" },
+            { "(테스트) 성수점", "서울", "서울시 성동구 성수이로 77", "APPROVED", "ACTIVE", "40" },
+            { "(테스트) 잠실점", "서울", "서울시 송파구 올림픽로 300", "APPROVED", "EXPIRING", "355" },
+            { "(테스트) 대전점", "대전", "대전시 유성구 대학로 99", "APPROVED", "EXPIRED", "400" },
+        };
+        for (int n = 0; n < branches.length; n++) {
+            String[] b = branches[n];
+            User owner = findOrCreateUser("demo-branch-" + (n + 1) + "@goodsbridge.demo", "데모지점" + (n + 1));
+            // 이전 시연에서 만든(또는 시연 중 바뀐) 지점은 지우고 처음 상태로 다시 만든다
+            jdbcTemplate.update("delete from shop_subscription_tb where shop_id in (select id from shop_tb where owner_user_id = ?)", owner.getId());
+            jdbcTemplate.update("delete from shop_tb where owner_user_id = ?", owner.getId());
+            Shop branch = shopRepository.save(Shop.builder()
+                .ownerUserId(owner.getId()).name(b[0]).region(b[1]).address(b[2])
+                .status(ShopStatus.valueOf(b[3])).build());
+            shopRepository.flush();
+            jdbcTemplate.update("update shop_tb set created_at = ? where id = ?",
+                Timestamp.valueOf(LocalDateTime.now().minusDays(Integer.parseInt(b[5]) > 0 ? Math.min(Integer.parseInt(b[5]), 30) : 0).minusHours(n + 1)), branch.getId());
+
+            LocalDate start;
+            LocalDate end;
+            ShopSubscriptionStatus status = ShopSubscriptionStatus.ACTIVE;
+            switch (b[4]) {
+                case "ACTIVE" -> { start = LocalDate.now().minusDays(40); end = start.plusDays(365); }
+                case "EXPIRING" -> { start = LocalDate.now().minusDays(355); end = LocalDate.now().plusDays(5); }
+                case "EXPIRED" -> { start = LocalDate.now().minusDays(400); end = LocalDate.now().minusDays(10); status = ShopSubscriptionStatus.EXPIRED; }
+                default -> { continue; }
+            }
+            shopSubscriptionRepository.save(ShopSubscription.builder()
+                .shopId(branch.getId()).paymentId("demo-subscription-" + UUID.randomUUID())
+                .setupFeePaid(true).startDate(start).endDate(end).status(status).build());
+        }
     }
 
     // 시연 계정이 만든 상품/교환글과 거기에 딸린 데이터를 외래키 순서대로 지운다.
@@ -333,13 +381,13 @@ public class DemoDataService {
     // 실제 PortOne 결제 없이 결제/구매/환불 기록만 만든다
     private void seedSales(List<Item> shopItems, User buyer, Shop shop) {
         // 뒤의 두 건은 판매 정산(오늘/이번 달) 시연용 구매 확정 건
-        String[] scenarios = { "PREPARING", "SHIPPED", "CONFIRMED", "PARTIAL_REFUND", "REFUND_REQUESTED", "REFUND_REJECTED", "CONFIRMED", "CONFIRMED" };
-        int[] monthsAgo = { 0, 0, 1, 1, 0, 2, 0, 0 };
-        int[] daysAgo = { 0, 0, 0, 0, 0, 0, 1, 7 };
+        String[] scenarios = { "PREPARING", "SHIPPED", "CONFIRMED", "PARTIAL_REFUND", "REFUND_REQUESTED", "REFUND_REJECTED", "CONFIRMED", "CONFIRMED", "DELIVERED" };
+        int[] monthsAgo = { 0, 0, 1, 1, 0, 2, 0, 0, 0 };
+        int[] daysAgo = { 0, 0, 0, 0, 0, 0, 1, 7, 1 };
         String[] addresses = {
             "서울시 마포구 와우산로 21, 3층", "부산시 해운대구 해운대로 570, 1203호", "대구시 중구 동성로 12",
             "인천시 연수구 송도과학로 32, 701호", "광주시 서구 상무중앙로 7", "대전시 유성구 대학로 99, 202호",
-            "수원시 영통구 광교중앙로 140, 905호", "제주시 연동 신대로 20"
+            "수원시 영통구 광교중앙로 140, 905호", "제주시 연동 신대로 20", "울산시 남구 삼산로 55, 1001호"
         };
         // 카테고리별로 두 번째 상품(28,000원)을 골라 판매완료로 만든다 (첫 번째는 판매중으로 남긴다)
         List<Item> targets = new ArrayList<>();
@@ -360,7 +408,7 @@ public class DemoDataService {
                 .build();
             if (!state.equals("PREPARING")) purchase.ship("CJ" + (500100200300L + n));
             // 지난달 이전 주문(구매 확정/부분 환불/환불 거절)은 이미 배송이 끝난 상태
-            if (state.equals("CONFIRMED") || state.equals("PARTIAL_REFUND") || state.equals("REFUND_REJECTED")) purchase.markDelivered();
+            if (state.equals("CONFIRMED") || state.equals("PARTIAL_REFUND") || state.equals("REFUND_REJECTED") || state.equals("DELIVERED")) purchase.markDelivered();
             if (state.equals("CONFIRMED")) purchase.confirm();
             purchaseRepository.save(purchase);
             item.updateStatus(ItemStatus.SOLD);

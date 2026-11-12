@@ -40,12 +40,15 @@ public class DemoPaymentService implements PaymentService {
     public String verify(String paymentId, int expectedAmount, PaymentPurpose purpose, Long userId) {
         // TODO(데모 종료 후 제거): 상품 구매도 화면이 만든 demo-pay- 결제번호면 PortOne 없이 통과시킨다.
         // PurchaseService 는 요청의 paymentId 로 구매를 저장하므로, 같은 번호로 결제 행을 만들어야 구매/정산/환불이 연결된다.
-        if (purpose == PaymentPurpose.PURCHASE && paymentId != null && paymentId.startsWith(DEMO_PREFIX)) {
+        // 가게 구독 결제도 같은 방식으로 생략한다.
+        if ((purpose == PaymentPurpose.PURCHASE || purpose == PaymentPurpose.SHOP_SUBSCRIPTION)
+            && paymentId != null && paymentId.startsWith(DEMO_PREFIX)) {
             saveDemoPayment(paymentId, expectedAmount, purpose, userId);
             log.info("[DEMO] 상품 구매 결제 생략 - paymentId={}, userId={}, amount={}", paymentId, userId, expectedAmount);
             return paymentId;
         }
-        if (purpose != PaymentPurpose.EXCHANGE_DEPOSIT) {
+        // 교환 보증금: 화면이 만든 demo- 결제번호만 생략하고, 화면에서 '결제 O' 로 실제 결제한 건은 PortOne 으로 검증한다
+        if (purpose != PaymentPurpose.EXCHANGE_DEPOSIT || paymentId == null || !paymentId.startsWith("demo")) {
             return real.verify(paymentId, expectedAmount, purpose, userId);
         }
         String demoPaymentId = DEMO_PREFIX + UUID.randomUUID();
