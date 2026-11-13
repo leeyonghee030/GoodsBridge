@@ -3,6 +3,7 @@ package com.goodsbridge.item;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,20 @@ public class CategoryService {
      */
     public List<CategoryResponse> findAll() {
         return categoryRepository.findAllWithItemCount();
+    }
+
+    // 인기 카테고리 상위 N개 (구매 건수 기준, 0건이면 id순으로 폴백 - SHOP 메가메뉴용)
+    public List<CategoryResponse> findTopPurchased(int limit) {
+        return categoryRepository.findTopByPurchaseCount(PageRequest.of(0, limit)).stream()
+            .map(category -> CategoryResponse.of(category, itemRepository.countByCategoryIdAndDeletedFalse(category.getId())))
+            .toList();
+    }
+
+    // 인기 카테고리 상위 N개 (교환 게시글 등록 건수 기준, 0건이면 id순으로 폴백 - EXCHANGE 메가메뉴용)
+    public List<CategoryResponse> findTopExchanged(int limit) {
+        return categoryRepository.findTopByExchangeCount(PageRequest.of(0, limit)).stream()
+            .map(category -> CategoryResponse.of(category, itemRepository.countByCategoryIdAndDeletedFalse(category.getId())))
+            .toList();
     }
 
     // 카테고리 수정 (관리자용)

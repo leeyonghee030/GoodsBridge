@@ -1,4 +1,255 @@
 {{> fragments/header}}
-<h1>Item (테스트용)</h1>
-<p class="todo">TODO: #7(상품/카테고리 CRUD) 완성 후 실제 화면으로 교체</p>
+
+<style>
+/* 판매완료 상품은 흐리게 + SOLD OUT 표시 (목록 맨 아래에 모인다) */
+.card.is-sold .card-image { position: relative; }
+.card.is-sold .card-image img { opacity: 0.4; }
+.card.is-sold .card-image::after { content: 'SOLD OUT'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: 700; letter-spacing: 0.08em; color: var(--color-text); }
+.card.is-sold .card-title, .card.is-sold .card-price { color: var(--color-muted); }
+</style>
+
+<h1 class="page-title">SHOP</h1>
+<p id="shop-filter-info" class="card-meta shop-filter-info" hidden></p>
+
+<div class="list-toolbar">
+    <span class="list-toolbar-category" id="toolbar-category">전체</span>
+    <div class="list-toolbar-actions">
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="상품명, 카테고리 검색" autocomplete="off">
+        <button type="button" class="write-link" id="open-filter">필터</button>
+    </div>
+</div>
+
+<div class="filter-panel" id="filter-panel" hidden>
+    <div class="filter-row">
+        <div id="filter-quick" class="filter-chip-grid"></div>
+        <div id="status-chips" class="filter-chip-grid">
+            <button type="button" class="filter-chip active" data-status="">전체</button>
+            <button type="button" class="filter-chip" data-status="ON_SALE">판매중</button>
+            <button type="button" class="filter-chip" data-status="SOLD">판매완료</button>
+        </div>
+        <div id="sort-chips" class="filter-chip-grid">
+            <button type="button" class="filter-chip active" data-sort="latest" id="date-sort-chip">최신순</button>
+            <button type="button" class="filter-chip" data-sort="price_asc">가격 낮은순</button>
+            <button type="button" class="filter-chip" data-sort="price_desc">가격 높은순</button>
+        </div>
+    </div>
+    <p style="position: relative;">
+        <label for="categorySearch" class="sr-only">카테고리</label>
+        <input id="categorySearch" type="text" placeholder="카테고리" autocomplete="off">
+        <div id="category-results" class="autocomplete-list category-filter-list"></div>
+    </p>
+</div>
+
+<p id="item-empty" class="empty-state" hidden>조건에 맞는 상품이 없습니다.</p>
+
+<div class="card-grid" id="item-grid">
+{{#items}}
+    <a class="card" href="/test/item/{{id}}">
+        <span class="card-tag">{{categoryName}}</span>
+        <div class="card-image">
+            {{#imageUrl}}<img src="{{imageUrl}}" alt="{{title}}">{{/imageUrl}}
+            {{^imageUrl}}이미지 없음{{/imageUrl}}
+        </div>
+        <p class="card-title">{{title}}</p>
+        <p class="card-price">{{#money}}{{price}}{{/money}}원</p>
+        <p class="card-meta">{{status}}</p>
+    </a>
+{{/items}}
+</div>
+<p id="load-more-status" class="empty-state" hidden>불러오는 중...</p>
+<div id="scroll-sentinel"></div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const money = v => Number(v || 0).toLocaleString('ko-KR');
+
+    const grid = document.getElementById('item-grid');
+    const empty = document.getElementById('item-empty');
+    const filterPanel = document.getElementById('filter-panel');
+    const filterQuick = document.getElementById('filter-quick');
+    const keywordInput = document.getElementById('keyword-input');
+    const toolbarCategory = document.getElementById('toolbar-category');
+    const categorySearch = document.getElementById('categorySearch');
+    const categoryResults = document.getElementById('category-results');
+
+    let allItems = [];
+    let allCategories = [];
+    let selectedCategory = new URLSearchParams(location.search).get('category') || '';
+    let sortBy = 'latest';
+    let statusFilter = '';   // '' 전체 / ON_SALE 판매중 / SOLD 판매완료 (서버에서 거른다)
+    const STATUS_LABEL = { ON_SALE: '판매중', SOLD: '판매완료' };
+    const shopInfo = document.getElementById('shop-filter-info');
+    if (selectedCategory) toolbarCategory.textContent = selectedCategory;
+
+    function getSelectedShopId() { return localStorage.getItem('gb_shop_id') || ''; }
+
+    function renderGrid() {
+        const keyword = keywordInput.value.trim().toLowerCase();
+        const shopId = getSelectedShopId();
+        const filtered = allItems.filter(item =>
+            (!selectedCategory || item.categoryName === selectedCategory)
+            && (!shopId || String(item.shopId) === shopId)
+            && (!keyword
+                || (item.title || '').toLowerCase().includes(keyword)
+                || (item.categoryName || '').toLowerCase().includes(keyword))
+        );
+        const bySort = sortBy === 'price_asc' ? (a, b) => (a.price || 0) - (b.price || 0)
+            : sortBy === 'price_desc' ? (a, b) => (b.price || 0) - (a.price || 0)
+            : sortBy === 'oldest' ? (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+            : (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+        // 어떤 정렬이든 판매완료(SOLD OUT)는 맨 아래로
+        filtered.sort((a, b) => (a.status === 'SOLD') - (b.status === 'SOLD') || bySort(a, b));
+        empty.hidden = filtered.length > 0;
+        grid.innerHTML = filtered.map(item => `
+            <a class="card${item.status === 'SOLD' ? ' is-sold' : ''}" href="/test/item/${item.id}">
+                <span class="card-tag">${esc(item.categoryName)}</span>
+                <div class="card-image">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : '이미지 없음'}</div>
+                <p class="card-title">${esc(item.title)}</p>
+                <p class="card-price">${money(item.price)}원</p>
+                <p class="card-meta">${esc(STATUS_LABEL[item.status] || item.status)}</p>
+            </a>
+        `).join('');
+    }
+
+    function selectCategory(name) {
+        selectedCategory = name;
+        toolbarCategory.textContent = selectedCategory || '전체';
+        filterQuick.querySelectorAll('.filter-chip').forEach(chip => chip.classList.toggle('active', chip.dataset.name === name));
+        renderGrid();
+    }
+
+    function renderQuickChips(categories) {
+        allCategories = categories;
+        const top5 = [...categories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 5);
+        filterQuick.innerHTML = `<button type="button" class="filter-chip${selectedCategory ? '' : ' active'}" data-name="">전체</button>`
+            + top5.map(c => `<button type="button" class="filter-chip${c.name === selectedCategory ? ' active' : ''}" data-name="${esc(c.name)}">${esc(c.name)}</button>`).join('');
+        filterQuick.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => selectCategory(el.dataset.name)));
+    }
+
+    // 모달/패널의 overflow에 드롭다운이 가려지지 않도록 body 바로 아래 fixed 위치로 띄움
+    function positionResults(inputEl, resultsEl) {
+        const rect = inputEl.getBoundingClientRect();
+        resultsEl.style.position = 'fixed';
+        resultsEl.style.top = rect.bottom + 'px';
+        resultsEl.style.left = rect.left + 'px';
+        resultsEl.style.width = rect.width + 'px';
+    }
+
+    // 드롭다운을 완전히 접음 (display:none까지 꺼야 빈 테두리가 CSS 기본 position으로 화면에 남는 걸 막음)
+    function closeCategoryResults() {
+        categoryResults.innerHTML = '';
+        categoryResults.style.display = 'none';
+        categoryResults.style.removeProperty('position');
+        categoryResults.style.removeProperty('top');
+        categoryResults.style.removeProperty('left');
+        categoryResults.style.removeProperty('width');
+    }
+
+    // 상위 인기 카테고리 외 전체 카테고리는 입력창 클릭 시 목록으로 (많아지면 스크롤)
+    function renderCategoryList() {
+        categoryResults.style.display = '';
+        positionResults(categorySearch, categoryResults);
+        const keyword = categorySearch.value.trim().toLowerCase();
+        const matches = keyword ? allCategories.filter(c => c.name.toLowerCase().includes(keyword)) : allCategories;
+        categoryResults.innerHTML = matches.length
+            ? matches.map(c => `<div class="autocomplete-item" data-name="${esc(c.name)}">${esc(c.name)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        categoryResults.querySelectorAll('[data-name]').forEach(el => el.addEventListener('click', () => {
+            selectCategory(el.dataset.name);
+            closeCategoryResults();
+            categorySearch.value = '';
+        }));
+    }
+    categorySearch.addEventListener('focus', renderCategoryList);
+    categorySearch.addEventListener('input', renderCategoryList);
+    document.addEventListener('click', event => {
+        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) closeCategoryResults();
+    });
+    // 페이지 스크롤(카드 영역 등)이면 닫되, 드롭다운 목록 자체를 스크롤하는 건 막지 않음
+    // (scroll 이벤트는 버블링되지 않으므로 캡처 단계를 쓰지 않으면 window/document 자체 스크롤에만 반응함)
+    window.addEventListener('scroll', closeCategoryResults, { passive: true });
+
+    document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+    // 필터가 열려 있을 때 패널 바깥 클릭이나 페이지 스크롤이면 자동으로 접음
+    // (캡처 단계로 등록해서 다른 버튼의 stopPropagation과 상관없이 동작)
+    document.addEventListener('click', event => {
+        if (filterPanel.hidden || filterPanel.contains(event.target) || event.target.closest('#open-filter')) return;
+        filterPanel.hidden = true;
+    }, true);
+    window.addEventListener('scroll', () => { filterPanel.hidden = true; }, { passive: true });
+    keywordInput.addEventListener('input', renderGrid);
+
+    const dateSortChip = document.getElementById('date-sort-chip');
+    document.querySelectorAll('#sort-chips [data-sort]').forEach(el => el.addEventListener('click', () => {
+        if (el === dateSortChip) {
+            sortBy = sortBy === 'latest' ? 'oldest' : 'latest';
+            dateSortChip.textContent = sortBy === 'latest' ? '최신순' : '오래된순';
+        } else {
+            sortBy = el.dataset.sort;
+        }
+        document.querySelectorAll('#sort-chips .filter-chip').forEach(chip => chip.classList.toggle('active', chip === el));
+        renderGrid();
+    }));
+
+    function updateShopInfo() {
+        const shopId = getSelectedShopId();
+        if (!shopId) { shopInfo.hidden = true; return; }
+        pageFetch('/api/shops/' + shopId).then(res => res.ok ? res.json() : null).then(shop => {
+            if (!shop) { shopInfo.hidden = true; return; }
+            shopInfo.textContent = `${shop.name} · ${shop.region || ''} 매장의 상품만 보고 있습니다.`;
+            shopInfo.hidden = false;
+        });
+    }
+
+    window.addEventListener('gb-shop-changed', () => { updateShopInfo(); renderGrid(); });
+    updateShopInfo();
+
+    // ----- 무한스크롤: 아래로 내리면 잠깐 로딩 표시 후 다음 페이지를 불러와 이어붙임 -----
+    const loadMoreStatus = document.getElementById('load-more-status');
+    const sentinel = document.getElementById('scroll-sentinel');
+    let currentPage = 0;
+    let totalPages = 1;
+    let loading = false;
+    const PAGE_SIZE = 20;
+
+    async function loadNextPage() {
+        if (loading || currentPage >= totalPages) return;
+        loading = true;
+        loadMoreStatus.hidden = false;
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // 가게 상품만, 판매중 먼저 (판매완료는 뒤 페이지로)
+        const res = await pageFetch(`/api/items?shopOnly=true&page=${currentPage}&size=${PAGE_SIZE}${statusFilter ? '&status=' + statusFilter : ''}`);
+        if (res.ok) {
+            const page = await res.json();
+            allItems = allItems.concat(page.content || []);
+            totalPages = page.totalPages;
+            currentPage += 1;
+            renderGrid();
+        }
+        loadMoreStatus.hidden = true;
+        loading = false;
+    }
+
+    // 판매 상태 필터: 서버에서 다시 불러온다
+    document.querySelectorAll('#status-chips [data-status]').forEach(el => el.addEventListener('click', () => {
+        statusFilter = el.dataset.status;
+        document.querySelectorAll('#status-chips .filter-chip').forEach(chip => chip.classList.toggle('active', chip === el));
+        allItems = []; currentPage = 0; totalPages = 1;
+        grid.innerHTML = '';
+        loadNextPage();
+    }));
+
+    new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) loadNextPage();
+    }, { rootMargin: '400px' }).observe(sentinel);
+
+    loadNextPage();
+
+    pageFetch('/api/categories').then(res => res.ok ? res.json() : []).then(categories => renderQuickChips(categories));
+})();
+</script>
+
 {{> fragments/footer}}

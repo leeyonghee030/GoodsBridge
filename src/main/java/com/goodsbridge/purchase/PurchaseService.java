@@ -73,6 +73,10 @@ public class PurchaseService {
         if (item.getSellerUserId().equals(userId)) {
             throw new BadRequestException("본인이 등록한 상품은 구매할 수 없습니다.");
         }
+        // 가게 계정은 다른 가게 상품도 구매할 수 없다
+        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
+            throw new ForbiddenException("가게 계정은 상품을 구매할 수 없습니다.");
+        }
 
         // 이미 구매된 상품인지 확인
         if (purchaseRepository.existsByUserIdAndItemId(userId, itemId)) {
@@ -93,6 +97,10 @@ public class PurchaseService {
         // (경매가 아직 열리지 않았거나 시드 데이터처럼 경매 기록이 없어도 막는다)
         if (item.getSaleType() == SaleType.AUCTION) {
             throw new BadRequestException("경매 상품은 일반 구매할 수 없습니다. 경매에 입찰해 주세요.");
+        }
+        // 이벤트 상품(sale_type = EVENT)은 선착순 이벤트 참가로만 받을 수 있다
+        if (item.getSaleType() == SaleType.EVENT) {
+            throw new BadRequestException("이벤트 상품은 일반 구매할 수 없습니다. 선착순 이벤트에 참가해 주세요.");
         }
 
         // 경매 진행 중이거나 낙찰 후 잔금 대기 중인 상품은 일반 구매할 수 없다 (낙찰자 구매와 충돌 방지)

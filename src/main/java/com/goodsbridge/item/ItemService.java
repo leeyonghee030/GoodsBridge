@@ -40,17 +40,17 @@ public class ItemService {
     public Long create(Long userId, ItemCreateRequest request) {
         request.validate();
 
-        if (request.getShopId() == null) {
-            throw new BadRequestException("상품을 등록하려면 가게 선택이 필수입니다.");
-        }
+        // 가게 ID가 있을 때만 가게 상품으로 보고 가게/소유자/구독 검증
+        // (가게 ID 없이 들어오는 건 교환 화면에서 일반 유저가 등록하는 교환용 상품 — 기획서 3.2 예외)
+        if (request.getShopId() != null) {
+            Shop shop = shopRepository.findByIdWithLock(request.getShopId())
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
-        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+            validateShop(shop, userId);
 
-        validateShop(shop, userId);
-
-        if (!isSubscriptionActive(request.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+            if (!isSubscriptionActive(request.getShopId())) {
+                throw new ForbiddenException("구독이 활성화된 가게만 상품을 등록할 수 있습니다.");
+            }
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
@@ -80,6 +80,19 @@ public class ItemService {
         SaleType saleType,
         Pageable pageable
     ) {
+        return findAll(categoryId, region, saleType, null, pageable);
+    }
+
+    /**
+     * 전체 상품 목록 조회 및 필터링 검색 (keyword 는 제목에 포함된 글자로 검색)
+     */
+    public Page<ItemResponse> findAll(
+        Long categoryId,
+        String region,
+        SaleType saleType,
+        String keyword,
+        Pageable pageable
+    ) {
         int pageSize = Math.min(pageable.getPageSize(), MAX_PAGE_SIZE);
 
         Sort sort = pageable.getSort().isUnsorted()
@@ -92,14 +105,37 @@ public class ItemService {
             sort
         );
 
-        Page<Item> itemPage = itemRepository.searchItemsWithFilter(
+        Page<Item> itemPage = itemRepository.searchItemsWithFilterAndKeyword(
             categoryId,
             region,
             saleType,
+            titleKeyword(keyword),
             pageable
         );
 
         return itemPage.map(ItemResponse::from);
+    }
+
+    // SHOP 목록: 가게 상품만, 기본 정렬은 판매중 먼저(판매완료는 뒤로) + 최신순
+    public Page<ItemResponse> findShopItems(Long categoryId, String region, SaleType saleType, String keyword, ItemStatus status, Pageable pageable) {
+        String titleKeyword = titleKeyword(keyword);
+        int pageSize = Math.min(pageable.getPageSize(), MAX_PAGE_SIZE);
+        // ItemStatus 는 문자열로 저장되어 ON_SALE < SOLD 순서라 오름차순이면 판매중이 앞에 온다
+        // 등록일이 같으면(시연 데이터는 같은 시각으로 고정됨) 등록 순서(id)대로 — 기준이 없으면 DB 가 임의로 섞는다
+        Sort sort = Sort.by(Sort.Direction.ASC, "status")
+            .and(pageable.getSort().isUnsorted() ? Sort.by(Sort.Direction.DESC, "createdAt") : pageable.getSort())
+            .and(Sort.by(Sort.Direction.ASC, "id"));
+        pageable = PageRequest.of(pageable.getPageNumber(), pageSize, sort);
+        return itemRepository.searchShopItems(categoryId, region, saleType, titleKeyword, status, pageable).map(ItemResponse::from);
+    }
+
+    // 제목 검색어: 비어 있으면 null, 앞뒤 공백 제거, 최대 100자
+    private String titleKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
     }
 
     /**
@@ -142,16 +178,19 @@ public class ItemService {
         }
 
         if (request.getShopId() == null) {
-            throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
-        }
+            // 가게 없는 상품(교환용)은 가게 ID 없이 수정 가능. 가게 상품은 가게를 떼어낼 수 없음
+            if (item.getShopId() != null) {
+                throw new BadRequestException("상품 수정 시 가게 선택은 필수입니다.");
+            }
+        } else {
+            Shop shop = shopRepository.findByIdWithLock(request.getShopId())
+                .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
 
-        Shop shop = shopRepository.findByIdWithLock(request.getShopId())
-            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+            validateShop(shop, userId);
 
-        validateShop(shop, userId);
-
-        if (!isSubscriptionActive(request.getShopId())) {
-            throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
+            if (!isSubscriptionActive(request.getShopId())) {
+                throw new ForbiddenException("구독이 활성화된 가게의 상품만 수정할 수 있습니다.");
+            }
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())

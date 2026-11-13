@@ -1,6 +1,7 @@
 package com.goodsbridge.exchange;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -17,5 +18,10 @@ public interface ExchangeCommentRepository extends JpaRepository<ExchangeComment
     order by e.createdAt asc
 """)
     List<ExchangeComment> getCommentList(@Param("itemId") Long itemId);
+
+    // 교환 게시글 삭제 시 댓글 함께 삭제
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("delete from ExchangeComment c where c.exchangeItem.id = :itemId")
+    void deleteByExchangeItemId(@Param("itemId") Long itemId);
 
 }

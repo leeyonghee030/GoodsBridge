@@ -14,6 +14,7 @@ public class ShopCreateRequest {
     private String name;
     private String region;
     private String address;
+    private String chainCode; // 체인점 코드 (본사가 지점에 알려주는 값, ShopService.create 에서 검증)
 
 
     public void validate() {

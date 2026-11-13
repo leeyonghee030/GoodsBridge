@@ -41,14 +41,45 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         WHERE (:categoryId IS NULL OR c.id = :categoryId)
           AND (:region IS NULL OR s.region = :region)
           AND (:saleType IS NULL OR i.saleType = :saleType)
+          AND (:keyword IS NULL OR LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')))
           AND i.deleted = false
         """)
-    Page<Item> searchItemsWithFilter(
+    Page<Item> searchItemsWithFilterAndKeyword(
         @Param("categoryId") Long categoryId,
         @Param("region") String region,
         @Param("saleType") SaleType saleType,
+        @Param("keyword") String keyword,
         Pageable pageable
     );
+
+    // SHOP 목록용: 가게 상품만 (교환용 개인 상품, 선착순 이벤트 상품 제외), 판매중/판매완료만, status 가 있으면 그 상태만
+    @Query("""
+        SELECT i FROM Item i
+        JOIN FETCH i.category c
+        LEFT JOIN Shop s ON i.shopId = s.id
+        WHERE i.shopId IS NOT NULL
+          AND i.saleType <> com.goodsbridge.item.SaleType.EVENT
+          AND i.status IN (com.goodsbridge.item.ItemStatus.ON_SALE, com.goodsbridge.item.ItemStatus.SOLD)
+          AND (:status IS NULL OR i.status = :status)
+          AND (:categoryId IS NULL OR c.id = :categoryId)
+          AND (:region IS NULL OR s.region = :region)
+          AND (:saleType IS NULL OR i.saleType = :saleType)
+          AND (:keyword IS NULL OR LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND i.deleted = false
+        """)
+    Page<Item> searchShopItems(
+        @Param("categoryId") Long categoryId,
+        @Param("region") String region,
+        @Param("saleType") SaleType saleType,
+        @Param("keyword") String keyword,
+        @Param("status") ItemStatus status,
+        Pageable pageable
+    );
+
+    // 제목 검색어 없이 조회 (기존 호출부 호환)
+    default Page<Item> searchItemsWithFilter(Long categoryId, String region, SaleType saleType, Pageable pageable) {
+        return searchItemsWithFilterAndKeyword(categoryId, region, saleType, null, pageable);
+    }
 
     /**
      * 가게 삭제 시 소속 상품 전체 소프트 삭제

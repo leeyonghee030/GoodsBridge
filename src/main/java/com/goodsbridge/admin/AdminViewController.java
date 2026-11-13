@@ -16,6 +16,7 @@ public class AdminViewController {
     // 관리자 페이지 화면. 관리자 여부(isAdmin)만 넘기고, 대시보드와 접근 불가 안내 중 무엇을 보여줄지는 index.mustache가 정한다.
     @GetMapping("/test/admin")
     public String index(Authentication authentication, Model model) {
+        model.addAttribute("userId", currentUserId(authentication));
         model.addAttribute("isAdmin", isAdmin(authentication));
         return "admin/index";
     }
@@ -32,5 +33,13 @@ public class AdminViewController {
     private boolean isAdmin(Authentication authentication) {
         return authentication != null && authentication.getAuthorities().stream()
             .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    private Long currentUserId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            return null;
+        }
+        return (Long) authentication.getPrincipal();
     }
 }

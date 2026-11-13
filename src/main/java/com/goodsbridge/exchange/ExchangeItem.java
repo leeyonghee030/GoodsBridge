@@ -67,6 +67,12 @@ public class ExchangeItem {
         return this.status == ExchangeItemStatus.MATCHED;
     }
 
+    // 게시글 수정 (원하는 것, 교환 장소)
+    public void update(String wantDescription, Shop shop) {
+        this.wantDescription = wantDescription;
+        this.shop = shop;
+    }
+
     //상태 변경 메서드
     public void updateStatus(ExchangeItemStatus status){
         this.status = status;

@@ -1,4 +1,696 @@
 {{> fragments/header}}
-<h1>Exchange (테스트용)</h1>
-<p class="todo">TODO: #10/#18(교환 CRUD+보증금정산) 완성 후 실제 화면으로 교체</p>
+
+<h1 class="page-title">교환 게시판
+    <span class="page-title-actions">
+        <button type="button" id="open-my-items" class="write-link">내 아이템</button>
+        <button type="button" id="open-item-create" class="write-link">상품 등록</button>
+        <button type="button" id="open-create" class="write-link">글쓰기</button>
+    </span>
+</h1>
+<p id="shop-filter-info" class="card-meta shop-filter-info" hidden></p>
+
+<div class="list-toolbar">
+    <span class="list-toolbar-category" id="toolbar-category">전체</span>
+    <div class="list-toolbar-actions">
+        <div class="scope-dropdown" id="scope-dropdown">
+            <button type="button" class="write-link" id="scope-trigger">전체</button>
+            <div class="scope-menu" id="scope-menu" hidden>
+                <button type="button" class="scope-menu-item active" data-scope="all">전체</button>
+                <button type="button" class="scope-menu-item" data-scope="title">제목</button>
+                <button type="button" class="scope-menu-item" data-scope="want">원하는 것</button>
+            </div>
+        </div>
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="검색" autocomplete="off" value="{{keyword}}">
+        <button type="button" class="write-link" id="open-filter">필터</button>
+    </div>
+</div>
+
+<div class="filter-panel" id="filter-panel" hidden>
+    <div class="filter-row">
+        <div id="filter-quick" class="filter-chip-grid"></div>
+        <div id="sort-chips" class="filter-chip-grid">
+            <button type="button" class="filter-chip active" data-sort="latest" id="date-sort-chip">최신순</button>
+            <button type="button" class="filter-chip" data-sort="price_asc">가격 낮은순</button>
+            <button type="button" class="filter-chip" data-sort="price_desc">가격 높은순</button>
+            <button type="button" class="filter-chip" data-sort="popular">인기순</button>
+        </div>
+    </div>
+    <p style="position: relative;">
+        <label for="categorySearch" class="sr-only">카테고리</label>
+        <input id="categorySearch" type="text" placeholder="카테고리" autocomplete="off">
+        <div id="category-results" class="autocomplete-list category-filter-list"></div>
+    </p>
+</div>
+
+{{^items}}
+<p class="empty-state">아직 등록된 교환 게시글이 없습니다.</p>
+{{/items}}
+
+<div class="card-grid" id="item-grid">
+{{#items}}
+    <a class="card" href="/exchange/{{id}}" data-price="{{itemPrice}}" data-created="{{createdAt}}" data-title="{{itemTitle}}" data-category="{{categoryName}}" data-want="{{wantDescription}}" data-shop-id="{{shopId}}" data-request-count="{{requestCount}}">
+        <span class="card-tag">■ {{status.displayName}}</span>
+        <div class="card-image">
+            {{#itemImageUrl}}<img src="{{itemImageUrl}}" alt="{{itemTitle}}">{{/itemImageUrl}}
+            {{^itemImageUrl}}이미지 없음{{/itemImageUrl}}
+        </div>
+        <p class="card-title">{{itemTitle}}</p>
+        <p class="card-price">{{#money}}{{itemPrice}}{{/money}}원</p>
+        <p class="card-meta">원하는 것: {{wantDescription}}</p>
+    </a>
+{{/items}}
+</div>
+<p id="load-more-status" class="empty-state" hidden>불러오는 중...</p>
+<div id="scroll-sentinel"></div>
+
+<div class="modal-backdrop" id="create-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="close-create">✕</button>
+        <h1>교환 게시글 작성</h1>
+        <form id="create-form">
+            <p>
+                <label for="itemId" class="sr-only">내 아이템</label>
+                <select id="itemId" name="itemId" required>
+                    <option value="">내 아이템을 선택하세요</option>
+                </select>
+            </p>
+            <p>
+                <textarea id="wantDescription" name="wantDescription" placeholder="원하는 것을 적어주세요" rows="3" required></textarea>
+            </p>
+            <p style="position: relative;">
+                <input id="shopName" type="text" placeholder="교환장소(가게) 이름을 검색하세요" autocomplete="off" required>
+                <input id="shopId" type="hidden" name="shopId">
+                <div id="shop-results" class="autocomplete-list"></div>
+            </p>
+            <button type="submit">게시글 등록</button>
+        </form>
+        <p id="create-message" class="form-message"></p>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="item-create-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-back" id="item-create-back" hidden>← 내 아이템</button>
+        <button type="button" class="modal-close" id="close-item-create">✕</button>
+        <h1 id="item-create-heading">상품 등록</h1>
+        <form id="item-create-form">
+            <p>
+                <label for="item-create-title" class="sr-only">상품명</label>
+                <input id="item-create-title" type="text" placeholder="상품명" maxlength="100" autocomplete="off" required>
+            </p>
+            <p>
+                <label for="item-create-category" class="sr-only">카테고리</label>
+                <select id="item-create-category" required>
+                    <option value="">카테고리를 선택하세요</option>
+                </select>
+            </p>
+            <p>
+                <label for="item-create-price" class="sr-only">가격</label>
+                <span class="price-input">
+                    <input id="item-create-price" type="text" inputmode="numeric" placeholder="가격" autocomplete="off" required>
+                    <span class="price-input-unit">원</span>
+                </span>
+            </p>
+            <p>
+                <textarea id="item-create-description" placeholder="상품 설명 (선택)" rows="3"></textarea>
+            </p>
+            <p class="image-picker">
+                <input id="item-create-image" type="file" class="sr-only" accept="image/jpeg,image/png,image/gif,image/webp">
+                <label for="item-create-image" class="image-picker-btn">이미지 선택</label>
+                <span id="item-create-image-name" class="image-picker-name">선택된 이미지 없음</span>
+            </p>
+            <button type="submit" id="item-create-submit">등록</button>
+        </form>
+        <p id="item-create-message" class="form-message"></p>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="my-items-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="close-my-items">✕</button>
+        <h1>내 아이템</h1>
+        <div class="filter-chip-grid" id="my-items-tabs">
+            <button type="button" class="filter-chip active" data-status="ON_SALE">교환 가능</button>
+            <button type="button" class="filter-chip" data-status="SOLD">교환한 아이템</button>
+        </div>
+        <div id="my-items-list" class="my-items-list"></div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    // 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    function requireLogin() {
+        if (userId !== null) return true;
+        alert('로그인이 필요합니다.');
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) loginModal.hidden = false;
+        return false;
+    }
+
+    const modal = document.getElementById('create-modal');
+    let itemsLoaded = false;
+    let myOnSaleItems = [];
+
+    async function loadMyItems() {
+        if (itemsLoaded) return myOnSaleItems;
+        const res = await pageFetch('/api/items/me');
+        if (!res.ok) return [];
+        itemsLoaded = true;
+        const items = await res.json();
+        myOnSaleItems = items.filter(item => item.status === 'ON_SALE');
+        const select = document.getElementById('itemId');
+        myOnSaleItems.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.id;
+            option.textContent = `${item.title} (${money(item.price)})`;
+            select.appendChild(option);
+        });
+        return myOnSaleItems;
+    }
+
+    document.getElementById('open-create').addEventListener('click', async () => {
+        if (!requireLogin()) return;
+        const onSaleItems = await loadMyItems();
+        if (onSaleItems.length === 0) {
+            alert('교환에 쓸 상품이 없습니다. 먼저 상품을 등록해주세요.');
+            itemCreateModal.hidden = false;
+            loadItemCreateCategories();
+            return;
+        }
+        modal.hidden = false;
+    });
+    document.getElementById('close-create').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
+
+    // ===== 상품 등록 (가게 없는 유저용 — 가게 사장님은 본인 가게 페이지에서 등록) =====
+    const itemCreateModal = document.getElementById('item-create-modal');
+    const openItemCreateButton = document.getElementById('open-item-create');
+    let itemCategoriesLoaded = false;
+
+    async function loadItemCreateCategories() {
+        if (itemCategoriesLoaded) return;
+        const res = await pageFetch('/api/categories');
+        if (!res.ok) return;
+        itemCategoriesLoaded = true;
+        const categories = await res.json();
+        const select = document.getElementById('item-create-category');
+        categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category.id;
+            option.textContent = category.name;
+            select.appendChild(option);
+        });
+    }
+
+    // 이미지 선택: 기본 파일 버튼 대신 "이미지 선택" 버튼 + 고른 파일 이름 표시
+    // (교환한 아이템을 다시 등록할 때는 새로 고르지 않으면 기존 이미지를 그대로 사용)
+    const itemCreateForm = document.getElementById('item-create-form');
+    const itemImageInput = document.getElementById('item-create-image');
+    const itemImageName = document.getElementById('item-create-image-name');
+    let reuseImageUrl = null;
+    function updateImageName() {
+        const file = itemImageInput.files[0];
+        itemImageName.textContent = file ? file.name : (reuseImageUrl ? '기존 이미지 사용' : '선택된 이미지 없음');
+    }
+    itemImageInput.addEventListener('change', updateImageName);
+
+    // 같은 창을 상품 수정에도 사용 (editingItem이 있으면 수정 모드)
+    let editingItem = null;
+    function setItemFormMode(item) {
+        editingItem = item;
+        document.getElementById('item-create-heading').textContent = item ? '상품 수정' : '상품 등록';
+        document.getElementById('item-create-submit').textContent = item ? '수정' : '등록';
+    }
+
+    function resetItemCreateForm() {
+        itemCreateForm.reset();
+        reuseImageUrl = null;
+        setItemFormMode(null);
+        updateImageName();
+        document.getElementById('item-create-message').textContent = '';
+        document.getElementById('item-create-back').hidden = true;
+    }
+
+    openItemCreateButton.addEventListener('click', () => {
+        if (!requireLogin()) return;
+        resetItemCreateForm();
+        itemCreateModal.hidden = false;
+        loadItemCreateCategories();
+    });
+    document.getElementById('close-item-create').addEventListener('click', () => { itemCreateModal.hidden = true; });
+    itemCreateModal.addEventListener('click', event => { if (event.target === itemCreateModal) itemCreateModal.hidden = true; });
+
+    // 가격 입력: 숫자만 받고 입력하는 동안 천 단위 콤마로 표시 (예: 15000 → 15,000)
+    const itemCreatePrice = document.getElementById('item-create-price');
+    itemCreatePrice.addEventListener('input', () => {
+        const digits = itemCreatePrice.value.replace(/\D/g, '').replace(/^0+/, '');
+        itemCreatePrice.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    });
+
+    document.getElementById('item-create-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = document.getElementById('item-create-message');
+        const price = Number(itemCreatePrice.value.replace(/\D/g, ''));
+        if (!price) { message.textContent = '가격을 입력해주세요.'; message.className = 'form-message error'; return; }
+
+        // 이미지를 골랐으면 먼저 업로드해서 URL을 받은 뒤 상품 등록에 사용
+        let imageUrl = reuseImageUrl;
+        const imageFile = itemImageInput.files[0];
+        if (imageFile) {
+            const formData = new FormData();
+            formData.append('image', imageFile);
+            const uploadRes = await pageFetch('/api/items/images', { method: 'POST', body: formData });
+            if (!uploadRes.ok) { message.textContent = await errorText(uploadRes, '이미지 업로드에 실패했습니다.'); message.className = 'form-message error'; return; }
+            imageUrl = (await uploadRes.json()).imageUrl;
+        }
+
+        const body = {
+            categoryId: Number(document.getElementById('item-create-category').value),
+            title: document.getElementById('item-create-title').value.trim(),
+            description: document.getElementById('item-create-description').value.trim() || null,
+            price: price,
+            saleType: editingItem ? editingItem.saleType : 'NORMAL',
+            imageUrl: imageUrl
+        };
+        const wasEditing = !!editingItem;
+        if (wasEditing) body.status = editingItem.status;
+        const res = await pageFetch(wasEditing ? '/api/items/' + editingItem.id : '/api/items', {
+            method: wasEditing ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+        });
+        if (!res.ok) { message.textContent = await errorText(res, (wasEditing ? '수정에 실패했습니다.' : '등록에 실패했습니다.')); message.className = 'form-message error'; return; }
+        message.textContent = wasEditing ? '상품이 수정되었습니다.' : '상품이 등록되었습니다.';
+        message.className = 'form-message';
+        itemsLoaded = false; // 교환 글쓰기의 "내 아이템" 목록에 새로 등록한 상품이 반영되도록
+        document.getElementById('itemId').innerHTML = '<option value="">내 아이템을 선택하세요</option>';
+        itemCreateForm.reset();
+        reuseImageUrl = null;
+        setItemFormMode(null);
+        updateImageName();
+        setTimeout(() => {
+            itemCreateModal.hidden = true;
+            if (wasEditing) openMyItems(); // 수정 후에는 내 아이템 목록으로 돌아감
+        }, 800);
+    });
+
+    // ===== 내 아이템: 교환 가능 / 교환한 아이템(교환 확정되어 SOLD) =====
+    // 교환한 아이템은 눌러서 같은 내용으로 바로 다시 등록 가능 (같은 굿즈를 여러 개 가진 경우가 많음)
+    const myItemsModal = document.getElementById('my-items-modal');
+    const myItemsList = document.getElementById('my-items-list');
+    let myItemsAll = [];
+    let myItemsStatus = 'ON_SALE';
+
+    function renderMyItems() {
+        const items = myItemsAll.filter(item => item.status === myItemsStatus);
+        const sold = myItemsStatus === 'SOLD';
+        if (items.length === 0) {
+            myItemsList.innerHTML = `<p class="empty">${sold ? '교환한 아이템이 없습니다.' : '교환 가능한 아이템이 없습니다.'}</p>`;
+            return;
+        }
+        // 교환 가능: 수정/삭제, 교환한 아이템: 다시 등록/삭제
+        const mainAction = sold
+            ? '<button type="button" data-action="reuse">다시 등록</button>'
+            : '<button type="button" data-action="edit">수정</button>';
+        myItemsList.innerHTML = items.map(item => `
+            <div class="related-item-link my-item-row" data-id="${item.id}">
+                <span class="related-item-thumb">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="">` : '📦'}</span>
+                <span class="related-item-text">
+                    <small>${esc(item.categoryName)}</small>
+                    <strong>${esc(item.title)}</strong>
+                    <small>${money(item.price)}</small>
+                </span>
+                <span class="my-item-actions">
+                    ${mainAction}
+                    <button type="button" class="is-danger" data-action="delete">삭제</button>
+                </span>
+            </div>`).join('');
+    }
+
+    async function openMyItems() {
+        const res = await pageFetch('/api/items/me');
+        if (!res.ok) { alert('내 아이템을 불러오지 못했습니다.'); return; }
+        myItemsAll = await res.json();
+        renderMyItems();
+        myItemsModal.hidden = false;
+    }
+
+    // 아이템 내용으로 등록 창을 채워서 열기 (다시 등록: 새 상품으로 등록 / 수정: 해당 상품 수정)
+    async function openItemFormWith(item, editMode) {
+        await loadItemCreateCategories();
+        resetItemCreateForm();
+        if (editMode) setItemFormMode(item);
+        document.getElementById('item-create-title').value = item.title;
+        itemCreatePrice.value = Number(item.price || 0).toLocaleString('ko-KR');
+        document.getElementById('item-create-description').value = item.description || '';
+        const categorySelect = document.getElementById('item-create-category');
+        const categoryOption = Array.from(categorySelect.options).find(option => option.textContent === item.categoryName);
+        categorySelect.value = categoryOption ? categoryOption.value : '';
+        reuseImageUrl = item.imageUrl || null;
+        updateImageName();
+        document.getElementById('item-create-back').hidden = false; // 내 아이템에서 열었을 때만 뒤로가기 표시
+        myItemsModal.hidden = true;
+        itemCreateModal.hidden = false;
+    }
+
+    // 뒤로가기: 수정/다시 등록을 취소하고 내 아이템 목록으로 돌아감
+    document.getElementById('item-create-back').addEventListener('click', () => {
+        itemCreateModal.hidden = true;
+        resetItemCreateForm();
+        myItemsModal.hidden = false;
+    });
+
+    document.getElementById('open-my-items').addEventListener('click', () => {
+        if (!requireLogin()) return;
+        openMyItems();
+    });
+    document.getElementById('close-my-items').addEventListener('click', () => { myItemsModal.hidden = true; });
+    myItemsModal.addEventListener('click', event => { if (event.target === myItemsModal) myItemsModal.hidden = true; });
+    document.getElementById('my-items-tabs').addEventListener('click', event => {
+        const tab = event.target.closest('[data-status]');
+        if (!tab) return;
+        myItemsStatus = tab.dataset.status;
+        document.querySelectorAll('#my-items-tabs [data-status]').forEach(el => el.classList.toggle('active', el === tab));
+        renderMyItems();
+    });
+    myItemsList.addEventListener('click', async event => {
+        const button = event.target.closest('[data-action]');
+        if (!button) return;
+        const row = button.closest('.my-item-row');
+        const item = myItemsAll.find(i => String(i.id) === row.dataset.id);
+        if (!item) return;
+        const action = button.dataset.action;
+        if (action === 'reuse') openItemFormWith(item, false);
+        if (action === 'edit') openItemFormWith(item, true);
+        if (action === 'delete') {
+            if (!(await gbConfirm(`'${item.title}'을(를) 삭제할까요?`))) return;
+            const res = await pageFetch('/api/items/' + item.id, { method: 'DELETE' });
+            if (!res.ok) { alert(await errorText(res, '삭제에 실패했습니다.')); return; }
+            myItemsAll = myItemsAll.filter(i => i.id !== item.id);
+            renderMyItems();
+            itemsLoaded = false; // 교환 글쓰기의 "내 아이템" 선택 목록도 새로 불러오도록
+            document.getElementById('itemId').innerHTML = '<option value="">내 아이템을 선택하세요</option>';
+        }
+    });
+
+    // 스크롤 중에만 스크롤바 표시 (댓글 목록과 동일)
+    let myItemsScrollTimer;
+    myItemsList.addEventListener('scroll', () => {
+        myItemsList.classList.add('is-scrolling');
+        clearTimeout(myItemsScrollTimer);
+        myItemsScrollTimer = setTimeout(() => myItemsList.classList.remove('is-scrolling'), 600);
+    });
+
+    {{#userId}}
+    pageFetch('/api/shops/me?size=1').then(res => res.ok ? res.json() : null).then(page => {
+        const isShopOwner = !!(page && page.content && page.content.length > 0);
+        openItemCreateButton.hidden = isShopOwner;
+        document.getElementById('open-my-items').hidden = isShopOwner;
+        document.getElementById('open-create').hidden = isShopOwner;   // 가게 사장님은 교환글을 올리지 않는다
+    });
+    {{/userId}}
+
+    // 모달의 overflow:auto에 드롭다운이 가려지지 않도록 body 바로 아래 fixed 위치로 띄움
+    function positionResults(inputEl, resultsEl) {
+        const rect = inputEl.getBoundingClientRect();
+        resultsEl.style.position = 'fixed';
+        resultsEl.style.top = rect.bottom + 'px';
+        resultsEl.style.left = rect.left + 'px';
+        resultsEl.style.width = rect.width + 'px';
+    }
+
+    let shopSearchTimer;
+    document.getElementById('shopName').addEventListener('input', event => {
+        document.getElementById('shopId').value = '';
+        clearTimeout(shopSearchTimer);
+        const keyword = event.target.value.trim();
+        const results = document.getElementById('shop-results');
+        positionResults(event.target, results);
+        if (!keyword) { results.innerHTML = ''; return; }
+        shopSearchTimer = setTimeout(async () => {
+            const res = await pageFetch('/api/shops?name=' + encodeURIComponent(keyword));
+            if (!res.ok) return;
+            const page = await res.json();
+            const shops = page.content || [];
+            positionResults(event.target, results);
+            results.innerHTML = shops.length
+                ? shops.map(shop => `<div class="autocomplete-item" data-id="${shop.id}" data-name="${esc(shop.name)}">${esc(shop.name)} · ${esc(shop.region || '')}</div>`).join('')
+                : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+            results.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
+                document.getElementById('shopId').value = el.dataset.id;
+                document.getElementById('shopName').value = el.dataset.name;
+                results.innerHTML = '';
+            }));
+        }, 250);
+    });
+
+    document.getElementById('create-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = document.getElementById('create-message');
+        const shopId = document.getElementById('shopId').value;
+        if (!shopId) { message.textContent = '목록에서 가게를 선택해주세요.'; message.className = 'form-message error'; return; }
+        const body = {
+            itemId: Number(document.getElementById('itemId').value),
+            wantDescription: document.getElementById('wantDescription').value.trim(),
+            shopId: Number(shopId)
+        };
+        const res = await pageFetch('/api/exchange-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) { message.textContent = await errorText(res, '등록에 실패했습니다.'); message.className = 'form-message error'; return; }
+        const created = await res.json();
+        location.href = '/exchange/' + created.id;
+    });
+
+    // ----- 카테고리/검색 필터 -----
+    const params = new URLSearchParams(location.search);
+    const selectedCategoryId = params.get('category');
+    const categoryNameParam = params.get('categoryName');
+    const keywordValue = params.get('keyword') || '';
+    const filterPanel = document.getElementById('filter-panel');
+    const filterQuick = document.getElementById('filter-quick');
+    const keywordInput = document.getElementById('keyword-input');
+    const categorySearch = document.getElementById('categorySearch');
+    const categoryResults = document.getElementById('category-results');
+    let allCategories = [];
+
+    function goToCategory(id) {
+        const query = new URLSearchParams();
+        if (id) query.set('category', id);
+        if (keywordValue) query.set('keyword', keywordValue);
+        location.href = '/exchange' + (query.toString() ? '?' + query.toString() : '');
+    }
+
+    function renderQuickChips() {
+        const top5 = [...allCategories].sort((a, b) => (b.itemCount || 0) - (a.itemCount || 0)).slice(0, 5);
+        filterQuick.innerHTML = '<button type="button" class="filter-chip' + (!selectedCategoryId ? ' active' : '') + '" data-id="">전체</button>'
+            + top5.map(c => `<button type="button" class="filter-chip${String(c.id) === selectedCategoryId ? ' active' : ''}" data-id="${c.id}">${esc(c.name)}</button>`).join('');
+        filterQuick.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
+    }
+
+    // 드롭다운을 완전히 접음 (display:none까지 꺼야 빈 테두리가 CSS 기본 position으로 화면에 남는 걸 막음)
+    function closeCategoryResults() {
+        categoryResults.innerHTML = '';
+        categoryResults.style.display = 'none';
+        categoryResults.style.removeProperty('position');
+        categoryResults.style.removeProperty('top');
+        categoryResults.style.removeProperty('left');
+        categoryResults.style.removeProperty('width');
+    }
+
+    // 상위 인기 카테고리 외 전체 카테고리는 입력창 클릭 시 목록으로 (많아지면 스크롤)
+    function renderCategoryList() {
+        categoryResults.style.display = '';
+        positionResults(categorySearch, categoryResults);
+        const keyword = categorySearch.value.trim().toLowerCase();
+        const matches = keyword ? allCategories.filter(c => c.name.toLowerCase().includes(keyword)) : allCategories;
+        categoryResults.innerHTML = matches.length
+            ? matches.map(c => `<div class="autocomplete-item" data-id="${c.id}">${esc(c.name)}</div>`).join('')
+            : '<div class="autocomplete-item empty">검색 결과가 없습니다</div>';
+        categoryResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => goToCategory(el.dataset.id)));
+    }
+    categorySearch.addEventListener('focus', renderCategoryList);
+    categorySearch.addEventListener('input', renderCategoryList);
+    document.addEventListener('click', event => {
+        if (!categorySearch.contains(event.target) && !categoryResults.contains(event.target)) closeCategoryResults();
+    });
+    // 페이지 스크롤(카드 영역 등)이면 닫되, 드롭다운 목록 자체를 스크롤하는 건 막지 않음
+    // (scroll 이벤트는 버블링되지 않으므로 캡처 단계를 쓰지 않으면 window/document 자체 스크롤에만 반응함)
+    window.addEventListener('scroll', closeCategoryResults, { passive: true });
+
+    document.getElementById('open-filter').addEventListener('click', () => { filterPanel.hidden = !filterPanel.hidden; });
+    // 필터가 열려 있을 때 패널 바깥 클릭이나 페이지 스크롤이면 자동으로 접음
+    // (캡처 단계로 등록해서 다른 버튼의 stopPropagation과 상관없이 동작)
+    document.addEventListener('click', event => {
+        if (filterPanel.hidden || filterPanel.contains(event.target) || event.target.closest('#open-filter')) return;
+        filterPanel.hidden = true;
+    }, true);
+    window.addEventListener('scroll', () => { filterPanel.hidden = true; }, { passive: true });
+
+    // ----- 정렬 (이미 로드된 카드들을 재정렬, 서버 재요청 없음) -----
+    const itemGrid = document.getElementById('item-grid');
+    const dateSortChip = document.getElementById('date-sort-chip');
+    const sortChips = document.querySelectorAll('#sort-chips .filter-chip');
+    const popularChip = document.querySelector('#sort-chips [data-sort="popular"]');
+    let dateSortDirection = 'latest';
+
+    function applySort(sortBy) {
+        const cards = Array.from(itemGrid.children);
+        cards.sort((a, b) => {
+            if (sortBy === 'price_asc') return Number(a.dataset.price) - Number(b.dataset.price);
+            if (sortBy === 'price_desc') return Number(b.dataset.price) - Number(a.dataset.price);
+            if (sortBy === 'popular') return Number(b.dataset.requestCount || 0) - Number(a.dataset.requestCount || 0);
+            if (sortBy === 'oldest') return new Date(a.dataset.created) - new Date(b.dataset.created);
+            return new Date(b.dataset.created) - new Date(a.dataset.created);
+        });
+        cards.forEach(card => itemGrid.appendChild(card));
+    }
+
+    document.querySelectorAll('#sort-chips [data-sort]').forEach(el => el.addEventListener('click', () => {
+        sortChips.forEach(chip => chip.classList.toggle('active', chip === el));
+        let sortBy = el.dataset.sort;
+        if (el === dateSortChip) {
+            dateSortDirection = dateSortDirection === 'latest' ? 'oldest' : 'latest';
+            dateSortChip.textContent = dateSortDirection === 'latest' ? '최신순' : '오래된순';
+            sortBy = dateSortDirection;
+        }
+        applySort(sortBy);
+    }));
+
+    // 인기 카테고리 등 카테고리를 지정해서 들어온 경우, 기본 정렬을 "최신순" 대신 "인기순"(제안받은 횟수)으로
+    if (selectedCategoryId && popularChip) {
+        sortChips.forEach(chip => chip.classList.toggle('active', chip === popularChip));
+        applySort('popular');
+    }
+
+    // 입력할 때마다 한 글자씩 바로 필터링 (이미 로드된 카드 안에서, 서버 재요청 없음) + 헤더 "전체매장"에서 고른 매장
+    const shopInfo = document.getElementById('shop-filter-info');
+    function getSelectedShopId() { return localStorage.getItem('gb_shop_id') || ''; }
+
+    // 검색 범위 선택: 전체(제목+카테고리+원하는것) / 제목(+카테고리) / 원하는 것(교환 품목)
+    let searchScope = 'all';
+    const scopeTrigger = document.getElementById('scope-trigger');
+    const scopeMenu = document.getElementById('scope-menu');
+    const scopeLabels = { all: '전체', title: '제목', want: '원하는 것' };
+
+    document.getElementById('scope-dropdown').addEventListener('click', event => {
+        event.stopPropagation();
+        if (event.target === scopeTrigger) { scopeMenu.hidden = !scopeMenu.hidden; return; }
+        const item = event.target.closest('.scope-menu-item');
+        if (!item) return;
+        searchScope = item.dataset.scope;
+        scopeTrigger.textContent = scopeLabels[searchScope];
+        scopeMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
+        scopeMenu.hidden = true;
+        applyCardFilters();
+    });
+    document.addEventListener('click', () => { scopeMenu.hidden = true; });
+
+    function applyCardFilters() {
+        const keyword = keywordInput.value.trim().toLowerCase();
+        const shopId = getSelectedShopId();
+        Array.from(itemGrid.children).forEach(card => {
+            const title = (card.dataset.title || '').toLowerCase();
+            const category = (card.dataset.category || '').toLowerCase();
+            const want = (card.dataset.want || '').toLowerCase();
+            const scopeMatches = !keyword || (
+                searchScope === 'title' ? (title.includes(keyword) || category.includes(keyword)) :
+                searchScope === 'want' ? want.includes(keyword) :
+                (title.includes(keyword) || category.includes(keyword) || want.includes(keyword))
+            );
+            const matches = scopeMatches && (!shopId || card.dataset.shopId === shopId);
+            card.style.display = matches ? '' : 'none';
+        });
+    }
+
+    function updateShopInfo() {
+        const shopId = getSelectedShopId();
+        if (!shopId) { shopInfo.hidden = true; return; }
+        pageFetch('/api/shops/' + shopId).then(res => res.ok ? res.json() : null).then(shop => {
+            if (!shop) { shopInfo.hidden = true; return; }
+            shopInfo.textContent = `${shop.name} · ${shop.region || ''} 매장에서 하는 교환만 보고 있습니다.`;
+            shopInfo.hidden = false;
+        });
+    }
+
+    window.addEventListener('gb-shop-changed', () => { updateShopInfo(); applyCardFilters(); });
+    updateShopInfo();
+    applyCardFilters();
+
+    keywordInput.addEventListener('input', applyCardFilters);
+
+    keywordInput.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        const query = new URLSearchParams();
+        if (selectedCategoryId) query.set('category', selectedCategoryId);
+        const value = keywordInput.value.trim();
+        if (value) query.set('keyword', value);
+        location.href = '/exchange' + (query.toString() ? '?' + query.toString() : '');
+    });
+
+    pageFetch('/api/categories').then(res => res.ok ? res.json() : []).then(categories => {
+        allCategories = categories;
+        if (categoryNameParam && !selectedCategoryId) {
+            const matched = categories.find(c => c.name === categoryNameParam);
+            if (matched) { goToCategory(matched.id); return; }
+        }
+        renderQuickChips();
+        if (selectedCategoryId) {
+            const current = categories.find(c => String(c.id) === selectedCategoryId);
+            if (current) document.getElementById('toolbar-category').textContent = current.name;
+        }
+    });
+
+    // ----- 무한스크롤: 아래로 내리면 잠깐 로딩 표시 후 다음 페이지를 불러와 이어붙임 -----
+    const statusLabels = { OPEN: '모집중', MATCHED: '매칭완료', CLOSED: '마감' };
+    const loadMoreStatus = document.getElementById('load-more-status');
+    const sentinel = document.getElementById('scroll-sentinel');
+    let currentPage = 1; // 0페이지는 서버에서 이미 렌더링됨
+    let totalPages = {{totalPages}};
+    let loading = false;
+    const PAGE_SIZE = 20;
+
+    function cardHtml(item) {
+        return `<a class="card" href="/exchange/${item.id}" data-price="${item.itemPrice}" data-created="${item.createdAt}" data-title="${esc(item.itemTitle)}" data-category="${esc(item.categoryName)}" data-want="${esc(item.wantDescription)}" data-shop-id="${item.shopId}" data-request-count="${item.requestCount || 0}">
+            <span class="card-tag">■ ${esc(statusLabels[item.status] || item.status)}</span>
+            <div class="card-image">${item.itemImageUrl ? `<img src="${esc(item.itemImageUrl)}" alt="${esc(item.itemTitle)}">` : '이미지 없음'}</div>
+            <p class="card-title">${esc(item.itemTitle)}</p>
+            <p class="card-price">${money(item.itemPrice)}</p>
+            <p class="card-meta">원하는 것: ${esc(item.wantDescription)}</p>
+        </a>`;
+    }
+
+    async function loadNextPage() {
+        if (loading || currentPage >= totalPages) return;
+        loading = true;
+        loadMoreStatus.hidden = false;
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const query = new URLSearchParams({ page: currentPage, size: PAGE_SIZE });
+        if (selectedCategoryId) query.set('category', selectedCategoryId);
+        if (keywordValue) query.set('keyword', keywordValue);
+        const res = await pageFetch('/api/exchange-items/page?' + query.toString());
+        if (res.ok) {
+            const page = await res.json();
+            itemGrid.insertAdjacentHTML('beforeend', (page.content || []).map(cardHtml).join(''));
+            totalPages = page.totalPages;
+            currentPage += 1;
+            applyCardFilters();
+        }
+        loadMoreStatus.hidden = true;
+        loading = false;
+    }
+
+    new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting) loadNextPage();
+    }, { rootMargin: '400px' }).observe(sentinel);
+})();
+</script>
+
 {{> fragments/footer}}

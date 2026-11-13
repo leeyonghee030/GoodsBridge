@@ -26,6 +26,7 @@ public class PurchaseViewController {
     public String index(Model model) {
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
         return "purchase/index";
     }
 

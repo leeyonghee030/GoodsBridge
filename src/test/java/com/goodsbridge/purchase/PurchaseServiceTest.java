@@ -163,6 +163,23 @@ class PurchaseServiceTest {
     }
 
     @Test
+    void purchase_rejectsEventSaleTypeItemBeforePaymentVerification() {
+        Item item = mock(Item.class);
+        when(item.getSellerUserId()).thenReturn(99L);
+        when(item.getStatus()).thenReturn(ItemStatus.ON_SALE);
+        when(item.getSaleType()).thenReturn(com.goodsbridge.item.SaleType.EVENT);
+        when(itemRepository.findById(7L)).thenReturn(java.util.Optional.of(item));
+
+        PurchaseRequest.CreateDto dto = new PurchaseRequest.CreateDto();
+        dto.setPaymentId("payment-1");
+        dto.setDeliveryAddress("Seoul");
+
+        assertThrows(BadRequestException.class, () -> purchaseService.purchase(7L, 3L, dto));
+        verify(paymentService, never()).verify(any(), anyInt(), any(), any());
+        verify(purchaseRepository, never()).save(any(Purchase.class));
+    }
+
+    @Test
     void purchase_rejectsItemAlreadySoldToAnotherBuyerBeforePaymentVerification() {
         Item item = mock(Item.class);
         when(item.getSellerUserId()).thenReturn(99L);

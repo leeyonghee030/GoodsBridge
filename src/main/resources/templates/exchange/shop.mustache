@@ -1,0 +1,446 @@
+{{> fragments/header}}
+
+<style>
+.sx-lead[hidden] { display: none; }
+.sx-lead { margin: 0.3rem 0 1.2rem; font-size: 0.85rem; color: var(--color-muted); line-height: 1.5; }
+.sx-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; overflow: hidden; }
+.sx-panel[hidden] { display: none; }
+.sx-panel-note { padding: 0.6rem 1rem; border-bottom: 1px solid var(--color-border); background: var(--color-surface); font-size: 0.76rem; color: var(--color-muted); }
+/* 목록 영역은 높이를 고정(최소~최대)하고 넘치면 안에서 스크롤 */
+.sx-scroll { min-height: 260px; max-height: 480px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.sx-scroll.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+.sx-scroll::-webkit-scrollbar { display: block; width: 8px; }
+.sx-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+.sx-scroll.is-scrolling::-webkit-scrollbar-thumb { background: #c9c9c9; }
+.sx-scroll::-webkit-scrollbar-track { background: transparent; }
+#sx-today-list { padding: 0.3rem 0.6rem; }
+.sx-today-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.65rem 0.4rem; border-top: 1px solid var(--color-border); cursor: pointer; border-radius: 8px; }
+.sx-today-row:first-child { border-top: 0; }
+.sx-today-row:hover { background: var(--color-surface); }
+.sx-today-row .tm { flex: none; min-width: 3.4rem; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.01em; }
+.sx-today-row .nm { flex: 1; min-width: 0; font-size: 0.86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-today-row .nm small { margin-left: 0.4rem; color: var(--color-muted); }
+.sx-today-empty { display: flex; align-items: center; justify-content: center; min-height: 240px; font-size: 0.85rem; color: var(--color-muted); }
+.sx-fee-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.sx-fee-head strong { font-size: 0.88rem; font-weight: 600; }
+.sx-fee-head span { font-size: 0.74rem; color: var(--color-muted); }
+.sx-fee-list { min-height: 200px; max-height: 420px; }
+.sx-fee-row { display: grid; grid-template-columns: 7.2rem 1fr auto auto; align-items: center; gap: 0.2rem 0.9rem; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); font-size: 0.84rem; }
+.sx-fee-row:first-child { border-top: 0; }
+.sx-fee-row .at { color: var(--color-muted); font-size: 0.76rem; }
+.sx-fee-row .who { min-width: 0; }
+.sx-fee-row .who strong { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-fee-row .who small { display: block; margin-top: 0.1rem; font-size: 0.72rem; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-fee-row .kind { padding: 0.15rem 0.55rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-surface); font-size: 0.72rem; color: var(--color-text-soft); white-space: nowrap; }
+.sx-fee-row .kind.noshow { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.sx-fee-row .amt { min-width: 5rem; text-align: right; font-weight: 600; white-space: nowrap; }
+@media (max-width: 640px) { .sx-fee-row { grid-template-columns: 1fr auto; } .sx-fee-row .at { grid-column: 1 / -1; } .sx-fee-row .kind { display: none; } }
+.sx-fee-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1rem; padding: 1.6rem 1.2rem; }
+.sx-fee-grid small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.sx-fee-grid b { display: block; margin-top: 0.25rem; font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em; }
+.sx-fee-grid .main b { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.02em; }
+@media (max-width: 640px) { .sx-fee-grid { grid-template-columns: 1fr; } }
+.sx-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.2rem; margin-bottom: 1rem; }
+.sx-tabs { display: flex; gap: 0.15rem; padding: 3px; background: var(--color-surface); border-radius: 10px; }
+.sx-tabs button { width: auto; padding: 0.4rem 0.9rem; border: 0; border-radius: 8px; background: none; font: inherit; font-size: 0.88rem; font-weight: 600; color: var(--color-muted); cursor: pointer; text-transform: none; letter-spacing: 0; }
+.sx-tabs button:hover { background: none; color: var(--color-text); }
+.sx-tabs button.active, .sx-tabs button.active:hover { background: #fff; color: var(--color-text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.sx-tabs small { margin-left: 0.3rem; font-size: 0.72rem; font-weight: 500; opacity: 0.6; }
+.sx-search { flex: 1; min-width: 200px; max-width: 320px; padding: 0.5rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.85rem; }
+
+.sx-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.sx-row { display: flex; align-items: center; gap: 1rem; padding: 0.8rem 1rem; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; cursor: pointer; }
+.sx-row:hover { background: var(--color-surface); }
+.sx-no { flex: none; min-width: 4.2rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.01em; }
+.sx-no small { display: block; font-size: 0.68rem; font-weight: 400; color: var(--color-muted); letter-spacing: 0; }
+.sx-pair { flex: none; display: flex; gap: 0.3rem; }
+.sx-thumb { width: 44px; height: 44px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; overflow: hidden; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; color: var(--color-muted); }
+.sx-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.sx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.sx-main strong { font-size: 0.9rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-main small { font-size: 0.75rem; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sx-who { flex: none; display: flex; gap: 0.4rem; }
+.sx-chip { padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid var(--color-border); background: var(--color-surface); font-size: 0.72rem; color: var(--color-muted); white-space: nowrap; }
+.sx-chip.ok { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.sx-status { flex: none; font-size: 0.75rem; color: var(--color-muted); min-width: 4rem; text-align: right; }
+
+.sx-limit { margin: 0.3rem 0 0; text-align: center; font-size: 0.76rem; color: var(--color-muted); }
+/* display 를 지정한 요소는 hidden 속성이 무시되므로, 숨김 상태를 명시한다 */
+.sx-list[hidden], .sx-empty[hidden], .sx-panel[hidden], .sx-search[hidden] { display: none !important; }
+.sx-tabs button:focus { outline: none; }
+.sx-tabs button:focus-visible { outline: 2px solid var(--color-dark); outline-offset: 1px; }
+.sx-empty { display: flex; flex-direction: column; justify-content: center; min-height: 260px; padding: 2rem 1.5rem; text-align: center; background: var(--color-surface); border: 1px dashed var(--color-border); border-radius: 16px; }
+.sx-empty strong { display: block; margin-bottom: 0.4rem; font-size: 1rem; }
+.sx-empty p { margin: 0; font-size: 0.85rem; color: var(--color-muted); line-height: 1.5; }
+
+.sx-modal .modal-card { max-width: 600px; scrollbar-width: thin; scrollbar-color: #c9c9c9 transparent; }
+.sx-modal .modal-card::-webkit-scrollbar { display: block; width: 8px; }
+.sx-modal .modal-card::-webkit-scrollbar-thumb { background: #c9c9c9; border-radius: 4px; }
+.sx-modal h1 { display: flex; align-items: baseline; gap: 0.6rem; margin: 0 0 0.3rem; font-size: 1.2rem; }
+.sx-modal h1 small { font-size: 0.78rem; font-weight: 500; color: var(--color-muted); }
+.sx-info { display: flex; flex-wrap: wrap; gap: 0.3rem 1.2rem; margin: 0 0 1rem; font-size: 0.8rem; color: var(--color-text-soft); }
+.sx-when { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.6rem 1.5rem; margin: 0.6rem 0 0.9rem; padding: 0.8rem 1rem; border-radius: 12px; background: var(--color-dark); color: #fff; }
+.sx-when span { display: block; font-size: 0.7rem; opacity: 0.7; }
+.sx-when b { display: block; margin-top: 0.1rem; font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; }
+.sx-when .due b { font-size: 0.9rem; font-weight: 500; }
+.sx-when.none b { font-size: 0.9rem; font-weight: 500; opacity: 0.85; }
+.sx-note.first { margin: -0.3rem 0 0.9rem; }
+.sx-people { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.sx-person { padding: 0.8rem; border: 1px solid var(--color-border); border-radius: 12px; display: flex; flex-direction: column; gap: 0.5rem; }
+.sx-person.arrived { border-color: var(--color-dark); }
+.sx-person .role { font-size: 0.7rem; color: var(--color-muted); }
+.sx-person .nick { font-size: 1rem; font-weight: 600; }
+.sx-person .sx-img { height: 90px; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--color-muted); overflow: hidden; }
+.sx-person .sx-img img { width: 100%; height: 100%; object-fit: contain; }
+.sx-person .item { font-size: 0.78rem; color: var(--color-text-soft); line-height: 1.35; }
+.sx-person .dep { font-size: 0.78rem; color: var(--color-muted); }
+.sx-person button { width: 100%; padding: 0.55rem; border: 1px solid var(--color-dark); border-radius: 8px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 0.84rem; font-weight: 500; cursor: pointer; }
+.sx-person button.on { background: var(--color-dark); color: #fff; }
+.sx-person .state { padding: 0.5rem; border-radius: 8px; background: var(--color-surface); text-align: center; font-size: 0.8rem; color: var(--color-text-soft); }
+.sx-both { display: block; width: 100%; margin-top: 0.8rem; padding: 0.7rem; border: 0; border-radius: 10px; background: var(--color-dark); color: #fff; font: inherit; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+.sx-grace { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.2rem 1rem; margin: -0.3rem 0 0.9rem; padding: 0.6rem 0.9rem; border: 1px solid var(--color-dark); border-radius: 10px; background: var(--color-surface); }
+.sx-grace strong { font-size: 0.92rem; font-weight: 600; }
+.sx-grace span { font-size: 0.76rem; color: var(--color-text-soft); }
+.sx-note { margin: 0.7rem 0 0; font-size: 0.74rem; line-height: 1.5; color: var(--color-muted); }
+.sx-settle { margin-top: 1rem; padding: 0.9rem 1rem; border: 1px solid var(--color-border); border-radius: 12px; background: #fff; }
+.sx-settle .t { margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; }
+.sx-settle table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.sx-settle th, .sx-settle td { padding: 0.35rem 0; text-align: right; color: var(--color-text-soft); font-weight: 400; }
+.sx-settle th:first-child, .sx-settle td:first-child { text-align: left; }
+.sx-settle thead th { font-size: 0.72rem; color: var(--color-muted); border-bottom: 1px solid var(--color-border); }
+.sx-settle tfoot td { padding-top: 0.5rem; border-top: 1px dashed var(--color-border); color: var(--color-text); font-weight: 600; }
+@media (max-width: 560px) { .sx-pair, .sx-who { display: none; } }
+</style>
+
+<!-- 내 정보 화면처럼 탭과 내용을 하나의 카드 안에 둔다 -->
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/shop/exchange" class="active">가게 교환 관리</a>
+    <a href="/shop/items">판매 상품 관리</a>
+    <a href="/shop/events">이벤트 관리</a>
+</nav>
+<div class="sx-wrap">
+    <p class="sx-lead" id="sx-lead">손님이 도착하면 교환번호나 닉네임으로 찾아, 온 분을 체크해 주세요.</p>
+
+    <div class="sx-bar">
+        <div class="sx-tabs" id="sx-tabs">
+            <button type="button" class="active" data-tab="today">오늘 방문 예정<small id="sx-cnt-today"></small></button>
+            <button type="button" data-tab="waiting">방문 확인 대기<small id="sx-cnt-waiting"></small></button>
+            <button type="button" data-tab="done">처리 완료<small id="sx-cnt-done"></small></button>
+            <button type="button" data-tab="fee">수수료 수익</button>
+        </div>
+        <input class="sx-search" id="sx-search" type="search" placeholder="교환번호, 상품명, 닉네임으로 검색" autocomplete="off" hidden>
+    </div>
+
+    <section class="sx-panel" id="sx-today-panel">
+        <div class="sx-panel-note">오늘 만나기로 확정된 교환이에요. 약속 시간 순이고, 방문 확인이 끝나면 목록에서 빠져요.</div>
+        <div class="sx-scroll" id="sx-today-list"></div>
+    </section>
+
+    <section class="sx-panel sx-feepanel" id="sx-fee-panel" hidden>
+        <div class="sx-panel-note">정산이 끝난 교환에서 가게가 가져간 금액이에요 (정상 교환 수수료 + 불참으로 차감된 보증금).</div>
+        <div class="sx-fee-grid">
+            <div class="main"><small>오늘</small><b id="sx-fee-today">-</b></div>
+            <div><small>이번 달</small><b id="sx-fee-month">-</b></div>
+            <div><small>저번 달</small><b id="sx-fee-last">-</b></div>
+        </div>
+        <div class="sx-fee-head"><strong>이번 달 정산 내역</strong><span id="sx-fee-count"></span></div>
+        <div class="sx-scroll sx-fee-list" id="sx-fee-list"></div>
+    </section>
+
+    <div class="sx-list sx-scroll" id="sx-list" hidden></div>
+    <div class="sx-empty" id="sx-empty" hidden></div>
+</div>
+</div>
+
+<div class="modal-backdrop sx-modal" id="sx-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="sx-close">✕</button>
+        <div id="sx-body"></div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const ME = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
+    const fmt = iso => {
+        if (!iso) return '';
+        const d = new Date(iso);
+        return `${d.getMonth() + 1}/${d.getDate()}(${DAYS[d.getDay()]}) ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    const GRACE_MIN = 5;   // 둘 다 체크한 뒤 이 시간(분) 안에는 되돌릴 수 있고, 지나면 교환 완료/정산된다
+    const completeAt = e => e.bothCheckedAt ? new Date(new Date(e.bothCheckedAt).getTime() + GRACE_MIN * 60000) : null;
+    const pendingDone = e => e.status === 'CONFIRMED' && e.userAShowed && e.userBShowed && e.bothCheckedAt;
+    const minsLeft = e => Math.max(1, Math.ceil((completeAt(e) - Date.now()) / 60000));
+    const hm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const statusLabel = e => pendingDone(e) ? `${hm(completeAt(e))}까지 수정 가능` : (STATUS[e.status] || e.status);
+    const STATUS = { CONFIRMED: '방문 확인 대기', COMPLETED: '교환 완료', EXPIRED_PARTIAL: '한쪽 불참', EXPIRED_BOTH: '양쪽 불참' };
+    const thumb = (url, alt) => url ? `<img src="${esc(url)}" alt="${esc(alt)}">` : '이미지 없음';
+    const errorText = async (res, fallback) => { const e = await res.json().catch(() => null); return (e && e.message) || fallback; };
+
+    let summary = null;
+    let list = [], counts = { waiting: 0, done: 0 }, limited = false, tab = 'today', query = '', current = null, seq = 0, timer = null;
+    const listEl = document.getElementById('sx-list');
+    const emptyEl = document.getElementById('sx-empty');
+    const modal = document.getElementById('sx-modal');
+    const body = document.getElementById('sx-body');
+
+    function showEmpty(title, desc) {
+        listEl.innerHTML = '';
+        listEl.hidden = true;     // 빈 상태 안내가 같은 자리를 쓴다
+        emptyEl.hidden = false;
+        emptyEl.innerHTML = `<strong>${title}</strong><p>${desc}</p>`;
+    }
+
+    function render() {
+        document.getElementById('sx-cnt-waiting').textContent = counts.waiting;
+        document.getElementById('sx-cnt-done').textContent = counts.done;
+        document.querySelectorAll('#sx-tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+        const isList = tab === 'waiting' || tab === 'done';
+        document.getElementById('sx-lead').hidden = !(tab === 'today' || tab === 'waiting');   // 체크 안내는 방문 확인을 하는 두 탭에서만
+        document.getElementById('sx-today-panel').hidden = tab !== 'today';
+        document.getElementById('sx-fee-panel').hidden = tab !== 'fee';
+        document.getElementById('sx-search').hidden = !isList;
+        listEl.hidden = !isList;
+        if (!isList) { emptyEl.hidden = true; return; }
+        const rows = list;
+        if (!rows.length) {
+            if (query.trim()) showEmpty('검색 결과가 없어요', '교환번호, 상품명, 닉네임을 다시 확인해 주세요. 다른 탭에 있을 수도 있어요.');
+            else if (tab === 'waiting') showEmpty('방문 확인을 기다리는 교환이 없어요', '교환이 확정되면 여기에 나타나요.');
+            else showEmpty('처리가 끝난 교환이 아직 없어요', '방문 확인이 끝난 교환이 여기에 쌓여요.');
+            return;
+        }
+        emptyEl.hidden = true;
+        const more = limited ? '<p class="sx-limit">최신 100건만 보여드려요. 오래된 교환은 위 검색창으로 찾아보세요.</p>' : '';
+        listEl.innerHTML = rows.map(e => `<div class="sx-row" data-id="${e.id}">
+            <div class="sx-no"><small>교환번호</small>#${e.id}</div>
+            <div class="sx-pair"><div class="sx-thumb">${thumb(e.itemImageUrl, e.itemTitle)}</div><div class="sx-thumb">${thumb(e.itemBImageUrl, e.itemBTitle)}</div></div>
+            <div class="sx-main">
+                <strong>${esc(e.userANickname)} ⇄ ${esc(e.userBNickname)}</strong>
+                <small>${e.meetingConfirmed && e.meetingAt ? `약속 ${fmt(e.meetingAt)}` : '약속 시간 미정'} · 방문 기한 ${fmt(e.deadline)}</small>
+            </div>
+            <div class="sx-who">
+                <span class="sx-chip ${e.userAShowed ? 'ok' : ''}">${esc(e.userANickname)} ${e.userAShowed ? '✓' : '–'}</span>
+                <span class="sx-chip ${e.userBShowed ? 'ok' : ''}">${esc(e.userBNickname)} ${e.userBShowed ? '✓' : '–'}</span>
+            </div>
+            <div class="sx-status">${statusLabel(e)}</div>
+        </div>`).join('') + more;
+    }
+
+    function renderSummary() {
+        if (!summary) return;
+        const items = summary.todayItems || [];
+        document.getElementById('sx-cnt-today').textContent = items.length;
+        document.getElementById('sx-today-list').innerHTML = items.length
+            ? items.map(e => `<div class="sx-today-row" data-today="${e.id}">
+                <div class="tm">${hm(new Date(e.meetingAt))}</div>
+                <div class="nm">${esc(e.userANickname)} ⇄ ${esc(e.userBNickname)}<small>#${e.id}</small></div>
+                <div class="sx-who">
+                    <span class="sx-chip ${e.userAShowed ? 'ok' : ''}">${esc(e.userANickname)} ${e.userAShowed ? '✓' : '–'}</span>
+                    <span class="sx-chip ${e.userBShowed ? 'ok' : ''}">${esc(e.userBNickname)} ${e.userBShowed ? '✓' : '–'}</span>
+                </div></div>`).join('')
+            : '<div class="sx-today-empty">오늘 방문하기로 한 교환이 없어요.</div>';
+        document.getElementById('sx-fee-today').textContent = money(summary.feeToday);
+        document.getElementById('sx-fee-month').textContent = money(summary.feeMonth);
+        document.getElementById('sx-fee-last').textContent = money(summary.feeLastMonth);
+        const recs = summary.feeRecords || [];
+        document.getElementById('sx-fee-count').textContent = recs.length ? `${recs.length}건` : '';
+        document.getElementById('sx-fee-list').innerHTML = recs.length
+            ? recs.map(r => `<div class="sx-fee-row">
+                <div class="at">${fmt(r.settledAt)}</div>
+                <div class="who"><strong>${esc(r.userANickname)} ⇄ ${esc(r.userBNickname)} <span style="color:var(--color-muted)">#${r.exchangeId}</span></strong>
+                    <small>${r.parts.map(p => `${esc(p.nickname)} ${money(p.amount)}`).join(' + ')}</small></div>
+                <span class="kind ${r.kind === 'NO_SHOW' ? 'noshow' : ''}">${r.kind === 'NO_SHOW' ? '불참 차감' : '교환 완료'}</span>
+                <div class="amt">+ ${money(r.amount)}</div></div>`).join('')
+            : '<div class="sx-today-empty">이번 달 정산된 교환이 아직 없어요.</div>';
+    }
+
+    async function loadSummary() {
+        if (ME === null) return;
+        const res = await fetch('/api/exchange-requests/shop/summary', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        summary = await res.json();
+        renderSummary();
+    }
+
+    // 정산 계산: 서버(ExchangeService.settle)와 같은 비율
+    function settleOf(e, deposit, showed) {
+        const refund = e.status === 'COMPLETED' ? Math.round(deposit * 0.75)
+            : e.status === 'EXPIRED_BOTH' ? Math.round(deposit * 0.5)
+            : (showed ? deposit : 0);
+        return { deposit, refund, fee: deposit - refund };
+    }
+
+    function personCard(e, side) {
+        const isA = side === 'A';
+        const nick = isA ? e.userANickname : e.userBNickname;
+        const showed = isA ? e.userAShowed : e.userBShowed;
+        const deposit = isA ? e.depositAmountA : e.depositAmountB;
+        const item = isA ? { t: e.itemTitle, u: e.itemImageUrl } : { t: e.itemBTitle, u: e.itemBImageUrl };
+        const open = e.status === 'CONFIRMED';
+        const action = open
+            ? `<button type="button" class="${showed ? 'on' : ''}" data-check="${side}">${showed ? '✓ 방문 확인됨 (취소하려면 누르세요)' : '방문 확인'}</button>`
+            : `<div class="state">${showed ? '✓ 방문함' : '방문하지 않음'}</div>`;
+        return `<div class="sx-person ${showed ? 'arrived' : ''}">
+            <div class="role">${isA ? '교환글 올린 분' : '교환 신청한 분'}</div>
+            <div class="nick">${esc(nick)}</div>
+            <div class="sx-img">${thumb(item.u, item.t)}</div>
+            <div class="item">${esc(item.t)}</div>
+            <div class="dep">예치 보증금 ${money(deposit)}</div>
+            ${action}
+        </div>`;
+    }
+
+    function settleBlock(e) {
+        if (e.status === 'CONFIRMED') return '';
+        const a = settleOf(e, Number(e.depositAmountA || 0), e.userAShowed);
+        const b = settleOf(e, Number(e.depositAmountB || 0), e.userBShowed);
+        return `<div class="sx-settle">
+            <div class="t">정산 내역</div>
+            <table>
+                <thead><tr><th></th><th>보증금</th><th>환불</th><th>가게 수수료</th></tr></thead>
+                <tbody>
+                    <tr><td>${esc(e.userANickname)}</td><td>${money(a.deposit)}</td><td>${money(a.refund)}</td><td>${money(a.fee)}</td></tr>
+                    <tr><td>${esc(e.userBNickname)}</td><td>${money(b.deposit)}</td><td>${money(b.refund)}</td><td>${money(b.fee)}</td></tr>
+                </tbody>
+                <tfoot><tr><td>합계</td><td>${money(a.deposit + b.deposit)}</td><td>${money(a.refund + b.refund)}</td><td>${money(a.fee + b.fee)}</td></tr></tfoot>
+            </table>
+        </div>`;
+    }
+
+    function renderModal() {
+        const e = current;
+        setTimeout(watchGrace, 0);
+        const open = e.status === 'CONFIRMED';
+        body.innerHTML = `
+            <h1>교환번호 #${e.id}<small>${statusLabel(e)}</small></h1>
+            <div class="sx-when ${e.meetingConfirmed && e.meetingAt ? '' : 'none'}">
+                <div>
+                    <span>확정된 만날 시간</span>
+                    <b>${e.meetingConfirmed && e.meetingAt ? fmt(e.meetingAt) : '아직 확정되지 않았어요'}</b>
+                </div>
+                <div class="due"><span>방문 기한</span><b>${fmt(e.deadline)}</b></div>
+            </div>
+            ${pendingDone(e)
+                ? `<div class="sx-grace"><strong>${hm(completeAt(e))}까지 수정할 수 있어요</strong><span>약 ${minsLeft(e)}분 남음 · 이후 교환 완료·정산되어 되돌릴 수 없어요</span></div>`
+                : (open ? '<p class="sx-note first">손님이 보여주는 화면의 교환번호와 확정된 만날 시간이 위와 맞는지 확인한 뒤 체크해 주세요.</p>' : '')}
+            <div class="sx-people">${personCard(e, 'A')}${personCard(e, 'B')}</div>
+            ${open && !pendingDone(e) ? `<button type="button" class="sx-both" data-both>두 분 모두 도착했어요</button>
+                <p class="sx-note">두 분을 모두 체크하면 ${GRACE_MIN}분 뒤에 교환이 완료되고 보증금이 정산돼요. 그 사이에는 체크를 취소해 고칠 수 있어요. 한 분만 체크하면 나머지 한 분은 방문 기한(${fmt(e.deadline)})까지 기다리고, 기한이 지나면 불참으로 정산돼요.</p>` : ''}
+            ${settleBlock(e)}`;
+    }
+
+    async function checkIn(e, patch, confirmText) {
+        if (confirmText && !(await gbConfirm(confirmText))) return;
+        const res = await fetch(`/api/shops/${e.shopId}/exchange-requests/${e.id}/check-in`, {
+            method: 'PATCH', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch)
+        });
+        if (!res.ok) { alert(await errorText(res, '방문 확인에 실패했습니다.')); return; }
+        const updated = await res.json();
+        // 완료 처리돼서 다른 탭으로 넘어가도 팝업은 그대로 두고 결과(정산 내역)를 보여준다
+        Object.assign(e, { status: updated.status, userAShowed: updated.userAShowed, userBShowed: updated.userBShowed, bothCheckedAt: updated.bothCheckedAt });
+        current = e;
+        renderModal();
+        load();
+        loadSummary();
+    }
+
+    // 팝업이 '완료 처리 중'이면 정산 시각 직후에 서버 상태를 다시 읽어 팝업을 갱신한다
+    let graceTimer = null;
+    function watchGrace() {
+        clearTimeout(graceTimer);
+        if (!current || !pendingDone(current)) return;
+        const id = current.id;
+        graceTimer = setTimeout(async () => {
+            for (const t of ['done', 'waiting']) {
+                const res = await fetch(`/api/exchange-requests/shop?tab=${t}&keyword=${id}`, { credentials: 'same-origin' });
+                if (!res.ok) continue;
+                const found = (await res.json()).items.find(x => x.id === id);
+                if (found && found.status !== 'CONFIRMED') {
+                    if (current && current.id === id) { current = found; renderModal(); }
+                    load();
+                    loadSummary();
+                    return;
+                }
+            }
+            if (current && current.id === id) watchGrace();   // 아직 정산 전이면 다시 확인
+        }, Math.max(2000, completeAt(current) - Date.now() + 3000));
+    }
+
+    body.addEventListener('click', async ev => {
+        if (!current) return;
+        const one = ev.target.closest('[data-check]');
+        const both = ev.target.closest('[data-both]');
+        if (one) {
+            const isA = one.dataset.check === 'A';
+            const nick = isA ? current.userANickname : current.userBNickname;
+            const was = isA ? current.userAShowed : current.userBShowed;
+            const patch = isA ? { userAShowed: !was } : { userBShowed: !was };
+            const otherShowed = isA ? current.userBShowed : current.userAShowed;
+            const completes = !was && otherShowed;
+            await checkIn(current, patch, was ? `${nick}님의 방문 확인을 취소할까요?`
+                : completes ? `${nick}님까지 체크하면 ${GRACE_MIN}분 뒤에 교환이 완료되고 보증금이 정산돼요.\n(그 전까지는 취소할 수 있어요)\n진행할까요?` : `${nick}님이 도착했나요?`);
+        } else if (both) {
+            await checkIn(current, { userAShowed: true, userBShowed: true },
+                `${current.userANickname}님과 ${current.userBNickname}님이 모두 도착했나요?\n${GRACE_MIN}분 뒤에 교환이 완료되고 보증금이 정산돼요. (그 전까지는 취소할 수 있어요)`);
+        }
+    });
+
+    document.getElementById('sx-today-list').addEventListener('click', ev => {
+        const row = ev.target.closest('[data-today]');
+        if (!row || !summary) return;
+        current = summary.todayItems.find(x => x.id === Number(row.dataset.today));
+        if (current) { modal.hidden = false; renderModal(); }
+    });
+    listEl.addEventListener('click', ev => {
+        const row = ev.target.closest('[data-id]');
+        if (!row) return;
+        current = list.find(x => x.id === Number(row.dataset.id));
+        if (current) { modal.hidden = false; renderModal(); }
+    });
+    // 스크롤하는 동안에만 스크롤바가 보이고 멈추면 사라진다 (게시판/댓글 목록과 동일)
+    const scrollTimers = new WeakMap();
+    document.addEventListener('scroll', ev => {
+        const el = ev.target;
+        if (!(el instanceof Element) || !el.classList.contains('sx-scroll')) return;
+        el.classList.add('is-scrolling');
+        clearTimeout(scrollTimers.get(el));
+        scrollTimers.set(el, setTimeout(() => el.classList.remove('is-scrolling'), 600));
+    }, true);
+    document.getElementById('sx-close').addEventListener('click', () => { modal.hidden = true; current = null; });
+    modal.addEventListener('click', ev => { if (ev.target === modal) { modal.hidden = true; current = null; } });
+    document.getElementById('sx-tabs').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-tab]');
+        if (b) { tab = b.dataset.tab; render(); load(); }
+    });
+    // 한 글자 입력할 때마다 서버에서 검색 (잠깐 멈추면 요청해서 불필요한 호출을 줄인다)
+    document.getElementById('sx-search').addEventListener('input', ev => {
+        query = ev.target.value;
+        clearTimeout(timer);
+        timer = setTimeout(load, 200);
+    });
+
+    async function load() {
+        if (ME === null) { showEmpty('로그인이 필요해요', '가게 사장님 계정으로 로그인해 주세요.'); return; }
+        const my = ++seq;
+        const isList = tab === 'waiting' || tab === 'done';
+        const res = await fetch(`/api/exchange-requests/shop?tab=${tab === 'done' ? 'done' : 'waiting'}&keyword=${isList ? encodeURIComponent(query.trim()) : ''}`, { credentials: 'same-origin' });
+        if (my !== seq) return;           // 더 최근 요청이 있으면 이전 응답은 버린다
+        if (!res.ok) { showEmpty('교환 목록을 불러오지 못했어요', await errorText(res, '잠시 후 다시 시도해 주세요.')); return; }
+        const data = await res.json();
+        list = data.items; limited = data.limited;
+        counts = { waiting: data.waitingCount, done: data.doneCount };
+        render();
+    }
+    load();
+    loadSummary();
+    setInterval(loadSummary, 60000);   // 자동 정산(수수료) 반영
+})();
+</script>
+
+{{> fragments/footer}}

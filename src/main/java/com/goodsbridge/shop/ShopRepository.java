@@ -65,6 +65,9 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
         Pageable pageable
     );
 
+    // 삭제되지 않은 가게를 가진 사장님인지 (가게 계정은 구매/교환/이벤트/경매 참여를 막는 데 쓴다)
+    boolean existsByOwnerUserIdAndDeletedFalse(Long ownerUserId);
+
     /**
      * 관리자용 가게 상태별 조회
      *

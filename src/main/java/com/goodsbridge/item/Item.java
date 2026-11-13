@@ -135,7 +135,8 @@ public class Item {
         String description,
         Integer price
     ) {
-        if (shopId == null || shopId <= 0) {
+        // shopId가 없는 상품(교환용)은 허용, 값이 있으면 유효한지만 확인 (수정 시 가게 필수 여부는 ItemService에서 검증)
+        if (shopId != null && shopId <= 0) {
             throw new BadRequestException("가게 ID는 필수입니다.");
         }
 
@@ -165,6 +166,12 @@ public class Item {
     }
 
     // 실제 상품 소프트 삭제
+    // 구독이 끊긴 가게의 상품 한 건을 판매 중지 (재구독하면 resumeItemsBySubscription 으로 다시 판매중)
+    public void pauseBySubscription() {
+        this.status = ItemStatus.CLOSED;
+        this.pausedBySubscription = true;
+    }
+
     public void deleteItem() {
         this.deleted = true;
         this.deletedAt = LocalDateTime.now();

@@ -1,22 +1,31 @@
 {{> fragments/header}}
 
+<div class="container">
 <h1>로그인</h1>
 
 <form action="/api/login" method="post">
     <p>
-        <label for="email">이메일</label>
-        <input id="email" type="email" name="email" required>
+        <label for="email" class="sr-only">이메일</label>
+        <input id="email" type="email" name="email" placeholder="이메일" required>
     </p>
 
     <p>
-        <label for="password">비밀번호</label>
-        <input id="password" type="password" name="password" required>
+        <label for="password" class="sr-only">비밀번호</label>
+        <input id="password" type="password" name="password" placeholder="비밀번호" required>
     </p>
+
+    <label class="checkbox-row">
+        <input type="checkbox" name="rememberMe">
+        로그인상태유지
+    </label>
 
     <button type="submit">로그인</button>
 </form>
 
-<p><a href="/join">회원가입</a></p>
-<p><a href="/api/kakao-login">카카오 로그인</a></p>
+<div class="link-row">
+    <a href="/join">회원가입</a>
+    <a href="/api/kakao-login">카카오 로그인</a>
+</div>
+</div>
 
 {{> fragments/footer}}

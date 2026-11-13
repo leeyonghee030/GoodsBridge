@@ -9,6 +9,8 @@ import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +29,10 @@ public class ShopService {
     private final UserRepository userRepository;
     private final ItemRepository itemRepository;
     private final ShopSubscriptionRepository subscriptionRepository;
+    private final ApplicationEventPublisher eventPublisher;
+
+    @Value("${app.chain-code}")
+    private String chainCode;
 
     /**
      * 가게 등록
@@ -34,6 +41,9 @@ public class ShopService {
     public ShopResponse create(Long userId, ShopCreateRequest requestDto) {
 
         requestDto.validate();
+        if (!chainCode.equals(requestDto.getChainCode() == null ? null : requestDto.getChainCode().trim())) {
+            throw new BadRequestException("체인점 코드가 올바르지 않습니다.");
+        }
 
         Shop shop = Shop.builder()
             .ownerUserId(userId)
@@ -187,8 +197,23 @@ public class ShopService {
         validateAdmin(adminUserId);
 
         Shop shop = findActiveShopEntity(shopId);
+        boolean wasApproved = shop.getStatus() == ShopStatus.APPROVED;
 
         shop.updateStatus(ShopStatus.REJECTED);
+
+        // 승인된 가게의 승인을 취소하면 활성 구독도 취소한다.
+        // 판매중 상품 판매 중지는 구독 취소 이벤트 리스너가 처리 (판매완료 상품은 배송/환불 처리를 위해 유지)
+        if (wasApproved) {
+            List<ShopSubscription> activeSubscriptions = subscriptionRepository.findActiveByShopIdWithLock(
+                shopId,
+                ShopSubscriptionStatus.ACTIVE,
+                LocalDate.now()
+            );
+            activeSubscriptions.forEach(ShopSubscription::cancel);
+            if (!activeSubscriptions.isEmpty()) {
+                eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
+            }
+        }
     }
 
     /**

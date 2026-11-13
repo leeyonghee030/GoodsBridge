@@ -1,0 +1,881 @@
+{{> fragments/header}}
+
+<style>
+.si-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+.si-bar .filter-chip-grid { margin: 0; }
+.si-bar .filter-chip small { margin-left: 0.3rem; opacity: 0.7; }
+.si-bar-right { display: flex; gap: 0.5rem; align-items: center; }
+.si-bar-right .si-combo { display: block; flex: none; width: 13rem; }
+.si-bar-right .si-combo input { margin: 0; }
+.si-bar-right .si-combo[hidden] { display: none; }
+.si-bar-right .write-link[hidden] { display: none; }
+.si-bar-right .write-link { flex: none; width: auto; white-space: nowrap; }
+.si-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+/* 높이를 고정하고 넘치면 안에서 스크롤, 스크롤하는 동안에만 스크롤바가 보인다 (가게 교환 관리 화면과 동일) */
+.si-list { height: 640px; }
+.si-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.si-scroll.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+.si-scroll::-webkit-scrollbar { display: block; width: 8px; }
+.si-scroll::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+.si-scroll.is-scrolling::-webkit-scrollbar-thumb { background: #c9c9c9; }
+.si-scroll::-webkit-scrollbar-track { background: transparent; }
+.si-list .related-item-link { cursor: pointer; }
+.si-list .empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+.si-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.si-badge.is-dark { background: var(--color-dark); color: #fff; }
+.si-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.si-combo { position: relative; }
+.si-combo .autocomplete-list[hidden] { display: none; }
+.si-combo .autocomplete-item { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-detail dl { display: grid; grid-template-columns: 6rem 1fr; gap: 0.45rem 0.8rem; margin: 0 0 1rem; font-size: 0.86rem; }
+.si-detail dt { color: var(--color-muted); }
+.si-detail dd { margin: 0; word-break: break-all; }
+.si-detail h2 { font-size: 0.92rem; margin: 1.2rem 0 0.5rem; }
+.si-detail form { display: flex; flex-direction: column; gap: 0.5rem; }
+.si-detail form .row { display: flex; gap: 0.5rem; }
+.si-detail form .row input { flex: 1; min-width: 0; }
+.si-detail form .row button { flex: none; width: auto; padding-left: 1.2rem; padding-right: 1.2rem; }
+.si-refund-row { padding: 0.55rem 0; border-top: 1px solid var(--color-border); font-size: 0.82rem; }
+.si-refund-row:first-of-type { border-top: 0; }
+.si-refund-row small { color: var(--color-muted); }
+.si-note { font-size: 0.78rem; color: var(--color-muted); margin: 0.3rem 0 0; }
+/* 판매완료 안의 상태별 하위 탭 (교환 내역 화면의 하위 탭과 같은 모양) */
+.si-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: -0.3rem 0 0.7rem; }
+.si-subtabs[hidden] { display: none; }
+.si-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.si-subtabs button:hover { background: none; color: var(--color-text); }
+.si-subtabs button.active, .si-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.si-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.si-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+/* 판매 정산 (가게 교환 관리의 수수료 수익 패널과 같은 모양) */
+.si-fee[hidden] { display: none; }
+.si-fee { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; overflow: hidden; }
+.si-fee-note { padding: 0.6rem 1rem; border-bottom: 1px solid var(--color-border); background: var(--color-surface); font-size: 0.76rem; color: var(--color-muted); }
+.si-fee-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1rem; padding: 1.6rem 1.2rem; }
+.si-fee-grid small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.si-fee-grid b { display: block; margin-top: 0.25rem; font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em; }
+.si-fee-grid .main b { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.02em; }
+.si-fee-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.si-fee-head strong { font-size: 0.88rem; font-weight: 600; }
+.si-fee-head span { font-size: 0.74rem; color: var(--color-muted); }
+/* 정산 달력(왼쪽) + 선택한 날/달의 내역(오른쪽) */
+.si-fee-body { display: grid; grid-template-columns: minmax(300px, 1fr) 1.2fr; border-top: 1px solid var(--color-border); }
+@media (max-width: 860px) { .si-fee-body { grid-template-columns: 1fr; } }
+.si-cal { padding: 1rem 1.2rem 1.2rem; border-right: 1px solid var(--color-border); }
+@media (max-width: 860px) { .si-cal { border-right: 0; border-bottom: 1px solid var(--color-border); } }
+.si-cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem; }
+.si-cal-head strong { font-size: 0.95rem; }
+.si-cal-head button { width: auto; padding: 0.2rem 0.6rem; background: transparent; color: var(--color-text); border: 0; font-size: 1.05rem; }
+.si-cal-head button:hover { background: var(--color-surface); }
+.si-cal-head button:disabled { opacity: 0.3; cursor: default; background: transparent; }
+.si-cal .si-cal-total { width: 100%; display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 0.7rem; padding: 0.55rem 0.7rem; background: var(--color-surface); color: var(--color-text); border: 1px solid transparent; border-radius: 8px; font-size: 0.8rem; font-weight: 500; text-align: left; }
+.si-cal .si-cal-total:hover { background: var(--color-surface); border-color: var(--color-border); }
+.si-cal .si-cal-total.active { border-color: var(--color-dark); }
+.si-cal .si-cal-total b { font-size: 1rem; }
+.si-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.si-cal-grid .dow { padding: 0.2rem 0; text-align: center; font-size: 0.7rem; color: var(--color-muted); }
+.si-cal-grid .dow:first-child { color: #C0392B; }
+.si-cal-grid button { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.1rem; width: 100%; min-height: 3.1rem; padding: 0.35rem 0.1rem; background: #fff; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.78rem; font-weight: 500; }
+.si-cal-grid button:hover { background: var(--color-surface); }
+.si-cal-grid button small { font-size: 0.62rem; font-weight: 600; color: #2E7D4F; white-space: nowrap; }
+.si-cal-grid button.is-today { border-color: var(--color-text-soft, #888); }
+.si-cal-grid button.active { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.si-cal-grid button.active small { color: #fff; }
+.si-cal-grid button:disabled { background: transparent; color: var(--color-border); cursor: default; }
+.si-cal-grid .blank { min-height: 3.1rem; }
+.si-fee-side { display: flex; flex-direction: column; min-width: 0; }
+.si-fee-side .si-fee-head { border-top: 0; border-bottom: 1px solid var(--color-border); }
+.si-fee-list { height: 380px; }
+.si-fee-row { display: grid; grid-template-columns: 7.2rem 1fr auto; align-items: center; gap: 0.2rem 0.9rem; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); font-size: 0.84rem; cursor: pointer; }
+.si-fee-row:first-child { border-top: 0; }
+.si-fee-row:hover { background: var(--color-surface); }
+.si-fee-row .at { color: var(--color-muted); font-size: 0.76rem; }
+.si-fee-row .who { min-width: 0; }
+.si-fee-row .who strong { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-fee-row .who small { display: block; margin-top: 0.1rem; font-size: 0.72rem; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.si-fee-row .amt { min-width: 5rem; text-align: right; font-weight: 600; white-space: nowrap; }
+.si-fee-empty { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.85rem; color: var(--color-muted); }
+@media (max-width: 640px) { .si-fee-grid { grid-template-columns: 1fr; } .si-fee-row { grid-template-columns: 1fr auto; } .si-fee-row .at { grid-column: 1 / -1; } }
+/* 기간 필터 (판매완료/환불): 빠른 선택 + 월 달력 */
+.si-period { position: relative; flex: none; }
+.si-period[hidden] { display: none; }
+.si-period .si-period-btn { display: inline-flex; align-items: center; gap: 0.3rem; width: auto; padding: 0.38rem 0.7rem; white-space: nowrap; background: #fff; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.78rem; font-weight: 500; }
+.si-period .si-period-btn:hover { background: var(--color-surface); }
+.si-period .si-period-btn.is-set { border-color: var(--color-dark); font-weight: 600; }
+.si-period .si-period-btn svg { flex: none; color: var(--color-muted); }
+.si-period-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; width: 18rem; padding: 0.9rem; background: #fff; border: 1px solid var(--color-border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+.si-period-pop[hidden] { display: none; }
+.si-period-quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; margin-bottom: 0.8rem; }
+.si-period-quick button, .si-period-months button { width: 100%; padding: 0.45rem 0; font-size: 0.78rem; background: var(--color-surface); color: var(--color-text); border: 1px solid transparent; border-radius: 8px; }
+.si-period-quick button.active, .si-period-months button.active { background: var(--color-dark); color: #fff; }
+.si-period-year { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.88rem; font-weight: 600; }
+.si-period-year button { width: auto; padding: 0.2rem 0.6rem; background: transparent; color: var(--color-text); border: 0; font-size: 1rem; }
+.si-period-months { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.3rem; }
+.si-period-months button { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.5rem 0; background: #fff; border-color: var(--color-border); }
+.si-period-months button small { font-size: 0.66rem; color: var(--color-muted); min-height: 0.8rem; }
+.si-period-months button.active small { color: rgba(255,255,255,0.75); }
+.si-period-months button.is-empty { color: var(--color-muted); }
+.si-period-months button:disabled { opacity: 0.35; cursor: default; }
+.si-sub-notice { display: flex; flex-direction: column; gap: 0.4rem; margin: 0 0 0.9rem; }
+.si-sub-notice .si-sub-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; padding: 0.7rem 0.95rem; border-radius: 10px; font-size: 0.82rem; line-height: 1.45; }
+.si-sub-notice .si-sub-row.is-off { background: #FDECEA; color: #A93226; }
+.si-sub-notice .si-sub-row.is-soon { background: #FFF6E5; color: #8A5A00; }
+.si-sub-notice .si-sub-row.is-ok { background: var(--color-surface); color: var(--color-muted); }
+.si-sub-notice a { flex: none; font-weight: 500; font-size: 0.78rem; color: inherit; text-decoration: none; white-space: nowrap; opacity: 0.85; transition: opacity .15s; }
+.si-sub-notice a::after { content: ' ›'; }
+.si-sub-notice a:hover { opacity: 1; text-decoration: none; }
+</style>
+
+<!-- 내 정보 화면처럼 탭과 내용을 하나의 카드 안에 둔다 -->
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/shop/exchange">가게 교환 관리</a>
+    <a href="/shop/items" class="active">판매 상품 관리</a>
+    <a href="/shop/events">이벤트 관리</a>
+</nav>
+
+<!-- 구독이 없거나 만료됐거나 곧 만료되면 안내 (상품 등록/수정은 구독 중인 가게만 가능) -->
+<div class="si-sub-notice" id="si-sub-notice" hidden></div>
+
+<div class="si-wrap">
+    <div class="si-bar">
+        <div class="filter-chip-grid" id="si-tabs">
+            <button type="button" class="filter-chip active" data-tab="ON_SALE">판매중<small id="si-cnt-ON_SALE"></small></button>
+            <button type="button" class="filter-chip" data-tab="SOLD">판매완료<small id="si-cnt-SOLD"></small></button>
+            <button type="button" class="filter-chip" data-tab="REFUND">환불<small id="si-cnt-REFUND"></small></button>
+            <button type="button" class="filter-chip" data-tab="FEE">판매 정산</button>
+        </div>
+        <div class="si-bar-right">
+            <div class="si-period" id="si-period" hidden>
+                <button type="button" class="si-period-btn" id="si-period-btn" aria-label="기간 선택">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    <span id="si-period-label">전체</span> ▾
+                </button>
+                <div class="si-period-pop" id="si-period-pop" hidden>
+                    <div class="si-period-quick" id="si-period-quick">
+                        <button type="button" data-quick="all">전체</button>
+                        <button type="button" data-quick="this">이번 달</button>
+                        <button type="button" data-quick="last">저번 달</button>
+                        <button type="button" data-quick="3m">최근 3개월</button>
+                    </div>
+                    <div class="si-period-year">
+                        <button type="button" data-year="-1" aria-label="이전 해">‹</button>
+                        <span id="si-period-year"></span>
+                        <button type="button" data-year="1" aria-label="다음 해">›</button>
+                    </div>
+                    <div class="si-period-months" id="si-period-months"></div>
+                </div>
+            </div>
+            <span class="si-combo">
+                <label for="si-category-filter" class="sr-only">카테고리 필터</label>
+                <input id="si-category-filter" type="text" placeholder="카테고리 · 상품명 검색" autocomplete="off">
+                <span id="si-category-filter-list" class="autocomplete-list" hidden></span>
+            </span>
+            <button type="button" class="write-link" id="si-open-create">상품 등록</button>
+        </div>
+    </div>
+    <div class="si-subtabs" id="si-subtabs" hidden></div>
+    <section class="si-fee" id="si-fee" hidden>
+        <div class="si-fee-note">구매자가 구매 확정한 상품의 판매 금액이에요. 구매 확정 전 판매는 정산 예정 금액으로 따로 보여요.</div>
+        <div class="si-fee-grid">
+            <div class="main"><small>오늘</small><b id="si-fee-today">-</b></div>
+            <div><small>이번 달</small><b id="si-fee-month">-</b></div>
+            <div><small>저번 달</small><b id="si-fee-last">-</b></div>
+        </div>
+        <div class="si-fee-body">
+            <div class="si-cal">
+                <div class="si-cal-head">
+                    <button type="button" id="si-cal-prev" aria-label="이전 달">‹</button>
+                    <strong id="si-cal-title"></strong>
+                    <button type="button" id="si-cal-next" aria-label="다음 달">›</button>
+                </div>
+                <button type="button" class="si-cal-total" id="si-cal-total"></button>
+                <div class="si-cal-grid" id="si-cal-grid"></div>
+            </div>
+            <div class="si-fee-side">
+                <div class="si-fee-head"><strong id="si-fee-title"></strong><span id="si-fee-count"></span></div>
+                <div class="si-fee-list si-scroll" id="si-fee-list"></div>
+            </div>
+        </div>
+        <div class="si-fee-head"><strong>정산 예정</strong><span id="si-fee-pending"></span></div>
+    </section>
+    <section class="si-panel" id="si-panel">
+        <div class="si-list si-scroll" id="si-list"><p class="empty">상품을 불러오는 중...</p></div>
+    </section>
+</div>
+</div>
+
+<!-- 상품 등록 창 -->
+<div class="modal-backdrop" id="si-create-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" data-close>✕</button>
+        <h1>상품 등록</h1>
+        <form id="si-form">
+            <p>
+                <label for="si-shop" class="sr-only">가게</label>
+                <select id="si-shop" required>
+                    {{#shops}}<option value="{{id}}">{{name}}</option>{{/shops}}
+                </select>
+            </p>
+            <p>
+                <label for="si-title" class="sr-only">상품명</label>
+                <input id="si-title" type="text" placeholder="상품명" maxlength="100" autocomplete="off" required>
+            </p>
+            <p class="si-combo">
+                <label for="si-category" class="sr-only">카테고리</label>
+                <input id="si-category" type="text" placeholder="카테고리 검색 또는 선택" autocomplete="off" required>
+                <span id="si-category-list" class="autocomplete-list" hidden></span>
+            </p>
+            <p>
+                <label for="si-price" class="sr-only">가격</label>
+                <span class="price-input">
+                    <input id="si-price" type="text" inputmode="numeric" placeholder="가격" autocomplete="off" required>
+                    <span class="price-input-unit">원</span>
+                </span>
+            </p>
+            <p>
+                <textarea id="si-description" placeholder="상품 설명 (선택)" rows="3"></textarea>
+            </p>
+            <p class="image-picker">
+                <input id="si-image" type="file" class="sr-only" accept="image/jpeg,image/png,image/gif,image/webp">
+                <label for="si-image" class="image-picker-btn">이미지 선택</label>
+                <span id="si-image-name" class="image-picker-name">선택된 이미지 없음</span>
+            </p>
+            <button type="submit" id="si-submit">등록</button>
+        </form>
+        <p id="si-message" class="form-message"></p>
+    </div>
+</div>
+
+<!-- 판매 상세 창 (구매자/배송/환불) -->
+<div class="modal-backdrop" id="si-detail-modal" hidden>
+    <div class="modal-card si-detail">
+        <button type="button" class="modal-close" data-close>✕</button>
+        <div id="si-detail-body"></div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const date = iso => iso ? new Date(iso).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    const jsonHeaders = { 'Content-Type': 'application/json' };
+
+    const DELIVERY = { PREPARING: '배송 준비중', SHIPPED: '배송중', DELIVERED: '배송 완료' };
+    const REFUND = { REQUESTED: '환불 요청중', APPROVED: '환불 완료', REJECTED: '환불 거절' };
+    const BY = { USER: '구매자', SHOP: '가게' };
+    // 판매가보다 적게 환불된 승인 건은 부분 환불로 표시
+    const refundLabel = (r, s) => r.status === 'APPROVED' && r.amount < s.price ? '부분 환불 완료' : REFUND[r.status];
+
+    const shopSelect = document.getElementById('si-shop');
+    const shopIds = new Set([...shopSelect.options].map(o => Number(o.value)));
+    const shopNames = Object.fromEntries([...shopSelect.options].map(o => [o.value, o.textContent]));
+    const multiShop = shopIds.size > 1;
+    if (!multiShop) shopSelect.closest('p').hidden = true;
+
+    const listEl = document.getElementById('si-list');
+    const filter = document.getElementById('si-category-filter');
+    let items = [];       // 내 가게 상품
+    let sales = [];       // 판매 내역 (구매자/배송/환불)
+    let tab = 'ON_SALE';
+    let categories = [];
+
+    // ===== 모달 공통 =====
+    document.querySelectorAll('.modal-backdrop').forEach(m => {
+        m.addEventListener('click', ev => { if (ev.target === m || ev.target.closest('[data-close]')) m.hidden = true; });
+    });
+
+    // ===== 목록 =====
+    const latestRefund = s => s.refunds[0] || null;
+    // 판매완료 상태: 환불 요청중 > 구매 확정 > 배송 단계, 구매 내역이 없으면(경매 등) 기타
+    const SALE_STATES = [
+        ['ALL', '전체'], ['PREPARING', '배송 준비중'], ['SHIPPED', '배송중'], ['DELIVERED', '배송 완료'],
+        ['CONFIRMED', '구매 확정'], ['REFUND_REQUESTED', '환불 요청중'], ['OTHER', '기타 판매']
+    ];
+    const saleState = x => {
+        if (!x.purchaseId) return 'OTHER';
+        if (x.refunds.some(r => r.status === 'REQUESTED')) return 'REFUND_REQUESTED';
+        if (x.purchaseStatus === 'CONFIRMED') return 'CONFIRMED';
+        return x.deliveryStatus;
+    };
+    const STATE_BADGE = {
+        PREPARING: '<span class="si-badge is-dark">배송 준비중</span>',
+        SHIPPED: '<span class="si-badge">배송중</span>',
+        DELIVERED: '<span class="si-badge">배송 완료</span>',
+        CONFIRMED: '<span class="si-badge is-ok">구매 확정</span>',
+        REFUND_REQUESTED: '<span class="si-badge is-warn">환불 요청중</span>'
+    };
+    let saleSub = 'ALL';
+    let saleFees = [];   // 상품 판매 정산 (SettlementHistory 중 PURCHASE_FEE)
+
+    // 기간 기준 날짜: 판매완료는 구매일, 환불은 최근 환불 요청일 (구매 내역이 없는 판매완료 상품은 날짜 없음)
+    const rowDate = (t, x) => {
+        const iso = t === 'REFUND' ? (latestRefund(x) || {}).requestedAt : x.purchasedAt;
+        return iso ? new Date(iso) : null;
+    };
+    const time = d => d ? d.getTime() : -Infinity;
+    const byLatest = t => (a, b) => t === 'ON_SALE'
+        ? time(new Date(b.createdAt)) - time(new Date(a.createdAt)) || b.id - a.id
+        : time(rowDate(t, b)) - time(rowDate(t, a));
+    // 기간 필터 적용 (판매완료/환불 탭만) + 최신순
+    const periodRows = t => {
+        const rows = baseRows(t);
+        if (t === 'ON_SALE' || !period.from) return rows;
+        return rows.filter(x => { const d = rowDate(t, x); return d && d >= period.from && d < period.to; });
+    };
+    const rowsFor = t => {
+        let rows = periodRows(t);
+        if (t === 'SOLD' && saleSub !== 'ALL') rows = rows.filter(x => saleState(x) === saleSub);
+        return rows.sort(byLatest(t));
+    };
+    // 카테고리만 적용한 목록 (달력의 월별 건수 계산에도 사용)
+    const baseRows = t => {
+        const q = filter.value.trim().toLowerCase();
+        // 카테고리 이름 또는 상품 이름에 검색어가 들어가면 보여준다 (판매중은 title, 판매/환불 내역은 itemTitle)
+        const byCategory = x => !q || [x.categoryName, x.title, x.itemTitle].some(v => String(v || '').toLowerCase().includes(q));
+        if (t === 'ON_SALE') return items.filter(i => i.status === 'ON_SALE').filter(byCategory);
+        if (t === 'REFUND') return sales.filter(s => s.refunds.length).filter(byCategory);
+        // 판매완료: 구매 내역 + (경매 등) 구매 내역 없이 판매완료된 상품
+        const purchased = new Set(sales.map(s => s.itemId));
+        const others = items.filter(i => i.status === 'SOLD' && !purchased.has(i.id))
+            .map(i => ({ itemId: i.id, itemTitle: i.title, categoryName: i.categoryName, price: i.price, imageUrl: i.imageUrl, shopId: i.shopId, saleType: i.saleType }));
+        return [...sales, ...others].filter(byCategory);
+    };
+
+    const thumb = url => `<span class="related-item-thumb">${url ? `<img src="${esc(url)}" alt="">` : '📦'}</span>`;
+    const shopLabel = id => multiShop ? ' · ' + esc(shopNames[id]) : '';
+
+    function render() {
+        // 판매 정산 탭은 목록 대신 정산 패널을 보여준다 (기간/검색 필터 없음, 교환 수수료 수익 화면과 동일)
+        const isFee = tab === 'FEE';
+        document.getElementById('si-fee').hidden = !isFee;
+        document.getElementById('si-panel').hidden = isFee;
+        document.querySelector('.si-bar-right .si-combo').hidden = isFee;
+        document.getElementById('si-open-create').hidden = isFee;   // 판매 정산 탭에서는 상품 등록 버튼을 숨긴다
+        if (isFee) {
+            periodBox.hidden = true;
+            document.getElementById('si-subtabs').hidden = true;
+            renderFee();
+            return;
+        }
+        renderPeriod();
+        ['ON_SALE', 'SOLD', 'REFUND'].forEach(t => { document.getElementById('si-cnt-' + t).textContent = periodRows(t).length; });
+        renderSubtabs();
+        const rows = rowsFor(tab);
+        if (rows.length === 0) {
+            const msg = { ON_SALE: '판매 중인 상품이 없어요. 오른쪽 위 상품 등록으로 올려 보세요.', SOLD: saleSub === 'ALL' ? '판매 완료된 상품이 없어요.' : `${SALE_STATES.find(x => x[0] === saleSub)[1]} 상태인 판매가 없어요.`, REFUND: '환불 내역이 없어요.' }[tab]
+                .replace('없어요', tab !== 'ON_SALE' && period.from ? period.label + '에는 없어요' : '없어요');
+            listEl.innerHTML = `<p class="empty">${msg}</p>`;
+            return;
+        }
+        if (tab === 'ON_SALE') {
+            listEl.innerHTML = rows.map(i => `
+                <a class="related-item-link" href="/test/item/${i.id}">
+                    ${thumb(i.imageUrl)}
+                    <span class="related-item-text">
+                        <small>${esc(i.categoryName)}${shopLabel(i.shopId)}</small>
+                        <strong>${esc(i.title)}</strong>
+                        <small>${money(i.price)}</small>
+                    </span>
+                </a>`).join('');
+            return;
+        }
+        listEl.innerHTML = rows.map(s => {
+            if (!s.purchaseId) {
+                return `
+                <a class="related-item-link" href="/test/item/${s.itemId}">
+                    ${thumb(s.imageUrl)}
+                    <span class="related-item-text">
+                        <small>${esc(s.categoryName)}${shopLabel(s.shopId)}</small>
+                        <strong>${esc(s.itemTitle)}</strong>
+                        <small>${money(s.price)} · ${s.saleType === 'AUCTION' ? '경매 낙찰' : '판매 완료'}</small>
+                    </span>
+                </a>`;
+            }
+            const r = latestRefund(s);
+            const badge = tab === 'REFUND'
+                ? `<span class="si-badge ${r.status === 'REQUESTED' ? 'is-warn' : ''}">${refundLabel(r, s)}</span>`
+                : STATE_BADGE[saleState(s)];
+            const sub = tab === 'REFUND'
+                ? `${BY[r.requestedBy]} 요청 · ${money(r.amount)} · ${date(r.requestedAt)}`
+                : `${esc(s.buyerNickname)} · ${date(s.purchasedAt)}`;
+            return `
+                <div class="related-item-link" data-purchase="${s.purchaseId}">
+                    ${thumb(s.imageUrl)}
+                    <span class="related-item-text">
+                        <small>${esc(s.categoryName)}${shopLabel(s.shopId)}</small>
+                        <strong>${esc(s.itemTitle)}</strong>
+                        <small>${money(s.price)} · ${sub}</small>
+                    </span>
+                    ${badge}
+                </div>`;
+        }).join('');
+    }
+
+    function renderSubtabs() {
+        const box = document.getElementById('si-subtabs');
+        box.hidden = tab !== 'SOLD';
+        if (box.hidden) return;
+        const rows = periodRows('SOLD');
+        const count = key => key === 'ALL' ? rows.length : rows.filter(x => saleState(x) === key).length;
+        // 기타 판매는 있을 때만 보여준다
+        box.innerHTML = SALE_STATES.filter(([key]) => key !== 'OTHER' || count(key) > 0)
+            .map(([key, label]) => `<button type="button" data-sub="${key}" class="${saleSub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`)
+            .join('');
+    }
+    document.getElementById('si-subtabs').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-sub]');
+        if (!b) return;
+        saleSub = b.dataset.sub;
+        render();
+    });
+
+    function renderFee() {
+        const sum = list => list.reduce((acc, x) => acc + (x.amount || 0), 0);
+        const between = (from, to) => saleFees.filter(x => { const d = new Date(x.createdAt); return d >= from && d < to; });
+        const y = now.getFullYear(), m = now.getMonth();
+        const today = new Date(y, m, now.getDate());
+        const month = between(new Date(y, m, 1), new Date(y, m + 1, 1));
+        document.getElementById('si-fee-today').textContent = money(sum(between(today, new Date(y, m, now.getDate() + 1))));
+        document.getElementById('si-fee-month').textContent = money(sum(month));
+        document.getElementById('si-fee-last').textContent = money(sum(between(new Date(y, m - 1, 1), new Date(y, m, 1))));
+        const pending = sales.filter(x => x.purchaseStatus === 'PAID');
+        document.getElementById('si-fee-pending').textContent = `${pending.length}건 · ${money(pending.reduce((acc, x) => acc + (x.refundableAmount || 0), 0))}`;
+
+        // ----- 달력: 보고 있는 달의 날짜별 정산 금액 -----
+        const cy = feeView.getFullYear(), cm = feeView.getMonth();
+        const monthList = between(new Date(cy, cm, 1), new Date(cy, cm + 1, 1));
+        const byDay = {};
+        monthList.forEach(x => { const d = new Date(x.createdAt).getDate(); byDay[d] = (byDay[d] || 0) + x.amount; });
+        document.getElementById('si-cal-title').textContent = `${cy}년 ${cm + 1}월`;
+        document.getElementById('si-cal-next').disabled = cy === y && cm === m;   // 미래 달로는 넘어가지 않는다
+        const totalBtn = document.getElementById('si-cal-total');
+        totalBtn.innerHTML = `<span>${cm + 1}월 전체 · ${monthList.length}건</span><b>${money(sum(monthList))}</b>`;
+        totalBtn.classList.toggle('active', feeDay === null);
+        const short = v => v >= 10000 ? '+' + (Math.round(v / 1000) / 10) + '만' : '+' + v.toLocaleString('ko-KR');
+        const firstDow = new Date(cy, cm, 1).getDay();
+        const lastDate = new Date(cy, cm + 1, 0).getDate();
+        let cells = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<span class="dow">${d}</span>`).join('');
+        cells += '<span class="blank"></span>'.repeat(firstDow);
+        for (let d = 1; d <= lastDate; d++) {
+            const future = new Date(cy, cm, d) > today;
+            const cls = [(cy === y && cm === m && d === now.getDate()) ? 'is-today' : '', feeDay === d ? 'active' : ''].join(' ');
+            cells += `<button type="button" data-day="${d}" class="${cls}" ${future ? 'disabled' : ''}>${d}<small>${byDay[d] ? short(byDay[d]) : ''}</small></button>`;
+        }
+        document.getElementById('si-cal-grid').innerHTML = cells;
+
+        // ----- 오른쪽: 고른 날(없으면 그 달 전체) 내역 -----
+        const list = feeDay === null ? monthList : monthList.filter(x => new Date(x.createdAt).getDate() === feeDay);
+        document.getElementById('si-fee-title').textContent = feeDay === null ? `${cm + 1}월 정산 내역` : `${cm + 1}월 ${feeDay}일 정산 내역`;
+        document.getElementById('si-fee-count').textContent = `${list.length}건 · ${money(sum(list))}`;
+        const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        document.getElementById('si-fee-list').innerHTML = list.length
+            ? list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(x => `
+                <div class="si-fee-row" ${x.sale.purchaseId ? `data-purchase="${x.sale.purchaseId}"` : ''}>
+                    <span class="at">${fmt(x.createdAt)}</span>
+                    <span class="who"><strong>${esc(x.sale.itemTitle || '상품 판매')}</strong><small>${x.sale.buyerNickname ? esc(x.sale.buyerNickname) + ' 구매 확정' : '구매 확정'}</small></span>
+                    <span class="amt">+${money(x.amount)}</span>
+                </div>`).join('')
+            : `<div class="si-fee-empty">${feeDay === null ? (cm + 1) + '월' : (cm + 1) + '월 ' + feeDay + '일'}에는 판매 정산이 없어요.</div>`;
+    }
+
+    // 정산 달력 상태: 보고 있는 달(feeView), 고른 날(feeDay, null 이면 그 달 전체)
+    let feeView = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let feeDay = null;
+    document.getElementById('si-cal-prev').addEventListener('click', () => {
+        feeView = new Date(feeView.getFullYear(), feeView.getMonth() - 1, 1); feeDay = null; renderFee();
+    });
+    document.getElementById('si-cal-next').addEventListener('click', () => {
+        feeView = new Date(feeView.getFullYear(), feeView.getMonth() + 1, 1); feeDay = null; renderFee();
+    });
+    document.getElementById('si-cal-total').addEventListener('click', () => { feeDay = null; renderFee(); });
+    document.getElementById('si-cal-grid').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-day]');
+        if (!b || b.disabled) return;
+        const d = Number(b.dataset.day);
+        feeDay = feeDay === d ? null : d;   // 같은 날을 다시 누르면 그 달 전체로
+        renderFee();
+    });
+    // 목록/정산 내역: 스크롤하는 동안에만 스크롤바가 보이고 멈추면 사라진다 (scroll 은 버블링되지 않아 캡처 단계로 받는다)
+    const scrollTimers = new WeakMap();
+    document.addEventListener('scroll', ev => {
+        const el = ev.target;
+        if (!(el instanceof Element) || !el.classList.contains('si-scroll')) return;
+        el.classList.add('is-scrolling');
+        clearTimeout(scrollTimers.get(el));
+        scrollTimers.set(el, setTimeout(() => el.classList.remove('is-scrolling'), 600));
+    }, true);
+
+    async function load() {
+        const [itemRes, saleRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/items/shop-sales')]);
+        if (!itemRes.ok || !saleRes.ok) { listEl.innerHTML = '<p class="empty">상품을 불러오지 못했어요.</p>'; return; }
+        // 선착순 이벤트 상품은 이벤트 관리 화면에서 다룬다
+        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT').sort((a, b) => b.id - a.id);
+        sales = await saleRes.json();
+        const salesByPayment = Object.fromEntries(sales.map(x => [x.paymentId, x]));
+        const lists = await Promise.all([...shopIds].map(id =>
+            pageFetch(`/api/shops/${id}/settlements`).then(r => r.ok ? r.json() : [])));
+        saleFees = lists.flat().filter(x => x.type === 'PURCHASE_FEE')
+            .map(x => Object.assign({}, x, { sale: salesByPayment[x.paymentId] || {} }));
+        render();
+    }
+
+    document.getElementById('si-tabs').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-tab]');
+        if (!b) return;
+        tab = b.dataset.tab;
+        document.querySelectorAll('#si-tabs [data-tab]').forEach(el => el.classList.toggle('active', el === b));
+        render();
+    });
+
+    // ===== 기간 필터 (판매완료/환불) =====
+    const now = new Date();
+    const monthStart = (y, m) => new Date(y, m, 1);   // m 은 0~11, 범위를 넘으면 Date 가 알아서 연도를 넘긴다
+    let period = { key: 'all', from: null, to: null, label: '전체' };
+    let viewYear = now.getFullYear();
+    const periodBox = document.getElementById('si-period');
+    const periodBtn = document.getElementById('si-period-btn');
+    const periodPop = document.getElementById('si-period-pop');
+
+    function setQuick(key) {
+        const y = now.getFullYear(), m = now.getMonth();
+        if (key === 'this') period = { key, from: monthStart(y, m), to: monthStart(y, m + 1), label: '이번 달' };
+        else if (key === 'last') period = { key, from: monthStart(y, m - 1), to: monthStart(y, m), label: '저번 달' };
+        else if (key === '3m') period = { key, from: monthStart(y, m - 2), to: monthStart(y, m + 1), label: '최근 3개월' };
+        else period = { key: 'all', from: null, to: null, label: '전체' };
+    }
+    function setMonth(y, m) {
+        period = { key: y + '-' + m, from: monthStart(y, m), to: monthStart(y, m + 1), label: y + '년 ' + (m + 1) + '월' };
+    }
+
+    function renderPeriod() {
+        periodBox.hidden = tab === 'ON_SALE';
+        document.getElementById('si-period-label').textContent = period.label;
+        periodBtn.classList.toggle('is-set', !!period.from);
+        document.querySelectorAll('#si-period-quick [data-quick]').forEach(b => b.classList.toggle('active', b.dataset.quick === period.key));
+        document.getElementById('si-period-year').textContent = viewYear + '년';
+        // 월별 건수 (현재 탭 + 카테고리 기준)
+        const counts = {};
+        if (tab !== 'ON_SALE') baseRows(tab).forEach(x => {
+            const d = rowDate(tab, x);
+            if (d) { const k = d.getFullYear() + '-' + d.getMonth(); counts[k] = (counts[k] || 0) + 1; }
+        });
+        document.getElementById('si-period-months').innerHTML = Array.from({ length: 12 }, (_, m) => {
+            const key = viewYear + '-' + m;
+            const future = monthStart(viewYear, m) > now;
+            const cls = (period.key === key ? 'active ' : '') + (counts[key] ? '' : 'is-empty');
+            return `<button type="button" data-month="${m}" class="${cls}" ${future ? 'disabled' : ''}>${m + 1}월<small>${counts[key] ? counts[key] + '건' : ''}</small></button>`;
+        }).join('');
+    }
+
+    periodBtn.addEventListener('click', () => {
+        periodPop.hidden = !periodPop.hidden;
+        if (!periodPop.hidden) { viewYear = period.from ? period.from.getFullYear() : now.getFullYear(); renderPeriod(); }
+    });
+    periodPop.addEventListener('click', ev => {
+        const quick = ev.target.closest('[data-quick]');
+        const month = ev.target.closest('[data-month]');
+        const year = ev.target.closest('[data-year]');
+        if (year) { viewYear += Number(year.dataset.year); renderPeriod(); return; }
+        if (quick) setQuick(quick.dataset.quick);
+        else if (month) setMonth(viewYear, Number(month.dataset.month));
+        else return;
+        periodPop.hidden = true;
+        render();
+    });
+    // 바깥을 누르면 달력 닫기
+    document.addEventListener('click', ev => { if (!periodBox.contains(ev.target)) periodPop.hidden = true; });
+
+    // ===== 카테고리 (관리자가 만든 공용 목록) =====
+    pageFetch('/api/categories').then(res => res.ok ? res.json() : []).then(list => {
+        categories = list;
+    });
+
+    // 검색해서 고르거나, 눌러서 전체 목록에서 고르는 카테고리 입력칸 (등록 창 / 목록 필터 공용)
+    // allLabel 이 있으면 맨 위에 '전체' 항목을 둔다. 고르면 onPick(카테고리 또는 null)
+    function categoryCombo(input, list, { allLabel, onInput, onPick }) {
+        function show() {
+            const q = input.value.trim().toLowerCase();
+            const found = categories.filter(c => c.name.toLowerCase().includes(q));
+            const all = allLabel ? `<span class="autocomplete-item" data-id="">${esc(allLabel)}</span>` : '';
+            list.innerHTML = all + (found.length
+                ? found.map(c => `<span class="autocomplete-item" data-id="${c.id}">${esc(c.name)}</span>`).join('')
+                : '<span class="autocomplete-item empty">검색 결과가 없습니다</span>');
+            list.hidden = false;
+        }
+        function pick(el) {
+            const c = categories.find(x => String(x.id) === el.dataset.id) || null;
+            input.value = c ? c.name : '';
+            list.hidden = true;
+            onPick(c);
+        }
+        input.addEventListener('focus', show);
+        input.addEventListener('click', show);
+        input.addEventListener('input', () => { onInput && onInput(); show(); });
+        input.addEventListener('keydown', ev => {
+            if (ev.key === 'Enter') {   // 엔터: 검색 결과 첫 번째 카테고리로 선택
+                const first = list.querySelector('[data-id]:not([data-id=""])');
+                if (!list.hidden && first) { ev.preventDefault(); pick(first); }
+            } else if (ev.key === 'Escape') list.hidden = true;
+        });
+        list.addEventListener('mousedown', ev => {   // blur 보다 먼저 처리되도록 mousedown
+            const el = ev.target.closest('[data-id]');
+            if (el) { ev.preventDefault(); pick(el); }
+        });
+        input.addEventListener('blur', () => { list.hidden = true; });
+    }
+
+    // 목록 필터: 글자를 치면 카테고리 이름이나 상품 이름에 그 글자가 들어간 것만 바로 보인다 (부분 검색)
+    categoryCombo(filter, document.getElementById('si-category-filter-list'), {
+        allLabel: '전체 카테고리', onInput: render, onPick: render
+    });
+
+    // 등록 창: 목록에 있는 카테고리만 고를 수 있다
+    const catInput = document.getElementById('si-category');
+    let categoryId = null;
+    categoryCombo(catInput, document.getElementById('si-category-list'), {
+        onInput: () => {
+            const exact = categories.find(c => c.name === catInput.value.trim());
+            categoryId = exact ? exact.id : null;
+        },
+        onPick: c => { categoryId = c ? c.id : null; }
+    });
+
+    // ===== 상품 등록 창 =====
+    const createModal = document.getElementById('si-create-modal');
+    const form = document.getElementById('si-form');
+    const priceInput = document.getElementById('si-price');
+    const imageInput = document.getElementById('si-image');
+    const imageName = document.getElementById('si-image-name');
+    const message = document.getElementById('si-message');
+    const fail = text => { message.textContent = text; message.className = 'form-message error'; };
+
+    function resetForm() {
+        const keepShop = shopSelect.value;
+        form.reset();
+        shopSelect.value = keepShop;
+        categoryId = null;
+        imageName.textContent = '선택된 이미지 없음';
+        message.textContent = '';
+    }
+    document.getElementById('si-open-create').addEventListener('click', () => {
+        resetForm();
+        createModal.hidden = false;
+        document.getElementById('si-title').focus();
+    });
+
+    priceInput.addEventListener('input', () => {
+        const digits = priceInput.value.replace(/\D/g, '').replace(/^0+/, '');
+        priceInput.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    });
+    imageInput.addEventListener('change', () => {
+        imageName.textContent = imageInput.files[0] ? imageInput.files[0].name : '선택된 이미지 없음';
+    });
+
+    form.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        if (!categoryId) { fail('카테고리를 목록에서 선택해주세요.'); catInput.focus(); return; }
+        const price = Number(priceInput.value.replace(/\D/g, ''));
+        if (!price) { fail('가격을 입력해주세요.'); return; }
+        const submit = document.getElementById('si-submit');
+        submit.disabled = true;
+        try {
+            let imageUrl = null;
+            const file = imageInput.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+                const up = await pageFetch('/api/items/images', { method: 'POST', body: formData });
+                if (!up.ok) { fail(await errorText(up, '이미지 업로드에 실패했습니다.')); return; }
+                imageUrl = (await up.json()).imageUrl;
+            }
+            const body = {
+                shopId: Number(shopSelect.value),
+                categoryId: categoryId,
+                title: document.getElementById('si-title').value.trim(),
+                description: document.getElementById('si-description').value.trim() || null,
+                price: price,
+                saleType: 'NORMAL',
+                imageUrl: imageUrl
+            };
+            const res = await pageFetch('/api/items', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(body) });
+            if (!res.ok) { fail(await errorText(res, '등록에 실패했습니다.')); return; }
+            message.textContent = '상품이 등록되었습니다.';
+            message.className = 'form-message';
+            tab = 'ON_SALE';
+            document.querySelectorAll('#si-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === 'ON_SALE'));
+            await load();
+            setTimeout(() => { createModal.hidden = true; }, 700);
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    // ===== 판매 상세 창: 구매자/배송지, 송장 입력, 환불 내역/신청 =====
+    const detailModal = document.getElementById('si-detail-modal');
+    const detailBody = document.getElementById('si-detail-body');
+    let current = null;
+
+    function renderDetail() {
+        const s = current;
+        const pending = s.refunds.some(r => r.status === 'REQUESTED');
+        const canShip = s.purchaseStatus === 'PAID' && s.deliveryStatus === 'PREPARING';
+        const canDeliver = s.purchaseStatus === 'PAID' && s.deliveryStatus === 'SHIPPED';
+        const canRefund = !pending && s.refundableAmount > 0;
+        detailBody.innerHTML = `
+            <h1>${esc(s.itemTitle)}</h1>
+            <dl>
+                <dt>구매자</dt><dd>${esc(s.buyerNickname)}</dd>
+                <dt>배송지</dt><dd>${esc(s.deliveryAddress)}</dd>
+                <dt>판매가</dt><dd>${money(s.price)}</dd>
+                <dt>구매일</dt><dd>${date(s.purchasedAt)}</dd>
+                <dt>배송 상태</dt><dd>${DELIVERY[s.deliveryStatus]}${s.purchaseStatus === 'CONFIRMED' ? ' · 구매 확정' : ''}</dd>
+                <dt>송장번호</dt><dd>${s.trackingNumber ? esc(s.trackingNumber) : '-'}</dd>
+            </dl>
+            ${canShip ? `
+            <form id="si-ship-form">
+                <div class="row">
+                    <input id="si-tracking" type="text" placeholder="송장번호 입력" autocomplete="off" required>
+                    <button type="submit">배송 시작</button>
+                </div>
+            </form>` : ''}
+            ${canDeliver ? `
+            <form id="si-deliver-form">
+                <button type="submit">배송 완료 처리</button>
+                <p class="si-note">배송 완료로 바꾸면 구매자가 구매 확정이나 환불 신청을 할 수 있어요.</p>
+            </form>` : ''}
+
+            <h2>환불</h2>
+            ${s.refunds.length ? s.refunds.map(r => `
+                <div class="si-refund-row">
+                    <strong>${refundLabel(r, s)}</strong> · ${money(r.amount)} <small>(${BY[r.requestedBy]} 요청 · ${date(r.requestedAt)})</small><br>
+                    <small>사유: ${esc(r.reason)}${r.rejectReason ? ' / 거절 사유: ' + esc(r.rejectReason) : ''}</small>
+                </div>`).join('') : '<p class="si-note">환불 내역이 없어요.</p>'}
+            ${canRefund ? `
+            <form id="si-refund-form" style="margin-top:0.8rem;">
+                <span class="price-input">
+                    <input id="si-refund-amount" type="text" inputmode="numeric" value="${Number(s.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" required>
+                    <span class="price-input-unit">원</span>
+                </span>
+                <textarea id="si-refund-reason" rows="2" maxlength="500" placeholder="환불 사유 (예: 재고 부족, 상품 하자)" required></textarea>
+                <button type="submit">환불 신청</button>
+                <p class="si-note">환불 가능 금액 ${money(s.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.</p>
+            </form>` : (pending ? '<p class="si-note">처리 대기 중인 환불 요청이 있어요.</p>' : '')}
+            <p id="si-detail-message" class="form-message"></p>`;
+    }
+
+    // 판매 목록과 판매 정산 내역에서 행을 누르면 판매 상세 창
+    const openDetail = ev => {
+        const row = ev.target.closest('[data-purchase]');
+        if (!row) return;
+        current = sales.find(s => s.purchaseId === Number(row.dataset.purchase));
+        if (!current) return;
+        renderDetail();
+        detailModal.hidden = false;
+    };
+    listEl.addEventListener('click', openDetail);
+    document.getElementById('si-fee-list').addEventListener('click', openDetail);
+
+    async function refreshDetail() {
+        await load();
+        current = sales.find(s => s.purchaseId === current.purchaseId);
+        if (current) renderDetail(); else detailModal.hidden = true;
+    }
+    const detailFail = text => {
+        const m = document.getElementById('si-detail-message');
+        m.textContent = text; m.className = 'form-message error';
+    };
+
+    detailBody.addEventListener('input', ev => {
+        if (ev.target.id !== 'si-refund-amount') return;
+        const digits = ev.target.value.replace(/\D/g, '').replace(/^0+/, '');
+        ev.target.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    });
+
+    detailBody.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const btn = ev.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        try {
+            if (ev.target.id === 'si-ship-form') {
+                const trackingNumber = document.getElementById('si-tracking').value.trim();
+                const res = await pageFetch(`/api/purchases/${current.purchaseId}/shipping`, {
+                    method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ trackingNumber })
+                });
+                if (!res.ok) { detailFail(await errorText(res, '배송 처리에 실패했습니다.')); return; }
+                await refreshDetail();
+            } else if (ev.target.id === 'si-deliver-form') {
+                if (!(await gbConfirm('배송 완료로 바꿀까요?'))) return;
+                const res = await pageFetch(`/api/purchases/${current.purchaseId}/shipping`, {
+                    method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ deliveryStatus: 'DELIVERED' })
+                });
+                if (!res.ok) { detailFail(await errorText(res, '배송 완료 처리에 실패했습니다.')); return; }
+                await refreshDetail();
+            } else if (ev.target.id === 'si-refund-form') {
+                const requestedAmount = Number(document.getElementById('si-refund-amount').value.replace(/\D/g, ''));
+                const reason = document.getElementById('si-refund-reason').value.trim();
+                if (!requestedAmount) { detailFail('환불 금액을 입력해주세요.'); return; }
+                if (requestedAmount > current.refundableAmount) { detailFail('환불 가능 금액을 넘었어요.'); return; }
+                if (!(await gbConfirm(`${money(requestedAmount)} 환불을 신청할까요?`))) return;
+                const res = await pageFetch(`/api/shops/${current.shopId}/refunds`, {
+                    method: 'POST', headers: jsonHeaders, body: JSON.stringify({ paymentId: current.paymentId, requestedAmount, reason })
+                });
+                if (!res.ok) { detailFail(await errorText(res, '환불 신청에 실패했습니다.')); return; }
+                await refreshDetail();
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    load();
+})();
+</script>
+
+<script>
+(() => {
+    const box = document.getElementById('si-sub-notice');
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const ymd = iso => new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const NOTICE_DAYS = 60;   // 만료 며칠 전부터 안내를 보여줄지 (그전에는 숨김)
+    const SOON_DAYS = 7;      // 이 안에 만료되면 노란색으로 강조
+
+    async function load() {
+        const meRes = await fetch('/api/shops/me', { credentials: 'same-origin' });
+        if (!meRes.ok) return;
+        const shops = ((await meRes.json()).content || []).filter(s => s.status === 'APPROVED');
+        const rows = [];
+        for (const shop of shops) {
+            let sub = null;
+            try {
+                const r = await fetch(`/api/shops/${shop.id}/subscription`, { credentials: 'same-origin' });
+                if (r.ok) sub = await r.json();
+            } catch (e) { /* 구독 없음으로 취급 */ }
+            const left = sub ? Math.round((new Date(...String(sub.endDate).split('-').map((n, i) => Number(n) - (i === 1 ? 1 : 0))) - new Date(new Date().toDateString())) / 86400000) : null;
+            const name = esc(shop.name);
+            if (!sub) {
+                rows.push(`<div class="si-sub-row is-off"><span><b>${name}</b> · 아직 구독하지 않았어요. 구독해야 상품을 등록할 수 있어요.</span><a href="/update">구독하기</a></div>`);
+            } else if (sub.status !== 'ACTIVE' || left < 0) {
+                const why = sub.status === 'CANCELLED' ? '구독이 취소되었어요' : `구독이 ${ymd(sub.endDate)}에 만료되었어요`;
+                rows.push(`<div class="si-sub-row is-off"><span><b>${name}</b> · ${why}. 상품 등록과 수정이 막혀 있고, 판매 중이던 상품은 닫혔어요.</span><a href="/update">구독하기</a></div>`);
+            } else if (left <= SOON_DAYS) {
+                const when = left === 0 ? '오늘' : `${left}일 뒤(${ymd(sub.endDate)})`;
+                rows.push(`<div class="si-sub-row is-soon"><span><b>${name}</b> · 구독이 ${when} 만료돼요. 만료되면 판매 중인 상품이 닫혀요.</span><a href="/update">구독 연장</a></div>`);
+            } else if (left <= NOTICE_DAYS) {
+                rows.push(`<div class="si-sub-row is-ok"><span><b>${name}</b> · 구독이 ${left}일 뒤(${ymd(sub.endDate)}) 만료돼요.</span><a href="/update">구독 연장</a></div>`);
+            }
+        }
+        if (rows.length) { box.innerHTML = rows.join(''); box.hidden = false; }
+    }
+    load().catch(() => {});
+})();
+</script>
+
+{{> fragments/footer}}
