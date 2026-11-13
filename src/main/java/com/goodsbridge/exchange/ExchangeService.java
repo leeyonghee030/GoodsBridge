@@ -8,6 +8,9 @@ import com.goodsbridge.exchange.dto.*;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.notification.NotificationService;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
@@ -23,6 +26,7 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,10 +46,12 @@ public class ExchangeService {
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
     private final PaymentService paymentService;
+    private final NotificationService notificationService;
     private final PaymentRepository paymentRepository;
     private final EntityManager entityManager;
     private final ExchangeCommentRepository exchangeCommentRepository;
     private final SettlementHistoryService settlementHistoryService;
+    private final ApplicationEventPublisher publisher;
 
     //교환 댓글 service--------------
     @Transactional
@@ -276,6 +282,20 @@ public class ExchangeService {
         exchangeRequest.getItemB().updateStatus(ItemStatus.SOLD);
         exchangeRequest.getExchangeItemA().getItem().updateStatus(ItemStatus.SOLD);
         exchangeRequest.updateStatus(ExchangeRequestStatus.CONFIRMED);
+
+        // TODO - Transaction 이전에 로드 입력
+        publisher.publishEvent(
+            new NotificationEvent(
+                // 이거 교환 신청한 유저 맞지?
+                exchangeRequest.getItemB().getSellerUserId(),
+                Notification.Type.EXCHANGE_APPROVED,
+                "교환 신청 승인",
+                "신청한 교환이 승인되었습니다.",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
+        );
+
         // a 한테 교환신청한 다른 b 들 환불
         List<ExchangeRequest> exchangeRequestList = exchangeRequestRepository.findActiveRequestsByItem(exchangeRequest.getExchangeItemA());
         for (ExchangeRequest e : exchangeRequestList) {
@@ -284,6 +304,7 @@ public class ExchangeService {
             e.updateStatus(ExchangeRequestStatus.CANCELLED);
         }
         exchangeRequest.updateDeadlineForVisit();
+
         return ExchangeRequestResponse.from(exchangeRequest);
     }
 
@@ -366,13 +387,13 @@ public class ExchangeService {
         settlementHistoryService.calculate(e.getShop(), paymentB, feeB, type);
 
         if (e.getStatus() == ExchangeRequestStatus.EXPIRED_BOTH ||
-            e.getStatus() == ExchangeRequestStatus.EXPIRED_PARTIAL){
+            e.getStatus() == ExchangeRequestStatus.EXPIRED_PARTIAL) {
             e.getExchangeItemA().getItem().updateStatus(ItemStatus.ON_SALE);
             e.getItemB().updateStatus(ItemStatus.ON_SALE);
         }
         e.getExchangeItemA().updateStatus(ExchangeItemStatus.CLOSED);
     }
 
-        // -------------------------
+    // -------------------------
 
 }
