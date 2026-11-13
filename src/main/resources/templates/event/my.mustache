@@ -7,8 +7,8 @@
 .pu-subtabs button.active, .pu-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
 .pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
 .pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
-/* 목록은 최대 높이를 정해 두고, 많아지면 안에서 스크롤 (스크롤바는 스크롤하는 동안에만 보인다) */
-#me-list { max-height: 520px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+/* 탭이 바뀌어도 높이가 같게 고정하고, 많아지면 안에서 스크롤 (스크롤바는 스크롤하는 동안에만 보인다) */
+#me-list { height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
 #me-list.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
 #me-list::-webkit-scrollbar { display: block; width: 8px; }
 #me-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
