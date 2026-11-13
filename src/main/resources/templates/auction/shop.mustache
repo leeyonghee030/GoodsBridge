@@ -1,0 +1,350 @@
+{{> fragments/header}}
+
+<style>
+.se-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+.se-bar .filter-chip-grid { margin: 0; }
+.se-bar .filter-chip small { margin-left: 0.3rem; opacity: 0.7; }
+.se-bar-right { display: flex; gap: 0.5rem; align-items: center; }
+.se-bar-right input { flex: none; width: 13rem; margin: 0; }
+.se-bar-right .write-link { flex: none; width: auto; white-space: nowrap; }
+.se-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+.se-sum { display: flex; gap: 1.6rem; flex-wrap: wrap; margin: 0 0 0.9rem; padding: 0.8rem 1rem; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.se-sum[hidden] { display: none; }
+.se-sum div small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.se-sum div b { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.se-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 0; border-bottom: 1px solid var(--color-border); }
+.se-row:last-child { border-bottom: 0; }
+.se-thumb { flex: none; width: 64px; height: 64px; border-radius: 6px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
+.se-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.se-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.se-row-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.se-row-main small { color: var(--color-muted); font-size: 0.8rem; }
+.se-row-main small.se-earn { color: var(--color-text); }
+.se-actions { flex: none; display: flex; align-items: center; gap: 0.4rem; }
+.se-actions button, .se-actions a.btn { box-sizing: border-box; min-width: 5.6rem; padding: 0.35rem 0.75rem; font-size: 0.8rem; white-space: nowrap; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 999px; text-align: center; text-decoration: none; }
+.se-actions button:hover, .se-actions button:focus, .se-actions button:active, .se-actions a.btn:hover { background: var(--color-surface); color: var(--color-text); border-color: var(--color-muted); transform: none; }
+.se-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.se-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.se-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.se-empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+.se-section { margin: 0.9rem 0 0.4rem; font-size: 0.82rem; color: var(--color-muted); }
+.se-field-label, .se-form-row label { display: block; margin-bottom: 0.25rem; font-size: 0.78rem; color: var(--color-muted); }
+.se-form-row { display: flex; gap: 0.5rem; align-items: flex-end; }
+.se-form-row > * { flex: 1; min-width: 0; }
+.se-hint { margin: 0.2rem 0 0; font-size: 0.74rem; color: var(--color-muted); }
+#au-form input[type="datetime-local"] {
+    box-sizing: border-box; width: 100%; padding: 0.65rem 0.8rem; border: 1px solid var(--color-border); border-radius: 4px;
+    font-family: var(--font-sans); font-size: 0.9rem; color: var(--color-text); background: var(--color-bg);
+}
+#au-form input:focus { outline: none; border-color: var(--color-text); }
+/* '···' 메뉴 */
+.se-actions .se-more { position: relative; }
+.se-actions .se-more-btn { min-width: 0; width: 2.2rem; height: 2.2rem; padding: 0; font-size: 1.1rem; line-height: 1; letter-spacing: 0.05em; }
+.se-more-menu { position: absolute; right: 0; top: calc(100% + 0.3rem); z-index: 20; min-width: 7.5rem; padding: 0.25rem 0; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+.se-more-menu[hidden] { display: none; }
+.se-actions .se-more-menu button { display: block; width: 100%; min-width: 0; padding: 0.55rem 0.9rem; font-size: 0.82rem; text-align: left; border: 0; border-radius: 0; background: none; color: var(--color-text); }
+.se-actions .se-more-menu button:hover, .se-actions .se-more-menu button:focus { background: var(--color-surface); border: 0; transform: none; }
+.se-actions .se-more-menu button.is-danger, .se-actions .se-more-menu button.is-danger:hover { color: #C0392B; }
+@media (max-width: 640px) { .se-row { flex-wrap: wrap; } .se-actions { margin-left: calc(64px + 0.9rem); } }
+</style>
+
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/shop/exchange">가게 교환 관리</a>
+    <a href="/shop/items">판매 상품 관리</a>
+    <a href="/shop/events">이벤트 관리</a>
+    <a href="/shop/auctions" class="active">경매 관리</a>
+</nav>
+
+<div class="se-bar">
+    <div class="filter-chip-grid" id="se-tabs">
+        <button type="button" class="filter-chip active" data-tab="ACTIVE">진행중<small id="se-cnt-ACTIVE"></small></button>
+        <button type="button" class="filter-chip" data-tab="ENDED">종료<small id="se-cnt-ENDED"></small></button>
+        <button type="button" class="filter-chip" data-tab="CANCELLED">취소<small id="se-cnt-CANCELLED"></small></button>
+    </div>
+    <div class="se-bar-right">
+        <label for="se-search" class="sr-only">경매 검색</label>
+        <input id="se-search" type="text" placeholder="상품 · 가게명 검색" autocomplete="off">
+        <button type="button" class="write-link" id="se-open-create">경매 열기</button>
+    </div>
+</div>
+<div class="se-sum" id="se-sum" hidden></div>
+<section class="se-panel"><div id="se-list"><p class="se-empty">불러오는 중...</p></div></section>
+</div>
+
+<!-- 경매 열기 창: 내 가게의 판매중 상품을 골라 경매로 올린다 -->
+<div class="modal-backdrop" id="au-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" data-close>✕</button>
+        <h1>경매 열기</h1>
+        <form id="au-form">
+            <p>
+                <label for="au-shop" class="sr-only">가게</label>
+                <select id="au-shop" required>
+                    {{#shops}}<option value="{{id}}">{{name}}</option>{{/shops}}
+                </select>
+            </p>
+            <p>
+                <label for="au-item" class="se-field-label">경매에 올릴 상품</label>
+                <select id="au-item" required><option value="">상품 선택</option></select>
+                <span class="se-hint" id="au-item-hint">판매중인 내 가게 상품만 올릴 수 있어요. 상품이 없으면 <a href="/shop/items">판매 상품 관리</a>에서 먼저 등록해 주세요.</span>
+            </p>
+            <div class="se-form-row">
+                <p>
+                    <label for="au-start">시작가</label>
+                    <span class="price-input">
+                        <input id="au-start" type="text" inputmode="numeric" placeholder="시작가" autocomplete="off" required>
+                        <span class="price-input-unit">원</span>
+                    </span>
+                </p>
+                <p>
+                    <label for="au-deposit">보증금 (시작가의 10~20%)</label>
+                    <span class="price-input">
+                        <input id="au-deposit" type="text" inputmode="numeric" placeholder="보증금" autocomplete="off" required>
+                        <span class="price-input-unit">원</span>
+                    </span>
+                </p>
+            </div>
+            <p class="se-hint" id="au-deposit-hint"></p>
+            <p>
+                <label for="au-deadline" class="se-field-label">마감 일시</label>
+                <input id="au-deadline" type="datetime-local" required>
+            </p>
+            <button type="submit" id="au-submit">경매 열기</button>
+        </form>
+        <p id="au-message" class="form-message"></p>
+    </div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const dateTime = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+    const digits = el => Number(el.value.replace(/\D/g, ''));
+    const $ = id => document.getElementById(id);
+
+    const shopSelect = $('au-shop');
+    const shopIds = [...shopSelect.options].map(o => Number(o.value));
+    const multiShop = shopIds.length > 1;
+    if (!multiShop) shopSelect.closest('p').hidden = true;
+
+    const listEl = $('se-list');
+    let auctions = [];
+    let tab = 'ACTIVE';
+
+    // 마감시간이 지났는데 아직 처리되지 않은 경매는 '마감 처리 중'으로 본다
+    const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
+    const tabOf = a => a.status === 'ACTIVE' ? 'ACTIVE' : a.status === 'CANCELLED' ? 'CANCELLED' : 'ENDED';
+    const canCancel = a => a.status === 'ACTIVE' && a.bidCount === 0;
+    const canClose = a => a.status === 'ACTIVE' && !isLive(a);
+    const badgeOf = a => a.status === 'ACTIVE' ? (isLive(a) ? ['진행중', 'is-ok'] : ['마감 처리 중', ''])
+        : a.status === 'ENDED_SUCCESS' ? (a.balancePaid ? ['낙찰 · 정산 완료', 'is-ok'] : ['낙찰 · 잔금 대기', 'is-warn'])
+        : a.status === 'ENDED_FAIL' ? ['유찰', ''] : ['취소됨', 'is-warn'];
+
+    function earnLine(a) {
+        if (a.status === 'ENDED_SUCCESS') {
+            return a.balancePaid
+                ? `<small class="se-earn">낙찰가 <b>${money(a.currentPrice)}</b> 정산 완료 <span style="color:var(--color-muted)">· 보증금 ${money(a.depositAmount)} + 잔금 ${money(a.balanceAmount)}</span></small>`
+                : `<small class="se-earn">낙찰가 <b>${money(a.currentPrice)}</b> <span style="color:var(--color-muted)">· 낙찰자의 잔금 ${money(a.balanceAmount)} 결제를 기다리는 중 (${a.balanceDueAt ? dateTime(a.balanceDueAt) + '까지' : ''})</span></small>`;
+        }
+        return '';
+    }
+
+    function render() {
+        const q = $('se-search').value.trim().toLowerCase();
+        const matched = q ? auctions.filter(a => `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(q)) : auctions;
+        ['ACTIVE', 'ENDED', 'CANCELLED'].forEach(t => { $('se-cnt-' + t).textContent = matched.filter(a => tabOf(a) === t).length; });
+        // 종료 탭 위에는 낙찰 대금 요약
+        const sumEl = $('se-sum');
+        if (tab === 'ENDED') {
+            const sold = matched.filter(a => a.status === 'ENDED_SUCCESS');
+            const paid = sold.filter(a => a.balancePaid);
+            const waiting = sold.filter(a => !a.balancePaid);
+            sumEl.innerHTML = `<div><small>낙찰 정산 완료</small><b>${money(paid.reduce((s, a) => s + a.currentPrice, 0))}</b></div>`
+                + `<div><small>잔금 결제 대기 (낙찰가)</small><b>${money(waiting.reduce((s, a) => s + a.currentPrice, 0))}</b></div>`
+                + `<div><small>유찰</small><b>${matched.filter(a => a.status === 'ENDED_FAIL').length}건</b></div>`;
+            sumEl.hidden = false;
+        } else {
+            sumEl.hidden = true;
+        }
+        const rows = matched.filter(a => tabOf(a) === tab)
+            .sort((x, y) => tab === 'ACTIVE' ? new Date(x.deadline) - new Date(y.deadline) : new Date(y.deadline) - new Date(x.deadline));
+        if (!rows.length) {
+            const msg = q ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: '종료된 경매가 없어요.', CANCELLED: '취소한 경매가 없어요.' }[tab];
+            listEl.innerHTML = `<p class="se-empty">${msg}</p>`;
+            return;
+        }
+        listEl.innerHTML = rows.map(a => {
+            const [label, cls] = badgeOf(a);
+            return `
+            <div class="se-row">
+                <span class="se-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
+                <span class="se-row-main">
+                    <strong><a href="/test/auction/${a.id}">${esc(a.itemTitle)}</a></strong>
+                    <small>${multiShop ? esc(a.shopName) + ' · ' : ''}시작가 ${money(a.startPrice)} · ${a.bidCount ? '현재가 ' + money(a.currentPrice) : '입찰 없음'} · 입찰 ${a.bidCount}회 · 보증금 ${money(a.depositAmount)}</small>
+                    <small>마감 ${dateTime(a.deadline)}</small>
+                    ${earnLine(a)}
+                </span>
+                <span class="se-actions">
+                    <span class="se-badge ${cls}">${label}</span>
+                    <a class="btn" href="/test/auction/${a.id}">상세</a>
+                    ${canCancel(a) || canClose(a) ? `<span class="se-more">
+                        <button type="button" class="se-more-btn" data-more="${a.id}" aria-label="더보기">···</button>
+                        <span class="se-more-menu" hidden>
+                            ${canClose(a) ? `<button type="button" data-close-auction="${a.id}">마감 처리</button>` : ''}
+                            ${canCancel(a) ? `<button type="button" class="is-danger" data-cancel-auction="${a.id}">경매 취소</button>` : ''}
+                        </span>
+                    </span>` : ''}
+                </span>
+            </div>`;
+        }).join('');
+    }
+
+    async function load() {
+        try {
+            const lists = await Promise.all(shopIds.map(id => pageFetch(`/api/auctions?shopId=${id}&page=1&size=50`).then(async r => {
+                if (!r.ok) throw new Error(await errorText(r, '경매를 불러오지 못했어요.'));
+                return (await r.json()).content || [];
+            })));
+            auctions = lists.flat().sort((a, b) => b.id - a.id);
+            render();
+        } catch (e) {
+            listEl.innerHTML = `<p class="se-empty">${esc(e.message)}</p>`;
+        }
+    }
+
+    $('se-search').addEventListener('input', render);
+    $('se-tabs').addEventListener('click', ev => {
+        const t = ev.target.closest('[data-tab]');
+        if (!t) return;
+        tab = t.dataset.tab;
+        document.querySelectorAll('#se-tabs [data-tab]').forEach(el => el.classList.toggle('active', el === t));
+        render();
+    });
+
+    // ===== '···' 메뉴 / 경매 취소 / 마감 처리 =====
+    const closeMenus = () => document.querySelectorAll('.se-more-menu').forEach(m => { m.hidden = true; });
+    listEl.addEventListener('click', async ev => {
+        const more = ev.target.closest('[data-more]');
+        if (more) {
+            ev.stopPropagation();
+            const menu = more.nextElementSibling;
+            const willOpen = menu.hidden;
+            closeMenus();
+            menu.hidden = !willOpen;
+            return;
+        }
+        const cancelBtn = ev.target.closest('[data-cancel-auction]');
+        const closeBtn = ev.target.closest('[data-close-auction]');
+        const btn = cancelBtn || closeBtn;
+        if (!btn) return;
+        const id = Number(btn.dataset.cancelAuction || btn.dataset.closeAuction);
+        const a = auctions.find(x => x.id === id);
+        const msg = cancelBtn ? `'${a.itemTitle}' 경매를 취소할까요?` : `'${a.itemTitle}' 경매를 마감 처리할까요?\n입찰이 있으면 최고가 입찰자가 낙찰돼요.`;
+        if (!(await gbConfirm(msg))) return;
+        btn.disabled = true;
+        const res = await pageFetch(`/api/auctions/${id}/${cancelBtn ? 'cancel' : 'close'}`, { method: 'PATCH' });
+        if (!res.ok) await alert(await errorText(res, '처리에 실패했습니다.'));
+        await load();
+    });
+    document.addEventListener('click', closeMenus);
+
+    // ===== 모달 공통 =====
+    document.querySelectorAll('.modal-backdrop').forEach(m => {
+        m.addEventListener('click', ev => { if (ev.target === m || ev.target.closest('[data-close]')) m.hidden = true; });
+    });
+
+    // ===== 경매 열기 =====
+    const modal = $('au-modal');
+    const form = $('au-form');
+    const message = $('au-message');
+    const fail = text => { message.textContent = text; message.className = 'form-message error'; };
+    const itemSelect = $('au-item');
+    const startInput = $('au-start');
+    const depositInput = $('au-deposit');
+    const deadlineInput = $('au-deadline');
+    let myItems = [];
+
+    const localInput = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
+    // 내 가게의 판매중 상품 중, 이벤트 상품이 아니고 진행 중인 경매가 없는 것만
+    function fillItems() {
+        const shopId = Number(shopSelect.value);
+        const busy = new Set(auctions.filter(a => a.status === 'ACTIVE' && a.shopId === shopId).map(a => a.itemId));
+        const list = myItems.filter(i => i.shopId === shopId && i.status === 'ON_SALE' && i.saleType !== 'EVENT' && !busy.has(i.id));
+        itemSelect.innerHTML = '<option value="">상품 선택</option>' + list.map(i => `<option value="${i.id}" data-price="${i.price}">${esc(i.title)} (${money(i.price)})</option>`).join('');
+        $('au-item-hint').innerHTML = list.length
+            ? '판매중인 내 가게 상품만 올릴 수 있어요.'
+            : '경매에 올릴 수 있는 상품이 없어요. <a href="/shop/items">판매 상품 관리</a>에서 먼저 상품을 등록해 주세요.';
+    }
+    function updateDepositHint() {
+        const start = digits(startInput);
+        $('au-deposit-hint').textContent = start ? `보증금은 ${money(Math.ceil(start * 0.1))} ~ ${money(Math.floor(start * 0.2))} 사이로 입력해 주세요.` : '';
+    }
+
+    $('se-open-create').addEventListener('click', async () => {
+        if (!myItems.length) {
+            const res = await pageFetch('/api/items/me');
+            myItems = res.ok ? await res.json() : [];
+        }
+        form.reset();
+        message.textContent = '';
+        fillItems();
+        deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
+        deadlineInput.value = localInput(new Date(Date.now() + 3 * 86400000));   // 기본 3일 뒤
+        updateDepositHint();
+        modal.hidden = false;
+    });
+    shopSelect.addEventListener('change', fillItems);
+    itemSelect.addEventListener('change', () => {
+        const opt = itemSelect.selectedOptions[0];
+        const price = opt && opt.dataset.price ? Number(opt.dataset.price) : 0;
+        // 상품 가격을 시작가로, 보증금은 시작가의 15%로 채워 준다
+        if (price) {
+            startInput.value = price.toLocaleString('ko-KR');
+            depositInput.value = Math.round(price * 0.15 / 100) * 100 ? (Math.round(price * 0.15 / 100) * 100).toLocaleString('ko-KR') : '';
+            updateDepositHint();
+        }
+    });
+    [startInput, depositInput].forEach(el => el.addEventListener('input', () => {
+        const d = el.value.replace(/\D/g, '').replace(/^0+/, '');
+        el.value = d ? Number(d).toLocaleString('ko-KR') : '';
+        if (el === startInput) updateDepositHint();
+    }));
+
+    form.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        if (!itemSelect.value) { fail('경매에 올릴 상품을 선택해 주세요.'); return; }
+        const start = digits(startInput), deposit = digits(depositInput);
+        if (!start) { fail('시작가를 입력해 주세요.'); return; }
+        if (deposit * 100 < start * 10 || deposit * 100 > start * 20) { fail('보증금은 시작가의 10% 이상 20% 이하여야 해요.'); return; }
+        if (!deadlineInput.value || new Date(deadlineInput.value) <= new Date()) { fail('마감 일시는 지금보다 뒤여야 해요.'); return; }
+        const submit = $('au-submit');
+        submit.disabled = true;
+        try {
+            const res = await pageFetch(`/api/shops/${shopSelect.value}/auctions`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemId: Number(itemSelect.value), startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00' })
+            });
+            if (!res.ok) { fail(await errorText(res, '경매를 열지 못했어요.')); return; }
+            modal.hidden = true;
+            tab = 'ACTIVE';
+            document.querySelectorAll('#se-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === 'ACTIVE'));
+            await load();
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+    load();
+})();
+</script>
+
+{{> fragments/footer}}

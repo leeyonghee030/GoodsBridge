@@ -1,0 +1,397 @@
+{{> fragments/header}}
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+
+<style>
+/* 상품 상세와 같은 정보 영역 스타일 — 사진/정보를 같은 높이로 맞춰 한 화면에 보이게 */
+.container.au-detail { margin-top: 1.5rem; }
+.au-detail .detail-image { aspect-ratio: auto; height: 520px; }
+.au-info { display: flex; flex-direction: column; min-height: 520px; }
+@media (max-width: 760px) { .au-detail .detail-image { height: auto; aspect-ratio: 3 / 4; } .au-info { min-height: 0; } }
+.au-head { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.6rem; flex-wrap: wrap; }
+.au-tag { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--color-muted); }
+.au-info h1 { flex: none; margin: 0 0 0.5rem; font-size: 1.35rem; line-height: 1.35; }
+.au-desc { max-height: 5.2rem; overflow-y: auto; margin: 0 0 0.9rem; font-size: 0.88rem; line-height: 1.7; color: var(--color-text-soft, #444); white-space: pre-line; }
+.au-price { display: flex; gap: 1.8rem; align-items: flex-end; margin: 0.2rem 0 0.8rem; }
+.au-price small { display: block; font-size: 0.75rem; color: var(--color-muted); }
+.au-price b { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.au-price span { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.au-box { margin: 0 0 0.8rem; padding: 0.6rem 0.9rem; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-size: 0.82rem; color: var(--color-muted); }
+.au-box .au-stats { display: flex; justify-content: space-between; gap: 0.8rem; white-space: nowrap; }
+.au-box strong { margin-left: 0.4rem; font-size: 0.92rem; font-weight: 600; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.au-box strong.is-soon { color: #C0392B; }
+.au-note { margin: 0 0 0.8rem; font-size: 0.78rem; line-height: 1.6; color: var(--color-muted); }
+.au-state { margin: 0 0 0.8rem; padding: 0.8rem 0.9rem; border-radius: 10px; background: #EAF5EE; color: #2E7D4F; font-size: 0.86rem; line-height: 1.6; }
+.au-state.is-warn { background: #FDECEA; color: #C0392B; }
+.au-state.is-plain { background: var(--color-surface); color: var(--color-text); }
+.au-state b { font-size: 1rem; }
+.au-bid { display: grid; gap: 0.5rem; margin-top: auto; }
+.au-bid-row { display: flex; gap: 0.5rem; }
+.au-bid-row .price-input { flex: 1; }
+.au-quick { display: flex; gap: 0.4rem; }
+.au-quick button { flex: 1; width: auto; padding: 0.4rem 0; font-size: 0.78rem; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 999px; }
+.au-quick button:hover { background: var(--color-surface); color: var(--color-text); border-color: var(--color-muted); }
+#au-action, #au-bid-btn { width: 100%; }
+#au-action:disabled, #au-bid-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.au-owner { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.au-owner button { flex: 1; width: auto; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); }
+.au-owner button:hover { background: var(--color-surface); color: var(--color-text); border-color: var(--color-muted); }
+/* 입찰 내역 */
+.au-history { margin-top: 1.5rem; padding: 0 0.2rem; }
+.au-history h2 { margin: 0 0 0.6rem; font-size: 1rem; }
+.au-history-list { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; }
+.au-hrow { display: grid; grid-template-columns: 3rem 1fr auto 8.5rem; gap: 0.6rem; align-items: center; padding: 0.65rem 1rem; border-top: 1px solid var(--color-border); font-size: 0.85rem; }
+.au-hrow:first-child { border-top: 0; }
+.au-hrow .rank { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.au-hrow .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
+.au-hrow .at { text-align: right; font-size: 0.76rem; color: var(--color-muted); }
+.au-hrow.is-top { background: var(--color-surface); }
+.au-hrow.is-me .who::after { content: ' (나)'; color: var(--color-muted); font-size: 0.76rem; }
+.au-empty { padding: 2rem 1rem; text-align: center; font-size: 0.85rem; color: var(--color-muted); }
+/* 잔금 결제 창 */
+.modal-card.order-modal { max-width: 480px; padding: 0; max-height: 90vh; overflow-y: auto; }
+.order-modal h1 { margin: 0; padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--color-border); font-size: 1.05rem; text-align: center; }
+.order-modal .modal-close { top: 1rem; }
+.order-section { padding: 1.2rem 1.5rem; border-bottom: 8px solid var(--color-surface); }
+.order-section h2 { margin: 0 0 0.9rem; font-size: 0.98rem; }
+.order-sum div { display: flex; justify-content: space-between; margin-bottom: 0.45rem; font-size: 0.86rem; color: var(--color-muted); }
+.order-sum div.total { margin: 0.7rem 0 0; padding-top: 0.7rem; border-top: 1px solid var(--color-border); color: var(--color-text); font-weight: 600; }
+.order-sum div.total b { font-size: 1.15rem; }
+.order-submit { padding: 1rem 1.5rem 1.4rem; }
+#au-pay { width: 100%; }
+#au-pay:disabled { opacity: 0.45; cursor: not-allowed; }
+</style>
+
+<div class="container detail-container au-detail">
+<a href="/test/auction" class="back-link">← 목록으로</a>
+<div class="detail-grid">
+    <div class="detail-media">
+        <div class="detail-image" id="au-image">불러오는 중...</div>
+    </div>
+    <div class="detail-info au-info">
+        <div class="au-head">
+            <span class="badge">경매</span>
+            <span class="badge" id="au-status"></span>
+        </div>
+        <p class="au-tag" id="au-shop"></p>
+        <h1 class="detail-title" id="au-title"></h1>
+        <p class="au-desc" id="au-desc"></p>
+        <div class="au-price">
+            <div><small id="au-price-label">현재가</small><b id="au-current"></b></div>
+            <div><small>시작가</small><span id="au-start"></span></div>
+            <div><small>보증금</small><span id="au-deposit"></span></div>
+        </div>
+        <div class="au-box">
+            <div class="au-stats">
+                <div><span>입찰</span><strong id="au-bids"></strong></div>
+                <div><span>마감까지</span><strong id="au-left"></strong></div>
+            </div>
+        </div>
+        <div id="au-state"></div>
+        <div class="au-bid" id="au-bid-area" hidden>
+            <p class="au-note" id="au-bid-note"></p>
+            <div class="au-quick" id="au-quick">
+                <button type="button" data-add="1000">+1,000</button>
+                <button type="button" data-add="5000">+5,000</button>
+                <button type="button" data-add="10000">+10,000</button>
+            </div>
+            <div class="au-bid-row">
+                <span class="price-input">
+                    <input id="au-bid-input" type="text" inputmode="numeric" placeholder="입찰 금액" autocomplete="off">
+                    <span class="price-input-unit">원</span>
+                </span>
+            </div>
+            <button type="button" id="au-bid-btn">입찰하기</button>
+        </div>
+        <button type="button" id="au-action" hidden></button>
+        <div class="au-owner" id="au-owner" hidden></div>
+    </div>
+</div>
+
+<section class="au-history">
+    <h2>입찰 내역 <small id="au-hcount" style="font-weight:400;color:var(--color-muted);font-size:0.8rem;"></small></h2>
+    <div class="au-history-list" id="au-history"><p class="au-empty">불러오는 중...</p></div>
+</section>
+</div>
+
+<!-- 잔금 결제 창 (낙찰자) -->
+<div class="modal-backdrop" id="au-modal" hidden>
+<div class="modal-card order-modal">
+    <button type="button" class="modal-close" id="au-close">✕</button>
+    <h1>낙찰 잔금 결제</h1>
+    <section class="order-section">
+        <h2>배송지</h2>
+        <textarea id="au-address" rows="2" maxlength="255" placeholder="배송받을 주소를 입력해 주세요 (예: 서울시 마포구 …)"></textarea>
+    </section>
+    <section class="order-section order-sum">
+        <h2>결제금액</h2>
+        <div><span>낙찰가</span><span id="s-price"></span></div>
+        <div><span>이미 낸 보증금</span><span id="s-deposit"></span></div>
+        <div class="total"><span>지금 결제할 잔금</span><b id="s-balance"></b></div>
+    </section>
+    <div class="order-submit">
+        <button type="button" id="au-pay">잔금 결제하기</button>
+    </div>
+</div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const $ = id => document.getElementById(id);
+    const AUCTION_ID = {{auctionId}};
+    const portoneStoreId = '{{portoneStoreId}}';
+    const portoneChannelKey = '{{portoneChannelKey}}';
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    const shopAccount = {{shopAccount}};   // 가게 계정은 입찰할 수 없다 (서버에서도 거절)
+    // TODO(데모 종료 후 제거): 데모 모드면 결제창 없이 결제 (데모 바의 결제 O/X 토글을 따른다)
+    const skipPayment = () => '{{skipPayment}}' === 'true' && window.gbPaySkip && window.gbPaySkip();
+
+    let a = null;          // 경매
+    let bids = [];         // 입찰 내역 (높은 금액 순)
+    let myShopIds = [];    // 내가 사장님인 가게 ids
+    let timer = null;
+
+    const deadlineOf = () => new Date(a.deadline);
+    const isLive = () => a.status === 'ACTIVE' && deadlineOf() > new Date();
+    const isWinner = () => userId !== null && a.currentWinnerUserId === userId;
+    const isOwnerShop = () => myShopIds.includes(a.shopId);
+    const myBidCount = () => bids.filter(b => b.userId === userId).length;
+    const date = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const statusLabel = () => a.status === 'CANCELLED' ? '취소'
+        : a.status === 'ENDED_SUCCESS' ? '낙찰'
+        : a.status === 'ENDED_FAIL' ? '유찰'
+        : !isLive() ? '마감 처리 중' : '진행중';
+
+    function leftText() {
+        if (!isLive()) return '종료';
+        const ms = deadlineOf() - new Date();
+        const s = Math.floor(ms / 1000), d = Math.floor(s / 86400);
+        const pad = n => String(n).padStart(2, '0');
+        return `${d ? d + '일 ' : ''}${pad(Math.floor(s % 86400 / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
+    }
+    function tick() {
+        if (!a) return;
+        const el = $('au-left');
+        el.textContent = leftText();
+        el.classList.toggle('is-soon', isLive() && deadlineOf() - new Date() < 3600 * 1000);
+    }
+
+    // ----- 화면 그리기 -----
+    function render() {
+        document.title = `${a.itemTitle} · 경매`;
+        $('au-image').innerHTML = a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="${esc(a.itemTitle)}">` : '이미지 없음';
+        $('au-status').textContent = statusLabel();
+        $('au-shop').textContent = `${a.shopName || ''} · ${a.shopAddress || ''}`;
+        $('au-title').textContent = a.itemTitle;
+        $('au-desc').textContent = a.itemDescription || '';
+        $('au-desc').hidden = !a.itemDescription;
+        $('au-price-label').textContent = a.bidCount ? '현재가' : '시작가(입찰 없음)';
+        $('au-current').textContent = money(a.currentPrice);
+        $('au-start').textContent = money(a.startPrice);
+        $('au-deposit').textContent = money(a.depositAmount);
+        $('au-bids').textContent = `${a.bidCount}회`;
+        tick();
+        renderState();
+        renderHistory();
+    }
+
+    function renderState() {
+        const st = $('au-state'), area = $('au-bid-area'), action = $('au-action'), owner = $('au-owner');
+        st.innerHTML = ''; area.hidden = true; action.hidden = true; owner.hidden = true; owner.innerHTML = '';
+
+        if (isLive()) {
+            // 입찰 안내
+            if (isWinner()) st.innerHTML = '<div class="au-state">지금 <b>내가 최고 입찰자</b>예요. 다른 사람이 더 높게 입찰하면 알려 드릴게요.</div>';
+            const first = userId !== null && myBidCount() === 0;
+            if (shopAccount) {
+                action.hidden = false; action.disabled = true; action.textContent = '가게 계정은 입찰할 수 없어요';
+            } else if (isOwnerShop()) {
+                action.hidden = false; action.disabled = true; action.textContent = '내 가게 경매라 입찰할 수 없어요';
+            } else {
+                area.hidden = false;
+                $('au-bid-note').textContent = first || userId === null
+                    ? `최초 입찰 시 보증금 ${money(a.depositAmount)}이 결제돼요. 낙찰에 실패하거나 경매가 취소되면 보증금은 환불돼요.`
+                    : '이미 보증금을 냈어요. 더 높은 금액으로 입찰하면 돼요.';
+                const input = $('au-bid-input');
+                if (!input.value) input.value = Number(a.currentPrice + (a.bidCount ? 1000 : 0)).toLocaleString('ko-KR');
+                input.dataset.min = a.currentPrice + (a.bidCount ? 1 : 0);
+                $('au-bid-btn').textContent = first ? `보증금 ${money(a.depositAmount)} 결제하고 입찰하기` : '입찰하기';
+            }
+        } else if (a.status === 'ENDED_SUCCESS') {
+            if (isWinner()) {
+                if (a.balancePaid) {
+                    st.innerHTML = `<div class="au-state"><b>낙찰 · 결제 완료</b><br>낙찰가 ${money(a.currentPrice)}을 모두 결제했어요. 구매 내역에서 배송 상태를 확인할 수 있어요.</div>`;
+                    action.hidden = false; action.disabled = false; action.textContent = '구매 내역 보기'; action.onclick = () => { location.href = '/my/purchases'; };
+                } else {
+                    const overdue = a.balanceDueAt && new Date(a.balanceDueAt.slice(0, 19)) < new Date();
+                    st.innerHTML = `<div class="au-state ${overdue ? 'is-warn' : ''}"><b>낙찰되셨어요!</b><br>잔금 <b>${money(a.balanceAmount)}</b>을 ${a.balanceDueAt ? date(a.balanceDueAt) + '까지' : '기한 안에'} 결제해야 해요. 기한 안에 결제하지 않으면 낙찰이 무효가 되고 보증금은 돌려받지 못해요.</div>`;
+                    action.hidden = false; action.disabled = !!overdue; action.textContent = overdue ? '결제 기한이 지났어요' : `잔금 ${money(a.balanceAmount)} 결제하기`;
+                    action.onclick = openBalance;
+                }
+            } else {
+                const w = bids[0];
+                st.innerHTML = `<div class="au-state is-plain"><b>낙찰 완료</b><br>${w ? esc(w.nickname) + '님이 ' : ''}${money(a.currentPrice)}에 낙찰됐어요.</div>`;
+            }
+        } else if (a.status === 'ENDED_FAIL') {
+            st.innerHTML = '<div class="au-state is-plain"><b>유찰</b><br>입찰이 없었거나, 낙찰자가 기한 안에 잔금을 결제하지 않아 낙찰이 무효가 됐어요.</div>';
+        } else if (a.status === 'CANCELLED') {
+            st.innerHTML = '<div class="au-state is-warn"><b>취소된 경매</b><br>입찰자의 보증금은 모두 환불돼요.</div>';
+        } else {
+            st.innerHTML = '<div class="au-state is-plain">마감 시간이 지나 곧 결과가 정해져요. 잠시 후 새로고침해 주세요.</div>';
+        }
+
+        // 가게 사장님 버튼 (진행 중일 때만)
+        if (isOwnerShop() && a.status === 'ACTIVE') {
+            owner.hidden = false;
+            owner.innerHTML = (deadlineOf() <= new Date() ? '<button type="button" data-owner="close">마감 처리</button>' : '')
+                + (a.bidCount === 0 ? '<button type="button" data-owner="cancel">경매 취소</button>' : '');
+            if (!owner.innerHTML) owner.hidden = true;
+        }
+    }
+
+    function renderHistory() {
+        $('au-hcount').textContent = bids.length ? `${bids.length}건` : '';
+        $('au-history').innerHTML = bids.length
+            ? bids.map((b, i) => `<div class="au-hrow ${i === 0 ? 'is-top' : ''} ${b.userId === userId ? 'is-me' : ''}">
+                    <span class="rank">${i === 0 ? '최고' : i + 1}</span>
+                    <span class="who">${esc(b.nickname)}</span>
+                    <span class="amt">${money(b.bidAmount)}</span>
+                    <span class="at">${date(b.createdAt)}</span>
+                </div>`).join('')
+            : '<p class="au-empty">아직 입찰이 없어요. 첫 입찰을 해 보세요.</p>';
+    }
+
+    // ----- 데이터 불러오기 -----
+    async function load(first) {
+        const [ar, br] = await Promise.all([
+            pageFetch('/api/auctions/' + AUCTION_ID),
+            pageFetch(`/api/auctions/${AUCTION_ID}/bids?page=0&size=100`)
+        ]);
+        if (!ar.ok) { $('au-image').textContent = '경매를 찾을 수 없어요.'; return false; }
+        a = await ar.json();
+        bids = br.ok ? ((await br.json()).content || []) : [];
+        if (first && userId !== null) {
+            const sr = await pageFetch('/api/shops/me?page=0&size=50');
+            if (sr.ok) myShopIds = ((await sr.json()).content || []).map(s => s.id);
+        }
+        render();
+        return true;
+    }
+
+    // ----- 입찰 -----
+    const bidInput = $('au-bid-input');
+    const digits = el => Number(el.value.replace(/\D/g, ''));
+    bidInput.addEventListener('input', () => {
+        const d = bidInput.value.replace(/\D/g, '').replace(/^0+/, '');
+        bidInput.value = d ? Number(d).toLocaleString('ko-KR') : '';
+    });
+    $('au-quick').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-add]');
+        if (!b) return;
+        bidInput.value = (a.currentPrice + Number(b.dataset.add)).toLocaleString('ko-KR');
+    });
+
+    async function pay(amount, orderName) {
+        if (skipPayment()) return { paymentId: `demo-pay-${crypto.randomUUID()}` };
+        if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
+        const result = await PortOne.requestPayment({
+            storeId: portoneStoreId, channelKey: portoneChannelKey,
+            paymentId: `goodsbridge-auction-${crypto.randomUUID()}`,
+            orderName, totalAmount: amount, currency: 'KRW', payMethod: 'CARD'
+        });
+        if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+        return result;
+    }
+
+    function needLogin() {
+        alert('로그인이 필요합니다.');
+        const loginBtn = $('nav-login');
+        if (loginBtn) loginBtn.click();
+    }
+
+    $('au-bid-btn').addEventListener('click', async () => {
+        if (userId === null) { needLogin(); return; }
+        const amount = digits(bidInput);
+        if (!amount || amount <= a.currentPrice) { await alert(`입찰가는 현재가 ${money(a.currentPrice)}보다 높아야 해요.`); return; }
+        const first = myBidCount() === 0;
+        if (!(await gbConfirm(`${money(amount)}에 입찰할까요?${first ? '\n최초 입찰이라 보증금 ' + money(a.depositAmount) + '이 결제돼요.' : ''}`))) return;
+        const btn = $('au-bid-btn');
+        btn.disabled = true;
+        try {
+            const body = { bidAmount: amount };
+            if (first) body.paymentId = (await pay(a.depositAmount, `${a.itemTitle} 경매 보증금`)).paymentId;
+            const res = await pageFetch(`/api/auctions/${AUCTION_ID}/bids`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            if (!res.ok) throw new Error(await errorText(res, '입찰에 실패했습니다.') + (first ? '\n결제한 보증금은 자동으로 취소돼요.' : ''));
+            bidInput.value = '';
+            await alert('입찰했어요!');
+        } catch (err) {
+            await alert(err.message);
+        } finally {
+            btn.disabled = false;
+            await load(false);
+        }
+    });
+
+    // ----- 낙찰 잔금 결제 -----
+    const modal = $('au-modal');
+    function openBalance() {
+        $('s-price').textContent = money(a.currentPrice);
+        $('s-deposit').textContent = money(a.depositAmount);
+        $('s-balance').textContent = money(a.balanceAmount);
+        $('au-address').value = '';
+        modal.hidden = false;
+    }
+    $('au-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+    $('au-pay').addEventListener('click', async () => {
+        const address = $('au-address').value.trim();
+        if (!address) { await alert('배송지를 입력해 주세요.'); return; }
+        const btn = $('au-pay');
+        btn.disabled = true;
+        try {
+            const paid = await pay(a.balanceAmount, `${a.itemTitle} 경매 낙찰 잔금`);
+            const res = await pageFetch(`/api/auctions/${AUCTION_ID}/pay-balance`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: paid.paymentId, deliveryAddress: address })
+            });
+            if (!res.ok) throw new Error(await errorText(res, '잔금 결제에 실패했습니다.'));
+            modal.hidden = true;
+            await alert('잔금 결제가 완료됐어요! 구매 내역에서 확인할 수 있어요.');
+        } catch (err) {
+            await alert(err.message);
+        } finally {
+            btn.disabled = false;
+            await load(false);
+        }
+    });
+
+    // ----- 가게 사장님: 경매 취소 / 마감 처리 -----
+    $('au-owner').addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-owner]');
+        if (!b) return;
+        const cancel = b.dataset.owner === 'cancel';
+        if (!(await gbConfirm(cancel ? '이 경매를 취소할까요?' : '지금 경매를 마감 처리할까요?\n입찰이 있으면 최고가 입찰자가 낙찰돼요.'))) return;
+        b.disabled = true;
+        const res = await pageFetch(`/api/auctions/${AUCTION_ID}/${cancel ? 'cancel' : 'close'}`, { method: 'PATCH' });
+        if (!res.ok) await alert(await errorText(res, '처리에 실패했습니다.'));
+        await load(false);
+    });
+
+    load(true).then(ok => {
+        if (!ok) return;
+        timer = setInterval(tick, 1000);
+        // 진행 중에는 5초마다 최신 입찰 상태를 불러온다
+        setInterval(() => { if (a && isLive() && modal.hidden) load(false).catch(() => {}); }, 5000);
+    });
+})();
+</script>
+
+{{> fragments/footer}}

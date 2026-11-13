@@ -58,4 +58,8 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     @Query("select distinct b.user.id from Bid b where b.auction.id = :auctionId")
     List<Long> findBidderUserIds(@Param("auctionId") Long auctionId);
+
+    // 경매별 입찰 횟수 (목록 화면용). 행 = [경매 id, 입찰 수]
+    @Query("select b.auction.id, count(b) from Bid b where b.auction.id in :ids group by b.auction.id")
+    List<Object[]> countBidsByAuctionIds(@Param("ids") java.util.Collection<Long> ids);
 }

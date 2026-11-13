@@ -316,4 +316,33 @@ class AuctionServiceTest {
             LocalDateTime.now().plusSeconds(deadlineOffsetSeconds));
         return request;
     }
+
+    // ---------- 화면용 응답 / 가게별 목록 ----------
+
+    @Test
+    void create_responseCarriesItemAndShopInfoForScreens() {
+        AuctionResponse response = auctionService.create(OWNER_ID, SHOP_ID,
+            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+
+        AuctionResponse detail = auctionService.findById(response.getId());
+        assertThat(detail.getItemTitle()).isNotBlank();
+        assertThat(detail.getShopName()).isNotBlank();
+        assertThat(detail.getBidCount()).isZero();
+    }
+
+    @Test
+    void findAllByShop_returnsOnlyThatShopsAuctionsAndFiltersByStatus() {
+        AuctionResponse created = auctionService.create(OWNER_ID, SHOP_ID,
+            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+
+        Page<AuctionResponse> mine = auctionService.findAllByShop(1, 20, null, SHOP_ID);
+        assertThat(mine.getContent()).extracting(AuctionResponse::getId).contains(created.getId());
+        assertThat(mine.getContent()).allMatch(a -> a.getShopId().equals(SHOP_ID));
+
+        Page<AuctionResponse> other = auctionService.findAllByShop(1, 20, null, OTHER_SHOP_ID);
+        assertThat(other.getContent()).extracting(AuctionResponse::getId).doesNotContain(created.getId());
+
+        Page<AuctionResponse> cancelledOnly = auctionService.findAllByShop(1, 20, Status.CANCELLED, SHOP_ID);
+        assertThat(cancelledOnly.getContent()).extracting(AuctionResponse::getId).doesNotContain(created.getId());
+    }
 }

@@ -108,14 +108,38 @@ public class AuctionService {
         } else {
             auctionPage = auctionRepository.findAllByStatus(status, pageable);
         }
-        return auctionPage.map(AuctionResponse::new);
+        return withBidCounts(auctionPage);
+    }
+
+    // 가게의 경매 목록 (가게 경매 관리 화면용, 상태는 선택)
+    public Page<AuctionResponse> findAllByShop(int page, int size, Status status, Long shopId) {
+        int pageIndex = Math.max(0, page - 1);
+        int validSize = Math.max(1, Math.min(size, 50));
+        Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
+        return withBidCounts(auctionRepository.findAllByShop(shopId, status, pageable));
+    }
+
+    // 목록의 각 경매에 입찰 횟수를 붙인다 (경매마다 쿼리하지 않고 한 번에 센다)
+    private Page<AuctionResponse> withBidCounts(Page<Auction> auctionPage) {
+        java.util.List<Long> ids = auctionPage.getContent().stream().map(Auction::getId).toList();
+        java.util.Map<Long, Long> counts = new java.util.HashMap<>();
+        if (!ids.isEmpty()) {
+            for (Object[] row : bidRepository.countBidsByAuctionIds(ids)) {
+                counts.put((Long) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return auctionPage.map(a -> new AuctionResponse(a).withBidCount(counts.getOrDefault(a.getId(), 0L)));
     }
 
     // 경매 상세 조회
     public AuctionResponse findById(Long id) {
         Auction auction = auctionRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
-        return new AuctionResponse(auction);
+        long bidCount = 0;
+        for (Object[] row : bidRepository.countBidsByAuctionIds(java.util.List.of(id))) {
+            bidCount = ((Number) row[1]).longValue();
+        }
+        return new AuctionResponse(auction).withBidCount(bidCount);
     }
 
     // 경매 마감

@@ -37,6 +37,17 @@ ALTER TABLE notifications_tb MODIFY type VARCHAR(40) NOT NULL, MODIFY reference_
 - **기존 알림 데이터는 그대로 남아요.**
 - 서버 재시작은 필요 없어요.
 
+### 더 안전한 방법: SQL 파일 실행
+`docs/sql/fix_notifications_columns.sql` 은 **언제 실행해도 안전**해요. (여러 번 실행해도 됨)
+- 테이블이 아직 없으면 → 아무것도 바꾸지 않고 "서버를 한 번 실행한 뒤 다시 실행하세요"라고 알려줘요.
+- 이미 문자열 칸이면 → 바꿀 게 없다고 알려줘요.
+- 예전 enum 칸이면 → 문자열로 바꿔요. (기존 알림은 그대로)
+
+```bash
+docker exec -i goodsbridge-mysql mysql -uroot -p goodsbridge < docs/sql/fix_notifications_columns.sql
+```
+(Windows PowerShell은 `<` 를 못 쓰니 위의 "해결 방법"처럼 mysql에 들어가서 파일 내용을 붙여 넣으세요.)
+
 ### 다른 방법: DB 새로 만들기
 ```bash
 docker compose down -v
@@ -48,6 +59,11 @@ docker compose up -d
 1. 데모 막대에서 **B** 계정으로 바꿔요.
 2. 상품(SHOP)을 하나 구매해요.
 3. 화면 위쪽 종 모양 알림에 `[배송준비중]`이 뜨면 정상이에요.
+
+## 알림 말고 다른 칸도 같은 문제가 있어요 (경매)
+예전 DB는 **결제 목적(`payment_tb.purpose`)** 에 `AUCTION_BALANCE`(경매 낙찰 잔금)가, **정산 종류(`settlement_history_tb.type`)** 에 `AUCTION_SALE`(경매 낙찰 정산)가 없을 수 있어요. 이러면 **경매 잔금 결제와 정산이 저장되지 않아요.** (같은 `Data truncated for column ...` 오류)
+
+알림 칸과 이 두 칸을 한 번에 고치는 SQL이 `docs/sql/fix_enum_columns.sql` 이에요. 언제 실행해도 안전해요. (여러 번 실행해도 되고, 테이블이 없으면 건너뛰고, 기존 데이터는 그대로예요) mysql 에 들어가서 파일 내용을 통째로 붙여 넣으세요.
 
 ## 근본 해결 (제안)
 알림 담당 코드에서 `Notification`의 `type`, `reference_type`을 **enum 칸이 아니라 문자열 칸으로 만들어지게 지정**하면, 앞으로 알림 종류가 늘어도 이 문제가 생기지 않아요. 다만 **이미 만들어진 DB의 칸은 코드를 바꿔도 안 바뀌기 때문에**, 기존 DB는 위 SQL이 한 번은 필요해요.
