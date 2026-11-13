@@ -9,7 +9,8 @@ public class NotificationResponse {
         String title,
         String content,
         boolean isRead,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String url
     ) {
         public NotificationDto(Notification notification) {
             this(
@@ -17,7 +18,10 @@ public class NotificationResponse {
                 notification.getTitle(),
                 notification.getContent(),
                 notification.getReadStatus() == Notification.ReadStatus.READ,
-                notification.getCreatedAt()
+                notification.getCreatedAt(),
+                notification.getReferenceType() == null
+                    ? null
+                    : notification.getReferenceType().createUrl(notification.getReferenceId())
             );
         }
     }
