@@ -64,6 +64,8 @@
 .sf-list::-webkit-scrollbar-track, .se-table::-webkit-scrollbar-track { background: transparent; }
 .sf-row { display: grid; grid-template-columns: 5.4rem 1fr auto; align-items: center; gap: 0.2rem 0.9rem; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); font-size: 0.84rem; }
 .sf-row:first-child { border-top: 0; }
+.sf-row.is-click { cursor: pointer; }
+.sf-row.is-click:hover { background: var(--color-surface); }
 .sf-row .at { color: var(--color-muted); font-size: 0.76rem; }
 .sf-row .who { min-width: 0; }
 .sf-row .who strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-weight: 500; overflow: hidden; word-break: break-all; }
@@ -93,6 +95,23 @@
 @media (max-width: 860px) { .sf-body { grid-template-columns: 1fr; } .sf-cal { border-right: 0; border-bottom: 1px solid var(--color-border); } }
 @media (max-width: 640px) { .sf-grid { grid-template-columns: 1fr; } .sf-row { grid-template-columns: 1fr auto; } .sf-row .at { grid-column: 1 / -1; } }
 /* 이벤트 목록 줄: 수정/이벤트 취소는 '···' 메뉴 안에 넣어서 줄이 복잡하지 않게 */
+/* 이벤트 하나의 정산 상세 창 */
+.sd-card { max-width: 520px; width: calc(100% - 2rem); }
+.sd-sum { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 0.8rem; margin: 1rem 0 0.8rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 12px; }
+.sd-sum small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.sd-sum b { display: block; margin-top: 0.2rem; font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sd-sum .main b { font-size: 1.6rem; letter-spacing: -0.02em; }
+.sd-note { margin: 0 0 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; background: var(--color-surface); font-size: 0.78rem; line-height: 1.5; color: var(--color-muted); }
+.sd-list { max-height: 260px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.sd-list.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+.sd-row { display: grid; grid-template-columns: 1fr 3.5rem 5.5rem; gap: 0.6rem; align-items: center; padding: 0.6rem 0.2rem; border-top: 1px solid var(--color-border); font-size: 0.84rem; }
+.sd-row small { display: block; font-size: 0.72rem; color: var(--color-muted); }
+.sd-row .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sd-link { display: block; margin-top: 0.8rem; text-align: center; font-size: 0.82rem; color: var(--color-muted); }
+.se-row-main strong a[data-settle] { cursor: pointer; }
+.se-row-main small.se-earn { margin-top: 0.15rem; color: var(--color-text); }
+.se-row-main small.se-earn b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.se-row-main small.se-earn .muted { color: var(--color-muted); }
 .se-actions .se-more { position: relative; }
 .se-actions .se-more-btn:hover, .se-actions .se-more-btn:focus, .se-actions .se-more-btn:active { background: var(--color-surface); color: var(--color-text); border-color: var(--color-muted); transform: none; }
 .se-actions .se-more-btn { min-width: 0; width: 2.2rem; height: 2.2rem; padding: 0; font-size: 1.1rem; line-height: 1; letter-spacing: 0.05em; }
@@ -244,6 +263,23 @@
     </div>
 </div>
 
+<!-- 이벤트 한 건의 정산 상세 창 (마감/오늘 방문 이벤트의 이름을 누르면 열린다) -->
+<div class="modal-backdrop" id="sd-modal" hidden>
+    <div class="modal-card sd-card">
+        <button type="button" class="modal-close" data-close>✕</button>
+        <h1 id="sd-title">이벤트 정산</h1>
+        <div class="sd-sum">
+            <div class="main"><small>이 이벤트 수익</small><b id="sd-amount">-</b></div>
+            <div><small>참가 수량</small><b id="sd-qty">-</b></div>
+            <div><small>환불된 참가비</small><b id="sd-refund">-</b></div>
+        </div>
+        <p class="sd-note" id="sd-note"></p>
+        <div class="sf-head" style="border-radius:8px 8px 0 0;"><strong>정산 내역</strong><span id="sd-count"></span></div>
+        <div class="sd-list" id="sd-list"></div>
+        <a class="sd-link" id="sd-link" href="#">이벤트 페이지 보기 ›</a>
+    </div>
+</div>
+
 <!-- 이벤트 수정 창: 설명/방문 날짜는 항상, 수량·가격·마감 시각은 참가자가 없을 때만 -->
 <div class="modal-backdrop" id="se-edit-modal" hidden>
     <div class="modal-card">
@@ -361,6 +397,7 @@
             ]);
             settlement = per.flat();
             records = rec.flat();
+            earnings = Object.fromEntries(settlement.map(r => [r.eventId, r]));
         } catch (e) {
             sfEl('sf-list').innerHTML = `<div class="sf-empty">${esc(e.message)}</div>`;
             return;
@@ -411,7 +448,7 @@
         const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
         sfEl('sf-list').innerHTML = list.length
             ? [...list].sort((a, b) => new Date(b.settledAt) - new Date(a.settledAt)).map(x => `
-                <div class="sf-row">
+                <div class="sf-row is-click" data-settle-event="${x.eventId}" title="이 이벤트 정산 보기">
                     <span class="at">${fmt(x.settledAt)}</span>
                     <span class="who"><strong>${esc(x.itemTitle)}</strong><small>${esc(x.buyerNickname)} · ${x.quantity}개</small></span>
                     <span class="amt">+${money(x.amount)}</span>
@@ -428,6 +465,17 @@
         feeDay = feeDay === d ? null : d;   // 같은 날을 다시 누르면 그 달 전체로
         renderSettle();
     });
+
+    // 마감/오늘 방문 이벤트: 이 이벤트로 번 참가비(참가중 수량 기준)와 정산 상태, 환불된 금액
+    let earnings = {};   // eventId -> 이벤트별 정산 집계
+    function earnLine(e) {
+        const t = tabOf(e);
+        const r = earnings[e.id];
+        if (!r || (t !== 'CLOSED' && t !== 'TODAY')) return '';
+        const refunds = r.cancelledAmount + r.refundedAmount;
+        const state = r.settled ? '정산 완료' : '정산 처리 중';
+        return `<small class="se-earn">이 이벤트 수익 <b>${money(r.joinedAmount)}</b> <span class="muted">· 참가 ${r.joinedQuantity}개 · ${state}${refunds ? ' · 환불 ' + money(refunds) : ''}</span></small>`;
+    }
 
     function render() {
         // 정산 탭에서는 목록 대신 정산 화면(달력)을 보여준다
@@ -453,9 +501,10 @@
             <div class="se-row">
                 <span class="related-item-thumb">${e.itemImageUrl ? `<img src="${esc(e.itemImageUrl)}" alt="">` : '🎟️'}</span>
                 <span class="se-row-main">
-                    <strong><a href="/test/event/${e.id}">${esc(e.itemTitle)}</a></strong>
+                    <strong><a href="/test/event/${e.id}" ${['CLOSED', 'TODAY'].includes(tabOf(e)) && earnings[e.id] ? `data-settle="${e.id}" title="이 이벤트 정산 보기"` : ''}>${esc(e.itemTitle)}</a></strong>
                     <small>${multiShop ? esc(e.shopName) + ' · ' : ''}상품 ${money(e.itemPrice)} · 참가비 ${money(e.feeAmount)} · ${e.currentCount}/${e.capacity}개</small>
                     <small>마감 ${dateTime(e.deadline)} · 방문 날짜 ${dayOnly(e.visitUntil)}</small>
+                    ${earnLine(e)}
                 </span>
                 <span class="se-actions">
                     <span class="se-badge ${cls}">${label}</span>
@@ -479,6 +528,12 @@
                 return r.json();
             })));
             events = lists.flat().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id - a.id);
+            try {
+                const per = await Promise.all(shopIds.map(id => pageFetch(`/api/shops/${id}/events/settlement`).then(r => r.ok ? r.json() : [])));
+                earnings = Object.fromEntries(per.flat().map(r => [r.eventId, r]));
+                const rec = await Promise.all(shopIds.map(id => pageFetch(`/api/shops/${id}/events/settlement-records`).then(r => r.ok ? r.json() : [])));
+                records = rec.flat();
+            } catch (err) { earnings = {}; }
             render();
         } catch (e) {
             listEl.innerHTML = `<p class="se-empty">${esc(e.message)}</p>`;
@@ -502,11 +557,45 @@
     const scrollTimers = new WeakMap();
     document.addEventListener('scroll', ev => {
         const el = ev.target;
-        if (!(el instanceof Element) || !(el.classList.contains('sf-list') || el.classList.contains('se-table'))) return;
+        if (!(el instanceof Element) || !(el.classList.contains('sf-list') || el.classList.contains('se-table') || el.classList.contains('sd-list'))) return;
         el.classList.add('is-scrolling');
         clearTimeout(scrollTimers.get(el));
         scrollTimers.set(el, setTimeout(() => el.classList.remove('is-scrolling'), 600));
     }, true);
+
+    // ===== 이벤트 한 건의 정산 상세 =====
+    function openSettleDetail(id) {
+        const r = earnings[id];
+        const e = events.find(x => x.id === id) || { itemTitle: r && r.itemTitle };
+        if (!r) return;
+        const recs = records.filter(x => x.eventId === id).sort((x, y) => new Date(y.settledAt) - new Date(x.settledAt));
+        const refunds = r.cancelledAmount + r.refundedAmount;
+        document.getElementById('sd-title').textContent = e.itemTitle;
+        document.getElementById('sd-amount').textContent = money(r.joinedAmount);
+        document.getElementById('sd-qty').textContent = `${r.joinedQuantity}개`;
+        document.getElementById('sd-refund').textContent = refunds ? money(refunds) : '-';
+        document.getElementById('sd-note').textContent = r.settled
+            ? `참가비 ${money(r.feeAmount)} × ${r.joinedQuantity}개 = ${money(r.joinedAmount)}이 정산됐어요. 상품 가격에서 참가비를 뺀 나머지는 손님이 매장에서 직접 결제해요.`
+            : `참가비 ${money(r.feeAmount)} × ${r.joinedQuantity}개 = ${money(r.joinedAmount)}는 모집 마감 뒤 정산돼요.`;
+        const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        document.getElementById('sd-count').textContent = `${recs.length}건`;
+        document.getElementById('sd-list').innerHTML = recs.length
+            ? recs.map(x => `<div class="sd-row"><span>${esc(x.buyerNickname)}<small>${fmt(x.settledAt)} 정산</small></span><span class="num">${x.quantity}개</span><span class="num"><b>+${money(x.amount)}</b></span></div>`).join('')
+            : '<div class="sf-empty">아직 정산된 내역이 없어요.</div>';
+        document.getElementById('sd-link').href = `/test/event/${id}`;
+        document.getElementById('sd-modal').hidden = false;
+    }
+    listEl.addEventListener('click', ev => {
+        const a = ev.target.closest('[data-settle]');
+        if (!a) return;
+        ev.preventDefault();
+        openSettleDetail(Number(a.dataset.settle));
+    });
+    // 정산 탭의 내역 줄을 누르면 그 이벤트의 정산 상세로
+    document.getElementById('sf-list').addEventListener('click', ev => {
+        const row = ev.target.closest('[data-settle-event]');
+        if (row) openSettleDetail(Number(row.dataset.settleEvent));
+    });
 
     // ===== '···' 메뉴 (수정 / 이벤트 취소) =====
     const closeMenus = () => document.querySelectorAll('.se-more-menu').forEach(m => { m.hidden = true; });
