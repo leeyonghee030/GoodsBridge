@@ -3,6 +3,8 @@ package com.goodsbridge.event;
 import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.event.dto.EventParticipationRequest;
 import com.goodsbridge.event.dto.EventParticipationResponse;
+import com.goodsbridge.event.dto.EventSettlementResponse;
+import com.goodsbridge.event.dto.ShopEventUpdateRequest;
 import com.goodsbridge.event.dto.ShopEventRequest;
 import com.goodsbridge.event.dto.ShopEventResponse;
 import com.goodsbridge.shop.Shop;
@@ -51,8 +53,19 @@ public class EventViewController {
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);
-        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        Long userId = SecurityUtil.getCurrentUserIdOrNull();
+        model.addAttribute("userId", userId);
+        model.addAttribute("ownEvent", eventService.isEventOwner(id, userId));
+        // 가게 계정은 다른 가게 이벤트에도 참가할 수 없다
+        model.addAttribute("shopAccount", userId != null && shopRepository.existsByOwnerUserIdAndDeletedFalse(userId));
         return "event/detail";
+    }
+
+    // 마이페이지: 내 이벤트 내역 (참가중/종료/취소 — 목록은 화면에서 /api/events/me 로 불러온다)
+    @GetMapping("/my/events")
+    public String myEvents(Model model) {
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "event/my";
     }
 
     // 가게 사장님 마이페이지: 이벤트 관리 (이벤트 상품 등록 + 이벤트 열기, 우리 가게 이벤트/참가자)
@@ -80,11 +93,11 @@ public class EventViewController {
         return ResponseEntity.status(201).body(response);
     }
 
-    //참가 취소
-    @DeleteMapping("/api/events/{id}/join")
-    public ResponseEntity<?> cancelEventParticipation(@PathVariable Long id){
+    //참가 취소 (구매 건 단위)
+    @DeleteMapping("/api/events/{id}/join/{participationId}")
+    public ResponseEntity<?> cancelEventParticipation(@PathVariable Long id, @PathVariable Long participationId){
         Long userid = SecurityUtil.getCurrentUserId();
-        eventService.cancelEventParticipation(id, userid);
+        eventService.cancelEventParticipation(id, userid, participationId);
         return ResponseEntity.noContent().build();
     }
 
@@ -130,6 +143,27 @@ public class EventViewController {
         ShopEventResponse shopEventResponse = eventService.getEventDetail(id);
         return ResponseEntity.ok().body(shopEventResponse);
 
+    }
+
+    // 이벤트 수정 (설명/방문 날짜, 참가자가 없으면 수량/가격/마감 시각도)
+    @PatchMapping("/api/events/{id}")
+    public ResponseEntity<ShopEventResponse> updateShopEvent(@PathVariable Long id, @RequestBody ShopEventUpdateRequest request) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(eventService.updateEvent(id, userId, request));
+    }
+
+    // 가게 이벤트 정산 보기
+    @GetMapping("/api/shops/{shopId}/events/settlement")
+    public ResponseEntity<List<EventSettlementResponse>> getEventSettlement(@PathVariable Long shopId) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(eventService.getSettlement(shopId, userId));
+    }
+
+    // 가게 이벤트 정산 내역 (정산된 구매 건)
+    @GetMapping("/api/shops/{shopId}/events/settlement-records")
+    public ResponseEntity<List<com.goodsbridge.event.dto.EventSettlementRecordResponse>> getEventSettlementRecords(@PathVariable Long shopId) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        return ResponseEntity.ok(eventService.getSettlementRecords(shopId, userId));
     }
 
     //이벤트 삭제 + 환불

@@ -71,10 +71,33 @@
             <div class="mega-menu-footer">NO-SHOW FREE EXCHANGE</div>
         </div>
     </div>
-    <a href="/test/event">EVENT</a>
+    <div class="nav-item-mega">
+        <a href="/test/event">EVENT</a>
+        <div class="mega-menu">
+            <div class="category-rank">
+                <div class="category-list">
+                    <h2>마감 임박 · 참가 가능 이벤트</h2>
+                    <!-- 참가 가능한 이벤트를 마감 빠른 순으로 최대 5개 (아래 스크립트가 채움) -->
+                    <ol id="event-rank-list">
+                        <li><a href="/test/event"><span>01</span>진행 중인 이벤트 보기</a></li>
+                    </ol>
+                </div>
+                <a href="/test/event" class="category-photo has-image" id="event-rank-photo">
+                    <img src="/img/nav-event.png" alt="" class="category-photo-image">
+                    <span class="category-photo-overlay">
+                        <strong>선착순 이벤트</strong>
+                        <span>자세히 보기</span>
+                    </span>
+                </a>
+            </div>
+            <div class="mega-menu-footer">FIRST-COME TICKET EVENT</div>
+        </div>
+    </div>
     <a href="/test/board">BOARD</a>
     {{#userId}}
-    <!-- 알림 (#34): 로그인한 사용자만. 동작은 /js/notifications.js -->
+    <a href="/update" id="nav-mypage">MY PAGE</a>
+    <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
+    <!-- 알림 (#34): 로그인한 사용자만, LOGOUT 오른쪽. 동작은 /js/notifications.js -->
     <div class="notification-area">
         <button class="notification-trigger" id="notification-trigger" type="button"
                 aria-label="알림 열기" aria-expanded="false" aria-controls="notification-panel">
@@ -95,8 +118,6 @@
             </div>
         </section>
     </div>
-    <a href="/update" id="nav-mypage">MY PAGE</a>
-    <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
     {{/userId}}
     {{^userId}}
     <button type="button" id="nav-login" class="link-button">LOGIN</button>
@@ -265,7 +286,9 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
     .then(d => {
         if (!(d && d.content && d.content.length)) return;
         // 가게는 체인점 성격이라 개인 구매 내역 탭을 두지 않는다
-        document.querySelectorAll('.my-tabs a[href="/my/purchases"]').forEach(a => a.remove());
+        document.querySelectorAll('.my-tabs a[href="/my/purchases"], .my-tabs a[href="/my/events"]').forEach(a => a.remove());
+        // 개인 이벤트 내역 화면은 가게 계정에 없으니 가게 이벤트 관리로 보낸다
+        if (location.pathname === '/my/events') { location.replace('/shop/events'); return; }
         if (location.pathname === '/my/exchange') return;   // 개인 교환 내역 화면을 직접 연 경우는 그대로 둔다
         document.querySelectorAll('.my-tabs a[href="/my/exchange"]').forEach(a => {
             a.href = '/shop/exchange'; a.textContent = '가게 교환 관리';
@@ -391,6 +414,34 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
             name => `/test/item?category=${encodeURIComponent(name)}`
         ))
         .catch(() => {});
+
+    // 이벤트 메가메뉴: 지금 참가할 수 있는 이벤트(모집중·마감 전·수량 남음, 내가 이미 참가했거나 내 가게 이벤트는 제외)를
+    // 마감 빠른 순으로 최대 5개. 사진(고정 이미지)을 누르면 가장 임박한 이벤트로
+    const json = url => fetch(url, { credentials: 'same-origin' }).then(res => res.ok ? res.json() : null).catch(() => null);
+    const leftLabel = deadline => {
+        const ms = new Date(deadline) - new Date();
+        const h = Math.floor(ms / 3600000);
+        return h < 1 ? `${Math.max(1, Math.floor(ms / 60000))}분 남음` : h < 24 ? `${h}시간 남음` : `D-${Math.floor(h / 24)}`;
+    };
+    Promise.all([json('/api/events'), json('/api/events/me'), json('/api/shops/me')])
+        .then(([events, mine, myShops]) => {
+            const now = new Date();
+            const joined = new Set((mine || []).filter(p => p.status === 'JOINED').map(p => p.shopEventId));
+            const ownShops = new Set(((myShops && myShops.content) || []).map(s => s.id));
+            const open = (events || [])
+                .filter(e => e.status === 'OPEN' && new Date(e.deadline) > now && e.currentCount < e.capacity)
+                .filter(e => !joined.has(e.id) && !ownShops.has(e.shopId))
+                .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+                .slice(0, 5);
+            const listEl = document.getElementById('event-rank-list');
+            if (!listEl || !open.length) return;
+            listEl.innerHTML = open.map((e, i) =>
+                `<li><a href="/test/event/${e.id}" title="${esc(e.itemTitle)}"><span>${String(i + 1).padStart(2, '0')}</span><em class="event-rank-title">${esc(e.itemTitle)}</em><small class="event-rank-left">${leftLabel(e.deadline)}</small></a></li>`
+            ).join('');
+            const photo = document.getElementById('event-rank-photo');
+            photo.href = `/test/event/${open[0].id}`;
+            photo.querySelector('strong + span').textContent = '마감 임박 · 자세히 보기';
+        });
 
     fetch('/api/categories/popular-exchange', { credentials: 'same-origin' })
         .then(res => res.ok ? res.json() : [])

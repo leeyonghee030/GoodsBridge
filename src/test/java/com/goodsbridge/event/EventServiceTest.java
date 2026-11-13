@@ -92,9 +92,17 @@ class EventServiceTest {
     }
 
     private ShopEvent event(int capacity, LocalDateTime deadline) {
+        return event(capacity, deadline, 1);
+    }
+
+    private ShopEvent event(int capacity, LocalDateTime deadline, int maxPerUser) {
+        return event(capacity, deadline, maxPerUser, null);
+    }
+
+    private ShopEvent event(int capacity, LocalDateTime deadline, int maxPerUser, java.time.LocalDate visitUntil) {
         ShopEvent shopEvent = ShopEvent.builder()
             .shop(mock(Shop.class)).item(mock(Item.class))
-            .capacity(capacity).feeAmount(FEE).deadline(deadline)
+            .capacity(capacity).feeAmount(FEE).deadline(deadline).maxPerUser(maxPerUser).visitUntil(visitUntil)
             .build();
         ReflectionTestUtils.setField(shopEvent, "id", EVENT_ID);
         return shopEvent;
@@ -131,7 +139,7 @@ class EventServiceTest {
     @DisplayName("정원이 차서 참가가 거절되면 이미 승인된 결제를 자동 취소한다")
     void join_full_cancelsPayment() {
         ShopEvent shopEvent = event(1, LocalDateTime.now().plusDays(1));
-        shopEvent.increaseCurrentCount();
+        shopEvent.increaseCurrentCount(1);
         joinable(shopEvent);
 
         assertThrows(BadRequestException.class,
@@ -141,14 +149,45 @@ class EventServiceTest {
     }
 
     @Test
-    @DisplayName("중복 참가로 거절돼도 결제를 자동 취소한다")
-    void join_duplicate_cancelsPayment() {
-        joinable(event(5, LocalDateTime.now().plusDays(1)));
-        when(eventParticipationRepository.existsByShopEvent_IdAndUser_Id(USER_ID, EVENT_ID)).thenReturn(true);
+    @DisplayName("1인 최대 수량(1개)을 이미 채운 사람이 또 구매하면 거절하고 결제를 자동 취소한다")
+    void join_alreadyAtMax_cancelsPayment() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
+        joinable(shopEvent);
+        EventParticipation before = participation(shopEvent, "pay-0");
+        when(eventParticipationRepository.findJoinedByUserIdAndShopEventId(USER_ID, EVENT_ID))
+            .thenReturn(List.of(before));
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1")));
+
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+    }
+
+    @Test
+    @DisplayName("가게 주인은 자기 가게 이벤트에 참가할 수 없고, 이미 승인된 결제는 자동 취소한다")
+    void join_ownShopEvent_rejectedAndPaymentCancelled() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
+        when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
+        joinable(shopEvent);
 
         assertThrows(ForbiddenException.class,
             () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1")));
 
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+        assertEquals(0, shopEvent.getCurrentCount());
+    }
+
+    @Test
+    @DisplayName("가게 계정은 다른 가게 이벤트에도 참가할 수 없고, 이미 승인된 결제는 자동 취소한다")
+    void join_otherShopOwner_rejectedAndPaymentCancelled() {
+        joinable(event(5, LocalDateTime.now().plusDays(1)));
+        when(shopRepository.existsByOwnerUserIdAndDeletedFalse(USER_ID)).thenReturn(true);
+
+        assertThrows(ForbiddenException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1")));
+
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
         verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
     }
 
@@ -265,10 +304,10 @@ class EventServiceTest {
     // ---------- C. 번호표
 
     @Test
-    @DisplayName("번호표는 인원수가 아니라 지금까지 발급한 최대 번호 + 1이다 (취소 후에도 번호가 겹치지 않음)")
+    @DisplayName("번호표는 인원수가 아니라 참가중인 최대 번호 + 1이다 (참가중인 번호와 겹치지 않음)")
     void join_ticketNumber_isMaxPlusOne() {
         ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
-        shopEvent.increaseCurrentCount(); // 현재 1명 (앞서 3명이 참가했고 2명이 취소한 상황)
+        shopEvent.increaseCurrentCount(1); // 현재 1명 (앞서 3명이 참가했고 2명이 취소한 상황)
         joinable(shopEvent);
         when(paymentService.verify("pay-1", FEE, PaymentPurpose.EVENT_FEE, USER_ID)).thenReturn("pay-1");
         when(eventParticipationRepository.findMaxTicketNumber(EVENT_ID)).thenReturn(3);
@@ -280,25 +319,326 @@ class EventServiceTest {
         verify(paymentService, never()).cancelUnrecorded(anyString(), anyString());
     }
 
+    // ---------- 수량 선택 (1인 최대 10개)
+
+    @Test
+    @DisplayName("수량 3개로 참가하면 참가비 × 3을 검증하고 수량 3개를 차감한다")
+    void join_quantity_chargesFeeTimesQuantity() {
+        ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
+        joinable(shopEvent);
+        when(paymentService.verify("pay-1", FEE * 3, PaymentPurpose.EVENT_FEE, USER_ID)).thenReturn("pay-1");
+        EventParticipationRequest request = request("pay-1");
+        ReflectionTestUtils.setField(request, "quantity", 3);
+
+        EventParticipationResponse response = eventService.saveEventParticipation(EVENT_ID, USER_ID, request);
+
+        assertEquals(3, response.getQuantity());
+        assertEquals(3, shopEvent.getCurrentCount());
+    }
+
+    @Test
+    @DisplayName("남은 수량보다 많이 신청하면 거절하고 결제를 자동 취소한다")
+    void join_quantityOverRemaining_rejected() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1), 10);
+        shopEvent.increaseCurrentCount(3); // 남은 2개
+        joinable(shopEvent);
+        EventParticipationRequest request = request("pay-1");
+        ReflectionTestUtils.setField(request, "quantity", 3);
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request));
+
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+        assertEquals(3, shopEvent.getCurrentCount());
+    }
+
+    @Test
+    @DisplayName("가게가 정한 1인당 최대 수량(1개)보다 많이 신청하면 거절하고 결제를 자동 취소한다")
+    void join_quantityOverMaxPerUser_rejected() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1), 1);
+        joinable(shopEvent);
+        EventParticipationRequest request = request("pay-1");
+        ReflectionTestUtils.setField(request, "quantity", 2);
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request));
+
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+        assertEquals(0, shopEvent.getCurrentCount());
+    }
+
+    // ---------- 이벤트 수정 / 정산 보기
+
+    private com.goodsbridge.event.dto.ShopEventUpdateRequest updateRequest(String field, Object value) {
+        com.goodsbridge.event.dto.ShopEventUpdateRequest request = new com.goodsbridge.event.dto.ShopEventUpdateRequest();
+        ReflectionTestUtils.setField(request, field, value);
+        return request;
+    }
+
+    private ShopEvent editableEvent(int currentCount) {
+        ShopEvent shopEvent = event(10, LocalDateTime.now().plusDays(2), 3);
+        if (currentCount > 0) shopEvent.increaseCurrentCount(currentCount);
+        when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
+        lenient().when(shopEvent.getItem().getPrice()).thenReturn(30000);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        return shopEvent;
+    }
+
+    @Test
+    @DisplayName("참가자가 있어도 설명과 방문 날짜는 수정할 수 있다")
+    void updateEvent_withParticipants_descriptionAndVisitOk() {
+        ShopEvent shopEvent = editableEvent(2);
+        com.goodsbridge.event.dto.ShopEventUpdateRequest request = updateRequest("visitUntil", LocalDateTime.now().plusDays(9).toLocalDate());
+        ReflectionTestUtils.setField(request, "itemDescription", "수정한 설명");
+
+        eventService.updateEvent(EVENT_ID, USER_ID, request);
+
+        assertEquals(LocalDateTime.now().plusDays(9).toLocalDate(), shopEvent.getVisitUntil());
+        verify(shopEvent.getItem()).update(any(), any(), any(), eq("수정한 설명"), eq(30000), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("참가자가 있으면 수량, 가격, 참가비, 마감 시각은 수정할 수 없다")
+    void updateEvent_withParticipants_lockedFieldsRejected() {
+        ShopEvent shopEvent = editableEvent(2);
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("capacity", 50)));
+        assertThrows(BadRequestException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("feeAmount", 7000)));
+        assertThrows(BadRequestException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("itemPrice", 50000)));
+        assertEquals(10, shopEvent.getCapacity());
+        assertEquals(FEE, shopEvent.getFeeAmount());
+    }
+
+    @Test
+    @DisplayName("참가자가 없고 모집 마감 전이면 수량과 참가비도 수정할 수 있다")
+    void updateEvent_noParticipants_conditionsOk() {
+        ShopEvent shopEvent = editableEvent(0);
+
+        eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("capacity", 50));
+
+        assertEquals(50, shopEvent.getCapacity());
+    }
+
+    @Test
+    @DisplayName("본인 가게 이벤트가 아니면 수정할 수 없다")
+    void updateEvent_notOwner_forbidden() {
+        ShopEvent shopEvent = event(10, LocalDateTime.now().plusDays(2));
+        when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(false);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+
+        assertThrows(ForbiddenException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("itemDescription", "x")));
+    }
+
+    @Test
+    @DisplayName("취소된 이벤트는 수정할 수 없다")
+    void updateEvent_cancelled_rejected() {
+        ShopEvent shopEvent = editableEvent(0);
+        shopEvent.updateStatus(ShopEventStatus.CANCELLED);
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("itemDescription", "x")));
+    }
+
+    @Test
+    @DisplayName("방문 날짜가 오늘인 이벤트는 수정할 수 없다")
+    void updateEvent_visitToday_rejected() {
+        ShopEvent shopEvent = event(10, LocalDateTime.now().minusHours(2), 3, java.time.LocalDate.now());
+        when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("itemDescription", "x")));
+    }
+
+    @Test
+    @DisplayName("방문 날짜가 모집 마감일보다 앞이면 수정할 수 없다")
+    void updateEvent_visitBeforeDeadline_rejected() {
+        editableEvent(0);
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("visitUntil", LocalDateTime.now().plusDays(1).toLocalDate())));
+    }
+
+    @Test
+    @DisplayName("정산 보기: 이벤트별로 참가중 / 손님 취소 / 가게 취소 금액을 나눠서 보여준다")
+    void settlement_sumsByStatus() {
+        ShopEvent shopEvent = event(10, LocalDateTime.now().plusDays(2));
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(USER_ID)).thenReturn(true);
+        when(shopRepository.findById(2L)).thenReturn(Optional.of(shop));
+        when(shopEventRepository.getShopEventAll(2L, null)).thenReturn(List.of(shopEvent));
+        List<Object[]> rows = List.of(
+            new Object[]{EVENT_ID, EventParticipationStatus.JOINED, 5L},
+            new Object[]{EVENT_ID, EventParticipationStatus.CANCELLED, 2L},
+            new Object[]{EVENT_ID, EventParticipationStatus.REFUNDED, 1L});
+        when(eventParticipationRepository.sumQuantityByShop(2L)).thenReturn(rows);
+
+        var result = eventService.getSettlement(2L, USER_ID);
+
+        assertEquals(1, result.size());
+        assertEquals(5, result.get(0).getJoinedQuantity());
+        assertEquals(5 * FEE, result.get(0).getJoinedAmount());
+        assertEquals(2 * FEE, result.get(0).getCancelledAmount());
+        assertEquals(1 * FEE, result.get(0).getRefundedAmount());
+    }
+
+    @Test
+    @DisplayName("정산 내역은 본인 가게만 볼 수 있고, 가게 주인이면 정산된 구매 건을 그대로 돌려준다")
+    void settlementRecords_ownerOnly() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(USER_ID)).thenReturn(true);
+        when(shop.isOwner(99L)).thenReturn(false);
+        when(shopRepository.findById(2L)).thenReturn(Optional.of(shop));
+        var record = new com.goodsbridge.event.dto.EventSettlementRecordResponse(LocalDateTime.now(), 10000, EVENT_ID, "이벤트", "닉네임", 2);
+        when(eventParticipationRepository.findSettlementRecords(2L)).thenReturn(List.of(record));
+
+        assertEquals(1, eventService.getSettlementRecords(2L, USER_ID).size());
+        assertThrows(ForbiddenException.class, () -> eventService.getSettlementRecords(2L, 99L));
+    }
+
+    @Test
+    @DisplayName("정산 보기는 본인 가게만 볼 수 있다")
+    void settlement_notOwner_forbidden() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(USER_ID)).thenReturn(false);
+        when(shopRepository.findById(2L)).thenReturn(Optional.of(shop));
+
+        assertThrows(ForbiddenException.class, () -> eventService.getSettlement(2L, USER_ID));
+    }
+
+    // ---------- 방문 마감일 (이 날이 지나야 종료)
+
+    @Test
+    @DisplayName("방문 마감일을 안 정하면 모집 마감일 + 7일이다")
+    void visitUntil_defaultsToDeadlinePlus7Days() {
+        LocalDateTime deadline = LocalDateTime.now().plusDays(2);
+        ShopEvent shopEvent = event(5, deadline);
+
+        assertEquals(deadline.toLocalDate().plusDays(7), shopEvent.getVisitUntil());
+    }
+
+    @Test
+    @DisplayName("방문 마감일이 모집 마감일보다 앞이면 이벤트를 열 수 없다")
+    void createRequest_visitBeforeDeadline_rejected() {
+        ShopEventRequest request = createRequest();
+        ReflectionTestUtils.setField(request, "visitUntil", LocalDateTime.now().plusDays(1).toLocalDate());
+
+        assertThrows(BadRequestException.class, request::validate);
+    }
+
+    // ---------- 추가 구매 (같은 번호표에 구매 건을 더 쌓는다)
+
+    private EventParticipation boughtBefore(ShopEvent shopEvent, String paymentId, int ticket, int quantity) {
+        EventParticipation p = EventParticipation.builder()
+            .shopEvent(shopEvent).user(activeUser()).paymentId(paymentId).ticketNumber(ticket).quantity(quantity)
+            .build();
+        return p;
+    }
+
+    @Test
+    @DisplayName("이미 5개 산 사람이 3개를 더 사면 기존 번호표를 그대로 쓰고, 새 결제는 3개분만 검증한다")
+    void join_additional_keepsTicketNumber() {
+        ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
+        shopEvent.increaseCurrentCount(5);
+        joinable(shopEvent);
+        EventParticipation before = boughtBefore(shopEvent, "pay-0", 3, 5);
+        when(eventParticipationRepository.findJoinedByUserIdAndShopEventId(USER_ID, EVENT_ID))
+            .thenReturn(List.of(before));
+        when(paymentService.verify("pay-1", FEE * 3, PaymentPurpose.EVENT_FEE, USER_ID)).thenReturn("pay-1");
+        EventParticipationRequest request = request("pay-1");
+        ReflectionTestUtils.setField(request, "quantity", 3);
+
+        EventParticipationResponse response = eventService.saveEventParticipation(EVENT_ID, USER_ID, request);
+
+        assertEquals(3, response.getTicketNumber());
+        assertEquals(3, response.getQuantity());
+        assertEquals(8, shopEvent.getCurrentCount());
+        verify(eventParticipationRepository, never()).findMaxTicketNumber(any());
+        verify(paymentService, never()).cancelUnrecorded(anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("이미 산 수량과 합쳐 1인 최대 수량을 넘으면 거절하고 결제를 자동 취소한다")
+    void join_additional_overMaxPerUser_rejected() {
+        ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
+        shopEvent.increaseCurrentCount(5);
+        joinable(shopEvent);
+        EventParticipation before = boughtBefore(shopEvent, "pay-0", 3, 5);
+        when(eventParticipationRepository.findJoinedByUserIdAndShopEventId(USER_ID, EVENT_ID))
+            .thenReturn(List.of(before));
+        EventParticipationRequest request = request("pay-1");
+        ReflectionTestUtils.setField(request, "quantity", 6); // 5 + 6 = 11개
+
+        assertThrows(BadRequestException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request));
+
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+        assertEquals(5, shopEvent.getCurrentCount());
+    }
+
+    @Test
+    @DisplayName("구매 건 하나만 취소하면 그 건만 환불하고, 다른 구매 건은 그대로 둔다")
+    void cancelJoin_onePurchaseOnly() {
+        ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
+        shopEvent.increaseCurrentCount(8);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        User me = activeUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(me));
+        EventParticipation extra = boughtBefore(shopEvent, "pay-1", 3, 3);
+        when(eventParticipationRepository.findById(200L)).thenReturn(Optional.of(extra));
+
+        eventService.cancelEventParticipation(EVENT_ID, USER_ID, 200L);
+
+        verify(paymentService).refund(eq("pay-1"), eq(FEE * 3), anyString());
+        verify(paymentService, never()).refund(eq("pay-0"), anyInt(), anyString());
+        assertEquals(EventParticipationStatus.CANCELLED, extra.getStatus());
+        assertEquals(5, shopEvent.getCurrentCount());
+    }
+
+    @Test
+    @DisplayName("다른 사람의 구매 건은 취소할 수 없다")
+    void cancelJoin_otherUsersPurchase_notFound() {
+        ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        User me = activeUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(me));
+        User other = mock(User.class);
+        when(other.getId()).thenReturn(99L);
+        EventParticipation theirs = EventParticipation.builder()
+            .shopEvent(shopEvent).user(other).paymentId("pay-x").ticketNumber(2).quantity(1).build();
+        when(eventParticipationRepository.findById(300L)).thenReturn(Optional.of(theirs));
+
+        assertThrows(com.goodsbridge._core.exception.NotFoundException.class,
+            () -> eventService.cancelEventParticipation(EVENT_ID, USER_ID, 300L));
+
+        verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
+    }
+
     // ---------- C, D. 참가 취소
 
     @Test
     @DisplayName("참가 취소 시 환불하고 인원을 줄이며, 정원이 차서 마감됐던 이벤트는 다시 모집중이 된다")
     void cancelJoin_refundsAndReopens() {
         ShopEvent shopEvent = event(1, LocalDateTime.now().plusDays(1));
-        shopEvent.increaseCurrentCount();
+        shopEvent.increaseCurrentCount(1);
         shopEvent.updateStatus(ShopEventStatus.CLOSED);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(eventParticipationRepository.existsByShopEvent_IdAndUser_Id(USER_ID, EVENT_ID)).thenReturn(true);
         EventParticipation joined = participation(shopEvent, "pay-1");
-        when(eventParticipationRepository.findByUserIdAndShopEventId(USER_ID, EVENT_ID)).thenReturn(Optional.of(joined));
+        when(eventParticipationRepository.findById(100L)).thenReturn(Optional.of(joined));
 
-        eventService.cancelEventParticipation(EVENT_ID, USER_ID);
+        eventService.cancelEventParticipation(EVENT_ID, USER_ID, 100L);
 
         verify(paymentService).refund(eq("pay-1"), eq(FEE), anyString());
-        verify(eventParticipationRepository).cancelByUserIdAndShopEventId(USER_ID, EVENT_ID);
+        assertEquals(EventParticipationStatus.CANCELLED, joined.getStatus());
         assertEquals(0, shopEvent.getCurrentCount());
         assertEquals(ShopEventStatus.OPEN, shopEvent.getStatus());
     }
@@ -312,7 +652,7 @@ class EventServiceTest {
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-        assertThrows(BadRequestException.class, () -> eventService.cancelEventParticipation(EVENT_ID, USER_ID));
+        assertThrows(BadRequestException.class, () -> eventService.cancelEventParticipation(EVENT_ID, USER_ID, 100L));
 
         verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
     }
@@ -326,7 +666,7 @@ class EventServiceTest {
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
-        assertThrows(BadRequestException.class, () -> eventService.cancelEventParticipation(EVENT_ID, USER_ID));
+        assertThrows(BadRequestException.class, () -> eventService.cancelEventParticipation(EVENT_ID, USER_ID, 100L));
 
         verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
     }

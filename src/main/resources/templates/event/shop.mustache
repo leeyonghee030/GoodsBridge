@@ -4,7 +4,9 @@
 .se-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
 .se-bar .filter-chip-grid { margin: 0; }
 .se-bar .filter-chip small { margin-left: 0.3rem; opacity: 0.7; }
-.se-bar .write-link { flex: none; width: auto; white-space: nowrap; }
+.se-bar-right { display: flex; gap: 0.5rem; align-items: center; }
+.se-bar-right input { flex: none; width: 13rem; margin: 0; }
+.se-bar-right .write-link { flex: none; width: auto; white-space: nowrap; }
 .se-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
 .se-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 0; border-bottom: 1px solid var(--color-border); }
 .se-row:last-child { border-bottom: 0; }
@@ -12,8 +14,8 @@
 .se-row-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .se-row-main small { color: var(--color-muted); font-size: 0.8rem; }
 .se-actions { flex: none; display: flex; align-items: center; gap: 0.4rem; }
-.se-actions button { padding: 0.35rem 0.75rem; font-size: 0.8rem; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 999px; }
-.se-actions button:hover { border-color: var(--color-muted); }
+.se-actions button { box-sizing: border-box; min-width: 5.6rem; padding: 0.35rem 0.75rem; font-size: 0.8rem; white-space: nowrap; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 999px; }
+.se-actions button:hover, .se-actions button:focus, .se-actions button:active { background: var(--color-surface); color: var(--color-text); border-color: var(--color-muted); transform: none; }
 .se-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
 .se-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 .se-badge.is-warn { background: #FDECEA; color: #C0392B; }
@@ -21,11 +23,107 @@
 .se-section { margin: 0.9rem 0 0.4rem; font-size: 0.82rem; color: var(--color-muted); }
 .se-form-row { display: flex; gap: 0.5rem; }
 .se-form-row > * { flex: 1; min-width: 0; }
-.se-form-row label { display: block; margin-bottom: 0.25rem; font-size: 0.78rem; color: var(--color-muted); }
-.se-people { margin: 0.6rem 0 0; padding: 0; list-style: none; max-height: 360px; overflow-y: auto; }
-.se-people li { display: flex; justify-content: space-between; gap: 0.6rem; padding: 0.55rem 0; border-bottom: 1px solid var(--color-border); font-size: 0.88rem; }
-.se-people li b { font-variant-numeric: tabular-nums; }
-.se-people li.is-off { color: var(--color-muted); text-decoration: line-through; }
+.se-form-row { align-items: flex-end; }
+.se-form-row label, .se-field-label { display: block; margin-bottom: 0.25rem; font-size: 0.78rem; color: var(--color-muted); }
+/* 숫자/날짜 입력창도 다른 입력창(상품명, 참가비)과 같은 모양으로 */
+#se-form input[type="number"], #se-form input[type="date"], #se-form input[type="datetime-local"] {
+    box-sizing: border-box; width: 100%; padding: 0.65rem 0.8rem; border: 1px solid var(--color-border); border-radius: 4px;
+    font-family: var(--font-sans); font-size: 0.9rem; color: var(--color-text); background: var(--color-bg);
+}
+#se-form input[type="number"]:focus, #se-form input[type="date"]:focus, #se-form input[type="datetime-local"]:focus { outline: none; border-color: var(--color-text); }
+.se-form-row .price-input { margin: 0; }
+#se-edit-form input[type="number"], #se-edit-form input[type="date"], #se-edit-form input[type="datetime-local"] {
+    box-sizing: border-box; width: 100%; padding: 0.65rem 0.8rem; border: 1px solid var(--color-border); border-radius: 4px;
+    font-family: var(--font-sans); font-size: 0.9rem; color: var(--color-text); background: var(--color-bg);
+}
+#se-edit-form input:focus, #se-edit-form textarea:focus { outline: none; border-color: var(--color-text); }
+#se-edit-form input:disabled { background: var(--color-surface); color: var(--color-muted); cursor: not-allowed; }
+.se-edit-note { margin: 0.2rem 0 0.8rem; padding: 0.6rem 0.8rem; border-radius: 8px; background: var(--color-surface); font-size: 0.78rem; line-height: 1.5; color: var(--color-muted); }
+/* 이벤트 정산 (판매 정산과 같은 모양: 요약 + 달력 + 날짜별 내역) */
+.sf[hidden] { display: none; }
+.sf { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; overflow: hidden; }
+.sf-note { padding: 0.6rem 1rem; border-bottom: 1px solid var(--color-border); background: var(--color-surface); font-size: 0.76rem; color: var(--color-muted); }
+.sf-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1rem; padding: 1.6rem 1.2rem; }
+.sf-grid small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.sf-grid b { display: block; margin-top: 0.25rem; font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em; }
+.sf-grid .main b { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.02em; }
+.sf-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.sf-head strong { font-size: 0.88rem; font-weight: 600; }
+.sf-head span { font-size: 0.74rem; color: var(--color-muted); }
+.sf-body { display: grid; grid-template-columns: minmax(300px, 1fr) 1.2fr; border-top: 1px solid var(--color-border); }
+.sf-cal { padding: 1rem 1.2rem 1.2rem; border-right: 1px solid var(--color-border); }
+.sf-side { display: flex; flex-direction: column; min-width: 0; }
+.sf-side .sf-head { border-top: 0; border-bottom: 1px solid var(--color-border); }
+.sf-list { height: 380px; overflow-y: auto; }
+/* 내용이 많아져도 칸 높이는 그대로, 스크롤하는 동안에만 스크롤바가 보이고 멈추면 사라진다 */
+.sf-list, .se-table { scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.sf-list.is-scrolling, .se-table.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+.sf-list::-webkit-scrollbar, .se-table::-webkit-scrollbar { display: block; width: 8px; }
+.sf-list::-webkit-scrollbar-thumb, .se-table::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+.sf-list.is-scrolling::-webkit-scrollbar-thumb, .se-table.is-scrolling::-webkit-scrollbar-thumb { background: #c9c9c9; }
+.sf-list::-webkit-scrollbar-track, .se-table::-webkit-scrollbar-track { background: transparent; }
+.sf-row { display: grid; grid-template-columns: 7.2rem 1fr auto; align-items: center; gap: 0.2rem 0.9rem; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); font-size: 0.84rem; }
+.sf-row:first-child { border-top: 0; }
+.sf-row .at { color: var(--color-muted); font-size: 0.76rem; }
+.sf-row .who { min-width: 0; }
+.sf-row .who strong { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-row .who small { display: block; margin-top: 0.1rem; font-size: 0.72rem; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sf-row .amt { min-width: 5rem; text-align: right; font-weight: 600; white-space: nowrap; }
+.sf-empty { display: flex; align-items: center; justify-content: center; height: 100%; padding: 2rem 1rem; font-size: 0.85rem; color: var(--color-muted); }
+.sf-cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem; }
+.sf-cal-head strong { font-size: 0.95rem; }
+.sf-cal-head button { width: auto; padding: 0.2rem 0.6rem; background: transparent; color: var(--color-text); border: 0; font-size: 1.05rem; }
+.sf-cal-head button:hover { background: var(--color-surface); }
+.sf-cal-head button:disabled { opacity: 0.3; cursor: default; background: transparent; }
+.sf-cal .sf-cal-total { width: 100%; display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 0.7rem; padding: 0.55rem 0.7rem; background: var(--color-surface); color: var(--color-text); border: 1px solid transparent; border-radius: 8px; font-size: 0.8rem; font-weight: 500; text-align: left; }
+.sf-cal .sf-cal-total:hover { background: var(--color-surface); border-color: var(--color-border); }
+.sf-cal .sf-cal-total.active { border-color: var(--color-dark); }
+.sf-cal .sf-cal-total b { font-size: 1rem; }
+.sf-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.sf-cal-grid .dow { padding: 0.2rem 0; text-align: center; font-size: 0.7rem; color: var(--color-muted); }
+.sf-cal-grid .dow:first-child { color: #C0392B; }
+.sf-cal-grid button { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.1rem; width: 100%; min-height: 3.1rem; padding: 0.35rem 0.1rem; background: #fff; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.78rem; font-weight: 500; }
+.sf-cal-grid button:hover { background: var(--color-surface); }
+.sf-cal-grid button small { font-size: 0.62rem; font-weight: 600; color: #2E7D4F; white-space: nowrap; }
+.sf-cal-grid button.is-today { border-color: var(--color-text-soft, #888); }
+.sf-cal-grid button.active { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.sf-cal-grid button.active small { color: #fff; }
+.sf-cal-grid button:disabled { background: transparent; color: var(--color-border); cursor: default; }
+.sf-cal-grid .blank { min-height: 3.1rem; }
+@media (max-width: 860px) { .sf-body { grid-template-columns: 1fr; } .sf-cal { border-right: 0; border-bottom: 1px solid var(--color-border); } }
+@media (max-width: 640px) { .sf-grid { grid-template-columns: 1fr; } .sf-row { grid-template-columns: 1fr auto; } .sf-row .at { grid-column: 1 / -1; } }
+/* 이벤트 목록 줄: 수정/이벤트 취소는 '···' 메뉴 안에 넣어서 줄이 복잡하지 않게 */
+.se-actions .se-more { position: relative; }
+.se-actions .se-more-btn:hover, .se-actions .se-more-btn:focus, .se-actions .se-more-btn:active { background: var(--color-surface); color: var(--color-text); border-color: var(--color-muted); transform: none; }
+.se-actions .se-more-btn { min-width: 0; width: 2.2rem; height: 2.2rem; padding: 0; font-size: 1.1rem; line-height: 1; letter-spacing: 0.05em; }
+.se-more-menu { position: absolute; right: 0; top: calc(100% + 0.3rem); z-index: 20; min-width: 7.5rem; padding: 0.25rem 0; border: 1px solid var(--color-border); border-radius: 10px; background: #fff; box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+.se-more-menu[hidden] { display: none; }
+.se-actions .se-more-menu button { display: block; width: 100%; min-width: 0; padding: 0.55rem 0.9rem; font-size: 0.82rem; text-align: left; border: 0; border-radius: 0; background: none; color: var(--color-text); }
+.se-actions .se-more-menu button:hover, .se-actions .se-more-menu button:focus { background: var(--color-surface); border: 0; transform: none; }
+.se-actions .se-more-menu button:hover { color: var(--color-text); }
+.se-actions .se-more-menu button.is-danger:hover { color: #C0392B; }
+.se-actions .se-more-menu button.is-danger { color: #C0392B; }
+.se-people-card { max-width: 600px; width: calc(100% - 2rem); }
+.se-people-tabs { display: flex; gap: 0.2rem; margin: 0.8rem 0 0.6rem; border-bottom: 1px solid var(--color-border); }
+.se-people-tabs button { width: auto; padding: 0.5rem 0.9rem; font: inherit; font-size: 0.86rem; font-weight: 500; background: none; color: var(--color-muted); border: 0; border-bottom: 2px solid transparent; border-radius: 0; cursor: pointer; }
+.se-people-tabs button:hover { background: none; color: var(--color-text); }
+.se-people-tabs button.active, .se-people-tabs button.active:hover { color: var(--color-text); font-weight: 700; border-bottom-color: var(--color-dark); }
+.se-people-tabs small { margin-left: 0.3rem; opacity: 0.6; }
+.se-search { box-sizing: border-box; width: 100%; margin: 0 0 0.5rem; }
+.se-people-note { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--color-muted); }
+/* 표 형태: 번호 / 닉네임 / 수량 (구매 내역은 시간, 금액, 상태까지) */
+.se-table { max-height: 380px; overflow-y: auto; }
+.se-tr { display: grid; gap: 0.6rem; align-items: center; padding: 0.55rem 0.2rem; border-bottom: 1px solid var(--color-border); font-size: 0.86rem; }
+.se-tr.is-head { position: sticky; top: 0; background: #fff; font-size: 0.76rem; color: var(--color-muted); }
+.se-table.t-tickets .se-tr { grid-template-columns: 3.5rem 1fr 4rem 4rem; }
+.se-table.t-buys .se-tr { grid-template-columns: 7.2rem 3rem 1fr 3rem 4.8rem 5.2rem; }
+.se-tr b { font-variant-numeric: tabular-nums; }
+.se-tr .num { text-align: right; font-variant-numeric: tabular-nums; }
+.se-tr.is-off { color: var(--color-muted); }
+.se-tr.is-off .nm { text-decoration: line-through; }
+.se-tr .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.se-tr-empty { padding: 2.5rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+@media (max-width: 560px) { .se-table.t-buys .se-tr { grid-template-columns: 5.6rem 2.4rem 1fr 2.4rem 4rem; } .se-table.t-buys .hide-sm { display: none; } }
 </style>
 
 <!-- 내 정보 화면처럼 탭과 내용을 하나의 카드 안에 둔다 -->
@@ -40,12 +138,42 @@
 <div class="se-bar">
     <div class="filter-chip-grid" id="se-tabs">
         <button type="button" class="filter-chip active" data-tab="OPEN">모집중<small id="se-cnt-OPEN"></small></button>
+        <button type="button" class="filter-chip" data-tab="TODAY">오늘 방문<small id="se-cnt-TODAY"></small></button>
         <button type="button" class="filter-chip" data-tab="CLOSED">마감<small id="se-cnt-CLOSED"></small></button>
         <button type="button" class="filter-chip" data-tab="CANCELLED">취소<small id="se-cnt-CANCELLED"></small></button>
+        <button type="button" class="filter-chip" data-tab="SETTLE">정산</button>
     </div>
-    <button type="button" class="write-link" id="se-open-create">이벤트 열기</button>
+    <div class="se-bar-right">
+        <label for="se-event-search" class="sr-only">이벤트 검색</label>
+        <input id="se-event-search" type="text" placeholder="이벤트 · 가게명 검색" autocomplete="off">
+        <button type="button" class="write-link" id="se-open-create">이벤트 열기</button>
+    </div>
 </div>
-<section class="se-panel"><div id="se-list"><p class="se-empty">불러오는 중...</p></div></section>
+<section class="sf" id="sf" hidden>
+    <div class="sf-note">마감 뒤 정산이 끝난 이벤트 참가비예요. 아직 정산 전인 이벤트는 아래 정산 예정 금액으로 따로 보여요.</div>
+    <div class="sf-grid">
+        <div class="main"><small>오늘</small><b id="sf-today">-</b></div>
+        <div><small>이번 달</small><b id="sf-month">-</b></div>
+        <div><small>저번 달</small><b id="sf-last">-</b></div>
+    </div>
+    <div class="sf-body">
+        <div class="sf-cal">
+            <div class="sf-cal-head">
+                <button type="button" id="sf-cal-prev" aria-label="이전 달">‹</button>
+                <strong id="sf-cal-title"></strong>
+                <button type="button" id="sf-cal-next" aria-label="다음 달">›</button>
+            </div>
+            <button type="button" class="sf-cal-total" id="sf-cal-total"></button>
+            <div class="sf-cal-grid" id="sf-cal-grid"></div>
+        </div>
+        <div class="sf-side">
+            <div class="sf-head"><strong id="sf-title"></strong><span id="sf-count"></span></div>
+            <div class="sf-list" id="sf-list"></div>
+        </div>
+    </div>
+    <div class="sf-head"><strong>정산 예정</strong><span id="sf-pending"></span></div>
+</section>
+<section class="se-panel" id="se-panel"><div id="se-list"><p class="se-empty">불러오는 중...</p></div></section>
 </div>
 
 <!-- 이벤트 열기 창: 이벤트 상품을 새로 등록하면서 이벤트를 연다 -->
@@ -72,7 +200,7 @@
             <p>
                 <label for="se-price" class="sr-only">상품 가격</label>
                 <span class="price-input">
-                    <input id="se-price" type="text" inputmode="numeric" placeholder="상품 가격" autocomplete="off" required>
+                    <input id="se-price" type="text" inputmode="numeric" placeholder="상품 가격 (참가비 포함)" autocomplete="off" required>
                     <span class="price-input-unit">원</span>
                 </span>
             </p>
@@ -87,11 +215,15 @@
             <p class="se-section">이벤트 조건</p>
             <div class="se-form-row">
                 <p>
-                    <label for="se-capacity">모집 인원 (1-100명)</label>
+                    <label for="se-capacity">모집 수량 (1-100)</label>
                     <input id="se-capacity" type="number" min="1" max="100" placeholder="예: 30" required>
                 </p>
                 <p>
-                    <label for="se-fee">참가비 (5,000-100,000원)</label>
+                    <label for="se-max">1인 최대 (1-10)</label>
+                    <input id="se-max" type="number" min="1" max="10" value="1" required>
+                </p>
+                <p>
+                    <label for="se-fee">참가비 (5천-10만)</label>
                     <span class="price-input">
                         <input id="se-fee" type="text" inputmode="numeric" placeholder="참가비" autocomplete="off" required>
                         <span class="price-input-unit">원</span>
@@ -99,8 +231,12 @@
                 </p>
             </div>
             <p>
-                <label for="se-deadline" class="se-section" style="display:block;">모집 마감</label>
+                <label for="se-deadline" class="se-field-label">모집 마감</label>
                 <input id="se-deadline" type="datetime-local" required>
+            </p>
+            <p>
+                <label for="se-visit" class="se-field-label">손님 방문 날짜 (이 날이 지나면 종료)</label>
+                <input id="se-visit" type="date" required>
             </p>
             <button type="submit" id="se-submit">이벤트 열기</button>
         </form>
@@ -108,12 +244,66 @@
     </div>
 </div>
 
-<!-- 참가자 명단 창 -->
-<div class="modal-backdrop" id="se-people-modal" hidden>
+<!-- 이벤트 수정 창: 설명/방문 날짜는 항상, 수량·가격·마감 시각은 참가자가 없을 때만 -->
+<div class="modal-backdrop" id="se-edit-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" data-close>✕</button>
+        <h1 id="se-edit-title">이벤트 수정</h1>
+        <form id="se-edit-form">
+            <p class="se-edit-note" id="se-edit-note"></p>
+            <p>
+                <label for="se-edit-desc" class="se-field-label">상품 설명</label>
+                <textarea id="se-edit-desc" rows="3" maxlength="1000" placeholder="상품 설명"></textarea>
+            </p>
+            <p>
+                <label for="se-edit-visit" class="se-field-label">손님 방문 날짜</label>
+                <input id="se-edit-visit" type="date" required>
+            </p>
+            <div class="se-form-row">
+                <p>
+                    <label for="se-edit-capacity">모집 수량 (1-100)</label>
+                    <input id="se-edit-capacity" type="number" min="1" max="100" required>
+                </p>
+                <p>
+                    <label for="se-edit-max">1인 최대 (1-10)</label>
+                    <input id="se-edit-max" type="number" min="1" max="10" required>
+                </p>
+            </div>
+            <div class="se-form-row">
+                <p>
+                    <label for="se-edit-price">상품 가격</label>
+                    <span class="price-input">
+                        <input id="se-edit-price" type="text" inputmode="numeric" autocomplete="off" required>
+                        <span class="price-input-unit">원</span>
+                    </span>
+                </p>
+                <p>
+                    <label for="se-edit-fee">참가비 (5천-10만)</label>
+                    <span class="price-input">
+                        <input id="se-edit-fee" type="text" inputmode="numeric" autocomplete="off" required>
+                        <span class="price-input-unit">원</span>
+                    </span>
+                </p>
+            </div>
+            <p>
+                <label for="se-edit-deadline" class="se-field-label">모집 마감</label>
+                <input id="se-edit-deadline" type="datetime-local" required>
+            </p>
+            <button type="submit" id="se-edit-submit">수정하기</button>
+        </form>
+        <p id="se-edit-message" class="form-message"></p>
+    </div>
+</div>
+
+<!-- 참가자 명단 창 -->
+<div class="modal-backdrop" id="se-people-modal" hidden>
+    <div class="modal-card se-people-card">
+        <button type="button" class="modal-close" data-close>✕</button>
         <h1 id="se-people-title">참가자 명단</h1>
-        <ul class="se-people" id="se-people"></ul>
+        <div class="se-people-tabs" id="se-people-tabs"></div>
+        <input type="text" id="se-search" class="se-search" placeholder="닉네임 · 번호표 검색" autocomplete="off" hidden>
+        <p class="se-people-note" id="se-people-note"></p>
+        <div class="se-table" id="se-people"></div>
     </div>
 </div>
 
@@ -127,6 +317,8 @@
     const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const dateTime = iso => iso ? new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+    // 방문 날짜(YYYY-MM-DD)는 '11. 25.'처럼 마감 시각과 같은 모양으로
+    const dayOnly = d => d ? `${Number(d.slice(5, 7))}. ${Number(d.slice(8, 10))}.` : '-';
     const digits = el => Number(el.value.replace(/\D/g, ''));
 
     const shopSelect = document.getElementById('se-shop');
@@ -141,33 +333,140 @@
     // 마감시간이 지났으면 상태가 OPEN 이어도(스케줄러 반영 전) 마감으로 본다
     const statusOf = e => e.status === 'OPEN' && new Date(e.deadline) <= new Date() ? 'CLOSED' : e.status;
     const canCancel = e => e.status !== 'CANCELLED' && new Date(e.deadline) > new Date();
-    const BADGE = { OPEN: ['모집중', 'is-ok'], CLOSED: ['마감', ''], CANCELLED: ['취소됨', 'is-warn'] };
+    // 취소되지 않았고 방문 날짜가 오늘 이후인 이벤트만 수정할 수 있다 (방문 당일부터는 현장 진행 중이라 수정 불가)
+    const canEdit = e => e.status !== 'CANCELLED' && e.visitUntil > todayStr();
+    const BADGE = { OPEN: ['모집중', 'is-ok'], TODAY: ['오늘 방문', 'is-ok'], CLOSED: ['마감', ''], CANCELLED: ['취소됨', 'is-warn'] };
+    // 모집이 끝났고 손님 방문 날짜가 오늘인 이벤트는 '오늘 방문' 분류로 따로 모아서 보여준다
+    const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const tabOf = e => { const st = statusOf(e); return st === 'CLOSED' && e.visitUntil === todayStr() ? 'TODAY' : st; };
+
+    document.getElementById('se-event-search').addEventListener('input', () => render());
+
+    // 정산 탭: 정산된 구매 건(달력/날짜별 내역) + 아직 정산 전인 이벤트(정산 예정)
+    let settlement = [];   // 이벤트별 집계 (정산 예정 계산용)
+    let records = [];      // 정산된 구매 건 (SettlementHistory 의 이벤트 참가비)
+    let feeView = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let feeDay = null;
+    const sfEl = id => document.getElementById(id);
+    async function loadSettlement() {
+        sfEl('sf-list').innerHTML = '<div class="sf-empty">정산 내역을 불러오는 중...</div>';
+        const get = (id, path) => pageFetch(`/api/shops/${id}/events/${path}`).then(async r => {
+            if (!r.ok) throw new Error(await errorText(r, '정산 내역을 불러오지 못했어요.'));
+            return r.json();
+        });
+        try {
+            const [per, rec] = await Promise.all([
+                Promise.all(shopIds.map(id => get(id, 'settlement'))),
+                Promise.all(shopIds.map(id => get(id, 'settlement-records')))
+            ]);
+            settlement = per.flat();
+            records = rec.flat();
+        } catch (e) {
+            sfEl('sf-list').innerHTML = `<div class="sf-empty">${esc(e.message)}</div>`;
+            return;
+        }
+        render();
+    }
+    function renderSettle() {
+        const q = document.getElementById('se-event-search').value.trim().toLowerCase();
+        const recs = records.filter(r => !q || `${r.itemTitle} ${r.buyerNickname}`.toLowerCase().includes(q));
+        const sum = list => list.reduce((acc, x) => acc + (x.amount || 0), 0);
+        const now = new Date();
+        const between = (from, to) => recs.filter(x => { const d = new Date(x.settledAt); return d >= from && d < to; });
+        const y = now.getFullYear(), m = now.getMonth();
+        const today = new Date(y, m, now.getDate());
+        sfEl('sf-today').textContent = money(sum(between(today, new Date(y, m, now.getDate() + 1))));
+        sfEl('sf-month').textContent = money(sum(between(new Date(y, m, 1), new Date(y, m + 1, 1))));
+        sfEl('sf-last').textContent = money(sum(between(new Date(y, m - 1, 1), new Date(y, m, 1))));
+        // 정산 예정: 아직 정산 전이고 취소되지 않은 이벤트의 참가비 (모집 마감 뒤 정산돼요)
+        const pending = settlement.filter(r => !r.settled && r.status !== 'CANCELLED' && r.joinedAmount > 0 && (!q || r.itemTitle.toLowerCase().includes(q)));
+        sfEl('sf-pending').textContent = `${pending.length}개 이벤트 · ${money(pending.reduce((acc, r) => acc + r.joinedAmount, 0))}`;
+
+        // ----- 달력: 보고 있는 달의 날짜별 정산 금액 -----
+        const cy = feeView.getFullYear(), cm = feeView.getMonth();
+        const monthList = between(new Date(cy, cm, 1), new Date(cy, cm + 1, 1));
+        const byDay = {};
+        monthList.forEach(x => { const d = new Date(x.settledAt).getDate(); byDay[d] = (byDay[d] || 0) + x.amount; });
+        sfEl('sf-cal-title').textContent = `${cy}년 ${cm + 1}월`;
+        sfEl('sf-cal-next').disabled = cy === y && cm === m;   // 미래 달로는 넘어가지 않는다
+        const totalBtn = sfEl('sf-cal-total');
+        totalBtn.innerHTML = `<span>${cm + 1}월 전체 · ${monthList.length}건</span><b>${money(sum(monthList))}</b>`;
+        totalBtn.classList.toggle('active', feeDay === null);
+        const short = v => v >= 10000 ? '+' + (Math.round(v / 1000) / 10) + '만' : '+' + v.toLocaleString('ko-KR');
+        const firstDow = new Date(cy, cm, 1).getDay();
+        const lastDate = new Date(cy, cm + 1, 0).getDate();
+        let cells = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<span class="dow">${d}</span>`).join('');
+        cells += '<span class="blank"></span>'.repeat(firstDow);
+        for (let d = 1; d <= lastDate; d++) {
+            const future = new Date(cy, cm, d) > today;
+            const cls = [(cy === y && cm === m && d === now.getDate()) ? 'is-today' : '', feeDay === d ? 'active' : ''].join(' ');
+            cells += `<button type="button" data-day="${d}" class="${cls}" ${future ? 'disabled' : ''}>${d}<small>${byDay[d] ? short(byDay[d]) : ''}</small></button>`;
+        }
+        sfEl('sf-cal-grid').innerHTML = cells;
+
+        // ----- 오른쪽: 고른 날(없으면 그 달 전체) 내역 -----
+        const list = feeDay === null ? monthList : monthList.filter(x => new Date(x.settledAt).getDate() === feeDay);
+        sfEl('sf-title').textContent = feeDay === null ? `${cm + 1}월 정산 내역` : `${cm + 1}월 ${feeDay}일 정산 내역`;
+        sfEl('sf-count').textContent = `${list.length}건 · ${money(sum(list))}`;
+        const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        sfEl('sf-list').innerHTML = list.length
+            ? [...list].sort((a, b) => new Date(b.settledAt) - new Date(a.settledAt)).map(x => `
+                <div class="sf-row">
+                    <span class="at">${fmt(x.settledAt)}</span>
+                    <span class="who"><strong>${esc(x.itemTitle)}</strong><small>${esc(x.buyerNickname)} · ${x.quantity}개</small></span>
+                    <span class="amt">+${money(x.amount)}</span>
+                </div>`).join('')
+            : `<div class="sf-empty">${feeDay === null ? (cm + 1) + '월' : (cm + 1) + '월 ' + feeDay + '일'}에는 이벤트 정산이 없어요.</div>`;
+    }
+    sfEl('sf-cal-prev').addEventListener('click', () => { feeView = new Date(feeView.getFullYear(), feeView.getMonth() - 1, 1); feeDay = null; renderSettle(); });
+    sfEl('sf-cal-next').addEventListener('click', () => { feeView = new Date(feeView.getFullYear(), feeView.getMonth() + 1, 1); feeDay = null; renderSettle(); });
+    sfEl('sf-cal-total').addEventListener('click', () => { feeDay = null; renderSettle(); });
+    sfEl('sf-cal-grid').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-day]');
+        if (!b || b.disabled) return;
+        const d = Number(b.dataset.day);
+        feeDay = feeDay === d ? null : d;   // 같은 날을 다시 누르면 그 달 전체로
+        renderSettle();
+    });
 
     function render() {
-        ['OPEN', 'CLOSED', 'CANCELLED'].forEach(t => {
-            document.getElementById('se-cnt-' + t).textContent = events.filter(e => statusOf(e) === t).length;
+        // 정산 탭에서는 목록 대신 정산 화면(달력)을 보여준다
+        document.getElementById('sf').hidden = tab !== 'SETTLE';
+        document.getElementById('se-panel').hidden = tab === 'SETTLE';
+        if (tab === 'SETTLE') { renderSettle(); return; }
+        // 검색어가 있으면 모집중/마감/취소 개수도 검색 결과 기준으로 보여준다
+        const q = document.getElementById('se-event-search').value.trim().toLowerCase();
+        const matched = q ? events.filter(e => `${e.itemTitle} ${e.shopName}`.toLowerCase().includes(q)) : events;
+        ['OPEN', 'TODAY', 'CLOSED', 'CANCELLED'].forEach(t => {
+            document.getElementById('se-cnt-' + t).textContent = matched.filter(e => tabOf(e) === t).length;
         });
-        const rows = events.filter(e => statusOf(e) === tab);
+        const rows = matched.filter(e => tabOf(e) === tab);
         if (!rows.length) {
-            const msg = { OPEN: '모집 중인 이벤트가 없어요. 오른쪽 위 이벤트 열기로 시작해 보세요.', CLOSED: '마감된 이벤트가 없어요.', CANCELLED: '취소한 이벤트가 없어요.' }[tab];
+            const msg = q ? '검색 결과가 없어요.' : { OPEN: '모집 중인 이벤트가 없어요. 오른쪽 위 이벤트 열기로 시작해 보세요.', TODAY: '오늘 손님이 방문하는 이벤트가 없어요.', CLOSED: '마감된 이벤트가 없어요.', CANCELLED: '취소한 이벤트가 없어요.' }[tab];
             listEl.innerHTML = `<p class="se-empty">${msg}</p>`;
             return;
         }
         listEl.innerHTML = rows.map(e => {
             const [label, cls] = e.currentCount >= e.capacity && statusOf(e) === 'CLOSED' && new Date(e.deadline) > new Date()
-                ? ['정원 마감', ''] : BADGE[statusOf(e)];
+                ? ['정원 마감', ''] : BADGE[tabOf(e)];
             return `
             <div class="se-row">
                 <span class="related-item-thumb">${e.itemImageUrl ? `<img src="${esc(e.itemImageUrl)}" alt="">` : '🎟️'}</span>
                 <span class="se-row-main">
                     <strong><a href="/test/event/${e.id}">${esc(e.itemTitle)}</a></strong>
-                    <small>${multiShop ? esc(e.shopName) + ' · ' : ''}상품 ${money(e.itemPrice)} · 참가비 ${money(e.feeAmount)} · ${e.currentCount}/${e.capacity}명</small>
-                    <small>마감 ${dateTime(e.deadline)}</small>
+                    <small>${multiShop ? esc(e.shopName) + ' · ' : ''}상품 ${money(e.itemPrice)} · 참가비 ${money(e.feeAmount)} · ${e.currentCount}/${e.capacity}개</small>
+                    <small>마감 ${dateTime(e.deadline)} · 방문 날짜 ${dayOnly(e.visitUntil)}</small>
                 </span>
                 <span class="se-actions">
                     <span class="se-badge ${cls}">${label}</span>
                     <button type="button" data-people="${e.id}">참가자</button>
-                    ${canCancel(e) ? `<button type="button" data-cancel="${e.id}">이벤트 취소</button>` : ''}
+                    ${canEdit(e) || canCancel(e) ? `<span class="se-more">
+                        <button type="button" class="se-more-btn" data-more="${e.id}" aria-label="더보기" aria-haspopup="true">···</button>
+                        <span class="se-more-menu" hidden>
+                            ${canEdit(e) ? `<button type="button" data-edit="${e.id}">수정</button>` : ''}
+                            ${canCancel(e) ? `<button type="button" class="is-danger" data-cancel="${e.id}">이벤트 취소</button>` : ''}
+                        </span>
+                    </span>` : ''}
                 </span>
             </div>`;
         }).join('');
@@ -191,7 +490,7 @@
         if (!t) return;
         tab = t.dataset.tab;
         document.querySelectorAll('#se-tabs [data-tab]').forEach(el => el.classList.toggle('active', el === t));
-        render();
+        if (tab === 'SETTLE') loadSettlement(); else render();
     });
 
     // ===== 모달 공통 =====
@@ -199,29 +498,166 @@
         m.addEventListener('click', ev => { if (ev.target === m || ev.target.closest('[data-close]')) m.hidden = true; });
     });
 
+    // 정산 내역/참가자 목록: 스크롤하는 동안에만 스크롤바 표시 (scroll 은 버블링되지 않아 캡처 단계로 받는다)
+    const scrollTimers = new WeakMap();
+    document.addEventListener('scroll', ev => {
+        const el = ev.target;
+        if (!(el instanceof Element) || !(el.classList.contains('sf-list') || el.classList.contains('se-table'))) return;
+        el.classList.add('is-scrolling');
+        clearTimeout(scrollTimers.get(el));
+        scrollTimers.set(el, setTimeout(() => el.classList.remove('is-scrolling'), 600));
+    }, true);
+
+    // ===== '···' 메뉴 (수정 / 이벤트 취소) =====
+    const closeMenus = () => document.querySelectorAll('.se-more-menu').forEach(m => { m.hidden = true; });
+    listEl.addEventListener('click', ev => {
+        const more = ev.target.closest('[data-more]');
+        if (!more) return;
+        ev.stopPropagation();
+        const menu = more.nextElementSibling;
+        const willOpen = menu.hidden;
+        closeMenus();
+        menu.hidden = !willOpen;
+    });
+    document.addEventListener('click', closeMenus);
+
+    // ===== 이벤트 수정 =====
+    const editModal = document.getElementById('se-edit-modal');
+    const editForm = document.getElementById('se-edit-form');
+    const editMsg = document.getElementById('se-edit-message');
+    const editFail = text => { editMsg.textContent = text; editMsg.className = 'form-message error'; };
+    const editEl = id => document.getElementById(id);
+    let editing = null;
+    const money2 = n => Number(n || 0).toLocaleString('ko-KR');
+
+    listEl.addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-edit]');
+        if (!btn) return;
+        editing = events.find(x => x.id === Number(btn.dataset.edit));
+        if (!editing) return;
+        // 참가자가 있거나 모집이 끝났으면 수량/가격/마감 시각은 잠근다 (서버도 같은 규칙으로 거절)
+        const locked = editing.currentCount > 0 || new Date(editing.deadline) <= new Date();
+        editEl('se-edit-title').textContent = `${editing.itemTitle} 수정`;
+        editEl('se-edit-note').textContent = locked
+            ? '참가자가 있거나 모집이 끝난 이벤트는 상품 설명과 손님 방문 날짜만 수정할 수 있어요. (참가한 손님이 낸 참가비 기준이 바뀌지 않게 수량, 가격, 마감 시각은 잠겨 있어요.)'
+            : '아직 참가자가 없어서 모든 항목을 수정할 수 있어요. 참가자가 생기면 설명과 방문 날짜만 수정할 수 있어요.';
+        editEl('se-edit-desc').value = editing.itemDescription || '';
+        editEl('se-edit-visit').value = editing.visitUntil;
+        editEl('se-edit-visit').min = todayStr();
+        editEl('se-edit-capacity').value = editing.capacity;
+        editEl('se-edit-max').value = editing.maxPerUser;
+        editEl('se-edit-price').value = money2(editing.itemPrice);
+        editEl('se-edit-fee').value = money2(editing.feeAmount);
+        editEl('se-edit-deadline').value = localInput(new Date(editing.deadline));
+        ['se-edit-capacity', 'se-edit-max', 'se-edit-price', 'se-edit-fee', 'se-edit-deadline'].forEach(id => { editEl(id).disabled = locked; });
+        editMsg.textContent = '';
+        editModal.hidden = false;
+    });
+    ['se-edit-price', 'se-edit-fee'].forEach(id => {
+        editEl(id).addEventListener('input', () => {
+            const d = editEl(id).value.replace(/\D/g, '').replace(/^0+/, '');
+            editEl(id).value = d ? Number(d).toLocaleString('ko-KR') : '';
+        });
+    });
+    editForm.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        if (!editing) return;
+        const locked = editEl('se-edit-capacity').disabled;
+        const body = { itemDescription: editEl('se-edit-desc').value.trim(), visitUntil: editEl('se-edit-visit').value };
+        if (!locked) {
+            body.capacity = Number(editEl('se-edit-capacity').value);
+            body.maxPerUser = Number(editEl('se-edit-max').value);
+            body.itemPrice = digits(editEl('se-edit-price'));
+            body.feeAmount = digits(editEl('se-edit-fee'));
+            body.deadline = editEl('se-edit-deadline').value + ':00';
+            if (new Date(editEl('se-edit-deadline').value) <= new Date() && editEl('se-edit-deadline').value !== localInput(new Date(editing.deadline))) { editFail('모집 마감은 지금보다 뒤여야 해요.'); return; }
+        }
+        if (!body.visitUntil || body.visitUntil < (locked ? editing.deadline.slice(0, 10) : editEl('se-edit-deadline').value.slice(0, 10))) { editFail('방문 날짜는 모집 마감일과 같거나 그 이후여야 해요.'); return; }
+        const submit = editEl('se-edit-submit');
+        submit.disabled = true;
+        try {
+            const res = await pageFetch(`/api/events/${editing.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            if (!res.ok) { editFail(await errorText(res, '이벤트를 수정하지 못했어요.')); return; }
+            editModal.hidden = true;
+            await load();
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
     // ===== 참가자 명단 / 이벤트 취소 =====
     const peopleModal = document.getElementById('se-people-modal');
     const peopleEl = document.getElementById('se-people');
-    const PEOPLE_STATUS = { JOINED: '참가', CANCELLED: '참가 취소', REFUNDED: '환불' };
+    const PEOPLE_STATUS = { JOINED: '구매 완료', CANCELLED: '손님 취소', REFUNDED: '가게 취소' };
+    const peopleTabsEl = document.getElementById('se-people-tabs');
+    const searchEl = document.getElementById('se-search');
+    const peopleNoteEl = document.getElementById('se-people-note');
+    let purchases = [];      // 구매 건 전체 (취소/환불 포함, 최신순)
+    let peopleTab = 'TICKETS';
+    let peopleFee = 0;
+
+    // 번호표 목록: 참가중인 사람만, 번호표 순. 추가 구매는 한 줄로 합친다 (쿠지 때 번호 호명용)
+    function ticketRows() {
+        const map = new Map();
+        purchases.filter(p => p.status === 'JOINED').forEach(p => {
+            const m = map.get(p.ticketNumber);
+            if (m) { m.quantity += p.quantity; m.count += 1; }
+            else map.set(p.ticketNumber, { ticketNumber: p.ticketNumber, username: p.username, quantity: p.quantity, count: 1 });
+        });
+        return [...map.values()].sort((a, b) => a.ticketNumber - b.ticketNumber);
+    }
+    const buyTime = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+
+    function renderPeople() {
+        const tickets = ticketRows();
+        const totalQty = tickets.reduce((sum, t) => sum + t.quantity, 0);
+        peopleTabsEl.innerHTML = `<button type="button" data-ptab="TICKETS" class="${peopleTab === 'TICKETS' ? 'active' : ''}">참가자 번호표<small>${tickets.length}명</small></button>`
+            + `<button type="button" data-ptab="BUYS" class="${peopleTab === 'BUYS' ? 'active' : ''}">구매 내역<small>${purchases.length}건</small></button>`;
+        searchEl.hidden = peopleTab !== 'BUYS';
+        if (peopleTab === 'TICKETS') {
+            peopleNoteEl.textContent = `참가중 ${tickets.length}명 · 총 ${totalQty}개 (취소/환불된 건은 빠져요)`;
+            peopleEl.className = 'se-table t-tickets';
+            peopleEl.innerHTML = tickets.length
+                ? `<div class="se-tr is-head"><span>번호</span><span>닉네임</span><span class="num">수량</span><span class="num">구매</span></div>`
+                    + tickets.map(t => `<div class="se-tr"><b>#${t.ticketNumber}</b><span class="nm">${esc(t.username)}</span><span class="num">${t.quantity}개</span><span class="num">${t.count}건</span></div>`).join('')
+                : '<p class="se-tr-empty">아직 참가자가 없어요.</p>';
+            return;
+        }
+        const q = searchEl.value.trim().toLowerCase().replace(/^#/, '');
+        const rows = q ? purchases.filter(p => String(p.username || '').toLowerCase().includes(q) || String(p.ticketNumber) === q) : purchases;
+        peopleNoteEl.textContent = q ? `검색 결과 ${rows.length}건` : '손님이 구매하고 취소한 내역을 모두 보여줘요 (최신순)';
+        peopleEl.className = 'se-table t-buys';
+        peopleEl.innerHTML = rows.length
+            ? `<div class="se-tr is-head"><span>구매 시각</span><span>번호</span><span>닉네임</span><span class="num">수량</span><span class="num hide-sm">금액</span><span class="num">상태</span></div>`
+                + rows.map(p => `<div class="se-tr ${p.status === 'JOINED' ? '' : 'is-off'}"><span>${buyTime(p.createdAt)}</span><b>#${p.ticketNumber}</b><span class="nm">${esc(p.username)}</span><span class="num">${p.quantity}개</span><span class="num hide-sm">${money(peopleFee * p.quantity)}</span><span class="num">${PEOPLE_STATUS[p.status] || p.status}</span></div>`).join('')
+            : `<p class="se-tr-empty">${q ? '검색 결과가 없어요.' : '구매 내역이 없어요.'}</p>`;
+    }
+    peopleTabsEl.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-ptab]');
+        if (b) { peopleTab = b.dataset.ptab; renderPeople(); }
+    });
+    searchEl.addEventListener('input', renderPeople);
+
     listEl.addEventListener('click', async ev => {
         const peopleBtn = ev.target.closest('[data-people]');
         const cancelBtn = ev.target.closest('[data-cancel]');
         if (peopleBtn) {
             const e = events.find(x => x.id === Number(peopleBtn.dataset.people));
             document.getElementById('se-people-title').textContent = `${e.itemTitle} 참가자`;
-            peopleEl.innerHTML = '<li>불러오는 중...</li>';
+            peopleTab = 'TICKETS'; searchEl.value = ''; peopleFee = e.feeAmount; purchases = [];
+            peopleEl.className = 'se-table';
+            peopleEl.innerHTML = '<p class="se-tr-empty">불러오는 중...</p>';
+            peopleTabsEl.innerHTML = ''; peopleNoteEl.textContent = ''; searchEl.hidden = true;
             peopleModal.hidden = false;
             const res = await pageFetch(`/api/events/${e.id}/participations`);
-            if (!res.ok) { peopleEl.innerHTML = `<li>${esc(await errorText(res, '참가자를 불러오지 못했어요.'))}</li>`; return; }
-            const people = await res.json();
-            peopleEl.innerHTML = people.length
-                ? people.map(p => `<li class="${p.status === 'JOINED' ? '' : 'is-off'}"><span><b>#${p.ticketNumber}</b> ${esc(p.username)}</span><small>${PEOPLE_STATUS[p.status] || p.status}</small></li>`).join('')
-                : '<li>아직 참가자가 없어요.</li>';
+            if (!res.ok) { peopleEl.innerHTML = `<p class="se-tr-empty">${esc(await errorText(res, '참가자를 불러오지 못했어요.'))}</p>`; return; }
+            purchases = (await res.json()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt) || b.id - a.id);
+            renderPeople();
             return;
         }
         if (cancelBtn) {
             const e = events.find(x => x.id === Number(cancelBtn.dataset.cancel));
-            if (!(await gbConfirm(`'${e.itemTitle}' 이벤트를 취소할까요?\n참가자 ${e.currentCount}명의 참가비가 모두 환불돼요.`))) return;
+            if (!(await gbConfirm(`'${e.itemTitle}' 이벤트를 취소할까요?\n참가자들의 참가비(${e.currentCount}개분)가 모두 환불돼요.`))) return;
             cancelBtn.disabled = true;
             const res = await pageFetch(`/api/events/${e.id}/cancel`, { method: 'POST' });
             if (!res.ok) await alert(await errorText(res, '이벤트 취소에 실패했습니다.'));
@@ -237,6 +673,8 @@
     const imageName = document.getElementById('se-image-name');
     const message = document.getElementById('se-message');
     const deadlineInput = document.getElementById('se-deadline');
+    const visitInput = document.getElementById('se-visit');
+    const dayOf = v => v.slice(0, 10);
     const fail = text => { message.textContent = text; message.className = 'form-message error'; };
 
     pageFetch('/api/categories').then(r => r.ok ? r.json() : []).then(list => {
@@ -255,6 +693,7 @@
         const now = new Date();
         deadlineInput.min = localInput(new Date(now.getTime() + 5 * 60000));
         deadlineInput.value = localInput(new Date(now.getTime() + 3 * 86400000));   // 기본 3일 뒤
+        visitInput.value = dayOf(localInput(new Date(now.getTime() + 10 * 86400000)));   // 방문 마감 기본: 마감 7일 뒤
         createModal.hidden = false;
         document.getElementById('se-title').focus();
     });
@@ -275,7 +714,11 @@
         if (!categorySelect.value) { fail('카테고리를 선택해주세요.'); return; }
         const fee = digits(document.getElementById('se-fee'));
         if (fee < 5000 || fee > 100000) { fail('참가비는 5,000원 이상 100,000원 이하로 입력해주세요.'); return; }
+        const maxPerUser = Number(document.getElementById('se-max').value);
+        if (!(maxPerUser >= 1 && maxPerUser <= 10)) { fail('1인당 최대 구매 수량은 1-10개로 입력해주세요.'); return; }
+        if (maxPerUser > Number(document.getElementById('se-capacity').value)) { fail('1인당 최대 구매 수량은 모집 수량보다 클 수 없어요.'); return; }
         if (!deadlineInput.value || new Date(deadlineInput.value) <= new Date()) { fail('모집 마감은 지금보다 뒤여야 해요.'); return; }
+        if (!visitInput.value || visitInput.value < dayOf(deadlineInput.value)) { fail('손님 방문 날짜는 모집 마감일과 같거나 그 이후여야 해요.'); return; }
         const submit = document.getElementById('se-submit');
         submit.disabled = true;
         try {
@@ -296,7 +739,9 @@
                 itemImageUrl: imageUrl,
                 capacity: Number(document.getElementById('se-capacity').value),
                 feeAmount: fee,
-                deadline: deadlineInput.value + ':00'
+                maxPerUser,
+                deadline: deadlineInput.value + ':00',
+                visitUntil: visitInput.value
             };
             const res = await pageFetch(`/api/shops/${shopSelect.value}/events`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)

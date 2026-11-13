@@ -1,7 +1,10 @@
 package com.goodsbridge.demo;
 
 import com.goodsbridge.exchange.ExchangeItem;
+import com.goodsbridge.event.EventParticipation;
+import com.goodsbridge.event.EventParticipationRepository;
 import com.goodsbridge.event.ShopEvent;
+import com.goodsbridge.event.ShopEventStatus;
 import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.exchange.ExchangeItemRepository;
 import com.goodsbridge.exchange.ExchangeItemStatus;
@@ -75,6 +78,7 @@ public class DemoDataService {
     private final ItemRepository itemRepository;
     private final ExchangeItemRepository exchangeItemRepository;
     private final ShopEventRepository shopEventRepository;
+    private final EventParticipationRepository eventParticipationRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final PaymentRepository paymentRepository;
     private final PurchaseRepository purchaseRepository;
@@ -296,7 +300,7 @@ public class DemoDataService {
         }
 
         seedSales(shopItems, userB, shop);
-        seedEvents(shopOwner, shop, categories, images);
+        seedEvents(shopOwner, shop, categories, images, userA, userB);
 
         // 최신순 정렬에서 시연 데이터가 항상 맨 앞에 오도록 생성일을 먼 미래로 고정
         Timestamp pinned = Timestamp.valueOf(LocalDateTime.now().plusYears(10));
@@ -304,34 +308,121 @@ public class DemoDataService {
         pin("exchange_item_tb", pinnedExchangeIds, pinned);
     }
 
-    // 선착순 이벤트 2개: 이벤트 상품(EVENT)을 새로 등록하고 모집중 이벤트를 연다 (정원 작게, 마감은 며칠 뒤)
+    // 선착순 이벤트 5개: 이벤트 상품(EVENT)을 새로 등록하고 모집중 이벤트를 연다 (마감은 며칠 뒤)
+    // 맨 앞은 쿠지(뽑기) 이벤트: 번호표 순서대로 매장에서 1회씩 뽑는 형태, 100개 한정 (1인 최대 10개)
     // 지우는 쪽은 deleteDemoData 가 가게 주인 상품에 걸린 이벤트/참가를 함께 정리한다
-    private void seedEvents(User shopOwner, Shop shop, List<Category> categories, List<String> images) {
+    private void seedEvents(User shopOwner, Shop shop, List<Category> categories, List<String> images, User userA, User userB) {
         if (categories.isEmpty()) return;
+        // {제목, 상품 가격, 정원, 참가비, 마감(일 뒤), 이미지(null 이면 시드 사진), 설명, 1인당 최대 수량}
         Object[][] events = {
-            {"(테스트) 한정판 포토카드 세트 오픈런", 30000, 5, 10000, 3},
-            {"(테스트) 시즌 그리팅 선착순 예약", 45000, 3, 5000, 1},
+            {"(테스트) D-Series 스페셜 쿠지 RAFFLE FESTIVAL 2.0", 17000, 100, 5000, 5, "/img/nav-event.png",
+                "A상 스케일 피규어 · B상 아크릴 스탠드 · C상 캔뱃지 · 라스트원상까지, 모든 회차에 상품이 나와요.", 10},
+            {"(테스트) 한정판 포토카드 세트 오픈런", 30000, 5, 10000, 3, "/img/event-plush-short.jpg",
+                "시연용 선착순 이벤트 상품입니다. 참가비를 내면 번호표가 발급돼요.", 1},
+            {"(테스트) 시즌 그리팅 선착순 예약", 45000, 3, 5000, 1, "/img/event-plush-long.jpg",
+                "시연용 선착순 이벤트 상품입니다. 참가비를 내면 번호표가 발급돼요.", 1},
+            {"(테스트) 만화 컷 아트 포스터 선착순 오픈", 25000, 10, 3000, 4, "/img/event-manga.jpg",
+                "시연용 선착순 이벤트 상품입니다. 참가비를 내면 번호표가 발급돼요.", 2},
+            {"(테스트) 스탠딩 피규어 한정판 선착순 예약", 89000, 20, 9000, 6, "/img/event-figure.jpg",
+                "시연용 선착순 이벤트 상품입니다. 참가비를 내면 번호표가 발급돼요.", 3},
         };
+        List<ShopEvent> open = new ArrayList<>();
         for (int i = 0; i < events.length; i++) {
             Object[] ev = events[i];
-            Item item = itemRepository.save(Item.builder()
-                .sellerUserId(shopOwner.getId())
-                .shopId(shop.getId())
-                .category(categories.get(i % categories.size()))
-                .title((String) ev[0])
-                .description("시연용 선착순 이벤트 상품입니다. 참가비를 내면 번호표가 발급돼요.")
-                .price((Integer) ev[1])
-                .saleType(SaleType.EVENT)
-                .status(ItemStatus.ON_SALE)
-                .imageUrl(images.get(i % images.size()))
-                .build());
-            shopEventRepository.save(ShopEvent.builder()
+            Item item = saveEventItem(shopOwner, shop, categories.get(i % categories.size()), (String) ev[0], (String) ev[6],
+                (Integer) ev[1], ev[5] != null ? (String) ev[5] : images.get(i % images.size()));
+            open.add(shopEventRepository.save(ShopEvent.builder()
                 .shop(shop)
                 .item(item)
                 .capacity((Integer) ev[2])
                 .feeAmount((Integer) ev[3])
+                .maxPerUser((Integer) ev[7])
                 .deadline(LocalDateTime.now().plusDays((Integer) ev[4]))
-                .build());
+                .build()));
+        }
+
+        // ----- 참가 내역 (모집중 이벤트): 같은 번호표에 구매가 여러 건 쌓인 경우, 내가 취소한 건
+        ShopEvent kuji = open.get(0), manga = open.get(3), figure = open.get(4);
+        seedParticipation(kuji, userB, 1, 3, KEEP);
+        seedParticipation(kuji, userB, 1, 2, KEEP);   // 추가 구매 (같은 번호표 #1)
+        seedParticipation(kuji, userA, 2, 4, KEEP);
+        seedParticipation(manga, userB, 1, 1, KEEP);
+        seedParticipation(figure, userB, 1, 2, KEEP);
+        seedParticipation(figure, userB, 2, 1, EventParticipation::cancel);        // 내가 취소한 구매
+
+        // ----- 모집이 끝난 이벤트들 (마이페이지 '방문 대기' / '종료된 이벤트' / '취소된 이벤트' 확인용)
+        // 모집 마감, 방문 날짜가 오늘: 가게의 '오늘 방문' 분류 / 손님의 방문 대기
+        ShopEvent waiting = savePastEvent(shopOwner, shop, categories.get(0), "(테스트) 모집 마감 · 방문 대기 이벤트", 25000, 10, 5000, 2,
+            LocalDateTime.now().minusHours(3), LocalDate.now(), "/img/event-plush-short.jpg", ShopEventStatus.CLOSED);
+        seedParticipation(waiting, userB, 1, 2, KEEP);
+        seedParticipation(waiting, userA, 2, 1, KEEP);
+        // 방문 날짜까지 지난 이벤트: 종료
+        ShopEvent ended = savePastEvent(shopOwner, shop, categories.get(1 % categories.size()), "(테스트) 지난 주 종료된 이벤트", 18000, 10, 5000, 2,
+            LocalDateTime.now().minusDays(8), LocalDate.now().minusDays(1), "/img/event-plush-long.jpg", ShopEventStatus.CLOSED);
+        seedParticipation(ended, userB, 1, 1, KEEP);
+        seedParticipation(ended, userA, 2, 2, KEEP);
+        // 지난 달에 끝난 이벤트: 정산 달력의 '저번 달' 확인용
+        ShopEvent lastMonth = savePastEvent(shopOwner, shop, categories.get(3 % categories.size()), "(테스트) 지난 달 종료된 이벤트", 22000, 10, 5000, 2,
+            LocalDateTime.now().minusDays(35), LocalDate.now().minusDays(28), "/img/event-figure.jpg", ShopEventStatus.CLOSED);
+        seedParticipation(lastMonth, userB, 1, 2, KEEP);
+        seedParticipation(lastMonth, userA, 2, 3, KEEP);
+        // 가게가 취소한 이벤트: 참가비 환불
+        ShopEvent cancelled = savePastEvent(shopOwner, shop, categories.get(2 % categories.size()), "(테스트) 가게 사정으로 취소된 이벤트", 30000, 10, 6000, 2,
+            LocalDateTime.now().plusDays(2), LocalDate.now().plusDays(6), "/img/event-manga.jpg", ShopEventStatus.CANCELLED);
+        seedParticipation(cancelled, userB, 1, 2, EventParticipation::refund);
+        seedParticipation(cancelled, userA, 2, 1, EventParticipation::refund);
+    }
+
+    private Item saveEventItem(User shopOwner, Shop shop, Category category, String title, String description, int price, String imageUrl) {
+        return itemRepository.save(Item.builder()
+            .sellerUserId(shopOwner.getId())
+            .shopId(shop.getId())
+            .category(category)
+            .title(title)
+            .description(description)
+            .price(price)
+            .saleType(SaleType.EVENT)
+            .status(ItemStatus.ON_SALE)
+            .imageUrl(imageUrl)
+            .build());
+    }
+
+    // 마감/취소된 이벤트 (정산은 끝난 것으로 표시해서 스케줄러가 시연 데이터를 건드리지 않게 한다)
+    private ShopEvent savePastEvent(User shopOwner, Shop shop, Category category, String title, int price, int capacity, int fee, int maxPerUser,
+                                    LocalDateTime deadline, LocalDate visitUntil, String imageUrl, ShopEventStatus status) {
+        Item item = saveEventItem(shopOwner, shop, category, title, "시연용 이벤트 내역 데이터입니다.", price, imageUrl);
+        ShopEvent event = ShopEvent.builder()
+            .shop(shop).item(item).capacity(capacity).feeAmount(fee).maxPerUser(maxPerUser)
+            .deadline(deadline).visitUntil(visitUntil)
+            .build();
+        event.updateStatus(status);
+        event.markSettled();
+        return shopEventRepository.save(event);
+    }
+
+    private static final java.util.function.Consumer<EventParticipation> KEEP = p -> { };
+
+    // 이벤트 참가 한 건: 결제 행을 만들고, 가게 취소(환불)/내가 취소한 건이면 그 상태로 바꾼다.
+    // 수량(currentCount)은 참가중인 건만 센다.
+    private void seedParticipation(ShopEvent event, User user, int ticket, int quantity, java.util.function.Consumer<EventParticipation> finish) {
+        int amount = event.getFeeAmount() * quantity;
+        Payment payment = paymentRepository.save(demoPayment(user, amount, PaymentPurpose.EVENT_FEE));
+        EventParticipation participation = EventParticipation.builder()
+            .shopEvent(event).user(user).paymentId(payment.getPaymentId()).ticketNumber(ticket).quantity(quantity)
+            .build();
+        finish.accept(participation);
+        if (participation.isJoined()) {
+            event.increaseCurrentCount(quantity);
+        } else {
+            payment.refund(amount);   // 취소/환불된 건은 참가비를 돌려준 결제로 남긴다
+        }
+        eventParticipationRepository.save(participation);
+        // 마감 정산이 끝난 이벤트의 참가비는 가게 정산(EVENT_FEE)으로도 기록해 둔다 (정산 시각은 마감 직후)
+        if (event.isSettled() && participation.isJoined()) {
+            recordFee(event.getShop(), payment, amount, SettlementHistoryType.EVENT_FEE);
+            settlementHistoryRepository.flush();
+            jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'EVENT_FEE'",
+                Timestamp.valueOf(event.getDeadline().plusMinutes(1)), payment.getId());
         }
     }
 
@@ -492,12 +583,16 @@ public class DemoDataService {
     }
 
     private Payment demoPayment(User user, int amount) {
+        return demoPayment(user, amount, PaymentPurpose.EXCHANGE_DEPOSIT);
+    }
+
+    private Payment demoPayment(User user, int amount, PaymentPurpose purpose) {
         return Payment.builder()
             .paymentId("demo-pay-" + UUID.randomUUID())
             .pgTxId("demo")
             .user(user)
             .amount(amount)
-            .purpose(PaymentPurpose.EXCHANGE_DEPOSIT)
+            .purpose(purpose)
             .build();
     }
 

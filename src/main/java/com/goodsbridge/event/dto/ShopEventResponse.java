@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Getter
@@ -24,7 +25,9 @@ public class ShopEventResponse {
     private Integer capacity;
     private Integer currentCount;
     private Integer feeAmount;
+    private Integer maxPerUser;
     private LocalDateTime deadline;
+    private LocalDate visitUntil;       // 손님 방문 마감일 (이 날이 지나야 종료)
     private ShopEventStatus status;
     private LocalDateTime createdAt;
 
@@ -32,7 +35,7 @@ public class ShopEventResponse {
     public ShopEventResponse(Long id, Long itemId, String itemTitle, String itemImageUrl, Integer itemPrice, String itemDescription,
                               Long shopId, String shopName, String shopAddress,
                               Integer capacity, Integer currentCount,
-                              Integer feeAmount, LocalDateTime deadline, ShopEventStatus status, LocalDateTime createdAt) {
+                              Integer feeAmount, Integer maxPerUser, LocalDateTime deadline, LocalDate visitUntil, ShopEventStatus status, LocalDateTime createdAt) {
         this.id = id;
         this.itemId = itemId;
         this.itemTitle = itemTitle;
@@ -45,7 +48,9 @@ public class ShopEventResponse {
         this.capacity = capacity;
         this.currentCount = currentCount;
         this.feeAmount = feeAmount;
+        this.maxPerUser = maxPerUser;
         this.deadline = deadline;
+        this.visitUntil = visitUntil;
         this.status = status;
         this.createdAt = createdAt;
     }
@@ -64,7 +69,9 @@ public class ShopEventResponse {
             .capacity(shopEvent.getCapacity())
             .currentCount(shopEvent.getCurrentCount())
             .feeAmount(shopEvent.getFeeAmount())
+            .maxPerUser(shopEvent.getMaxPerUser())
             .deadline(shopEvent.getDeadline())
+            .visitUntil(shopEvent.getVisitUntil())
             .status(shopEvent.getStatus())
             .createdAt(shopEvent.getCreatedAt())
             .build();

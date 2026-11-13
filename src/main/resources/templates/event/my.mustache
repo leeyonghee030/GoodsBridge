@@ -1,0 +1,167 @@
+{{> fragments/header}}
+
+<style>
+.pu-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: 0 0 0.8rem; }
+.pu-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.pu-subtabs button:hover { background: none; color: var(--color-text); }
+.pu-subtabs button.active, .pu-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+.pu-list .empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+.pu-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.pu-badge.is-dark { background: var(--color-dark); color: #fff; }
+.pu-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.pu-badge.is-warn { background: #FDECEA; color: #C0392B; }
+/* 이벤트 하나 = 카드 하나, 그 안에 구매 건(번호표에 쌓인 구매)이 한 줄씩 */
+.me-group { padding: 0.9rem 0; border-top: 1px solid var(--color-border); }
+.me-group:first-child { border-top: 0; }
+.me-head { display: flex; gap: 0.9rem; align-items: center; color: inherit; text-decoration: none; }
+.me-thumb { flex: none; width: 64px; height: 64px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); }
+.me-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.me-head small { display: block; font-size: 0.76rem; color: var(--color-muted); }
+.me-head .me-visit { display: inline-block; margin-top: 0.25rem; padding: 0.15rem 0.6rem; border-radius: 6px; background: var(--color-dark); color: #fff; font-size: 0.78rem; }
+.me-head .me-visit b { margin-left: 0.3rem; font-size: 0.86rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.me-head strong { display: block; margin: 0.1rem 0; font-size: 0.92rem; }
+.me-group .me-toggle { box-sizing: border-box; display: flex; align-items: center; gap: 0.5rem; width: calc(100% - 64px - 0.9rem); margin: 0.6rem 0 0 calc(64px + 0.9rem); padding: 0.45rem 0.8rem; font-size: 0.8rem; font-weight: 500; text-align: left; background: var(--color-surface); color: var(--color-text); border: 0; border-radius: 8px; cursor: pointer; }
+.me-group .me-toggle:hover, .me-group .me-toggle:focus { background: var(--color-surface); color: var(--color-text); }
+.me-toggle b { font-size: 0.86rem; }
+.me-toggle .me-arrow { margin-left: auto; font-size: 0.7rem; color: var(--color-muted); transition: transform 0.15s; }
+.me-group.is-open .me-arrow { transform: rotate(180deg); }
+.me-rows { margin: 0.4rem 0 0 calc(64px + 0.9rem); }
+.me-group:not(.is-open) .me-rows, .me-group:not(.is-open) .me-note { display: none; }
+.me-row { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; padding: 0.4rem 0; font-size: 0.82rem; border-top: 1px dashed var(--color-border); }
+.me-row:first-child { border-top: 0; }
+.me-row .me-info { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: center; }
+.me-row button { flex: none; width: auto; padding: 0.25rem 0.7rem; font-size: 0.76rem; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 6px; }
+.me-note { margin: 0.5rem 0 0 calc(64px + 0.9rem); font-size: 0.78rem; color: var(--color-muted); }
+@media (max-width: 640px) { .me-rows, .me-note { margin-left: 0; } .me-group .me-toggle { width: 100%; margin-left: 0; } }
+</style>
+
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/my/exchange">교환 내역</a>
+    <a href="/my/purchases">구매 내역</a>
+    <a href="/my/events" class="active">이벤트 내역</a>
+</nav>
+
+<div class="pu-subtabs" id="me-subtabs"></div>
+<section class="pu-panel">
+    <div class="pu-list" id="me-list"><p class="empty">이벤트 내역을 불러오는 중...</p></div>
+</section>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const date = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+
+    // 탭: 참가중(마감 전) / 종료(마감 후) / 취소(내가 취소 + 가게가 취소해서 환불된 건)
+    const TABS = [['ACTIVE', '참가중 · 방문 대기'], ['ENDED', '종료된 이벤트'], ['CANCELLED', '취소된 이벤트']];
+    const isCancelledRow = p => p.status === 'CANCELLED' || p.status === 'REFUNDED';
+    // 종료 = 방문 마감일(그 날 끝)이 지난 것. 모집 마감만 지났으면 '방문 대기'로 참가중에 남는다
+    const isClosed = p => new Date(p.deadline.slice(0, 19)) <= new Date();
+    const isEnded = p => new Date(p.visitUntil + 'T23:59:59') < new Date();
+    const tabOf = p => isCancelledRow(p) ? 'CANCELLED' : isEnded(p) ? 'ENDED' : 'ACTIVE';
+    // 모집 마감 전이고 가게가 취소하지 않은 참가중 건만 직접 취소할 수 있다
+    const canCancel = p => tabOf(p) === 'ACTIVE' && !isClosed(p) && p.eventStatus !== 'CANCELLED';
+    const badgeOf = p => p.status === 'CANCELLED' ? '<span class="pu-badge">내가 취소 · 환불</span>'
+        : p.status === 'REFUNDED' ? '<span class="pu-badge is-warn">가게가 취소 · 환불</span>'
+        : isEnded(p) ? '<span class="pu-badge is-dark">이벤트 종료</span>'
+        : isClosed(p) ? '<span class="pu-badge is-dark">방문 대기</span>'
+        : '<span class="pu-badge is-ok">참가중</span>';
+
+    const listEl = document.getElementById('me-list');
+    const subtabs = document.getElementById('me-subtabs');
+    let rows = [];
+    let sub = 'ACTIVE';
+    const opened = new Set();   // 펼쳐 둔 이벤트 (취소/새로고침 후에도 유지)
+
+    function render() {
+        const count = key => rows.filter(p => tabOf(p) === key).length;
+        subtabs.innerHTML = TABS.map(([key, label]) =>
+            `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
+        const shown = rows.filter(p => tabOf(p) === sub);
+        if (!shown.length) {
+            listEl.innerHTML = `<p class="empty">${TABS.find(t => t[0] === sub)[1]}가 없어요.</p>`;
+            return;
+        }
+        // 이벤트별로 묶어서 보여준다 (같은 번호표에 쌓인 구매 건이 한 카드 안에 나온다)
+        const groups = new Map();
+        shown.forEach(p => { if (!groups.has(p.shopEventId)) groups.set(p.shopEventId, []); groups.get(p.shopEventId).push(p); });
+        listEl.innerHTML = [...groups.values()].map(list => {
+            const first = list[0];
+            const total = list.filter(p => !isCancelledRow(p)).reduce((sum, p) => sum + p.quantity, 0);
+            // 번호표는 카드 위쪽에 한 번만 보여준다 (이 탭에서 번호표가 여러 개면 줄마다 표시)
+            const tickets = [...new Set(list.map(p => p.ticketNumber))];
+            const rowsHtml = list.map(p => `
+                <div class="me-row">
+                    <span class="me-info">${tickets.length > 1 ? `<b>#${p.ticketNumber}</b>` : ''}<span>${p.quantity}개 · 참가비 ${money(p.feeAmount * p.quantity)}</span><small>${date(p.createdAt)} 구매</small>${badgeOf(p)}</span>
+                    ${canCancel(p) ? `<button type="button" data-cancel="${p.id}" data-event="${p.shopEventId}">이 구매 취소</button>` : ''}
+                </div>`).join('');
+            const ticketText = tickets.length === 1 ? `번호표 <b>#${tickets[0]}</b> · ` : '';
+            return `
+            <div class="me-group ${opened.has(first.shopEventId) ? 'is-open' : ''}">
+                <a class="me-head" href="/test/event/${first.shopEventId}">
+                    <span class="me-thumb">${first.eventImageUrl ? `<img src="${esc(first.eventImageUrl)}" alt="">` : ''}</span>
+                    <span><small>${esc(first.shopName)}</small><strong>${esc(first.eventTitle)}</strong><small>모집 마감 ${date(first.deadline)}</small><span class="me-visit">방문 날짜 <b>${first.visitUntil.replaceAll('-', '.')}</b></span></span>
+                </a>
+                <button type="button" class="me-toggle" data-toggle="${first.shopEventId}" aria-expanded="${opened.has(first.shopEventId)}">
+                    <span>${ticketText}${sub === 'CANCELLED' ? '' : `총 <b>${total}개</b> · `}구매 ${list.length}건</span><span class="me-arrow">▼</span>
+                </button>
+                <div class="me-rows">${rowsHtml}</div>
+                ${sub === 'ACTIVE' ? '<p class="me-note">번호표를 들고 매장에 방문해 주세요.</p>' : ''}
+            </div>`;
+        }).join('');
+    }
+
+    async function load() {
+        const res = await pageFetch('/api/events/me');
+        if (!res.ok) { listEl.innerHTML = '<p class="empty">이벤트 내역을 불러오지 못했어요. 로그인 상태를 확인해 주세요.</p>'; return; }
+        rows = (await res.json()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        render();
+    }
+
+    subtabs.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-sub]');
+        if (b) { sub = b.dataset.sub; render(); }
+    });
+
+    // 카드 접기/펼치기
+    listEl.addEventListener('click', ev => {
+        const t = ev.target.closest('[data-toggle]');
+        if (!t) return;
+        const id = Number(t.dataset.toggle);
+        const group = t.closest('.me-group');
+        const open = !group.classList.contains('is-open');
+        group.classList.toggle('is-open', open);
+        t.setAttribute('aria-expanded', open);
+        if (open) opened.add(id); else opened.delete(id);
+    });
+
+    // 구매 건별 취소 (그 건의 참가비만 환불, 나머지 구매와 번호표는 유지 — 마지막 건이면 번호표도 사라진다)
+    listEl.addEventListener('click', async ev => {
+        const btn = ev.target.closest('[data-cancel]');
+        if (!btn) return;
+        const p = rows.find(x => String(x.id) === btn.dataset.cancel);
+        if (!p) return;
+        const left = rows.filter(x => x.shopEventId === p.shopEventId && x.status === 'JOINED').length;
+        const tail = left === 1 ? '\n마지막 구매라 번호표도 함께 취소돼요.' : '\n나머지 구매와 번호표는 유지돼요.';
+        if (!(await gbConfirm(`이 구매 ${p.quantity}개를 취소할까요?\n참가비 ${money(p.feeAmount * p.quantity)}은 환불돼요.${tail}`))) return;
+        btn.disabled = true;
+        const res = await pageFetch(`/api/events/${p.shopEventId}/join/${p.id}`, { method: 'DELETE' });
+        if (!res.ok) await alert(await errorText(res, '참가 취소에 실패했습니다.'));
+        await load();
+    });
+
+    load();
+})();
+</script>
+
+{{> fragments/footer}}
