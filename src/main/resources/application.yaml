@@ -60,3 +60,7 @@ portone:
     api-secret: ${PORTONE_API_SECRET}
     store-id: ${PORTONE_STORE_ID}
     channel-key: ${PORTONE_CHANNEL_KEY}
+
+app:
+    notifications:
+        test-endpoint-enabled: ${NOTIFICATION_TEST_ENABLED:false}
