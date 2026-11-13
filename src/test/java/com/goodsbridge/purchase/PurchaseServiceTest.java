@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
@@ -41,6 +42,7 @@ class PurchaseServiceTest {
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock com.goodsbridge.auction.AuctionRepository auctionRepository;
     @InjectMocks PurchaseService purchaseService;
+    @Mock ApplicationEventPublisher publisher;
 
     @Test
     void findMine_returnsPurchaseDetailsFromRepository() {

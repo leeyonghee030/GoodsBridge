@@ -24,6 +24,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
@@ -43,6 +44,7 @@ class RefundServiceTest {
     @Mock ShopRepository shopRepository;
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock PurchaseRepository purchaseRepository;
+    @Mock ApplicationEventPublisher publisher;
     @InjectMocks RefundService refundService;
 
     @Test

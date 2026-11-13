@@ -8,6 +8,8 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.item.SaleType;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentPurpose;
@@ -20,6 +22,7 @@ import com.goodsbridge.user.User;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +42,7 @@ public class PurchaseService {
     private final ShopRepository shopRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final AuctionRepository auctionRepository;
-
+    private final ApplicationEventPublisher publisher;
     // 구매 (서버가 거절하면 이미 승인된 PortOne 결제를 자동 취소한다)
     @Transactional
     public PurchaseResponse.DetailDto purchase(Long itemId, Long userId, PurchaseRequest.CreateDto createDto) {
@@ -128,6 +131,18 @@ public class PurchaseService {
 
         log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
             itemId, userId, createDto.getPaymentId());
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                purchase.getUser().getId(),
+                Notification.Type.PAYMENT_COMPLETED,
+                "[배송준비중]",
+                purchase.getItem().getTitle() + " 상품이 구매가 완료되었습니다",
+                Notification.ReferenceType.DELIVERY,
+                purchase.getId()
+            )
+        );
+
         return new PurchaseResponse.DetailDto(purchase);
     }
 
@@ -162,11 +177,31 @@ public class PurchaseService {
         // 운송 번호 입력 -> 배송중
         if (trackingNumber != null) {
             purchase.ship(trackingNumber);
+            publisher.publishEvent(
+                new NotificationEvent(
+                    purchase.getUser().getId(),
+                    Notification.Type.DELIVERY_STARTED,
+                    "[배송중]",
+                    purchase.getItem().getTitle() + " 상품이 배송을 시작했습니다",
+                    Notification.ReferenceType.DELIVERY,
+                    purchaseId
+                )
+            );
         }
 
         // 배송 완료 처리
         if (deliveryStatus == DeliveryStatus.DELIVERED) {
             purchase.markDelivered();
+            publisher.publishEvent(
+                new NotificationEvent(
+                    purchase.getUser().getId(),
+                    Notification.Type.DELIVERY_COMPLETED,
+                    "[배송완료]",
+                    purchase.getItem().getTitle() + " 상품이 배송 완료 되었습니다",
+                    Notification.ReferenceType.DELIVERY,
+                    purchaseId
+                )
+            );
         }
     }
 

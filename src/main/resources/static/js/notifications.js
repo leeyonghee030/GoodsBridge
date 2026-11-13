@@ -71,7 +71,7 @@
       content.className = 'notification-card-content';
       content.textContent = notification.content || '';
       card.append(heading, content);
-      card.addEventListener('click', () => markAsRead(notification.id, card));
+      card.addEventListener('click', () => markAsRead(notification.id, card, notification.url));
       list.append(card);
     });
   }
@@ -95,7 +95,7 @@
     }
   }
 
-  async function markAsRead(notificationId, card) {
+  async function markAsRead(notificationId, card, url) {
     card.disabled = true;
     try {
       const response = await apiFetch(`/api/notifications/${notificationId}/read`, { method: 'PATCH' });
@@ -103,6 +103,7 @@
       loadedNotifications = loadedNotifications.filter((item) => item.id !== notificationId);
       renderNotifications();
       await refreshCount();
+      if (url) location.href = url;
     } catch (error) {
       card.disabled = false;
       showState(error.message || '읽음 처리에 실패했습니다.');

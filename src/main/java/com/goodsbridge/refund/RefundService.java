@@ -3,6 +3,8 @@ package com.goodsbridge.refund;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentService;
@@ -20,6 +22,7 @@ import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +38,7 @@ public class RefundService {
     private final ShopRepository shopRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final PurchaseRepository purchaseRepository;
+    private final ApplicationEventPublisher publisher;
 
     // 환불 요청
     @Transactional
@@ -78,6 +82,17 @@ public class RefundService {
             throw new BadRequestException("대기 중인 환불 요청만 거절할 수 있습니다.");
         }
         refund.reject(rejectReason);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                refund.getUser().getId(),
+                Notification.Type.REFUND_REJECTED,
+                "[환불거절]",
+                rejectReason,
+                Notification.ReferenceType.REFUND,
+                refundId
+            )
+        );
     }
 
     // 관리자 승인 여부 확인

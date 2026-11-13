@@ -84,33 +84,54 @@ public class Notification {
 
     public enum Type {
 
-        EXCHANGE_REQUEST,  // 교환 신청
-        EXCHANGE_APPROVED, // 교환 승인
-        EXCHANGE_REJECTED, // 교환 거절
+        EXCHANGE_REQUEST,       // 교환 신청
+        EXCHANGE_APPROVED,      // 교환 승인
+        EXCHANGE_REJECTED,      // 교환 거절
+        EXCHANGE_CANCELLED,     // 교환 취소
+        EXCHANGE_BOOKED,        // 교환 예약
 
-        AUCTION_BID,       // 경매 입찰
-        AUCTION_WIN        // 경매 낙찰
+        AUCTION_BID,            // 경매 입찰
+        AUCTION_WIN,            // 경매 낙찰
+
+        PAYMENT_COMPLETED,      // 결제 완료 (배송 준비중)
+        DELIVERY_STARTED,       // 배송 시작 (배송중)
+        DELIVERY_COMPLETED,     // 배송 완료
+
+        AUCTION_REMAINING_PAYMENT, // 경매 잔금 납부 요청
+        REFUND_REJECTED          // 환불 거절
     }
 
     public enum ReferenceType {
-        EXCHANGE, // 교환 상세
-        AUCTION   // 경매 상세
+        EXCHANGE("/my/exchange"),                  // 교환 신청 목록
+        EXCHANGE_POST("/exchange/{id}"),            // 교환 게시글
+        PURCHASE("/my/purchases"),                  // 구매 내역
+        REFUND("/my/purchases"),                    // 환불 관련 구매 내역
+        EVENT("/test/event/{id}"),                  // 이벤트 상세
+        AUCTION("/test/auction"),                   // 경매
+        SHOP_UPDATE("/update"),                     // 가게 업데이트
+        SHOP_ADMIN("/test/admin/shops"),            // 관리자 가게
+        SUBSCRIPTION_ADMIN("/test/admin/subscriptions"), // 관리자 구독
+        BOARD("/test/board/{id}"),                  // 게시글 상세
+        DELIVERY(null),                              // 배송 알림은 이동 경로 없음
+        PAYMENT(null);                               // 결제 알림은 이동 경로 없음
 
-        // TODO - url 출력을 위한 enum 메서드 설정
-//        EXCHANGE {
-//            @Override
-//            public String createUrl(Long referenceId) {
-//                return "/exchanges/" + referenceId;
-//            }
-//        },
-//
-//        AUCTION {
-//            @Override
-//            public String createUrl(Long referenceId) {
-//                return "/auctions/" + referenceId;
-//            }
-//        };
-//        public abstract String createUrl(Long referenceId);
+        private final String path;
 
+        ReferenceType(String path) {
+            this.path = path;
+        }
+
+        public String createUrl(Long referenceId) {
+            if (path == null) {
+                return null;
+            }
+            if (!path.contains("{id}")) {
+                return path;
+            }
+            if (referenceId == null) {
+                return null;
+            }
+            return path.replace("{id}", referenceId.toString());
+        }
     }
 }

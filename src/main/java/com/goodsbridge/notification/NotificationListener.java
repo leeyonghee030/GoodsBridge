@@ -12,7 +12,8 @@ public class NotificationListener {
     private final NotificationService notificationService;
 
     @TransactionalEventListener(
-        phase = TransactionPhase.AFTER_COMMIT
+        phase = TransactionPhase.AFTER_COMMIT,
+        fallbackExecution = true
     )
     public void handle(NotificationEvent event) {
 

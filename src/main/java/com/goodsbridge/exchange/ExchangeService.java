@@ -210,6 +210,18 @@ public class ExchangeService {
         exchangeRequestRepository.save(exchangeRequest);
         exchangeRequestRepository.flush();
         entityManager.refresh(exchangeRequest);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                exchangeItem.getUser().getId(),
+                Notification.Type.EXCHANGE_REQUEST,
+                "[교환신청]",
+                item.getTitle() + "에 교환 신청이 들어왔습니다",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
+        );
+
         return ExchangeRequestResponse.from(exchangeRequest);
     }
 
@@ -231,6 +243,18 @@ public class ExchangeService {
         paymentService.refund(exchangeRequest.getPaymentIdB(), exchangeRequest.getDepositAmountB(), "교환 제안 거절");
         //4. 상태 변경
         exchangeRequest.updateStatus(ExchangeRequestStatus.REJECTED);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                exchangeRequest.getItemB().getSellerUserId(),
+                Notification.Type.EXCHANGE_REJECTED,
+                "[교환거절]",
+                exchangeRequest.getExchangeItemA().getItem().getTitle() +
+                    " 교환신청이 거절되었습니다. 보증금은 전액 환불됩니다",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
+        );
     }
 
     @Transactional
@@ -250,6 +274,18 @@ public class ExchangeService {
         paymentService.refund(exchangeRequest.getPaymentIdB(), exchangeRequest.getDepositAmountB(), "교환 취소");
         //상태변경
         exchangeRequest.updateStatus(ExchangeRequestStatus.CANCELLED);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                exchangeRequest.getExchangeItemA().getUser().getId(),
+                Notification.Type.EXCHANGE_CANCELLED,
+                "[교환취소]",
+                exchangeRequest.getExchangeItemA().getItem().getTitle() +
+                    " 교환신청이 취소되었습니다",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
+        );
     }
 
     public List<ExchangeRequestResponse> getMyExchange(Long userId) {
@@ -283,13 +319,11 @@ public class ExchangeService {
         exchangeRequest.getExchangeItemA().getItem().updateStatus(ItemStatus.SOLD);
         exchangeRequest.updateStatus(ExchangeRequestStatus.CONFIRMED);
 
-        // TODO - Transaction 이전에 로드 입력
         publisher.publishEvent(
             new NotificationEvent(
-                // 이거 교환 신청한 유저 맞지?
                 exchangeRequest.getItemB().getSellerUserId(),
                 Notification.Type.EXCHANGE_APPROVED,
-                "교환 신청 승인",
+                "[교환 신청 승인]",
                 "신청한 교환이 승인되었습니다.",
                 Notification.ReferenceType.EXCHANGE,
                 exchangeRequest.getId()
@@ -302,8 +336,32 @@ public class ExchangeService {
             paymentService.refund(e.getPaymentIdB(), e.getDepositAmountB(), "교환 취소");
             //상태변경
             e.updateStatus(ExchangeRequestStatus.CANCELLED);
+
+            publisher.publishEvent(
+                new NotificationEvent(
+                    e.getItemB().getSellerUserId(),
+                    Notification.Type.EXCHANGE_CANCELLED,
+                    "[교환취소]",
+                    exchangeRequest.getExchangeItemA().getItem().getTitle() +
+                        " 교환신청이 취소되었습니다",
+                    Notification.ReferenceType.EXCHANGE,
+                    e.getId()
+                )
+            );
         }
         exchangeRequest.updateDeadlineForVisit();
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                exchangeRequest.getShop().getOwnerUserId(),
+                Notification.Type.EXCHANGE_BOOKED,
+                "[교환예약]",
+                exchangeRequest.getDeadline() +
+                    "까지 교환 예약 일정이 생겼습니다",
+                Notification.ReferenceType.EXCHANGE,
+                exchangeRequest.getId()
+            )
+        );
 
         return ExchangeRequestResponse.from(exchangeRequest);
     }
