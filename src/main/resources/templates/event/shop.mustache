@@ -269,7 +269,7 @@
         <button type="button" class="modal-close" data-close>✕</button>
         <h1 id="sd-title">이벤트 정산</h1>
         <div class="sd-sum">
-            <div class="main"><small>이 이벤트 수익</small><b id="sd-amount">-</b></div>
+            <div class="main"><small>참가비 수익</small><b id="sd-amount">-</b></div>
             <div><small>참가 수량</small><b id="sd-qty">-</b></div>
             <div><small>환불된 참가비</small><b id="sd-refund">-</b></div>
         </div>
@@ -474,7 +474,7 @@
         if (!r || (t !== 'CLOSED' && t !== 'TODAY')) return '';
         const refunds = r.cancelledAmount + r.refundedAmount;
         const state = r.settled ? '정산 완료' : '정산 처리 중';
-        return `<small class="se-earn">이 이벤트 수익 <b>${money(r.joinedAmount)}</b> <span class="muted">· 참가 ${r.joinedQuantity}개 · ${state}${refunds ? ' · 환불 ' + money(refunds) : ''}</span></small>`;
+        return `<small class="se-earn">참가비 수익 <b>${money(r.joinedAmount)}</b> <span class="muted">· 참가 ${r.joinedQuantity}개 · ${state}${refunds ? ' · 환불 ' + money(refunds) : ''}</span></small>`;
     }
 
     function render() {
@@ -574,9 +574,13 @@
         document.getElementById('sd-amount').textContent = money(r.joinedAmount);
         document.getElementById('sd-qty').textContent = `${r.joinedQuantity}개`;
         document.getElementById('sd-refund').textContent = refunds ? money(refunds) : '-';
-        document.getElementById('sd-note').textContent = r.settled
-            ? `참가비 ${money(r.feeAmount)} × ${r.joinedQuantity}개 = ${money(r.joinedAmount)}이 정산됐어요. 상품 가격에서 참가비를 뺀 나머지는 손님이 매장에서 직접 결제해요.`
-            : `참가비 ${money(r.feeAmount)} × ${r.joinedQuantity}개 = ${money(r.joinedAmount)}는 모집 마감 뒤 정산돼요.`;
+        // 인형(상품) 판매 비용: 상품 가격 × 수량. 이 중 참가비는 이미 받았고 나머지는 매장 현장 결제라서 수익으로는 잡지 않는다
+        const price = e.itemPrice;
+        const saleTotal = price ? price * r.joinedQuantity : null;
+        const onsiteTotal = price ? Math.max(0, price - r.feeAmount) * r.joinedQuantity : null;
+        document.getElementById('sd-note').innerHTML = price
+            ? `<b>인형 판매 비용</b> 상품 가격 ${money(price)} × ${r.joinedQuantity}개 = <b>${money(saleTotal)}</b><br>참가비 ${money(r.joinedAmount)}${r.settled ? '은 정산됐고' : '은 모집 마감 뒤 정산되고'}, 나머지 ${money(onsiteTotal)}은 손님이 매장에서 직접 결제해요. (현장 결제 금액은 수익에 포함하지 않았어요.)`
+            : `참가비 ${money(r.feeAmount)} × ${r.joinedQuantity}개 = ${money(r.joinedAmount)}${r.settled ? '이 정산됐어요.' : '은 모집 마감 뒤 정산돼요.'}`;
         const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
         document.getElementById('sd-count').textContent = `${recs.length}건`;
         document.getElementById('sd-list').innerHTML = recs.length
