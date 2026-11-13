@@ -72,3 +72,5 @@ app:
     chain-code: ${CHAIN_CODE:GB-CHAIN-2026}
     demo:
         enabled: ${APP_DEMO_ENABLED:false}
+    notifications:
+        test-endpoint-enabled: ${NOTIFICATION_TEST_ENABLED:false}
