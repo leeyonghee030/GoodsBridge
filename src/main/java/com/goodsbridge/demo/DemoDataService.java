@@ -399,7 +399,7 @@ public class DemoDataService {
 
         // 1) 진행중 · 데모교환A 가 최고가 (D-2)
         Auction live1 = saveAuction(shopOwner, shop, c0, "(테스트) D-Series 한정판 피규어 풀박스", "한정판 넨도로이드 스타일 피규어 풀박스 세트입니다. 박스 상태 최상, 미개봉.",
-            50000, 7500, now.plusDays(2).plusHours(3), "/img/auction-figure-box.jpg");
+            50000, 7500, now.plusDays(2).plusHours(3), "/img/auction-figure-box.jpg");   // 검은 머리 넨도로이드형 피규어 풀박스 사진
         Payment depB1 = bid(live1, userB, 52000, null);
         Payment depA1 = bid(live1, userA, 58000, null);
         bid(live1, userB, 61000, depB1);
@@ -407,7 +407,7 @@ public class DemoDataService {
 
         // 2) 진행중 · 데모신청B 가 최고가 (오늘 마감)
         Auction live2 = saveAuction(shopOwner, shop, c1, "(테스트) D-Series 스탠딩 인형 한정판", "스탠드 포함 한정판 스탠딩 인형입니다. 의상과 소품 모두 포함.",
-            30000, 4500, now.plusHours(4), "/img/auction-plush.jpg");
+            30000, 4500, now.plusHours(4), "/img/demo/seed_photo_1.jpg");   // 검은 머리 스탠딩 인형 사진
         Payment depA2 = bid(live2, userA, 33000, null);
         Payment depB2 = bid(live2, userB, 36000, null);
         bid(live2, userA, 38000, depA2);
@@ -415,7 +415,7 @@ public class DemoDataService {
 
         // 3) 진행중 · 입찰 없음 (가게가 취소할 수 있음)
         saveAuction(shopOwner, shop, c2, "(테스트) 사인 포토카드 세트 (입찰 전)", "시연용 경매입니다. 아직 입찰이 없어서 가게가 취소할 수 있어요.",
-            20000, 3000, now.plusDays(5), images.get(0));
+            20000, 3000, now.plusDays(5), images.get(5 % images.size()));
 
         // 4) 종료 · 낙찰 → 데모신청B 가 잔금을 결제해야 함 (결제 기한은 하루 뒤)
         Auction won = saveAuction(shopOwner, shop, c0, "(테스트) 한정판 아크릴 스탠드 세트", "낙찰 후 잔금 결제를 기다리는 시연용 경매입니다.",
