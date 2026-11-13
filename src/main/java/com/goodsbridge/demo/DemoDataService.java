@@ -75,6 +75,13 @@ public class DemoDataService {
     static final String ADMIN_EMAIL = "demo-admin@goodsbridge.demo";
 
     private static final String FALLBACK_IMAGE = "/img/nav-shop.jpg";
+    // 새 DB 에는 카테고리가 하나도 없어서(카테고리는 API 로만 만들어진다) 시연 데이터가 비지 않게 기본 카테고리를 만든다
+    private static final List<String> DEFAULT_CATEGORIES = List.of(
+        "포토카드", "앨범", "피규어", "응원봉", "포스터", "스티커", "키링", "포카홀더", "엽서", "포토북", "인형");
+    // 업로드 폴더(/images/seed_photo_*)는 git 에 없어서 다른 컴퓨터에는 없다. 그럴 땐 저장소에 들어 있는 사진을 돌려 쓴다.
+    private static final List<String> REPO_IMAGES = List.of(
+        "/img/event-plush-short.jpg", "/img/event-plush-long.jpg", "/img/event-figure.jpg", "/img/event-manga.jpg",
+        "/img/auction-figure-box.jpg", "/img/auction-plush.jpg", "/img/event-kuji.jpg", "/img/nav-shop.jpg", "/img/nav-exchange.jpg");
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
@@ -221,10 +228,13 @@ public class DemoDataService {
 
     private void seed(User userA, User userB, User shopOwner, Shop shop) {
         List<Category> categories = categoryRepository.findAll();
+        if (categories.isEmpty()) {
+            categories = categoryRepository.saveAll(DEFAULT_CATEGORIES.stream().map(n -> Category.builder().name(n).build()).toList());
+        }
         // 기존 시드 상품 사진(/images/seed_photo_*.jpg)을 돌려가며 써서 시연 상품마다 사진이 다르게 보이게 한다
         List<String> images = jdbcTemplate.queryForList(
             "select distinct image_url from item_tb where image_url like '/images/%' order by image_url", String.class);
-        if (images.isEmpty()) images = List.of(FALLBACK_IMAGE);
+        if (images.isEmpty()) images = REPO_IMAGES;
         int[] cursor = {0};
         List<Long> pinnedItemIds = new ArrayList<>();
         List<Long> pinnedExchangeIds = new ArrayList<>();
