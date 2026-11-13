@@ -93,6 +93,28 @@
             <div class="mega-menu-footer">FIRST-COME TICKET EVENT</div>
         </div>
     </div>
+    <div class="nav-item-mega">
+        <a href="/test/auction">AUCTION</a>
+        <div class="mega-menu">
+            <div class="category-rank">
+                <div class="category-list">
+                    <h2>마감 임박 · 진행 중인 경매</h2>
+                    <!-- 진행 중인 경매를 마감 빠른 순으로 최대 5개 (아래 스크립트가 채움) -->
+                    <ol id="auction-rank-list">
+                        <li><a href="/test/auction"><span>01</span>진행 중인 경매 보기</a></li>
+                    </ol>
+                </div>
+                <a href="/test/auction" class="category-photo has-image" id="auction-rank-photo">
+                    <img src="/img/auction-plush.jpg" alt="" class="category-photo-image">
+                    <span class="category-photo-overlay">
+                        <strong>실시간 경매</strong>
+                        <span>자세히 보기</span>
+                    </span>
+                </a>
+            </div>
+            <div class="mega-menu-footer">LIVE BIDDING AUCTION</div>
+        </div>
+    </div>
     <a href="/test/board">BOARD</a>
     {{#userId}}
     <a href="/update" id="nav-mypage">MY PAGE</a>
@@ -286,13 +308,15 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
     .then(d => {
         if (!(d && d.content && d.content.length)) return;
         // 가게는 체인점 성격이라 개인 구매 내역 탭을 두지 않는다
-        document.querySelectorAll('.my-tabs a[href="/my/purchases"], .my-tabs a[href="/my/events"]').forEach(a => a.remove());
+        document.querySelectorAll('.my-tabs a[href="/my/purchases"], .my-tabs a[href="/my/events"], .my-tabs a[href="/my/auctions"]').forEach(a => a.remove());
         // 개인 이벤트 내역 화면은 가게 계정에 없으니 가게 이벤트 관리로 보낸다
         if (location.pathname === '/my/events') { location.replace('/shop/events'); return; }
+        // 개인 경매 내역 화면도 가게 계정에 없으니 가게 경매 관리로 보낸다
+        if (location.pathname === '/my/auctions') { location.replace('/shop/auctions'); return; }
         if (location.pathname === '/my/exchange') return;   // 개인 교환 내역 화면을 직접 연 경우는 그대로 둔다
         document.querySelectorAll('.my-tabs a[href="/my/exchange"]').forEach(a => {
             a.href = '/shop/exchange'; a.textContent = '가게 교환 관리';
-            a.insertAdjacentHTML('afterend', '<a href="/shop/items">판매 상품 관리</a><a href="/shop/events">이벤트 관리</a>');
+            a.insertAdjacentHTML('afterend', '<a href="/shop/items">판매 상품 관리</a><a href="/shop/events">이벤트 관리</a><a href="/shop/auctions">경매 관리</a>');
         });
     })
     .catch(() => {});
@@ -440,6 +464,26 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
             ).join('');
             const photo = document.getElementById('event-rank-photo');
             photo.href = `/test/event/${open[0].id}`;
+            photo.querySelector('strong + span').textContent = '마감 임박 · 자세히 보기';
+        });
+
+    // 경매 메뉴: 진행 중인 경매를 마감 빠른 순으로 (내 가게 경매는 입찰할 수 없으니 뺀다)
+    Promise.all([json('/api/auctions?page=1&size=50&status=ACTIVE'), json('/api/shops/me')])
+        .then(([page, myShops]) => {
+            const now = new Date();
+            const ownShops = new Set(((myShops && myShops.content) || []).map(s => s.id));
+            const live = ((page && page.content) || [])
+                .filter(a => new Date(a.deadline) > now && !ownShops.has(a.shopId))
+                .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
+                .slice(0, 5);
+            const listEl = document.getElementById('auction-rank-list');
+            if (!listEl || !live.length) return;
+            listEl.innerHTML = live.map((a, i) =>
+                `<li><a href="/test/auction/${a.id}" title="${esc(a.itemTitle)}"><span>${String(i + 1).padStart(2, '0')}</span><em class="event-rank-title">${esc(a.itemTitle)}</em><small class="event-rank-left">${leftLabel(a.deadline)}</small></a></li>`
+            ).join('');
+            const photo = document.getElementById('auction-rank-photo');
+            photo.href = `/test/auction/${live[0].id}`;
+            if (live[0].itemImageUrl) photo.querySelector('img').src = live[0].itemImageUrl;
             photo.querySelector('strong + span').textContent = '마감 임박 · 자세히 보기';
         });
 

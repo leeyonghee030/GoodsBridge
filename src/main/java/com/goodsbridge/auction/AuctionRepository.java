@@ -22,6 +22,14 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     Page<Auction> findAllByStatus(@Param("status") Status status, Pageable pageable);
 
+    // 가게의 경매 목록 (상태는 선택)
+    @Query("""
+            select a from Auction a
+            where a.shop.id = :shopId
+              and (:status is null or a.status = :status)
+        """)
+    Page<Auction> findAllByShop(@Param("shopId") Long shopId, @Param("status") Status status, Pageable pageable);
+
     // 경매 마감 시간이 지난 경매 조회
     @Query("""
         select a

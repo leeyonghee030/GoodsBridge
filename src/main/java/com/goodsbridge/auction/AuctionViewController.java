@@ -2,38 +2,16 @@ package com.goodsbridge.auction;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @Controller
 @RequiredArgsConstructor
 public class AuctionViewController {
     private final AuctionService auctionService;
-
-    @Value("${portone.store-id}")
-    private String storeId;
-
-    @Value("${portone.channel-key}")
-    private String channelKey;
-
-    @GetMapping("/test/auction")
-    public String index(@AuthenticationPrincipal Long userId, Authentication authentication, Model model) {
-        model.addAttribute("userId", userId);
-        String role = authentication == null ? "" : authentication.getAuthorities().stream()
-            .map(authority -> authority.getAuthority().replaceFirst("^ROLE_", ""))
-            .findFirst().orElse("");
-        model.addAttribute("userRole", role);
-        model.addAttribute("portoneStoreId", storeId);
-        model.addAttribute("portoneChannelKey", channelKey);
-        return "auction/index";
-    }
 
     // 경매 개설
     @PostMapping("/api/shops/{id}/auctions")
@@ -48,7 +26,11 @@ public class AuctionViewController {
     @GetMapping("/api/auctions")
     public ResponseEntity<Page<AuctionResponse>> findAll(@RequestParam(name = "page", defaultValue = "1") int page,
                                                          @RequestParam(name = "size", defaultValue = "3") int size,
-                                                         @RequestParam(required = false) Status status) {
+                                                         @RequestParam(required = false) Status status,
+                                                         @RequestParam(name = "shopId", required = false) Long shopId) {
+        if (shopId != null) {
+            return ResponseEntity.ok(auctionService.findAllByShop(page, size, status, shopId));
+        }
         return ResponseEntity.ok(auctionService.findAll(page, size, status));
     }
 

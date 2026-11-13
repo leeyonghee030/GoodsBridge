@@ -1,846 +1,196 @@
 {{> fragments/header}}
-<script src="/js/api.js"></script>
-<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
 
 <style>
-    .auction-page {
-        display: grid;
-        gap: 1.5rem;
-    }
-
-    .auction-hero, .auction-panel {
-        border: 1px solid #e8e8e8;
-        border-radius: 22px;
-        padding: 1.5rem;
-        background: #fff;
-        box-shadow: 0 12px 35px rgba(30, 30, 30, .06);
-    }
-
-    .auction-hero {
-        background: linear-gradient(135deg, #fff7ed, #fef2f2);
-    }
-
-    .auction-kicker, .auction-muted {
-        color: #777;
-        font-size: .85rem;
-    }
-
-    .auction-toolbar {
-        display: flex;
-        gap: .75rem;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: space-between;
-        margin: 1rem 0;
-    }
-
-    .auction-toolbar select, .auction-toolbar button, .auction-action {
-        border: 1px solid #ddd;
-        border-radius: 999px;
-        background: #fff;
-        padding: .65rem 1rem;
-        cursor: pointer;
-    }
-
-    .auction-toolbar button, .auction-action.primary {
-        background: #222;
-        color: #fff;
-        border-color: #222;
-    }
-
-    .auction-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1rem;
-    }
-
-    .auction-card {
-        border: 1px solid #eee;
-        border-radius: 18px;
-        padding: 1rem;
-        display: grid;
-        gap: .7rem;
-    }
-
-    .auction-card h3 {
-        margin: 0;
-    }
-
-    .auction-card-top, .auction-card-bottom, .auction-detail-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: .75rem;
-    }
-
-    .auction-badge {
-        display: inline-flex;
-        width: fit-content;
-        padding: .3rem .6rem;
-        border-radius: 999px;
-        background: #f1f1f1;
-        font-size: .75rem;
-    }
-
-    .auction-badge.active {
-        background: #dcfce7;
-        color: #166534;
-    }
-
-    .auction-badge.success {
-        background: #dbeafe;
-        color: #1d4ed8;
-    }
-
-    .auction-price {
-        font-size: 1.25rem;
-        font-weight: 800;
-    }
-
-    .auction-empty, .auction-error {
-        padding: 2rem;
-        text-align: center;
-        color: #777;
-    }
-
-    .auction-error {
-        color: #b42318;
-    }
-
-    .auction-pagination {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        gap: .75rem;
-        margin-top: 1.25rem;
-    }
-
-    .auction-pagination button {
-        padding: .5rem .9rem;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        background: #fff;
-        cursor: pointer;
-    }
-
-    .auction-pagination button:disabled {
-        opacity: .45;
-        cursor: not-allowed;
-    }
-
-    .auction-detail {
-        margin-top: 1rem;
-        padding: 1rem;
-        border-radius: 16px;
-        background: #fafafa;
-    }
-
-    .my-auction-card {
-        border: 1px solid #eee;
-        border-radius: 16px;
-        padding: 1rem;
-        display: grid;
-        gap: .55rem;
-    }
-
-    .my-auction-card-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: .75rem;
-    }
-
-    .my-auction-status {
-        font-weight: 700;
-        color: #555;
-    }
-
-    .my-auction-status.won {
-        color: #1d4ed8;
-    }
-
-    .my-auction-status.leading {
-        color: #166534;
-    }
-
-    .my-auction-status.lost {
-        color: #b42318;
-    }
-
-    .auction-detail-meta {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: .6rem;
-        margin: .75rem 0;
-    }
-
-    .auction-detail-meta small {
-        display: block;
-        color: #777;
-    }
-
-    .auction-create-form {
-        display: grid;
-        gap: .9rem;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
-    .auction-create-form label {
-        display: grid;
-        gap: .35rem;
-        font-weight: 700;
-    }
-
-    .auction-create-form input,
-    .auction-create-form select {
-        width: 100%;
-        box-sizing: border-box;
-        padding: .7rem;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        font: inherit;
-        font-weight: 400;
-        background: #fff;
-    }
-
-    .auction-create-form .full-width {
-        grid-column: 1 / -1;
-    }
-
-    .auction-create-form .auction-action {
-        width: fit-content;
-    }
-
-    .bid-history {
-        list-style: none;
-        margin: .5rem 0 0;
-        padding: 0;
-        display: grid;
-        gap: .35rem;
-        font-size: .9rem;
-    }
-
-    .bid-history li {
-        display: flex;
-        justify-content: space-between;
-        gap: .75rem;
-        padding: .4rem .6rem;
-        border-radius: 10px;
-        background: #fff;
-    }
-
-    @media (max-width: 560px) {
-        .auction-hero, .auction-panel {
-            padding: 1rem;
-        }
-
-        .auction-create-form {
-            grid-template-columns: 1fr;
-        }
-
-        .auction-create-form .full-width {
-            grid-column: auto;
-        }
-
-        .auction-card-bottom {
-            align-items: flex-start;
-            flex-direction: column;
-        }
-    }
+/* 카드 정보는 한 줄로 (넘치면 말줄임) */
+.au-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.au-price small { margin-right: 0.35rem; font-size: 0.72rem; font-weight: 500; color: var(--color-muted); }
+.au-hot { color: #C0392B; }
+/* 정렬 메뉴는 글자가 두 줄로 꺾이지 않게 메뉴 폭을 내용에 맞춘다 */
+#sort-menu { min-width: 100%; width: max-content; left: auto; right: 0; }
+#sort-menu .scope-menu-item { white-space: nowrap; }
 </style>
 
-<div class="auction-page" id="auction-page">
-    <section class="auction-hero">
-        <p class="auction-kicker">GOODBRIDGE · AUCTION</p>
-        <h1>경매 마켓</h1>
-        <p>진행 중인 경매를 확인하고 낙찰 상태를 한눈에 관리하세요.</p>
-    </section>
+<h1 class="page-title">경매</h1>
+<p id="shop-filter-info" class="card-meta shop-filter-info" hidden></p>
 
-    <section class="auction-panel" id="auction-create-panel" hidden>
-        <div class="auction-toolbar">
-            <div>
-                <h2>경매 개설</h2>
-                <span class="auction-muted">내 가게 상품을 선택해 경매를 등록하세요.</span>
+<div class="list-toolbar">
+    <span class="list-toolbar-category" id="toolbar-label">진행중</span>
+    <div class="list-toolbar-actions">
+        <div class="scope-dropdown" id="scope-dropdown">
+            <button type="button" class="write-link" id="scope-trigger">진행중</button>
+            <div class="scope-menu" id="scope-menu" hidden>
+                <button type="button" class="scope-menu-item active" data-tab="ACTIVE">진행중</button>
+                <button type="button" class="scope-menu-item" data-tab="MINE">내 입찰</button>
+                <button type="button" class="scope-menu-item" data-tab="ENDED">종료</button>
             </div>
         </div>
-        <form id="auction-create-form" class="auction-create-form">
-            <label>
-                가게
-                <select id="create-shop-id" required>
-                    <option value="">가게를 불러오는 중...</option>
-                </select>
-            </label>
-            <label>
-                상품
-                <select id="create-item-id" required disabled>
-                    <option value="">가게를 먼저 선택하세요.</option>
-                </select>
-            </label>
-            <label>
-                시작가(원)
-                <input id="create-start-price" type="number" min="1" step="1" required placeholder="예: 10000">
-            </label>
-            <label>
-                보증금(원)
-                <input id="create-deposit-amount" type="number" min="1" step="1" required placeholder="시작가의 10~20%">
-                <small class="auction-muted" id="create-deposit-hint">시작가를 입력하면 가능한 범위를 표시합니다.</small>
-            </label>
-            <label>
-                마감 일시
-                <input id="create-deadline" type="datetime-local" required>
-            </label>
-            <div class="full-width">
-                <button class="auction-action primary" type="submit">경매 개설하기</button>
-                <span class="auction-muted" id="auction-create-message" style="margin-left:.6rem;"></span>
+        <div class="scope-dropdown" id="sort-dropdown">
+            <button type="button" class="write-link" id="sort-trigger">마감 임박순</button>
+            <div class="scope-menu" id="sort-menu" hidden>
+                <button type="button" class="scope-menu-item active" data-sort="DEADLINE">마감 임박순</button>
+                <button type="button" class="scope-menu-item" data-sort="NEWEST">최근 등록순</button>
+                <button type="button" class="scope-menu-item" data-sort="PRICE_DESC">현재가 높은순</button>
+                <button type="button" class="scope-menu-item" data-sort="PRICE_ASC">현재가 낮은순</button>
+                <button type="button" class="scope-menu-item" data-sort="BIDS">입찰 많은순</button>
             </div>
-        </form>
-    </section>
-
-    <section class="auction-panel">
-        <div class="auction-toolbar">
-            <div><h2>경매 목록</h2><span class="auction-muted" id="auction-count">불러오는 중...</span></div>
-            <label>상태 <select id="auction-status">
-                <option value="">전체</option>
-                <option value="ACTIVE">경매 중</option>
-                <option value="ENDED_SUCCESS">낙찰 성공</option>
-                <option value="ENDED_FAIL">낙찰 실패</option>
-                <option value="CANCELLED">취소</option>
-            </select></label>
         </div>
-        <div class="auction-grid" id="auction-list">
-            <div class="auction-empty">경매 목록을 불러오는 중입니다.</div>
-        </div>
-        <div class="auction-pagination">
-            <button id="auction-prev" type="button">이전</button>
-            <span id="auction-page-number">1 / 1</span>
-            <button id="auction-next" type="button">다음</button>
-        </div>
-        <div class="auction-detail" id="auction-detail" hidden></div>
-    </section>
-
-    <section class="auction-panel">
-        <div class="auction-toolbar">
-            <div><h2>내 입찰·낙찰 내역</h2><span class="auction-muted">내가 참여한 경매의 현재 상태입니다.</span></div>
-            <button class="auction-action" id="reload-my-auctions" type="button">새로고침</button>
-        </div>
-        <div class="auction-grid" id="my-auction-list">
-            <div class="auction-empty">내 경매 내역을 불러오는 중입니다.</div>
-        </div>
-    </section>
+        <label for="keyword-input" class="sr-only">검색</label>
+        <input type="text" id="keyword-input" class="toolbar-search" placeholder="상품명 · 가게 검색" autocomplete="off">
+    </div>
 </div>
 
+<div class="card-grid" id="item-grid"></div>
+<p class="empty-state" id="empty-state">경매를 불러오는 중...</p>
+
 <script>
-    (() => {
-        const state = {page: 1, size: 6, status: '', totalPages: 1};
-        // 서버가 못 내려주면(페이지 이동 시 JWT 헤더가 안 실림) ensureUserId()가 /api/users/me로 채운다.
-        let currentUserId = '{{userId}}';
-        const currentUserRole = '{{userRole}}';
-        const $ = (id) => document.getElementById(id);
-        // 결제창에서 오래 대기하면 Access Token(1시간)이 만료되어 결제 후 API가 401로 실패한다.
-        // 결제창을 열기 전과 결제 직후에 Refresh Token 쿠키로 세션을 갱신한다. (실패해도 무시: 이후 API가 오류를 알려준다)
-        const refreshSession = () => fetch('/api/auth/reissue', {method: 'POST', credentials: 'same-origin'}).catch(() => {});
-        const money = (value) => value == null ? '-' : Number(value).toLocaleString('ko-KR') + '원';
-        const formatTime = (value) => value ? String(value).replace('T', ' ').slice(0, 16) : '-';
-        const label = (status) => ({
-            ACTIVE: '경매 중',
-            ENDED_SUCCESS: '낙찰 성공',
-            ENDED_FAIL: '낙찰 실패',
-            CANCELLED: '취소'
-        })[status] || status || '-';
-        const badgeClass = (status) => status === 'ACTIVE' ? 'active' : status === 'ENDED_SUCCESS' ? 'success' : '';
-        const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            "'": '&#39;',
-            '"': '&quot;'
-        }[char]));
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
 
-        let myShops = [];
-        let myItems = [];
+    const grid = document.getElementById('item-grid');
+    const emptyEl = document.getElementById('empty-state');
+    const keywordInput = document.getElementById('keyword-input');
+    const TAB_LABELS = { ACTIVE: '진행중', MINE: '내 입찰', ENDED: '종료' };
+    const SORT_LABELS = { DEADLINE: '마감 임박순', NEWEST: '최근 등록순', PRICE_DESC: '현재가 높은순', PRICE_ASC: '현재가 낮은순', BIDS: '입찰 많은순' };
+    let auctions = [];
+    let mine = new Set();      // 내가 입찰한 경매 id
+    let tab = 'ACTIVE';
+    let sortKey = 'DEADLINE';
 
-        function setDefaultDeadline() {
-            const deadline = new Date(Date.now() + 60 * 60 * 1000);
-            deadline.setMinutes(deadline.getMinutes() - deadline.getTimezoneOffset());
-            $('create-deadline').value = deadline.toISOString().slice(0, 16);
-        }
+    // 마감시간이 지났으면 상태가 ACTIVE 여도(스케줄러 반영 전) 마감으로 본다
+    const deadlineOf = a => new Date(a.deadline);
+    const isLive = a => a.status === 'ACTIVE' && deadlineOf(a) > new Date();
+    const statusLabel = a => a.status === 'CANCELLED' ? '취소'
+        : a.status === 'ENDED_SUCCESS' ? '낙찰'
+        : a.status === 'ENDED_FAIL' ? '유찰'
+        : !isLive(a) ? '마감 처리 중' : '진행중';
 
-        function updateDepositHint() {
-            const startPrice = Number($('create-start-price').value);
-            const depositInput = $('create-deposit-amount');
-            const hint = $('create-deposit-hint');
-            if (!Number.isInteger(startPrice) || startPrice <= 0) {
-                depositInput.removeAttribute('min');
-                depositInput.removeAttribute('max');
-                hint.textContent = '시작가를 입력하면 가능한 범위를 표시합니다.';
-                return;
+    // 남은 시간: 하루 이상이면 D-n, 하루 안이면 시:분:초
+    function leftText(a) {
+        if (!isLive(a)) return '종료';
+        const ms = deadlineOf(a) - new Date();
+        const s = Math.floor(ms / 1000), d = Math.floor(s / 86400);
+        if (d > 0) return `D-${d}`;
+        const pad = n => String(n).padStart(2, '0');
+        return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
+    }
+    const isSoon = a => isLive(a) && deadlineOf(a) - new Date() < 3600 * 1000;
+
+    // 헤더의 '전체 매장' 선택을 교환 게시판처럼 따른다
+    const selectedShopId = () => { try { return localStorage.getItem('gb_shop_id') || ''; } catch (e) { return ''; } };
+
+    function sortList(list) {
+        const by = {
+            DEADLINE: (a, b) => (isLive(b) - isLive(a)) || (isLive(a) ? deadlineOf(a) - deadlineOf(b) : deadlineOf(b) - deadlineOf(a)),
+            NEWEST: (a, b) => b.id - a.id,
+            PRICE_DESC: (a, b) => b.currentPrice - a.currentPrice,
+            PRICE_ASC: (a, b) => a.currentPrice - b.currentPrice,
+            BIDS: (a, b) => b.bidCount - a.bidCount || deadlineOf(a) - deadlineOf(b)
+        }[sortKey];
+        return [...list].sort(by);
+    }
+
+    function rows() {
+        const kw = keywordInput.value.trim().toLowerCase();
+        const shopId = selectedShopId();
+        return sortList(auctions)
+            .filter(a => tab === 'MINE' ? mine.has(a.id) : tab === 'ENDED' ? !isLive(a) : isLive(a))
+            .filter(a => !shopId || String(a.shopId) === shopId)
+            .filter(a => !kw || `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(kw));
+    }
+
+    function myTag(a) {
+        if (!mine.has(a.id)) return '';
+        return a.currentWinnerUserId === userId ? ' · 내가 최고가' : ' · 내 입찰';
+    }
+
+    function render() {
+        const list = rows();
+        grid.innerHTML = list.map(a => `
+            <a class="card" href="/test/auction/${a.id}">
+                <span class="card-tag">■ ${statusLabel(a)}${myTag(a)}</span>
+                <div class="card-image">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="${esc(a.itemTitle)}">` : '이미지 없음'}</div>
+                <p class="card-title">${esc(a.itemTitle)}</p>
+                <p class="card-price au-price"><small>${a.bidCount ? '현재가' : '시작가'}</small>${money(a.currentPrice)}</p>
+                <p class="card-meta au-line">입찰 ${a.bidCount}회 · 보증금 ${money(a.depositAmount)} · <span data-left="${a.id}" class="${isSoon(a) ? 'au-hot' : ''}">${leftText(a)}</span></p>
+                <p class="card-meta au-line">${esc(a.shopName)}</p>
+            </a>`).join('');
+        const msg = { ACTIVE: '지금 진행 중인 경매가 없어요.', MINE: userId === null ? '로그인하면 내가 입찰한 경매를 볼 수 있어요.' : '입찰한 경매가 없어요.', ENDED: '종료된 경매가 없어요.' }[tab];
+        emptyEl.textContent = keywordInput.value.trim() ? '검색 결과가 없어요.' : msg;
+        emptyEl.hidden = list.length > 0;
+    }
+
+    async function load() {
+        try {
+            const res = await pageFetch('/api/auctions?page=1&size=50');
+            if (!res.ok) throw new Error('경매를 불러오지 못했어요.');
+            auctions = (await res.json()).content || [];
+            if (userId !== null) {
+                const meRes = await pageFetch('/api/auctions/me?page=0&size=50');
+                if (meRes.ok) mine = new Set(((await meRes.json()).content || []).map(a => a.id));
             }
-            const min = Math.ceil(startPrice * 0.10);
-            const max = Math.floor(startPrice * 0.20);
-            depositInput.min = min;
-            depositInput.max = max;
-            hint.textContent = `보증금 가능 범위: ${money(min)} ~ ${money(max)}`;
+            render();
+        } catch (e) {
+            emptyEl.textContent = e.message;
+            emptyEl.hidden = false;
         }
+    }
 
-        function renderShopOptions() {
-            const select = $('create-shop-id');
-            const approvedShops = myShops.filter(shop => shop.status === 'APPROVED');
-            select.innerHTML = approvedShops.length
-                ? '<option value="">가게를 선택하세요.</option>' + approvedShops.map(shop =>
-                `<option value="${shop.id}">${escapeHtml(shop.name)} (#${shop.id})</option>`).join('')
-                : '<option value="">승인된 내 가게가 없습니다.</option>';
-            select.disabled = !approvedShops.length;
-        }
-
-        function renderItemOptions() {
-            const shopId = $('create-shop-id').value;
-            const select = $('create-item-id');
-            const items = myItems.filter(item => String(item.shopId) === String(shopId)
-                && item.status !== 'SOLD' && item.status !== 'CLOSED');
-            select.innerHTML = items.length
-                ? '<option value="">상품을 선택하세요.</option>' + items.map(item =>
-                `<option value="${item.id}" data-price="${item.price}">${escapeHtml(item.title)} · ${money(item.price)}</option>`).join('')
-                : '<option value="">이 가게에 등록 가능한 상품이 없습니다.</option>';
-            select.disabled = !items.length;
-        }
-
-        async function loadAuctionCreateForm() {
-            const panel = $('auction-create-panel');
-            if (!currentUserId || currentUserId === 'null') return;
-            try {
-                const [shopsResponse, itemsResponse] = await Promise.all([
-                    apiFetch('/api/shops/me?page=0&size=50'),
-                    apiFetch('/api/items/me')
-                ]);
-                if (shopsResponse.status === 401 || itemsResponse.status === 401) return;
-                if (!shopsResponse.ok || !itemsResponse.ok) throw new Error('내 가게 또는 상품을 불러오지 못했습니다.');
-                const shopsData = await shopsResponse.json();
-                myShops = shopsData.content || [];
-                myItems = await itemsResponse.json();
-                renderShopOptions();
-                renderItemOptions();
-                setDefaultDeadline();
-                panel.hidden = false;
-            } catch (error) {
-                $('auction-create-message').textContent = error.message;
-                panel.hidden = false;
-            }
-        }
-
-        async function createAuction(event) {
-            event.preventDefault();
-            const button = event.target.querySelector('button[type="submit"]');
-            const message = $('auction-create-message');
-            const startPrice = Number($('create-start-price').value);
-            const depositAmount = Number($('create-deposit-amount').value);
-            const minDeposit = Math.ceil(startPrice * 0.10);
-            const maxDeposit = Math.floor(startPrice * 0.20);
-            if (!Number.isInteger(startPrice) || startPrice <= 0) {
-                message.textContent = '시작가는 1원 이상 입력해주세요.';
-                return;
-            }
-            if (!Number.isInteger(depositAmount) || depositAmount < minDeposit || depositAmount > maxDeposit) {
-                message.textContent = `보증금은 ${money(minDeposit)} ~ ${money(maxDeposit)} 사이여야 합니다.`;
-                return;
-            }
-            button.disabled = true;
-            message.textContent = '개설 중...';
-            try {
-                const response = await apiFetch(`/api/shops/${$('create-shop-id').value}/auctions`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        itemId: Number($('create-item-id').value),
-                        startPrice,
-                        depositAmount,
-                        deadline: $('create-deadline').value
-                    })
-                });
-                const body = await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(body.message || '경매 개설에 실패했습니다.');
-                message.textContent = '경매가 개설되었습니다.';
-                event.target.reset();
-                $('create-item-id').disabled = true;
-                $('create-item-id').innerHTML = '<option value="">가게를 먼저 선택하세요.</option>';
-                $('create-deposit-hint').textContent = '시작가를 입력하면 가능한 범위를 표시합니다.';
-                setDefaultDeadline();
-                await loadAuctions();
-            } catch (error) {
-                message.textContent = error.message || '경매 개설에 실패했습니다.';
-            } finally {
-                button.disabled = false;
-            }
-        }
-
-        async function ensureUserId() {
-            if (currentUserId) return currentUserId;
-            try {
-                const response = await apiFetch('/api/users/me');
-                if (response.ok) {
-                    const me = await response.json();
-                    currentUserId = String(me.id ?? me.userId ?? '');
-                }
-            } catch (error) { /* 비로그인이면 빈 값 유지 */ }
-            return currentUserId;
-        }
-
-        $('create-shop-id').addEventListener('change', renderItemOptions);
-        $('create-start-price').addEventListener('input', updateDepositHint);
-        $('auction-create-form').addEventListener('submit', createAuction);
-
-        // ---------- #12 경매 목록 ----------
-        async function loadAuctions() {
-            const list = $('auction-list');
-            list.innerHTML = '<div class="auction-empty">경매 목록을 불러오는 중입니다.</div>';
-            try {
-                const query = new URLSearchParams({page: state.page, size: state.size});
-                if (state.status) query.set('status', state.status);
-                const response = await apiFetch('/api/auctions?' + query);
-                if (!response.ok) throw new Error('경매 목록을 불러오지 못했습니다.');
-                const data = await response.json();
-                state.totalPages = Math.max(data.totalPages || 1, 1);
-                $('auction-count').textContent = `총 ${data.totalElements || 0}건`;
-                $('auction-page-number').textContent = `${state.page} / ${state.totalPages}`;
-                $('auction-prev').disabled = state.page <= 1;
-                $('auction-next').disabled = state.page >= state.totalPages;
-                if (!data.content?.length) {
-                    list.innerHTML = '<div class="auction-empty">조건에 맞는 경매가 없습니다.</div>';
-                    return;
-                }
-                list.innerHTML = data.content.map((auction) => `<article class="auction-card">
-                <div class="auction-card-top"><span class="auction-badge ${badgeClass(auction.status)}">${escapeHtml(label(auction.status))}</span><span class="auction-muted">#${escapeHtml(auction.id)}</span></div>
-                <h3>상품 #${escapeHtml(auction.itemId)}</h3><span class="auction-muted">가게 #${escapeHtml(auction.shopId)} · 마감 ${escapeHtml(formatTime(auction.deadline))}</span>
-                <div class="auction-card-bottom"><div><small>현재가</small><div class="auction-price">${money(auction.currentPrice ?? auction.startPrice)}</div></div><button class="auction-action" type="button" data-detail="${auction.id}">상세 보기</button></div>
-            </article>`).join('');
-                list.querySelectorAll('[data-detail]').forEach((button) => button.addEventListener('click', () => loadDetail(button.dataset.detail)));
-            } catch (error) {
-                list.innerHTML = `<div class="auction-error">${escapeHtml(error.message)}</div>`;
-                $('auction-count').textContent = '조회 실패';
-            }
-        }
-
-        // ---------- #20 내가 참여한 경매 (GET /api/auctions/me) ----------
-        const isMine = (auction) => auction.currentWinnerUserId != null
-            && String(auction.currentWinnerUserId) === String(currentUserId);
-
-        function myStatus(auction) {
-            if (auction.status === 'ACTIVE') return isMine(auction) ? ['현재 1위', 'leading'] : ['입찰 참여 중', ''];
-            if (auction.status === 'ENDED_SUCCESS') {
-                if (!isMine(auction)) return ['낙찰 실패 · 보증금 환불', 'lost'];
-                return auction.balancePaid ? ['낙찰 · 결제 완료', 'won'] : ['낙찰 · 잔금 결제 필요', 'won'];
-            }
-            if (auction.status === 'ENDED_FAIL') {
-                if (isMine(auction)) return ['잔금 미납 · 보증금 몰수', 'lost'];
-                return auction.currentWinnerUserId != null ? ['낙찰자 미납으로 종료', 'lost'] : ['유찰', 'lost'];
-            }
-            if (auction.status === 'CANCELLED') return ['경매 취소', 'lost'];
-            return [label(auction.status), ''];
-        }
-
-        // ---------- 낙찰자 잔금 결제 (낙찰가 - 보증금) ----------
-        async function payBalance(auction, button) {
-            button.disabled = true;
-            try {
-                const addressInput = document.getElementById(`balance-address-${auction.id}`);
-                const deliveryAddress = addressInput?.value?.trim();
-                if (!deliveryAddress) throw new Error('잔금 결제 전에 배송지를 입력해주세요.');
-                if (deliveryAddress.length > 255) throw new Error('배송지는 255자 이하로 입력해주세요.');
-                if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
-                await refreshSession();
-                const paymentResult = await PortOne.requestPayment({
-                    storeId: '{{portoneStoreId}}',
-                    channelKey: '{{portoneChannelKey}}',
-                    paymentId: `auction-balance-${auction.id}-${crypto.randomUUID()}`,
-                    orderName: `경매 상품 #${auction.itemId} 잔금`,
-                    totalAmount: auction.balanceAmount,
-                    currency: 'KRW',
-                    payMethod: 'CARD'
-                });
-                if (paymentResult.code) {
-                    throw new Error(paymentResult.message || '잔금 결제가 취소되었습니다.');
-                }
-                await refreshSession();
-                const result = await apiFetch(`/api/auctions/${auction.id}/pay-balance`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({paymentId: paymentResult.paymentId, deliveryAddress})
-                });
-                const body = await result.json().catch(() => ({}));
-                if (!result.ok) throw new Error(body.message || '잔금 결제 처리에 실패했습니다.');
-                alert('잔금 결제가 완료되었습니다.');
-                await Promise.all([loadAuctions(), loadMyAuctions()]);
-            } catch (error) {
-                alert(error.message || '잔금 결제에 실패했습니다.');
-            } finally {
-                button.disabled = false;
-            }
-        }
-
-        async function loadMyAuctions() {
-            const list = $('my-auction-list');
-            list.innerHTML = '<div class="auction-empty">내 경매 내역을 불러오는 중입니다.</div>';
-            try {
-                // /api/auctions/me 는 Spring Pageable이라 page가 0부터 시작 (목록 API는 1부터)
-                const response = await apiFetch('/api/auctions/me?page=0&size=20');
-                if (response.status === 401) {
-                    list.innerHTML = '<div class="auction-empty">로그인 후 내 입찰·낙찰 내역을 확인할 수 있습니다.</div>';
-                    return;
-                }
-                if (!response.ok) throw new Error('내 경매 내역을 불러오지 못했습니다.');
-                const data = await response.json();
-                await ensureUserId();
-                if (!data.content?.length) {
-                    list.innerHTML = '<div class="auction-empty">아직 참여한 경매가 없습니다.</div>';
-                    return;
-                }
-                const byId = new Map(data.content.map((auction) => [String(auction.id), auction]));
-                list.innerHTML = data.content.map((auction) => {
-                    const [text, css] = myStatus(auction);
-                    const needsPay = auction.status === 'ENDED_SUCCESS' && isMine(auction) && !auction.balancePaid;
-                    return `<article class="my-auction-card">
-                <div class="my-auction-card-top"><span class="my-auction-status ${css}">${escapeHtml(text)}</span><span class="auction-muted">#${escapeHtml(auction.id)}</span></div>
-                <strong>상품 #${escapeHtml(auction.itemId)}</strong>
-                <span class="auction-muted">현재가 ${money(auction.currentPrice)} · 보증금 ${money(auction.depositAmount)} · 마감 ${escapeHtml(formatTime(auction.deadline))}</span>
-                ${needsPay ? `<span class="auction-muted">잔금 ${money(auction.balanceAmount)} (낙찰가 − 보증금) · 결제 기한 ${auction.balanceDueAt ? escapeHtml(formatTime(auction.balanceDueAt)) : '없음'}</span>
-                <input id="balance-address-${auction.id}" type="text" maxlength="255" required placeholder="배송지를 입력해주세요" style="width:100%; padding:.7rem; margin-top:.5rem;">
-                <button class="auction-action primary" type="button" data-pay="${auction.id}">잔금 ${money(auction.balanceAmount)} 결제하기</button>` : ''}
-                <button class="auction-action" type="button" data-my-detail="${auction.id}">상세 보기</button>
-            </article>`;
-                }).join('');
-                list.querySelectorAll('[data-pay]').forEach((button) => button.addEventListener('click',
-                    () => payBalance(byId.get(button.dataset.pay), button)));
-                list.querySelectorAll('[data-my-detail]').forEach((button) => button.addEventListener('click', async () => {
-                    await loadDetail(button.dataset.myDetail);
-                    $('auction-detail').scrollIntoView({behavior: 'smooth', block: 'nearest'});
-                }));
-            } catch (error) {
-                list.innerHTML = `<div class="auction-error">${escapeHtml(error.message)}</div>`;
-            }
-        }
-
-        // 최초 입찰 판단용 — 100건 넘는 입찰도 놓치지 않도록 전 페이지를 훑는다 (#20: 보증금은 최초 입찰 때만)
-        async function fetchAllBids(auctionId) {
-            const all = [];
-            for (let p = 0; p < 50; p++) {
-                const response = await apiFetch(`/api/auctions/${auctionId}/bids?page=${p}&size=100`);
-                if (!response.ok) throw new Error('입찰 내역을 확인하지 못했습니다.');
-                const data = await response.json();
-                all.push(...(data.content || []));
-                if (data.last || !data.content?.length) break;
-            }
-            return all;
-        }
-
-        // ---------- #12 상세 + #20 입찰 ----------
-        async function loadDetail(id) {
-            const detail = $('auction-detail');
-            detail.hidden = false;
-            detail.innerHTML = '상세 정보를 불러오는 중입니다.';
-
-            try {
-                const response = await apiFetch('/api/auctions/' + id);
-                if (!response.ok) throw new Error('경매 상세를 불러오지 못했습니다.');
-                const auction = await response.json();
-                const isActive = auction.status === 'ACTIVE';
-
-                // 입찰 내역은 실패해도 상세는 보여준다
-                let bids = [];
-                let bidsError = false;
-                try {
-                    const bidsResponse = await apiFetch(`/api/auctions/${id}/bids?page=0&size=10`);
-                    if (!bidsResponse.ok) throw new Error();
-                    bids = (await bidsResponse.json()).content || [];
-                } catch (error) {
-                    bidsError = true;
-                }
-                const topBid = bids[0];
-                const bestBidByUser = new Map();
-                bids.forEach((bid) => {
-                    const key = String(bid.userId);
-                    if (!bestBidByUser.has(key) || Number(bid.bidAmount) > Number(bestBidByUser.get(key).bidAmount)) {
-                        bestBidByUser.set(key, bid);
-                    }
-                });
-                const rankedBids = [...bestBidByUser.values()].sort((a, b) => Number(b.bidAmount) - Number(a.bidAmount));
-                const myRank = currentUserId && currentUserId !== 'null'
-                    ? rankedBids.findIndex((bid) => String(bid.userId) === String(currentUserId)) + 1
-                    : 0;
-
-                detail.innerHTML = `
-            <div class="auction-detail-head">
-                <strong>상품 #${escapeHtml(auction.itemId)} · 가게 #${escapeHtml(auction.shopId)}</strong>
-                <span class="auction-badge ${badgeClass(auction.status)}">${escapeHtml(label(auction.status))}</span>
-            </div>
-            <div class="auction-detail-meta">
-                <div><small>시작가</small>${money(auction.startPrice)}</div>
-                <div><small>현재가</small><strong>${money(auction.currentPrice)}</strong></div>
-                <div><small>현재 1위</small>${topBid ? escapeHtml(topBid.nickname) : '없음'}</div>
-                <div><small>내 현재 등수</small>${myRank > 0 ? myRank + '위' : '미참여'}</div>
-                <div><small>보증금 (시작가의 10~20%)</small>${money(auction.depositAmount)}</div>
-                <div><small>마감</small>${escapeHtml(formatTime(auction.deadline))}</div>
-                ${auction.status === 'ENDED_SUCCESS' ? `<div><small>낙찰 잔금 (낙찰가 − 보증금)</small>${money(auction.balanceAmount)} · ${auction.balancePaid ? '결제 완료' : '기한 ' + escapeHtml(formatTime(auction.balanceDueAt))}</div>` : ''}
-            </div>
-            ${isActive ? `
-                <form id="bid-form" style="display:grid; gap:.75rem; margin-top:1rem;">
-                    <label>
-                        입찰 금액
-                        <input id="bid-amount" type="number" min="${Number(auction.currentPrice || auction.startPrice) + 1}" step="1" required
-                               placeholder="현재가보다 높은 금액" style="width:100%; padding:.7rem; margin-top:.3rem;">
-                    </label>
-                    <button class="auction-action primary" type="submit">보증금 결제 후 입찰하기</button>
-                    <small class="auction-muted">최초 입찰 시 보증금 ${money(auction.depositAmount)}를 결제하며, 이후 입찰은 추가 결제 없이 진행됩니다. 가게 주인은 자기 경매에 입찰할 수 없습니다.</small>
-                </form>`
-                    : `<p class="auction-muted" style="margin-top:1rem;">진행 중인 경매가 아니므로 입찰할 수 없습니다.</p>`}
-            <h4 style="margin:1.25rem 0 0;">입찰 내역 (높은 금액순)</h4>
-            ${bidsError ? '<p class="auction-muted">입찰 내역을 불러오지 못했습니다.</p>'
-                    : !bids.length ? '<p class="auction-muted">아직 입찰이 없습니다.</p>'
-                        : `<ul class="bid-history">${bids.map((bid) => `<li><span>${escapeHtml(bid.nickname)}</span><span><strong>${money(bid.bidAmount)}</strong> <span class="auction-muted">${escapeHtml(formatTime(bid.createdAt))}</span></span></li>`).join('')}</ul>`}
-        `;
-
-                // 가게 주인 또는 관리자에게 보이는 경매 취소 버튼
-                if (isActive) {
-                    try {
-                        const isAdmin = currentUserRole === 'ADMIN';
-                        if (currentUserId && currentUserId !== 'null') {
-                            const ownerResponse = isAdmin ? null : await apiFetch(`/api/shops/${auction.shopId}`);
-                            if (isAdmin || ownerResponse.ok) {
-                                const ownerShop = isAdmin ? null : await ownerResponse.json();
-                                if (isAdmin || String(ownerShop.ownerUserId) === String(currentUserId)) {
-                                    const cancelButton = document.createElement('button');
-                                    cancelButton.type = 'button';
-                                    cancelButton.className = 'auction-action';
-                                    cancelButton.style.marginTop = '1rem';
-                                    cancelButton.textContent = isAdmin ? '경매 취소 (관리자)' : '경매 취소 (입찰이 없을 때만 가능)';
-                                    cancelButton.addEventListener('click', async () => {
-                                        if (!(await gbConfirm('이 경매를 취소하시겠습니까?'))) return;
-                                        cancelButton.disabled = true;
-                                        try {
-                                            const cancelResponse = await apiFetch(`/api/auctions/${id}/cancel`, {method: 'PATCH'});
-                                            const cancelBody = await cancelResponse.json().catch(() => ({}));
-                                            if (!cancelResponse.ok) throw new Error(cancelBody.message || '경매 취소에 실패했습니다.');
-                                            alert('경매가 취소되었습니다.');
-                                            await Promise.all([loadAuctions(), loadMyAuctions()]);
-                                            await loadDetail(id);
-                                        } catch (cancelError) {
-                                            alert(cancelError.message || '경매 취소에 실패했습니다.');
-                                            cancelButton.disabled = false;
-                                        }
-                                    });
-                                    detail.appendChild(cancelButton);
-                                }
-                            }
-                        }
-                    } catch (ignore) {
-                        // 가게 정보를 못 불러오면 취소 버튼만 생략한다
-                    }
-                }
-
-                $('bid-form')?.addEventListener('submit', async (event) => {
-                    event.preventDefault();
-
-                    const submitButton = event.target.querySelector('button[type="submit"]');
-                    const bidAmount = Number($('bid-amount').value);
-
-                    if (!Number.isInteger(bidAmount)) {
-                        alert('입찰 금액을 입력해주세요.');
-                        return;
-                    }
-                    if (bidAmount <= Number(auction.currentPrice)) {
-                        alert('현재가보다 높은 금액을 입력해주세요.');
-                        return;
-                    }
-
-                    submitButton.disabled = true;
-
-                    try {
-                        // 내 id를 모르면 최초 입찰 여부를 잘못 판단해 보증금을 이중 결제할 수 있어 중단한다
-                        if (!(await ensureUserId())) throw new Error('로그인이 필요합니다.');
-
-                        // 결제창을 열기 전에 경매 운영 가게의 주인인지 확인한다.
-                        // 서버도 같은 검증을 하지만, 이 검사를 먼저 하지 않으면
-                        // 가게 주인이 보증금을 결제한 뒤 입찰이 거절될 수 있다.
-                        const shopResponse = await apiFetch(`/api/shops/${auction.shopId}`);
-                        if (!shopResponse.ok) throw new Error('경매 가게 정보를 확인하지 못했습니다.');
-                        const shop = await shopResponse.json();
-                        if (String(shop.ownerUserId) === String(currentUserId)) {
-                            throw new Error('자신이 판매한 상품은 입찰할 수 없습니다.');
-                        }
-
-                        const hasPreviousBid = (await fetchAllBids(id))
-                            .some(bid => String(bid.userId) === String(currentUserId));
-
-                        await refreshSession();
-                        let paymentId = null;
-                        if (!hasPreviousBid) {
-                            if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
-
-                            const paymentResult = await PortOne.requestPayment({
-                                storeId: '{{portoneStoreId}}',
-                                channelKey: '{{portoneChannelKey}}',
-                                paymentId: `auction-deposit-${id}-${crypto.randomUUID()}`,
-                                orderName: `경매 상품 #${auction.itemId} 보증금`,
-                                totalAmount: auction.depositAmount,
-                                currency: 'KRW',
-                                payMethod: 'CARD'
-                            });
-
-                            if (paymentResult.code) {
-                                throw new Error(paymentResult.message || '보증금 결제가 취소되었습니다.');
-                            }
-                            paymentId = paymentResult.paymentId;
-                        }
-
-                        await refreshSession();
-                        const result = await apiFetch('/api/auctions/' + id + '/bids', {
-                            method: 'POST',
-                            headers: {'Content-Type': 'application/json'},
-                            body: JSON.stringify({bidAmount, paymentId})
-                        });
-                        const resultBody = await result.json().catch(() => ({}));
-
-                        if (!result.ok) {
-                            throw new Error(resultBody.message || '입찰에 실패했습니다.');
-                        }
-
-                        alert('입찰이 완료되었습니다.');
-                        await Promise.all([loadAuctions(), loadMyAuctions()]);
-                        await loadDetail(id);
-                    } catch (error) {
-                        alert(error.message || '입찰에 실패했습니다.');
-                    } finally {
-                        submitButton.disabled = false;
-                    }
-                });
-            } catch (error) {
-                detail.innerHTML = `<div class="auction-error">${escapeHtml(error.message)}</div>`;
-            }
-        }
-
-        $('auction-status').addEventListener('change', (event) => {
-            state.status = event.target.value;
-            state.page = 1;
-            loadAuctions();
+    // 남은 시간만 1초마다 갱신
+    setInterval(() => {
+        document.querySelectorAll('[data-left]').forEach(el => {
+            const a = auctions.find(x => x.id === Number(el.dataset.left));
+            if (a) { el.textContent = leftText(a); el.classList.toggle('au-hot', isSoon(a)); }
         });
-        $('auction-prev').addEventListener('click', () => {
-            if (state.page > 1) {
-                state.page--;
-                loadAuctions();
-            }
-        });
-        $('auction-next').addEventListener('click', () => {
-            if (state.page < state.totalPages) {
-                state.page++;
-                loadAuctions();
-            }
-        });
-        $('reload-my-auctions').addEventListener('click', loadMyAuctions);
-        // 두 로더는 각자 에러를 처리하므로 한쪽이 실패해도 다른 쪽은 계속 동작한다
-        loadAuctions();
-        loadAuctionCreateForm();
-        loadMyAuctions();
-    })();
+    }, 1000);
 
+    // 상태 선택 / 정렬 선택 (이벤트 목록과 같은 모양의 드롭다운)
+    const scopeTrigger = document.getElementById('scope-trigger');
+    const scopeMenu = document.getElementById('scope-menu');
+    const sortTrigger = document.getElementById('sort-trigger');
+    const sortMenu = document.getElementById('sort-menu');
+    document.getElementById('scope-dropdown').addEventListener('click', ev => {
+        ev.stopPropagation();
+        sortMenu.hidden = true;
+        if (ev.target === scopeTrigger) { scopeMenu.hidden = !scopeMenu.hidden; return; }
+        const item = ev.target.closest('.scope-menu-item');
+        if (!item) return;
+        tab = item.dataset.tab;
+        scopeTrigger.textContent = TAB_LABELS[tab];
+        document.getElementById('toolbar-label').textContent = TAB_LABELS[tab];
+        scopeMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
+        scopeMenu.hidden = true;
+        render();
+    });
+    document.getElementById('sort-dropdown').addEventListener('click', ev => {
+        ev.stopPropagation();
+        scopeMenu.hidden = true;
+        if (ev.target === sortTrigger) { sortMenu.hidden = !sortMenu.hidden; return; }
+        const item = ev.target.closest('.scope-menu-item');
+        if (!item) return;
+        sortKey = item.dataset.sort;
+        sortTrigger.textContent = SORT_LABELS[sortKey];
+        sortMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
+        sortMenu.hidden = true;
+        render();
+    });
+    document.addEventListener('click', () => { scopeMenu.hidden = true; sortMenu.hidden = true; });
+    keywordInput.addEventListener('input', render);
+
+    // 헤더에서 매장을 고르면 안내 문구를 보여준다
+    const shopInfo = document.getElementById('shop-filter-info');
+    const shopId = selectedShopId();
+    if (shopId) {
+        pageFetch('/api/shops/' + shopId).then(res => res.ok ? res.json() : null).then(shop => {
+            if (!shop) { shopInfo.hidden = true; return; }
+            shopInfo.textContent = `${shop.name} · ${shop.region || ''} 매장 경매만 보고 있습니다.`;
+            shopInfo.hidden = false;
+        });
+    }
+    load();
+})();
 </script>
-</main>
-</body>
-</html>
+
+{{> fragments/footer}}
