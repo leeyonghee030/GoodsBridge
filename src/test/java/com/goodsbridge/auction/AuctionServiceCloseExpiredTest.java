@@ -80,7 +80,9 @@ class AuctionServiceCloseExpiredTest {
     @Test
     void closeExpired_doesNotSettleWhenWinnerExists() {
         Shop shop = mock(Shop.class);
-        Auction auction = expiredAuction(shop);
+        Item item = mock(Item.class);
+        when(item.getTitle()).thenReturn("테스트 상품");
+        Auction auction = expiredAuction(shop, item);
         auction.updateCurrentBid(15_000, mock(User.class));
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
 

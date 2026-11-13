@@ -339,13 +339,13 @@ public class ExchangeService {
 
             publisher.publishEvent(
                 new NotificationEvent(
-                    e.getId(),
+                    e.getItemB().getSellerUserId(),
                     Notification.Type.EXCHANGE_CANCELLED,
                     "[교환취소]",
                     exchangeRequest.getExchangeItemA().getItem().getTitle() +
                         " 교환신청이 취소되었습니다",
                     Notification.ReferenceType.EXCHANGE,
-                    exchangeRequest.getId()
+                    e.getId()
                 )
             );
         }
