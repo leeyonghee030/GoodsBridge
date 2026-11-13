@@ -52,12 +52,13 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         Pageable pageable
     );
 
-    // SHOP 목록용: 가게 상품만 (교환용 개인 상품 제외), 판매중/판매완료만, status 가 있으면 그 상태만
+    // SHOP 목록용: 가게 상품만 (교환용 개인 상품, 선착순 이벤트 상품 제외), 판매중/판매완료만, status 가 있으면 그 상태만
     @Query("""
         SELECT i FROM Item i
         JOIN FETCH i.category c
         LEFT JOIN Shop s ON i.shopId = s.id
         WHERE i.shopId IS NOT NULL
+          AND i.saleType <> com.goodsbridge.item.SaleType.EVENT
           AND i.status IN (com.goodsbridge.item.ItemStatus.ON_SALE, com.goodsbridge.item.ItemStatus.SOLD)
           AND (:status IS NULL OR i.status = :status)
           AND (:categoryId IS NULL OR c.id = :categoryId)

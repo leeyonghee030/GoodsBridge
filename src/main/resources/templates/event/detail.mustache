@@ -1,0 +1,188 @@
+{{> fragments/header}}
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+
+<style>
+/* 상품 상세(item/detail)와 같은 정보 영역 스타일 */
+.item-detail-info { display: flex; flex-direction: column; }
+.item-detail-info .item-tag { font-size: 0.78rem; color: var(--color-muted); margin: 0 0 0.4rem; }
+.item-detail-info h1 { margin: 0 0 0.5rem; font-size: 1.35rem; line-height: 1.35; }
+.item-detail-info .item-price { margin: 0 0 0.8rem; font-size: 1.15rem; font-weight: 700; }
+.item-detail-info .item-status { align-self: flex-start; margin-bottom: 0.8rem; }
+.item-detail-info .item-desc { margin: 0; padding: 1rem 0; border-top: 1px solid var(--color-border); font-size: 0.92rem; line-height: 1.7; color: var(--color-text-soft, #444); white-space: pre-line; }
+.item-detail-info .item-buy { padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.item-detail-info .item-buy-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.7rem; font-size: 0.85rem; color: var(--color-muted); }
+.item-detail-info .item-buy-row b { font-size: 1.1rem; color: var(--color-text); }
+.ev-box { margin: 0.9rem 0; padding: 0.8rem 0.9rem; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-size: 0.84rem; }
+.ev-box .ev-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0.3rem 0; }
+.ev-box .ev-row strong { font-size: 1rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ev-box .ev-row strong.is-soon { color: #C0392B; }
+.ev-gauge { height: 6px; margin: 0.2rem 0 0.4rem; border-radius: 999px; background: #fff; overflow: hidden; }
+.ev-gauge span { display: block; height: 100%; background: var(--color-dark); border-radius: 999px; }
+.ev-steps { margin: 0.6rem 0 0; padding: 0.6rem 0 0 1.1rem; border-top: 1px dashed var(--color-border); font-size: 0.78rem; line-height: 1.7; color: var(--color-text-soft); }
+.ev-ticket { margin: 0 0 0.8rem; padding: 0.7rem 0.9rem; border-radius: 10px; background: #EAF5EE; color: #2E7D4F; font-size: 0.86rem; }
+.ev-ticket b { font-size: 1.05rem; }
+#ev-action { width: 100%; }
+#ev-action:disabled { opacity: 0.45; cursor: not-allowed; }
+.ev-cancel { width: 100%; margin-top: 0.4rem; background: transparent; color: var(--color-text); border: 1px solid var(--color-border); }
+</style>
+
+<div class="container detail-container">
+<div class="detail-grid">
+    <div class="detail-media">
+        <div class="detail-image">
+            {{#event.itemImageUrl}}<img src="{{event.itemImageUrl}}" alt="{{event.itemTitle}}">{{/event.itemImageUrl}}
+            {{^event.itemImageUrl}}이미지 없음{{/event.itemImageUrl}}
+        </div>
+    </div>
+    <!-- 상품 상세 화면과 같은 구성: 가게 → 상품명 → 가격 → 상태 → 설명 → 참가(구매) 박스 -->
+    <div class="detail-info item-detail-info">
+        <p class="item-tag">{{event.shopName}} · {{event.shopAddress}}</p>
+        <h1 class="detail-title">{{event.itemTitle}}</h1>
+        <p class="item-price">{{#money}}{{event.itemPrice}}{{/money}}원</p>
+        <span class="badge item-status" id="ev-status"></span>
+        {{#event.itemDescription}}<p class="item-desc">{{event.itemDescription}}</p>{{/event.itemDescription}}
+
+        <div class="ev-box">
+            <div class="ev-row"><span>참가비</span><strong>{{#money}}{{event.feeAmount}}{{/money}}원</strong></div>
+            <div class="ev-row"><span>남은 자리</span><strong id="ev-seats"></strong></div>
+            <div class="ev-gauge"><span id="ev-gauge"></span></div>
+            <div class="ev-row"><span>모집 마감</span><strong id="ev-left"></strong></div>
+            <ol class="ev-steps">
+                <li>참가비를 결제하면 선착순으로 번호표가 발급돼요. 정원이 차면 바로 마감돼요.</li>
+                <li>번호표를 들고 <b>{{event.shopName}}</b>에 방문하면, 번호표 순서대로 이 상품을 <b>{{#money}}{{event.itemPrice}}{{/money}}원</b>에 현장 구매할 수 있어요.</li>
+                <li>모집 마감 전에는 참가를 취소하고 참가비를 환불받을 수 있어요. 가게가 이벤트를 취소하면 전액 환불돼요.</li>
+            </ol>
+        </div>
+
+        <div class="item-buy">
+            <div class="ev-ticket" id="ev-ticket" hidden></div>
+            <div class="item-buy-row"><span>참가비 · 번호표 1장</span><b>{{#money}}{{event.feeAmount}}{{/money}}원</b></div>
+            <button type="button" id="ev-action">참가하기</button>
+            <button type="button" id="ev-cancel" class="ev-cancel" hidden>참가 취소</button>
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const portoneStoreId = '{{portoneStoreId}}';
+    const portoneChannelKey = '{{portoneChannelKey}}';
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    // TODO(데모 종료 후 제거): 데모 모드면 결제창 없이 참가 (데모 바의 결제 O/X 토글을 따른다)
+    const skipPayment = () => '{{skipPayment}}' === 'true' && window.gbPaySkip && window.gbPaySkip();
+    const ev = {
+        id: {{event.id}}, title: document.querySelector('.detail-title').textContent, fee: {{event.feeAmount}},
+        capacity: {{event.capacity}}, count: {{event.currentCount}},
+        status: '{{event.status}}', deadline: new Date('{{event.deadline}}'.slice(0, 19))
+    };
+
+    const actionBtn = document.getElementById('ev-action');
+    const cancelBtn = document.getElementById('ev-cancel');
+    const ticketEl = document.getElementById('ev-ticket');
+    const leftEl = document.getElementById('ev-left');
+    let mine = null;
+
+    // 마감시간이 지났으면 상태가 OPEN 이어도(스케줄러 반영 전) 마감으로 본다
+    const isOpen = () => ev.status === 'OPEN' && ev.deadline > new Date();
+    const isFull = () => ev.count >= ev.capacity;
+    const statusLabel = () => ev.status === 'CANCELLED' ? '취소됨' : !isOpen() ? '마감' : isFull() ? '정원 마감' : '모집중';
+
+    function tick() {
+        if (ev.status === 'CANCELLED') { leftEl.textContent = '가게 사정으로 취소됐어요'; return; }
+        const ms = ev.deadline - new Date();
+        if (ms <= 0) { leftEl.textContent = '마감되었어요'; leftEl.classList.remove('is-soon'); return; }
+        const s = Math.floor(ms / 1000), d = Math.floor(s / 86400);
+        const pad = n => String(n).padStart(2, '0');
+        leftEl.textContent = `${d ? d + '일 ' : ''}${pad(Math.floor(s % 86400 / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)} 남음`;
+        leftEl.classList.toggle('is-soon', ms < 3600 * 1000);
+    }
+
+    function render() {
+        document.getElementById('ev-status').textContent = statusLabel();
+        document.getElementById('ev-seats').textContent = `${Math.max(0, ev.capacity - ev.count)}석 (${ev.count}/${ev.capacity}명)`;
+        document.getElementById('ev-gauge').style.width = Math.min(100, Math.round(ev.count / ev.capacity * 100)) + '%';
+        ticketEl.hidden = !mine;
+        if (mine) ticketEl.innerHTML = `참가 완료 · 번호표 <b>#${mine.ticketNumber}</b><br>번호표를 들고 매장에 방문해 주세요.`;
+        cancelBtn.hidden = !(mine && isOpen());
+        actionBtn.hidden = false;
+        if (mine) { actionBtn.hidden = true; }
+        else if (isOpen() && !isFull()) { actionBtn.disabled = false; actionBtn.textContent = '참가하기'; }
+        else { actionBtn.disabled = true; actionBtn.textContent = statusLabel(); }
+        tick();
+    }
+
+    async function loadMine() {
+        if (userId === null) return;
+        const res = await pageFetch('/api/events/me');
+        if (res.ok) mine = (await res.json()).find(p => p.shopEventId === ev.id && p.status === 'JOINED') || null;
+    }
+
+    async function refresh() {
+        const res = await pageFetch('/api/events/' + ev.id);
+        if (res.ok) {
+            const e = await res.json();
+            ev.count = e.currentCount; ev.status = e.status;
+        }
+        await loadMine();
+        render();
+    }
+
+    async function pay() {
+        if (skipPayment()) return { paymentId: `demo-pay-${crypto.randomUUID()}` };
+        if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
+        const result = await PortOne.requestPayment({
+            storeId: portoneStoreId, channelKey: portoneChannelKey,
+            paymentId: `goodsbridge-event-${crypto.randomUUID()}`,
+            orderName: `${ev.title} 이벤트 참가비`, totalAmount: ev.fee, currency: 'KRW', payMethod: 'CARD'
+        });
+        if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+        return result;
+    }
+
+    actionBtn.addEventListener('click', async () => {
+        if (userId === null) {
+            await alert('로그인이 필요합니다.');
+            const loginBtn = document.getElementById('nav-login');
+            if (loginBtn) loginBtn.click();
+            return;
+        }
+        actionBtn.disabled = true;
+        try {
+            const result = await pay();
+            const res = await pageFetch(`/api/events/${ev.id}/join`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: result.paymentId })
+            });
+            // 서버가 거절하면(정원 마감 등) 결제는 서버에서 자동 취소된다
+            if (!res.ok) throw new Error(await errorText(res, '참가에 실패했습니다.') + '\n결제한 금액은 자동으로 취소돼요.');
+            const joined = await res.json();
+            await alert(`참가 완료! 번호표 #${joined.ticketNumber} 가 발급되었어요.`);
+        } catch (err) {
+            await alert(err.message);
+        } finally {
+            await refresh();
+        }
+    });
+
+    cancelBtn.addEventListener('click', async () => {
+        if (!(await gbConfirm(`이벤트 참가를 취소할까요?\n참가비 ${money(ev.fee)}은 환불돼요.`))) return;
+        cancelBtn.disabled = true;
+        const res = await pageFetch(`/api/events/${ev.id}/join`, { method: 'DELETE' });
+        if (!res.ok) await alert(await errorText(res, '참가 취소에 실패했습니다.'));
+        cancelBtn.disabled = false;
+        await refresh();
+    });
+
+    setInterval(tick, 1000);
+    loadMine().then(render);
+})();
+</script>
+
+{{> fragments/footer}}

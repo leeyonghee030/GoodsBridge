@@ -7,17 +7,31 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+// 이벤트 생성 요청: 이벤트 상품을 새로 등록하면서(판매유형 EVENT) 이벤트를 연다
 @Getter
 @NoArgsConstructor
 public class ShopEventRequest {
-    private Long itemId;
+    // 새로 등록할 이벤트 상품
+    private String itemTitle;
+    private Long categoryId;
+    private Integer itemPrice;
+    private String itemDescription;
+    private String itemImageUrl;
+
+    // 이벤트 조건
     private Integer capacity;
     private Integer feeAmount;
     private LocalDateTime deadline;
 
     public void validate() {
-        if (itemId == null) {
-            throw new BadRequestException("아이템을 지정해 주세요.");
+        if (itemTitle == null || itemTitle.isBlank() || itemTitle.trim().length() > 100) {
+            throw new BadRequestException("상품명은 1-100자로 입력해 주세요.");
+        }
+        if (categoryId == null || categoryId <= 0) {
+            throw new BadRequestException("카테고리를 선택해 주세요.");
+        }
+        if (itemPrice == null || itemPrice <= 0) {
+            throw new BadRequestException("상품 가격은 0보다 커야 합니다.");
         }
         if (capacity == null || capacity <= 0 || capacity > 100) {
             throw new BadRequestException("모집 인원은 1-100명 사이 값이여야 합니다.");

@@ -7,8 +7,12 @@ import com.goodsbridge.event.dto.EventParticipationRequest;
 import com.goodsbridge.event.dto.EventParticipationResponse;
 import com.goodsbridge.event.dto.ShopEventRequest;
 import com.goodsbridge.event.dto.ShopEventResponse;
+import com.goodsbridge.item.Category;
+import com.goodsbridge.item.CategoryJpaRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.item.SaleType;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
@@ -49,6 +53,7 @@ public class EventService {
     private final SettlementHistoryService settlementHistoryService;
     private final TransactionTemplate transactionTemplate;
     private final ShopSubscriptionService shopSubscriptionService;
+    private final CategoryJpaRepository categoryRepository;
 
     /// ---------EventParticipation service
 
@@ -181,12 +186,9 @@ public class EventService {
     /// ---------shopEvent service
     @Transactional
     public ShopEventResponse save(Long id, Long userId, ShopEventRequest request) {
-        //shop, item 조회
+        //shop 조회
         Shop shop = shopRepository.findById(id).orElseThrow(()->{
             throw new NotFoundException("존재하지 않는 가게입니다");
-        });
-        Item item = itemRepository.findById(request.getItemId()).orElseThrow(()->{
-            throw new NotFoundException("존재하지 않는 아이템입니다");
         });
 
         //로그인 유저가 가게 id 맞는지
@@ -200,10 +202,21 @@ public class EventService {
         if (!shopSubscriptionService.isSubscriptionActive(id)) {
             throw new ForbiddenException("구독 중인 가게만 이벤트를 열 수 있습니다.");
         }
-        //아이템이 로그인 유저께
-        if (!item.getSellerUserId().equals(userId)){
-            throw new ForbiddenException("본인 아이템으로만 이벤트 생성할수있습니다");
-        }
+        // 이벤트 상품은 이벤트를 열면서 새로 등록한다 (판매유형 EVENT — SHOP 목록/일반 구매에서는 빠진다)
+        Category category = categoryRepository.findById(request.getCategoryId()).orElseThrow(()->{
+            throw new NotFoundException("존재하지 않는 카테고리입니다");
+        });
+        Item item = itemRepository.save(Item.builder()
+            .sellerUserId(userId)
+            .shopId(id)
+            .category(category)
+            .title(request.getItemTitle().trim())
+            .description(request.getItemDescription())
+            .price(request.getItemPrice())
+            .saleType(SaleType.EVENT)
+            .status(ItemStatus.ON_SALE)
+            .imageUrl(request.getItemImageUrl())
+            .build());
 
         ShopEvent shopEvent = ShopEvent.builder()
             .shop(shop)
@@ -250,6 +263,17 @@ public class EventService {
         }
         //상태 업데이트
         shopEvent.updateStatus(ShopEventStatus.CANCELLED);
+    }
+
+    // 가게 주인: 이벤트 참가자 명단 (번호표 순, 취소/환불된 참가도 상태와 함께 보여준다)
+    public List<EventParticipationResponse> getParticipants(Long id, Long userId) {
+        ShopEvent shopEvent = shopEventRepository.findById(id)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 이벤트입니다"));
+        if (!shopEvent.isShop(userId)) {
+            throw new ForbiddenException("본인 가게 이벤트의 참가자만 볼 수 있습니다");
+        }
+        return eventParticipationRepository.findAllByShopEventId(id).stream()
+            .map(EventParticipationResponse::new).toList();
     }
 
     public List<EventParticipationResponse> getEventParticipationList(Long userid) {

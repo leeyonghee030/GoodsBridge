@@ -5,8 +5,12 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge.event.dto.EventParticipationRequest;
 import com.goodsbridge.event.dto.EventParticipationResponse;
 import com.goodsbridge.event.dto.ShopEventRequest;
+import com.goodsbridge.item.Category;
+import com.goodsbridge.item.CategoryJpaRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.item.SaleType;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -70,6 +75,7 @@ class EventServiceTest {
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock TransactionTemplate transactionTemplate;
     @Mock ShopSubscriptionService shopSubscriptionService;
+    @Mock CategoryJpaRepository categoryRepository;
     @InjectMocks EventService eventService;
 
     private static final Long EVENT_ID = 1L;
@@ -178,16 +184,82 @@ class EventServiceTest {
     @Test
     @DisplayName("구독 중이 아닌 가게는 이벤트를 열 수 없다")
     void createEvent_subscriptionInactive_rejected() {
-        Shop shop = Shop.builder().ownerUserId(USER_ID).name("가게").region("서울").address("주소").status(ShopStatus.APPROVED).build();
-        when(shopRepository.findById(2L)).thenReturn(Optional.of(shop));
-        when(itemRepository.findById(3L)).thenReturn(Optional.of(mock(Item.class)));
+        when(shopRepository.findById(2L)).thenReturn(Optional.of(approvedShop()));
         when(shopSubscriptionService.isSubscriptionActive(2L)).thenReturn(false);
-        ShopEventRequest request = new ShopEventRequest();
-        ReflectionTestUtils.setField(request, "itemId", 3L);
 
-        assertThrows(ForbiddenException.class, () -> eventService.save(2L, USER_ID, request));
+        assertThrows(ForbiddenException.class, () -> eventService.save(2L, USER_ID, createRequest()));
 
+        verify(itemRepository, never()).save(any());
         verify(shopEventRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("이벤트를 열면 이벤트 상품(판매유형 EVENT)을 새로 등록하고 그 상품으로 이벤트를 만든다")
+    void createEvent_registersNewEventItem() {
+        when(shopRepository.findById(2L)).thenReturn(Optional.of(approvedShop()));
+        when(categoryRepository.findById(4L)).thenReturn(Optional.of(Category.builder().name("포토카드").build()));
+        when(itemRepository.save(any(Item.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(shopEventRepository.save(any(ShopEvent.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        eventService.save(2L, USER_ID, createRequest());
+
+        ArgumentCaptor<Item> item = ArgumentCaptor.forClass(Item.class);
+        verify(itemRepository).save(item.capture());
+        assertEquals(SaleType.EVENT, item.getValue().getSaleType());
+        assertEquals(ItemStatus.ON_SALE, item.getValue().getStatus());
+        assertEquals(2L, item.getValue().getShopId());
+        assertEquals(USER_ID, item.getValue().getSellerUserId());
+        assertEquals("한정판 세트", item.getValue().getTitle());
+
+        ArgumentCaptor<ShopEvent> event = ArgumentCaptor.forClass(ShopEvent.class);
+        verify(shopEventRepository).save(event.capture());
+        assertEquals(item.getValue(), event.getValue().getItem());
+        assertEquals(10, event.getValue().getCapacity());
+        assertEquals(FEE, event.getValue().getFeeAmount());
+    }
+
+    // ---------- 참가자 명단
+
+    @Test
+    @DisplayName("가게 주인은 참가자 명단을 볼 수 있다")
+    void participants_owner_returnsList() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
+        when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
+        when(shopEventRepository.findById(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        EventParticipation p = participation(shopEvent, "pay-1");
+        when(eventParticipationRepository.findAllByShopEventId(EVENT_ID)).thenReturn(List.of(p));
+
+        List<EventParticipationResponse> people = eventService.getParticipants(EVENT_ID, USER_ID);
+
+        assertEquals(1, people.size());
+        assertEquals(1, people.get(0).getTicketNumber());
+    }
+
+    @Test
+    @DisplayName("가게 주인이 아니면 참가자 명단을 볼 수 없다")
+    void participants_notOwner_forbidden() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
+        when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(false);
+        when(shopEventRepository.findById(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+
+        assertThrows(ForbiddenException.class, () -> eventService.getParticipants(EVENT_ID, USER_ID));
+
+        verify(eventParticipationRepository, never()).findAllByShopEventId(any());
+    }
+
+    private Shop approvedShop() {
+        return Shop.builder().ownerUserId(USER_ID).name("가게").region("서울").address("주소").status(ShopStatus.APPROVED).build();
+    }
+
+    private ShopEventRequest createRequest() {
+        ShopEventRequest request = new ShopEventRequest();
+        ReflectionTestUtils.setField(request, "itemTitle", "한정판 세트");
+        ReflectionTestUtils.setField(request, "categoryId", 4L);
+        ReflectionTestUtils.setField(request, "itemPrice", 30000);
+        ReflectionTestUtils.setField(request, "capacity", 10);
+        ReflectionTestUtils.setField(request, "feeAmount", FEE);
+        ReflectionTestUtils.setField(request, "deadline", LocalDateTime.now().plusDays(3));
+        return request;
     }
 
     // ---------- C. 번호표

@@ -47,6 +47,15 @@ public interface EventParticipationRepository extends JpaRepository<EventPartici
     @Query("select coalesce(max(e.ticketNumber), 0) from EventParticipation e where e.shopEvent.id = :shopEventId")
     int findMaxTicketNumber(@Param("shopEventId") Long shopEventId);
 
+    // 가게 주인용 참가자 명단 (번호표 순)
+    @Query("""
+    select e from EventParticipation e
+    join fetch e.user
+    where e.shopEvent.id = :shopEventId
+    order by e.ticketNumber asc
+""")
+    List<EventParticipation> findAllByShopEventId(@Param("shopEventId") Long shopEventId);
+
     // 이벤트의 현재 참가자 (가게 취소 환불, 마감 정산용)
     @Query("select e from EventParticipation e where e.shopEvent.id = :shopEventId and e.status = 'JOINED'")
     List<EventParticipation> findJoinedByShopEventId(@Param("shopEventId") Long shopEventId);

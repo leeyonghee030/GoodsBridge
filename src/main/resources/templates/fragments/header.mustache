@@ -71,6 +71,7 @@
             <div class="mega-menu-footer">NO-SHOW FREE EXCHANGE</div>
         </div>
     </div>
+    <a href="/test/event">EVENT</a>
     <a href="/test/board">BOARD</a>
     {{#userId}}
     <a href="/update" id="nav-mypage">MY PAGE</a>
@@ -247,7 +248,7 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
         if (location.pathname === '/my/exchange') return;   // 개인 교환 내역 화면을 직접 연 경우는 그대로 둔다
         document.querySelectorAll('.my-tabs a[href="/my/exchange"]').forEach(a => {
             a.href = '/shop/exchange'; a.textContent = '가게 교환 관리';
-            a.insertAdjacentHTML('afterend', '<a href="/shop/items">판매 상품 관리</a>');
+            a.insertAdjacentHTML('afterend', '<a href="/shop/items">판매 상품 관리</a><a href="/shop/events">이벤트 관리</a>');
         });
     })
     .catch(() => {});

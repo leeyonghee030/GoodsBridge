@@ -1,6 +1,8 @@
 package com.goodsbridge.demo;
 
 import com.goodsbridge.exchange.ExchangeItem;
+import com.goodsbridge.event.ShopEvent;
+import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.exchange.ExchangeItemRepository;
 import com.goodsbridge.exchange.ExchangeItemStatus;
 import com.goodsbridge.exchange.ExchangeMessage;
@@ -72,6 +74,7 @@ public class DemoDataService {
     private final CategoryJpaRepository categoryRepository;
     private final ItemRepository itemRepository;
     private final ExchangeItemRepository exchangeItemRepository;
+    private final ShopEventRepository shopEventRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final PaymentRepository paymentRepository;
     private final PurchaseRepository purchaseRepository;
@@ -293,11 +296,43 @@ public class DemoDataService {
         }
 
         seedSales(shopItems, userB, shop);
+        seedEvents(shopOwner, shop, categories, images);
 
         // 최신순 정렬에서 시연 데이터가 항상 맨 앞에 오도록 생성일을 먼 미래로 고정
         Timestamp pinned = Timestamp.valueOf(LocalDateTime.now().plusYears(10));
         pin("item_tb", pinnedItemIds, pinned);
         pin("exchange_item_tb", pinnedExchangeIds, pinned);
+    }
+
+    // 선착순 이벤트 2개: 이벤트 상품(EVENT)을 새로 등록하고 모집중 이벤트를 연다 (정원 작게, 마감은 며칠 뒤)
+    // 지우는 쪽은 deleteDemoData 가 가게 주인 상품에 걸린 이벤트/참가를 함께 정리한다
+    private void seedEvents(User shopOwner, Shop shop, List<Category> categories, List<String> images) {
+        if (categories.isEmpty()) return;
+        Object[][] events = {
+            {"(테스트) 한정판 포토카드 세트 오픈런", 30000, 5, 10000, 3},
+            {"(테스트) 시즌 그리팅 선착순 예약", 45000, 3, 5000, 1},
+        };
+        for (int i = 0; i < events.length; i++) {
+            Object[] ev = events[i];
+            Item item = itemRepository.save(Item.builder()
+                .sellerUserId(shopOwner.getId())
+                .shopId(shop.getId())
+                .category(categories.get(i % categories.size()))
+                .title((String) ev[0])
+                .description("시연용 선착순 이벤트 상품입니다. 참가비를 내면 번호표가 발급돼요.")
+                .price((Integer) ev[1])
+                .saleType(SaleType.EVENT)
+                .status(ItemStatus.ON_SALE)
+                .imageUrl(images.get(i % images.size()))
+                .build());
+            shopEventRepository.save(ShopEvent.builder()
+                .shop(shop)
+                .item(item)
+                .capacity((Integer) ev[2])
+                .feeAmount((Integer) ev[3])
+                .deadline(LocalDateTime.now().plusDays((Integer) ev[4]))
+                .build());
+        }
     }
 
     private void seedRequest(ExchangeItem post, Item bItem, User userB, Shop shop, String state) {

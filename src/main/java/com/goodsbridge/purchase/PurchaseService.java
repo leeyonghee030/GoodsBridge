@@ -91,6 +91,10 @@ public class PurchaseService {
         if (item.getSaleType() == SaleType.AUCTION) {
             throw new BadRequestException("경매 상품은 일반 구매할 수 없습니다. 경매에 입찰해 주세요.");
         }
+        // 이벤트 상품(sale_type = EVENT)은 선착순 이벤트 참가로만 받을 수 있다
+        if (item.getSaleType() == SaleType.EVENT) {
+            throw new BadRequestException("이벤트 상품은 일반 구매할 수 없습니다. 선착순 이벤트에 참가해 주세요.");
+        }
 
         // 경매 진행 중이거나 낙찰 후 잔금 대기 중인 상품은 일반 구매할 수 없다 (낙찰자 구매와 충돌 방지)
         if (auctionRepository.existsByItemIdAndStatusIn(itemId,

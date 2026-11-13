@@ -132,6 +132,7 @@
     <a href="/update">내 정보</a>
     <a href="/shop/exchange">가게 교환 관리</a>
     <a href="/shop/items" class="active">판매 상품 관리</a>
+    <a href="/shop/events">이벤트 관리</a>
 </nav>
 
 <!-- 구독이 없거나 만료됐거나 곧 만료되면 안내 (상품 등록/수정은 구독 중인 가게만 가능) -->
@@ -515,7 +516,8 @@
     async function load() {
         const [itemRes, saleRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/items/shop-sales')]);
         if (!itemRes.ok || !saleRes.ok) { listEl.innerHTML = '<p class="empty">상품을 불러오지 못했어요.</p>'; return; }
-        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId)).sort((a, b) => b.id - a.id);
+        // 선착순 이벤트 상품은 이벤트 관리 화면에서 다룬다
+        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT').sort((a, b) => b.id - a.id);
         sales = await saleRes.json();
         const salesByPayment = Object.fromEntries(sales.map(x => [x.paymentId, x]));
         const lists = await Promise.all([...shopIds].map(id =>
