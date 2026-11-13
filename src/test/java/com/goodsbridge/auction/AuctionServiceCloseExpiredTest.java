@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -41,6 +42,7 @@ class AuctionServiceCloseExpiredTest {
     @Mock UserRepository userRepository;
     @Mock PaymentRepository paymentRepository;
     @Mock SettlementHistoryService settlementHistoryService;
+    @Mock ApplicationEventPublisher publisher;
     @InjectMocks AuctionService auctionService;
 
     private Auction expiredAuction(Shop shop) {

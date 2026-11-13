@@ -183,10 +183,11 @@ public class AuctionService {
                 new NotificationEvent(
                     auction.getCurrentWinner().getId(),
                     Notification.Type.AUCTION_WIN,
-                    auction.getItem() + "이 낙찰되었습니다",
-                    auction.getBalanceDueAt() + "까지 " +
-                        auction.getBalanceAmount() + "원 결제가 완료 되어야" +
-                        "상품을 획득할 수 있습니다",
+                    "[상품 낙찰]",
+                    auction.getItem().getTitle() + " 상품에 낙찰되셨습니다!\n" +
+                        auction.getBalanceDueAt() + "까지 잔여 결제 금액 " +
+                        auction.getBalanceAmount() + "원을 결제해 주세요.\n" +
+                        "기한 내 결제를 완료하면 상품을 수령할 수 있습니다.",
                     Notification.ReferenceType.AUCTION,
                     auction.getId()
                 )

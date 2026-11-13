@@ -323,7 +323,7 @@ public class ExchangeService {
             new NotificationEvent(
                 exchangeRequest.getItemB().getSellerUserId(),
                 Notification.Type.EXCHANGE_APPROVED,
-                "교환 신청 승인",
+                "[교환 신청 승인]",
                 "신청한 교환이 승인되었습니다.",
                 Notification.ReferenceType.EXCHANGE,
                 exchangeRequest.getId()
@@ -339,7 +339,7 @@ public class ExchangeService {
 
             publisher.publishEvent(
                 new NotificationEvent(
-                    e.getItemB().getSellerUserId(),
+                    e.getId(),
                     Notification.Type.EXCHANGE_CANCELLED,
                     "[교환취소]",
                     exchangeRequest.getExchangeItemA().getItem().getTitle() +

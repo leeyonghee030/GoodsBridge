@@ -135,7 +135,7 @@ public class PurchaseService {
         publisher.publishEvent(
             new NotificationEvent(
                 purchase.getUser().getId(),
-                Notification.Type.DELIVERY_STARTED,
+                Notification.Type.PAYMENT_COMPLETED,
                 "[배송준비중]",
                 purchase.getItem().getTitle() + " 상품이 구매가 완료되었습니다",
                 Notification.ReferenceType.DELIVERY,
