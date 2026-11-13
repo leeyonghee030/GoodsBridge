@@ -36,7 +36,7 @@
 </nav>
 <div class="as-toolbar">
     <div class="as-subtabs" id="as-tabs"></div>
-    <div class="as-search" id="as-search-wrap" hidden>
+    <div class="as-search" id="as-search-wrap">
         <input id="as-search" type="text" placeholder="가게 이름 검색" autocomplete="off">
     </div>
 </div>
@@ -67,7 +67,6 @@
     let allSubs = [];
     let keyword = '';
     const searchEl = document.getElementById('as-search');
-    if (SUBSCRIPTIONS_MODE) document.getElementById('as-search-wrap').hidden = false;
     let rows = [];
     let shopNames = {};
 
@@ -85,8 +84,10 @@
     }
 
     function renderShops() {
-        if (!rows.length) { listEl.innerHTML = '<p class="as-empty">해당하는 가게가 없어요.</p>'; return; }
-        listEl.innerHTML = rows.map(s => `
+        const kw = keyword.trim().toLowerCase();
+        const shown = kw ? rows.filter(s => (s.name || '').toLowerCase().includes(kw)) : rows;
+        if (!shown.length) { listEl.innerHTML = `<p class="as-empty">${kw ? '검색 결과가 없어요.' : '해당하는 가게가 없어요.'}</p>`; return; }
+        listEl.innerHTML = shown.map(s => `
             <div class="as-row">
                 <span class="as-row-main">
                     <strong>${esc(s.name)}</strong>
@@ -166,7 +167,7 @@
     });
 
     // 가게 이름 검색: 한 글자 입력할 때마다 바로 걸러서 보여준다
-    searchEl.addEventListener('input', () => { keyword = searchEl.value; renderSubscriptions(); });
+    searchEl.addEventListener('input', () => { keyword = searchEl.value; SUBSCRIPTIONS_MODE ? renderSubscriptions() : renderShops(); });
 
     listEl.addEventListener('click', async ev => {
         const cancelBtn = ev.target.closest('[data-sub-cancel]');
