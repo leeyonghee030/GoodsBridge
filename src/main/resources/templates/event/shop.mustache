@@ -404,6 +404,18 @@
         }
         render();
     }
+    // 같은 이벤트의 같은 날 정산은 손님별로 나누지 않고 한 줄로 합친다 (금액·수량 합계, 손님 수)
+    const dayKey = iso => { const d = new Date(iso); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+    function groupRecords(list) {
+        const map = new Map();
+        list.forEach(x => {
+            const key = `${x.eventId}|${dayKey(x.settledAt)}`;
+            const g = map.get(key);
+            if (g) { g.amount += x.amount; g.quantity += x.quantity; g.buyers.add(x.buyerNickname); if (new Date(x.settledAt) > new Date(g.settledAt)) g.settledAt = x.settledAt; }
+            else map.set(key, { eventId: x.eventId, itemTitle: x.itemTitle, settledAt: x.settledAt, amount: x.amount, quantity: x.quantity, buyers: new Set([x.buyerNickname]) });
+        });
+        return [...map.values()];
+    }
     function renderSettle() {
         const q = document.getElementById('se-event-search').value.trim().toLowerCase();
         const recs = records.filter(r => !q || `${r.itemTitle} ${r.buyerNickname}`.toLowerCase().includes(q));
@@ -427,7 +439,7 @@
         sfEl('sf-cal-title').textContent = `${cy}년 ${cm + 1}월`;
         sfEl('sf-cal-next').disabled = cy === y && cm === m;   // 미래 달로는 넘어가지 않는다
         const totalBtn = sfEl('sf-cal-total');
-        totalBtn.innerHTML = `<span>${cm + 1}월 전체 · ${monthList.length}건</span><b>${money(sum(monthList))}</b>`;
+        totalBtn.innerHTML = `<span>${cm + 1}월 전체 · ${groupRecords(monthList).length}건</span><b>${money(sum(monthList))}</b>`;
         totalBtn.classList.toggle('active', feeDay === null);
         const short = v => v >= 10000 ? '+' + (Math.round(v / 1000) / 10) + '만' : '+' + v.toLocaleString('ko-KR');
         const firstDow = new Date(cy, cm, 1).getDay();
@@ -444,13 +456,14 @@
         // ----- 오른쪽: 고른 날(없으면 그 달 전체) 내역 -----
         const list = feeDay === null ? monthList : monthList.filter(x => new Date(x.settledAt).getDate() === feeDay);
         sfEl('sf-title').textContent = feeDay === null ? `${cm + 1}월 정산 내역` : `${cm + 1}월 ${feeDay}일 정산 내역`;
-        sfEl('sf-count').textContent = `${list.length}건 · ${money(sum(list))}`;
+        const grouped = groupRecords(list);
+        sfEl('sf-count').textContent = `${grouped.length}건 · ${money(sum(list))}`;
         const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-        sfEl('sf-list').innerHTML = list.length
-            ? [...list].sort((a, b) => new Date(b.settledAt) - new Date(a.settledAt)).map(x => `
-                <div class="sf-row is-click" data-settle-event="${x.eventId}" title="이 이벤트 정산 보기">
+        sfEl('sf-list').innerHTML = grouped.length
+            ? grouped.sort((a, b) => new Date(b.settledAt) - new Date(a.settledAt)).map(x => `
+                <div class="sf-row is-click" data-settle-event="${x.eventId}">
                     <span class="at">${fmt(x.settledAt)}</span>
-                    <span class="who"><strong>${esc(x.itemTitle)}</strong><small>${esc(x.buyerNickname)} · ${x.quantity}개</small></span>
+                    <span class="who"><strong>${esc(x.itemTitle)}</strong><small>손님 ${x.buyers.size}명 · ${x.quantity}개</small></span>
                     <span class="amt">+${money(x.amount)}</span>
                 </div>`).join('')
             : `<div class="sf-empty">${feeDay === null ? (cm + 1) + '월' : (cm + 1) + '월 ' + feeDay + '일'}에는 이벤트 정산이 없어요.</div>`;
