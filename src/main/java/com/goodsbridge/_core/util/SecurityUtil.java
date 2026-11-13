@@ -22,4 +22,16 @@ public class SecurityUtil {
         }
         return (Long) authentication.getPrincipal();
     }
+
+    /**
+     * 로그인 여부와 무관하게 접근 가능한 화면(공개 게시글 등)에서 "로그인했으면 그 id, 아니면 null"이 필요할 때 사용합니다.
+     */
+    public static Long getCurrentUserIdOrNull() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            return null;
+        }
+        return (Long) authentication.getPrincipal();
+    }
 }

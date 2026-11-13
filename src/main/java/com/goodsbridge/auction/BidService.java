@@ -6,6 +6,7 @@ import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.user.User;
+import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -26,6 +27,7 @@ public class BidService {
     private final AuctionRepository auctionRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final ShopRepository shopRepository;
 
     // 입찰 여부 판단
     @Transactional
@@ -40,9 +42,12 @@ public class BidService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
 
-        // 2. 가게 주인 본인 입찰 차단
+        // 2. 가게 주인 본인 입찰 차단 (다른 가게 경매도 가게 계정은 입찰할 수 없다)
         if (auction.getShop().isOwner(userId)) {
             throw new ForbiddenException("자신이 판매한 상품은 입찰할 수 없습니다.");
+        }
+        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
+            throw new ForbiddenException("가게 계정은 경매에 입찰할 수 없습니다.");
         }
 
         // 3. 상태/마감 검증

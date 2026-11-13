@@ -13,9 +13,13 @@ import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
+import com.goodsbridge.shop.ShopSubscriptionStatus;
+import com.goodsbridge.shop.ShopSubscriptionRepository;
+import com.goodsbridge.shop.ShopSubscription;
 import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +29,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -76,6 +81,23 @@ class EventParticipationConcurrencyTest {
     @Autowired private ShopRepository shopRepository;
     @Autowired private ItemRepository itemRepository;
     @Autowired private ShopEventRepository shopEventRepository;
+    @Autowired private EventParticipationRepository eventParticipationRepository;
+    @Autowired private ShopSubscriptionRepository shopSubscriptionRepository;
+
+    private Long createdEventId;
+    private Long createdSubscriptionId;
+
+    // 같은 H2 를 쓰는 다른 테스트가 상품을 지울 때 이벤트가 상품을 참조해 FK 오류가 나지 않도록, 만든 이벤트/참가 데이터를 정리한다
+    @AfterEach
+    void tearDown() {
+        if (createdEventId != null) {
+            eventParticipationRepository.deleteAll(eventParticipationRepository.findJoinedByShopEventId(createdEventId));
+            shopEventRepository.deleteById(createdEventId);
+        }
+        if (createdSubscriptionId != null) {
+            shopSubscriptionRepository.deleteById(createdSubscriptionId);
+        }
+    }
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -98,6 +120,16 @@ class EventParticipationConcurrencyTest {
             .status(ShopStatus.APPROVED)
             .build());
 
+        // 구독 중인 가게만 이벤트 참가를 받으므로 유효한 구독을 만들어 둔다
+        createdSubscriptionId = shopSubscriptionRepository.save(ShopSubscription.builder()
+            .shopId(shop.getId())
+            .paymentId("sub-pay-" + UUID.randomUUID())
+            .setupFeePaid(true)
+            .startDate(LocalDate.now())
+            .endDate(LocalDate.now().plusDays(30))
+            .status(ShopSubscriptionStatus.ACTIVE)
+            .build()).getId();
+
         Item item = itemRepository.save(Item.builder()
             .sellerUserId(owner.getId())
             .category(category)
@@ -113,6 +145,7 @@ class EventParticipationConcurrencyTest {
             .feeAmount(1000)
             .deadline(LocalDateTime.now().plusDays(1))
             .build());
+        createdEventId = shopEvent.getId();
 
         List<User> participants = new ArrayList<>();
         for (int i = 0; i < threadCount; i++) {

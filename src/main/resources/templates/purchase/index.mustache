@@ -45,8 +45,15 @@
 
 <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
 <script>
+// 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
+const errorText = async (res, fallback) => {
+    const text = await res.text();
+    try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+};
+
     (() => {
         const pageFetch = (path, options = {}) => fetch(path, Object.assign({credentials: 'same-origin'}, options));
+        const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
         const state = {items: [], selected: null};
         const $ = id => document.getElementById(id);
         const money = value => Number(value || 0).toLocaleString('ko-KR') + '원';
@@ -83,6 +90,12 @@
         }
 
         async function pay() {
+            if (userId === null) {
+                showMessage('로그인이 필요합니다.', true);
+                const loginModal = document.getElementById('login-modal');
+                if (loginModal) loginModal.hidden = false;
+                return;
+            }
             if (!state.selected) return showMessage('상품을 먼저 선택하세요.', true);
             const address = $('delivery-address').value.trim();
             if (!address) return showMessage('배송지 주소를 입력하세요.', true);
@@ -105,7 +118,7 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({paymentId: result.paymentId, deliveryAddress: address})
                 });
-                if (!response.ok) throw new Error(await response.text() || '구매 처리에 실패했습니다.');
+                if (!response.ok) throw new Error(await errorText(response, '구매 처리에 실패했습니다.'));
                 showMessage('결제와 구매 처리가 완료되었습니다.');
                 await loadPurchases();
                 await loadItems();

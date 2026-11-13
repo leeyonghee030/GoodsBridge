@@ -1,0 +1,213 @@
+{{> fragments/header}}
+
+<style>
+.as-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: 0 0 0.8rem; }
+.as-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.as-subtabs button:hover { background: none; color: var(--color-text); }
+.as-subtabs button.active, .as-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.as-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.as-subtabs .as-spacer { flex: 1; }
+.as-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+.as-row { display: flex; align-items: center; gap: 1rem; padding: 0.85rem 0; border-top: 1px solid var(--color-border); font-size: 0.86rem; }
+.as-row:first-child { border-top: 0; }
+.as-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.as-row-main strong { font-size: 0.95rem; }
+.as-row-main small { color: var(--color-muted); }
+.as-actions { display: flex; gap: 0.4rem; flex: none; }
+.as-panel .as-actions { align-items: center; }
+.as-panel .as-actions { gap: 0.35rem; }
+.as-panel .as-actions button { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 0; height: 1.7rem; margin: 0; padding: 0 0.7rem; background: transparent; color: var(--color-muted); border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.74rem; font-weight: 500; line-height: 1; white-space: nowrap; transition: color .15s, border-color .15s; }
+.as-panel .as-actions button:hover { background: transparent; color: var(--color-text); border-color: var(--color-muted); }
+.as-panel .as-actions button[data-approve]:not([data-restore]) { color: var(--color-text); border-color: var(--color-text); }
+.as-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.as-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.as-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.as-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin: 0 0 0.8rem; }
+.as-toolbar .as-subtabs { margin: 0; }
+.as-search { margin: 0; margin-left: auto; }
+.as-search input { width: 13rem; max-width: 100%; padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.86rem; background: #fff; }
+.as-empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+</style>
+
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/test/admin/shops" class="{{^subscriptionsMode}}active{{/subscriptionsMode}}">입점 관리</a>
+    <a href="/test/admin/subscriptions" class="{{#subscriptionsMode}}active{{/subscriptionsMode}}">구독 관리</a>
+</nav>
+<div class="as-toolbar">
+    <div class="as-subtabs" id="as-tabs"></div>
+    <div class="as-search" id="as-search-wrap">
+        <input id="as-search" type="text" placeholder="가게 이름 검색" autocomplete="off">
+    </div>
+</div>
+<section class="as-panel"><div id="as-list"><p class="as-empty">불러오는 중...</p></div></section>
+<p id="as-message" class="form-message"></p>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const date = iso => iso ? new Date(iso).toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '-';
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    const SUBSCRIPTIONS_MODE = '{{subscriptionsMode}}' === 'true';
+    const SHOP_TABS = [['PENDING', '입점 신청'], ['APPROVED', '승인된 가게'], ['REJECTED', '거절됨']];
+    const SUB_TABS = [['ALL', '전체'], ['ACTIVE', '구독 중'], ['EXPIRED', '만료·취소']];
+    const TABS = SUBSCRIPTIONS_MODE ? SUB_TABS : SHOP_TABS;
+    const SUB_STATUS = { ACTIVE: '구독 중', EXPIRED: '만료', CANCELLED: '취소됨' };
+
+    const tabsEl = document.getElementById('as-tabs');
+    const listEl = document.getElementById('as-list');
+    const messageEl = document.getElementById('as-message');
+    const counts = {};
+    let tab = SUBSCRIPTIONS_MODE ? 'ALL' : 'PENDING';
+    let allSubs = [];
+    let keyword = '';
+    const searchEl = document.getElementById('as-search');
+    let rows = [];
+    let shopNames = {};
+
+    const say = (text, error) => { messageEl.textContent = text || ''; messageEl.className = 'form-message' + (error ? ' error' : ''); };
+
+    async function searchShops(status) {
+        const res = await pageFetch('/api/admin/shops/search?size=200&status=' + status);
+        if (!res.ok) throw new Error(await errorText(res, '가게 목록을 불러오지 못했어요.'));
+        return (await res.json()).content || [];
+    }
+
+    function renderTabs() {
+        tabsEl.innerHTML = TABS.map(([key, label]) =>
+            `<button type="button" data-tab="${key}" class="${tab === key ? 'active' : ''}">${label}${counts[key] != null ? `<small>${counts[key]}</small>` : ''}</button>`).join('');
+    }
+
+    function renderShops() {
+        const kw = keyword.trim().toLowerCase();
+        const shown = kw ? rows.filter(s => (s.name || '').toLowerCase().includes(kw)) : rows;
+        if (!shown.length) { listEl.innerHTML = `<p class="as-empty">${kw ? '검색 결과가 없어요.' : '해당하는 가게가 없어요.'}</p>`; return; }
+        listEl.innerHTML = shown.map(s => `
+            <div class="as-row">
+                <span class="as-row-main">
+                    <strong>${esc(s.name)}</strong>
+                    <small>${esc(s.region)} · ${esc(s.address)}</small>
+                    <small>신청 ${date(s.createdAt)} · 신청자 #${s.ownerUserId}</small>
+                </span>
+                ${s.status === 'PENDING' ? `<span class="as-actions">
+                    <button type="button" data-approve="${s.id}">승인</button>
+                    <button type="button" class="secondary" data-reject="${s.id}">거절</button>
+                </span>` : s.status === 'APPROVED' ? `<span class="as-actions">
+                    <span class="as-badge is-ok">승인됨</span>
+                    <button type="button" class="secondary" data-reject="${s.id}" data-cancel="1">승인 취소</button>
+                </span>` : `<span class="as-actions">
+                    <span class="as-badge is-warn">거절됨</span>
+                    <button type="button" data-approve="${s.id}" data-restore="1">승인</button>
+                </span>`}
+            </div>`).join('');
+    }
+
+    function renderSubscriptions() {
+        const kw = keyword.trim().toLowerCase();
+        const shown = kw ? rows.filter(s => (shopNames[s.shopId] || '').toLowerCase().includes(kw)) : rows;
+        if (!shown.length) { listEl.innerHTML = `<p class="as-empty">${kw ? '검색 결과가 없어요.' : '구독 정보가 없어요.'}</p>`; return; }
+        const today = new Date(new Date().toDateString());
+        listEl.innerHTML = shown.map(s => {
+            const left = Math.round((new Date(...String(s.endDate).split('-').map((n, i) => Number(n) - (i === 1 ? 1 : 0))) - today) / 86400000);
+            const note = s.status === 'ACTIVE' && left >= 0 ? ` · D-${left}` : '';
+            return `<div class="as-row">
+                <span class="as-row-main">
+                    <strong>${esc(shopNames[s.shopId] || ('가게 #' + s.shopId))}</strong>
+                    <small>${date(s.startDate)} ~ ${date(s.endDate)}${note}</small>
+                </span>
+                <span class="as-actions">
+                    <span class="as-badge ${s.status === 'ACTIVE' ? 'is-ok' : 'is-warn'}">${SUB_STATUS[s.status] || s.status}</span>
+                    ${s.status === 'ACTIVE' ? `<button type="button" class="secondary" data-sub-cancel="${s.id}">구독 취소</button>` : ''}
+                </span>
+            </div>`;
+        }).join('');
+    }
+
+    // 탭 옆 숫자
+    async function refreshCounts() {
+        if (SUBSCRIPTIONS_MODE) return;
+        await Promise.all(['PENDING', 'APPROVED', 'REJECTED'].map(s => searchShops(s).then(r => { counts[s] = r.length; }).catch(() => {})));
+        renderTabs();
+    }
+
+    async function load() {
+        renderTabs();
+        listEl.innerHTML = '<p class="as-empty">불러오는 중...</p>';
+        try {
+            if (SUBSCRIPTIONS_MODE) {
+                if (!allSubs.length || tab === 'ALL') {
+                    const [subs, shops] = await Promise.all([
+                        pageFetch('/api/admin/subscriptions').then(r => { if (!r.ok) throw new Error('구독 현황을 불러오지 못했어요.'); return r.json(); }),
+                        searchShops('APPROVED')
+                    ]);
+                    shopNames = Object.fromEntries(shops.map(s => [s.id, s.name]));
+                    allSubs = subs.sort((a, b) => new Date(a.endDate) - new Date(b.endDate));
+                }
+                counts.ALL = allSubs.length;
+                counts.ACTIVE = allSubs.filter(s => s.status === 'ACTIVE').length;
+                counts.EXPIRED = allSubs.filter(s => s.status !== 'ACTIVE').length;
+                rows = tab === 'ALL' ? allSubs : allSubs.filter(s => tab === 'ACTIVE' ? s.status === 'ACTIVE' : s.status !== 'ACTIVE');
+                renderTabs(); renderSubscriptions();
+            } else {
+                rows = await searchShops(tab);
+                counts[tab] = rows.length;
+                renderTabs(); renderShops();
+            }
+        } catch (e) { listEl.innerHTML = `<p class="as-empty">${esc(e.message)}</p>`; }
+    }
+
+    tabsEl.addEventListener('click', async ev => {
+        const t = ev.target.closest('[data-tab]');
+        if (t) { tab = t.dataset.tab; say(''); load(); return; }
+    });
+
+    // 가게 이름 검색: 한 글자 입력할 때마다 바로 걸러서 보여준다
+    searchEl.addEventListener('input', () => { keyword = searchEl.value; SUBSCRIPTIONS_MODE ? renderSubscriptions() : renderShops(); });
+
+    listEl.addEventListener('click', async ev => {
+        const cancelBtn = ev.target.closest('[data-sub-cancel]');
+        if (!cancelBtn) return;
+        const sub = allSubs.find(x => x.id === Number(cancelBtn.dataset.subCancel));
+        const name = shopNames[sub.shopId] || ('가게 #' + sub.shopId);
+        if (!(await gbConfirm(`'${name}'의 구독을 취소할까요?
+판매 중인 상품은 닫히고, 판매 완료 상품은 그대로 유지돼요.`))) return;
+        cancelBtn.disabled = true;
+        const res = await pageFetch(`/api/admin/subscriptions/${sub.id}/cancel`, { method: 'PATCH' });
+        if (!res.ok) { say(await errorText(res, '구독 취소에 실패했어요.'), true); cancelBtn.disabled = false; return; }
+        say(`'${name}'의 구독을 취소했어요.`);
+        allSubs = [];
+        load();
+    });
+
+    listEl.addEventListener('click', async ev => {
+        const approve = ev.target.closest('[data-approve]');
+        const reject = ev.target.closest('[data-reject]');
+        const btn = approve || reject;
+        if (!btn) return;
+        const id = Number(approve ? approve.dataset.approve : reject.dataset.reject);
+        const shop = rows.find(s => s.id === id);
+        const label = approve ? '승인' : (btn.dataset.cancel ? '승인 취소' : '거절');
+        const question = btn.dataset.cancel
+            ? `'${shop.name}'의 승인을 취소할까요?
+거절 상태로 바뀌고 구독 결제를 할 수 없게 돼요.`
+            : `'${shop.name}' 입점 신청을 ${label}할까요?`;
+        if (!(await gbConfirm(question))) return;
+        btn.disabled = true;
+        const res = await pageFetch(`/api/admin/shops/${id}/${approve ? 'approve' : 'reject'}`, { method: 'PATCH' });
+        if (!res.ok) { say(await errorText(res, label + '에 실패했어요.'), true); btn.disabled = false; return; }
+        say(btn.dataset.cancel ? `'${shop.name}'의 승인을 취소했어요.` : `'${shop.name}' 입점 신청을 ${label}했어요.`);
+        refreshCounts();
+        load();
+    });
+
+    refreshCounts();
+    load();
+})();
+</script>
+
+{{> fragments/footer}}

@@ -107,8 +107,8 @@ class ItemServiceUpdateTest {
     }
 
     @Test
-    @DisplayName("실패: shopId가 누락된 경우 BadRequestException 발생")
-    void createItem_Fail_NullShopId() {
+    @DisplayName("성공: shopId가 없으면 교환용 상품으로 보고 가게/구독 검증 없이 등록 (기획서 3.2 예외)")
+    void createItem_NullShopId_registersExchangeItemWithoutShop() {
 
         // given
         Long userId = 1L;
@@ -120,12 +120,18 @@ class ItemServiceUpdateTest {
         request.setPrice(10000);
         request.setSaleType(SaleType.NORMAL);
 
-        // when & then
-        assertThatThrownBy(() -> itemService.create(userId, request))
-            .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
+        given(categoryRepository.findById(1L))
+            .willReturn(Optional.of(Category.builder().name("포토카드").build()));
+        given(itemRepository.save(any(Item.class)))
+            .willAnswer(invocation -> invocation.getArgument(0));
 
-        verify(itemRepository, never()).save(any(Item.class));
+        // when
+        itemService.create(userId, request);
+
+        // then
+        verify(itemRepository).save(any(Item.class));
+        verify(shopRepository, never()).findByIdWithLock(any());
+        verifyNoInteractions(shopSubscriptionRepository);
     }
 
     @Test
@@ -277,12 +283,22 @@ class ItemServiceUpdateTest {
     }
 
     @Test
-    @DisplayName("실패: 상품 수정 시 shopId가 누락된 경우 BadRequestException 발생")
+    @DisplayName("실패: 가게 상품을 수정하면서 shopId를 빼면 BadRequestException 발생 (가게 상품에서 가게를 떼어낼 수 없음)")
     void updateItem_Fail_NullShopId() {
 
         // given
         Long userId = 1L;
         Long itemId = 100L;
+
+        Item shopItem = Item.builder()
+            .sellerUserId(userId)
+            .shopId(10L)
+            .category(Category.builder().name("기존").build())
+            .title("기존 제목")
+            .price(15000)
+            .build();
+        given(itemRepository.findByIdAndDeletedFalse(itemId))
+            .willReturn(Optional.of(shopItem));
 
         ItemUpdateRequest request = new ItemUpdateRequest();
         request.setShopId(null);
@@ -296,7 +312,7 @@ class ItemServiceUpdateTest {
         assertThatThrownBy(() ->
             itemService.update(userId, itemId, request))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("유효한 가게 ID를 입력해주세요.");
+            .hasMessageContaining("상품 수정 시 가게 선택은 필수입니다.");
     }
 
     @Test

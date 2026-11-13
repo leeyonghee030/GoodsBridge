@@ -234,6 +234,43 @@ public class ShopSubscriptionService {
             .toList();
     }
 
+    /**
+     * 가게 구독이 지금 유효한지 (ACTIVE 이고 만료일이 오늘 이후)
+     */
+    public boolean isSubscriptionActive(Long shopId) {
+        return subscriptionRepository.existsByShopIdAndStatusAndEndDateGreaterThanEqual(
+            shopId,
+            ShopSubscriptionStatus.ACTIVE,
+            LocalDate.now()
+        );
+    }
+
+    /**
+     * 관리자 구독 취소
+     * 가게 주인 취소(cancelSubscription)와 같이 구독을 CANCELLED 로 바꾸고 취소 이벤트를 발행해
+     * 판매중 상품 판매 중지를 이벤트 리스너에 맡긴다 (판매완료 상품은 유지, 재구독하면 복구).
+     */
+    @Transactional
+    public void cancelByAdmin(Long adminUserId, Long subscriptionId) {
+        validateAdmin(adminUserId);
+
+        Long shopId = subscriptionRepository.findShopIdById(subscriptionId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
+
+        // 잠금 순서는 다른 구독 처리와 같이 Shop -> ShopSubscription
+        shopRepository.findByIdWithLock(shopId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
+        ShopSubscription subscription = subscriptionRepository.findByIdWithLock(subscriptionId)
+            .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
+
+        if (subscription.getStatus() != ShopSubscriptionStatus.ACTIVE) {
+            throw new BadRequestException("구독 중인 가게만 구독을 취소할 수 있습니다.");
+        }
+
+        subscription.cancel();
+        eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
+    }
+
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public int processExpiredSubscriptionsByAdmin() {
 

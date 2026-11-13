@@ -1,21 +1,131 @@
 {{> fragments/header}}
 
-<h1>GoodsBridge 테스트</h1>
+<a href="/exchange" class="main-hero has-image">
+    <img src="/img/main-hero.webp" alt="" class="main-hero-image">
+    <span class="main-hero-overlay">
+        <strong>GOODSBRIDGE</strong>
+        <span>안전한 굿즈 교환의 시작</span>
+        <span class="main-hero-cta">EXPLORE →</span>
+    </span>
+</a>
 
-{{#userId}}
-    <p>로그인 상태입니다. 사용자 ID: {{userId}}</p>
-    <div>
-        <form action="/api/logout" method="post">
-            <button type="submit">로그아웃</button>
-        </form>
+<section class="shop-row">
+    <div class="row-head">
+        <h2>SHOP</h2>
+        <a href="/test/item">전체 상품 보기 →</a>
     </div>
-    <p><a href="/update">회원 정보 수정</a></p>
-{{/userId}}
+    <div class="row-wrap">
+        <button type="button" class="row-nav row-nav-prev" data-target="shop-row-list" aria-label="이전">‹</button>
+        <div class="row-scroll" id="shop-row-list">
+            <p class="row-empty">상품을 불러오는 중...</p>
+        </div>
+        <button type="button" class="row-nav row-nav-next" data-target="shop-row-list" aria-label="다음">›</button>
+    </div>
+</section>
 
-{{^userId}}
-    <p>로그인되지 않았습니다.</p>
-    <p><a href="/login">로그인</a></p>
-    <p><a href="/join">회원가입</a></p>
-{{/userId}}
+<div class="event-feature">
+    <a href="/test/event" class="event-feature-photo"><img src="/img/event-main.jpg" alt="선착순 이벤트"></a>
+    <div class="event-feature-content">
+        <a href="/test/event" class="event-feature-photo-sub"><img src="/img/event-sub.jpg" alt=""></a>
+        <a href="/test/event" class="event-feature-text">
+            <span class="event-eyebrow">FIRST COME FIRST SERVED</span>
+            <h2>선착순 이벤트</h2>
+            <p>가게에서 여는 선착순 이벤트에 참여하고 번호표를 받아보세요</p>
+            <span class="event-feature-link">이벤트 보러가기 →</span>
+        </a>
+    </div>
+</div>
+
+<section class="exchange-row">
+    <div class="row-head">
+        <h2>EXCHANGE</h2>
+        <a href="/exchange">지금 올라온 교환 게시글 →</a>
+    </div>
+    <div class="row-wrap">
+        <button type="button" class="row-nav row-nav-prev" data-target="exchange-row-list" aria-label="이전">‹</button>
+        <div class="row-scroll" id="exchange-row-list">
+            <p class="row-empty">교환 게시글을 불러오는 중...</p>
+        </div>
+        <button type="button" class="row-nav row-nav-next" data-target="exchange-row-list" aria-label="다음">›</button>
+    </div>
+</section>
+
+<section class="promo-strip">
+    보증금으로 지키는 안전 교환 · 오프라인 매장 중개
+</section>
+
+<script>
+(() => {
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const getShopId = () => localStorage.getItem('gb_shop_id') || '';
+
+    const MAX_ROW_ITEMS = 30;
+    const BATCH_SIZE = 8;
+
+    function setupLazyRow(list, items, emptyMessage, renderCard) {
+        const capped = items.slice(0, MAX_ROW_ITEMS);
+        list.innerHTML = '';
+        list.onscroll = null;
+        if (!capped.length) { list.innerHTML = `<p class="row-empty">${emptyMessage}</p>`; return; }
+        let shown = 0;
+        function appendBatch() {
+            const next = capped.slice(shown, shown + BATCH_SIZE);
+            if (!next.length) return;
+            list.insertAdjacentHTML('beforeend', next.map(renderCard).join(''));
+            shown += next.length;
+        }
+        appendBatch();
+        list.onscroll = () => {
+            if (shown >= capped.length) return;
+            if (list.scrollLeft + list.clientWidth >= list.scrollWidth - 300) appendBatch();
+        };
+    }
+
+    async function renderShopRow() {
+        const list = document.getElementById('shop-row-list');
+        const res = await fetch('/api/items?shopOnly=true&status=ON_SALE&size=50&sort=createdAt,desc', { credentials: 'same-origin' });
+        if (!res.ok) { list.innerHTML = '<p class="row-empty">상품을 불러오지 못했습니다.</p>'; return; }
+        const page = await res.json();
+        const shopId = getShopId();
+        let items = (page.content || []).filter(item => item.status === 'ON_SALE');
+        if (shopId) items = items.filter(item => String(item.shopId) === shopId);
+        setupLazyRow(list, items, '등록된 상품이 없습니다.', item => `
+                <a class="shop-card" href="/test/item/${item.id}">
+                    <span class="shop-card-tag">NEW</span>
+                    <div class="shop-card-image">${item.imageUrl ? `<img src="${esc(item.imageUrl)}" alt="${esc(item.title)}">` : ''}</div>
+                    <p class="shop-card-title">${esc(item.title)}</p>
+                    <p class="shop-card-price">${money(item.price)}</p>
+                </a>`);
+    }
+
+    async function renderExchangeRow() {
+        const list = document.getElementById('exchange-row-list');
+        const res = await fetch('/api/exchange-items', { credentials: 'same-origin' });
+        if (!res.ok) { list.innerHTML = '<p class="row-empty">교환 게시글을 불러오지 못했습니다.</p>'; return; }
+        const all = (await res.json()).filter(item => item.status === 'OPEN');   // 모집중 게시글만 (매칭완료/마감 제외)
+        const shopId = getShopId();
+        const items = shopId ? all.filter(item => String(item.shopId) === shopId) : all;
+        setupLazyRow(list, items, '등록된 교환 게시글이 없습니다.', item => `
+                <a class="exchange-card" href="/exchange/${item.id}">
+                    <div class="exchange-card-image">${item.itemImageUrl ? `<img src="${esc(item.itemImageUrl)}" alt="${esc(item.itemTitle)}">` : ''}</div>
+                    <p class="exchange-card-title">${esc(item.itemTitle)}</p>
+                    <p class="exchange-card-meta">원하는 것: ${esc(item.wantDescription)}</p>
+                </a>`);
+    }
+
+    document.querySelectorAll('.row-nav').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const scroller = document.getElementById(btn.dataset.target);
+            const dir = btn.classList.contains('row-nav-prev') ? -1 : 1;
+            scroller.scrollBy({ left: dir * scroller.clientWidth * 0.8, behavior: 'smooth' });
+        });
+    });
+
+    renderShopRow();
+    renderExchangeRow();
+    window.addEventListener('gb-shop-changed', () => { renderShopRow(); renderExchangeRow(); });
+})();
+</script>
 
 {{> fragments/footer}}
