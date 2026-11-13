@@ -60,5 +60,10 @@ docker compose up -d
 2. 상품(SHOP)을 하나 구매해요.
 3. 화면 위쪽 종 모양 알림에 `[배송준비중]`이 뜨면 정상이에요.
 
+## 알림 말고 다른 칸도 같은 문제가 있어요 (경매)
+예전 DB는 **결제 목적(`payment_tb.purpose`)** 에 `AUCTION_BALANCE`(경매 낙찰 잔금)가, **정산 종류(`settlement_history_tb.type`)** 에 `AUCTION_SALE`(경매 낙찰 정산)가 없을 수 있어요. 이러면 **경매 잔금 결제와 정산이 저장되지 않아요.** (같은 `Data truncated for column ...` 오류)
+
+알림 칸과 이 두 칸을 한 번에 고치는 SQL이 `docs/sql/fix_enum_columns.sql` 이에요. 언제 실행해도 안전해요. (여러 번 실행해도 되고, 테이블이 없으면 건너뛰고, 기존 데이터는 그대로예요) mysql 에 들어가서 파일 내용을 통째로 붙여 넣으세요.
+
 ## 근본 해결 (제안)
 알림 담당 코드에서 `Notification`의 `type`, `reference_type`을 **enum 칸이 아니라 문자열 칸으로 만들어지게 지정**하면, 앞으로 알림 종류가 늘어도 이 문제가 생기지 않아요. 다만 **이미 만들어진 DB의 칸은 코드를 바꿔도 안 바뀌기 때문에**, 기존 DB는 위 SQL이 한 번은 필요해요.
