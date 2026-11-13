@@ -24,14 +24,17 @@
 .am-row { display: flex; gap: 0.9rem; align-items: center; padding: 0.9rem 0; border-top: 1px solid var(--color-border); }
 .am-link { flex: 1; min-width: 0; display: flex; gap: 0.9rem; align-items: center; color: inherit; text-decoration: none; }
 /* 낙찰 안내 (잔금 결제 필요) */
-.am-win { margin: 0.2rem 0 0.4rem; padding: 0.7rem 0.9rem; border-radius: 10px; background: #EAF5EE; color: #2E7D4F; font-size: 0.82rem; line-height: 1.6; }
+.am-win { margin: 0.2rem 0 0.4rem; padding: 0.55rem 0.8rem; border-radius: 10px; background: #EAF5EE; color: #2E7D4F; font-size: 0.84rem; line-height: 1.5; }
+.am-win small { display: block; margin-top: 0.15rem; font-size: 0.74rem; opacity: 0.85; }
 .am-win.is-warn { background: #FDECEA; color: #C0392B; }
 .am-win b { font-size: 0.95rem; }
 .am-group { border-top: 1px solid var(--color-border); }
 .am-group:first-child { border-top: 0; }
-.am-group .am-row { border-top: 0; padding-bottom: 0.5rem; }
-.am-group .am-win { margin: 0 0 0.9rem calc(72px + 0.9rem); display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
-.am-group .am-win button { flex: none; width: auto; padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 999px; }
+.am-group .am-row { border-top: 0; padding-bottom: 0.35rem; }
+.am-group .am-win { margin: 0 0 0.8rem calc(72px + 0.9rem); display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; }
+.am-group .am-win .am-win-text { flex: 1; min-width: 0; }
+.am-group .am-win button { flex: none; width: auto; padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 999px; white-space: nowrap; }
+@media (max-width: 640px) { .am-group .am-win { margin-left: 0; flex-wrap: wrap; } }
 .am-group .am-win button:disabled { opacity: 0.45; cursor: not-allowed; }
 /* 잔금 결제 창 */
 .modal-card.order-modal { max-width: 480px; padding: 0; max-height: 90vh; overflow-y: auto; }
@@ -144,7 +147,6 @@
     }
     function infoOf(a) {
         if (a.status === 'ACTIVE') return `${isLive(a) ? '마감 ' + date(a.deadline) : '마감됨'} · 입찰 ${a.bidCount}회`;
-        if (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) return `잔금 ${money(a.balanceAmount)} · ${a.balanceDueAt ? date(a.balanceDueAt) + '까지' : ''}`;
         return `마감 ${date(a.deadline)} · 입찰 ${a.bidCount}회`;
     }
 
@@ -179,8 +181,9 @@
                     <span class="am-side">${badgeOf(a)}</span>
                 </div>
                 ${needPay ? `<div class="am-win ${overdue ? 'is-warn' : ''}">
-                    <span><b>낙찰되셨어요!</b><br>잔금 <b>${money(a.balanceAmount)}</b>을 ${a.balanceDueAt ? date(a.balanceDueAt) + '까지' : '기한 안에'} 결제해야 해요. 기한 안에 결제하지 않으면 낙찰이 무효가 되고 보증금은 돌려받지 못해요.</span>
-                    <button type="button" data-pay="${a.id}" ${overdue ? 'disabled' : ''}>${overdue ? '결제 기한이 지났어요' : `잔금 ${money(a.balanceAmount)} 결제하기`}</button>
+                    <span class="am-win-text"><b>낙찰되셨어요!</b> 잔금 <b>${money(a.balanceAmount)}</b>${a.balanceDueAt ? ' · ' + date(a.balanceDueAt) + '까지' : ''}
+                        <small>기한 안에 결제하지 않으면 낙찰이 무효가 되고 보증금은 돌려받지 못해요.</small></span>
+                    <button type="button" data-pay="${a.id}" ${overdue ? 'disabled' : ''}>${overdue ? '결제 기한 지남' : '잔금 결제하기'}</button>
                 </div>` : ''}
             </div>`;
         }).join('');
