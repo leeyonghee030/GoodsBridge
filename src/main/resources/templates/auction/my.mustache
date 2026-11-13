@@ -8,6 +8,13 @@
 .pu-subtabs button.active, .pu-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
 .pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
 .pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+/* 목록은 최대 높이를 정해 두고, 많아지면 안에서 스크롤 (스크롤바는 스크롤하는 동안에만 보인다) */
+#am-list { max-height: 520px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+#am-list.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+#am-list::-webkit-scrollbar { display: block; width: 8px; }
+#am-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+#am-list.is-scrolling::-webkit-scrollbar-thumb { background: #c9c9c9; }
+#am-list::-webkit-scrollbar-track { background: transparent; }
 .pu-list .empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
 .pu-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
 .pu-badge.is-dark { background: var(--color-dark); color: #fff; }
@@ -247,6 +254,13 @@
             await load();
         }
     });
+
+    // 스크롤하는 동안에만 스크롤바 표시 (scroll 은 버블링되지 않아 캡처 단계로 받는다)
+    (() => {
+        const el = document.getElementById('am-list');
+        let t;
+        el.addEventListener('scroll', () => { el.classList.add('is-scrolling'); clearTimeout(t); t = setTimeout(() => el.classList.remove('is-scrolling'), 600); });
+    })();
 
     load();
 })();
