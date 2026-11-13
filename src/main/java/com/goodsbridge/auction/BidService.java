@@ -106,6 +106,12 @@ public class BidService {
         // IN 조회는 순서를 보장하지 않으므로 ID 순서대로 재정렬
         Map<Long, Auction> auctionMap = auctionRepository.findAllById(idPage.getContent()).stream()
             .collect(Collectors.toMap(Auction::getId, Function.identity()));
-        return idPage.map(id -> AuctionResponse.from(auctionMap.get(id)));
+        java.util.Map<Long, Long> counts = new java.util.HashMap<>();
+        if (!idPage.getContent().isEmpty()) {
+            for (Object[] row : bidRepository.countBidsByAuctionIds(idPage.getContent())) {
+                counts.put((Long) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return idPage.map(id -> AuctionResponse.from(auctionMap.get(id)).withBidCount(counts.getOrDefault(id, 0L)));
     }
 }

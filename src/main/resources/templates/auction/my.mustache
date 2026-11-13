@@ -1,0 +1,128 @@
+{{> fragments/header}}
+
+<style>
+.pu-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: 0 0 0.8rem; }
+.pu-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.pu-subtabs button:hover { background: none; color: var(--color-text); }
+.pu-subtabs button.active, .pu-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+.pu-list .empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+.pu-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.pu-badge.is-dark { background: var(--color-dark); color: #fff; }
+.pu-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.pu-badge.is-warn { background: #FDECEA; color: #C0392B; }
+/* 경매 한 건 = 한 줄 */
+.am-row { display: flex; gap: 0.9rem; align-items: center; padding: 0.9rem 0; border-top: 1px solid var(--color-border); color: inherit; text-decoration: none; }
+.am-row:first-child { border-top: 0; }
+.am-thumb { flex: none; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
+.am-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.am-main { flex: 1; min-width: 0; }
+.am-main small { display: block; font-size: 0.76rem; color: var(--color-muted); }
+.am-main strong { display: block; margin: 0.1rem 0; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.am-main .am-price { font-size: 0.84rem; color: var(--color-text); font-variant-numeric: tabular-nums; }
+.am-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+.am-side .btn-pay { width: auto; padding: 0.35rem 0.8rem; font-size: 0.78rem; border-radius: 999px; }
+@media (max-width: 640px) { .am-row { flex-wrap: wrap; } .am-side { flex-direction: row; align-items: center; margin-left: calc(72px + 0.9rem); } }
+</style>
+
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/my/exchange">교환 내역</a>
+    <a href="/my/purchases">구매 내역</a>
+    <a href="/my/events">이벤트 내역</a>
+    <a href="/my/auctions" class="active">경매 내역</a>
+</nav>
+
+<div class="pu-subtabs" id="am-subtabs"></div>
+<section class="pu-panel">
+    <div class="pu-list" id="am-list"><p class="empty">경매 내역을 불러오는 중...</p></div>
+</section>
+</div>
+
+<script>
+(() => {
+    const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
+    const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const date = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+
+    // 탭: 입찰중(진행 중) / 낙찰(내가 낙찰받은 경매) / 종료·취소(패찰, 유찰, 취소)
+    const TABS = [['BIDDING', '입찰중'], ['WON', '낙찰'], ['DONE', '종료 · 취소']];
+    const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
+    const isWinner = a => a.currentWinnerUserId === userId;
+    const tabOf = a => a.status === 'ACTIVE' ? 'BIDDING'
+        : a.status === 'ENDED_SUCCESS' && isWinner(a) ? 'WON' : 'DONE';
+
+    function badgeOf(a) {
+        if (a.status === 'ACTIVE') {
+            if (!isLive(a)) return '<span class="pu-badge is-dark">마감 처리 중</span>';
+            return isWinner(a) ? '<span class="pu-badge is-ok">내가 최고가</span>' : '<span class="pu-badge is-warn">다른 사람이 최고가</span>';
+        }
+        if (a.status === 'ENDED_SUCCESS') {
+            if (!isWinner(a)) return '<span class="pu-badge">패찰 · 보증금 환불</span>';
+            if (a.balancePaid) return '<span class="pu-badge is-ok">낙찰 · 결제 완료</span>';
+            const overdue = a.balanceDueAt && new Date(a.balanceDueAt.slice(0, 19)) < new Date();
+            return overdue ? '<span class="pu-badge is-warn">결제 기한 지남</span>' : '<span class="pu-badge is-warn">잔금 결제 필요</span>';
+        }
+        if (a.status === 'ENDED_FAIL') return '<span class="pu-badge">유찰</span>';
+        return '<span class="pu-badge">경매 취소 · 환불</span>';
+    }
+    function infoOf(a) {
+        if (a.status === 'ACTIVE') return `${isLive(a) ? '마감 ' + date(a.deadline) : '마감됨'} · 입찰 ${a.bidCount}회`;
+        if (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) return `잔금 ${money(a.balanceAmount)} · ${a.balanceDueAt ? date(a.balanceDueAt) + '까지' : ''}`;
+        return `마감 ${date(a.deadline)} · 입찰 ${a.bidCount}회`;
+    }
+
+    const listEl = document.getElementById('am-list');
+    const subtabs = document.getElementById('am-subtabs');
+    let rows = [];
+    let sub = 'BIDDING';
+
+    function render() {
+        const count = key => rows.filter(a => tabOf(a) === key).length;
+        subtabs.innerHTML = TABS.map(([key, label]) =>
+            `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
+        const shown = rows.filter(a => tabOf(a) === sub);
+        if (!shown.length) {
+            listEl.innerHTML = `<p class="empty">${TABS.find(t => t[0] === sub)[1]} 경매가 없어요.</p>`;
+            return;
+        }
+        listEl.innerHTML = shown.map(a => {
+            const needPay = a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid;
+            return `
+            <a class="am-row" href="/test/auction/${a.id}">
+                <span class="am-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
+                <span class="am-main">
+                    <small>${esc(a.shopName)}</small>
+                    <strong>${esc(a.itemTitle)}</strong>
+                    <span class="am-price">${a.status === 'ACTIVE' ? '현재가' : '낙찰가'} <b>${money(a.currentPrice)}</b> <small style="display:inline;">· ${infoOf(a)}</small></span>
+                </span>
+                <span class="am-side">${badgeOf(a)}${needPay ? '<span class="pu-badge is-dark">상세에서 잔금 결제 ›</span>' : ''}</span>
+            </a>`;
+        }).join('');
+    }
+
+    async function load() {
+        const res = await pageFetch('/api/auctions/me?page=0&size=50');
+        if (!res.ok) { listEl.innerHTML = '<p class="empty">경매 내역을 불러오지 못했어요. 로그인 상태를 확인해 주세요.</p>'; return; }
+        rows = ((await res.json()).content || []);
+        // 잔금 결제가 필요한 낙찰을 먼저 보여준다
+        const rank = a => (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) ? 0 : 1;
+        rows.sort((x, y) => rank(x) - rank(y) || new Date(y.deadline) - new Date(x.deadline));
+        if (rows.some(a => tabOf(a) === 'WON' && !a.balancePaid) && !rows.some(a => tabOf(a) === 'BIDDING')) sub = 'WON';
+        render();
+    }
+
+    subtabs.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-sub]');
+        if (b) { sub = b.dataset.sub; render(); }
+    });
+
+    load();
+})();
+</script>
+
+{{> fragments/footer}}
