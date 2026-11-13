@@ -1,6 +1,10 @@
 package com.goodsbridge.demo;
 
 import com.goodsbridge.exchange.ExchangeItem;
+import com.goodsbridge.auction.Auction;
+import com.goodsbridge.auction.AuctionRepository;
+import com.goodsbridge.auction.Bid;
+import com.goodsbridge.auction.BidRepository;
 import com.goodsbridge.event.EventParticipation;
 import com.goodsbridge.event.EventParticipationRepository;
 import com.goodsbridge.event.ShopEvent;
@@ -26,6 +30,7 @@ import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.purchase.Purchase;
+import com.goodsbridge.purchase.PurchaseSource;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.refund.Refund;
 import com.goodsbridge.refund.RefundRepository;
@@ -79,6 +84,8 @@ public class DemoDataService {
     private final ExchangeItemRepository exchangeItemRepository;
     private final ShopEventRepository shopEventRepository;
     private final EventParticipationRepository eventParticipationRepository;
+    private final AuctionRepository auctionRepository;
+    private final BidRepository bidRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final PaymentRepository paymentRepository;
     private final PurchaseRepository purchaseRepository;
@@ -301,6 +308,7 @@ public class DemoDataService {
 
         seedSales(shopItems, userB, shop);
         seedEvents(shopOwner, shop, categories, images, userA, userB);
+        seedAuctions(shopOwner, shop, categories, images, userA, userB);
 
         // 최신순 정렬에서 시연 데이터가 항상 맨 앞에 오도록 생성일을 먼 미래로 고정
         Timestamp pinned = Timestamp.valueOf(LocalDateTime.now().plusYears(10));
@@ -371,6 +379,120 @@ public class DemoDataService {
             LocalDateTime.now().plusDays(2), LocalDate.now().plusDays(6), "/img/event-manga.jpg", ShopEventStatus.CANCELLED);
         seedParticipation(cancelled, userB, 1, 2, EventParticipation::refund);
         seedParticipation(cancelled, userA, 2, 1, EventParticipation::refund);
+    }
+
+    // ===== 경매 시연 데이터 =====
+    // 진행중(내가 최고가 / 다른 사람이 최고가 / 입찰 없음), 종료(낙찰 · 잔금 대기 / 낙찰 · 결제 완료 / 유찰), 취소
+    // 마감이 지난 경매는 상태만 바꿔 두고(스케줄러가 시연 데이터를 건드리지 않게) 패찰자 보증금은 환불 처리한다.
+    private void seedAuctions(User shopOwner, Shop shop, List<Category> categories, List<String> images, User userA, User userB) {
+        if (categories.isEmpty()) return;
+        LocalDateTime now = LocalDateTime.now();
+        Category c0 = categories.get(0), c1 = categories.get(1 % categories.size()), c2 = categories.get(2 % categories.size());
+
+        // 1) 진행중 · 데모교환A 가 최고가 (D-2)
+        Auction live1 = saveAuction(shopOwner, shop, c0, "(테스트) D-Series 한정판 피규어 풀박스", "한정판 넨도로이드 스타일 피규어 풀박스 세트입니다. 박스 상태 최상, 미개봉.",
+            50000, 7500, now.plusDays(2).plusHours(3), "/img/auction-figure-box.jpg");
+        Payment depB1 = bid(live1, userB, 52000, null);
+        Payment depA1 = bid(live1, userA, 58000, null);
+        bid(live1, userB, 61000, depB1);
+        bid(live1, userA, 66000, depA1);
+
+        // 2) 진행중 · 데모신청B 가 최고가 (오늘 마감)
+        Auction live2 = saveAuction(shopOwner, shop, c1, "(테스트) D-Series 스탠딩 인형 한정판", "스탠드 포함 한정판 스탠딩 인형입니다. 의상과 소품 모두 포함.",
+            30000, 4500, now.plusHours(4), "/img/auction-plush.jpg");
+        Payment depA2 = bid(live2, userA, 33000, null);
+        Payment depB2 = bid(live2, userB, 36000, null);
+        bid(live2, userA, 38000, depA2);
+        bid(live2, userB, 41000, depB2);
+
+        // 3) 진행중 · 입찰 없음 (가게가 취소할 수 있음)
+        saveAuction(shopOwner, shop, c2, "(테스트) 사인 포토카드 세트 (입찰 전)", "시연용 경매입니다. 아직 입찰이 없어서 가게가 취소할 수 있어요.",
+            20000, 3000, now.plusDays(5), images.get(0));
+
+        // 4) 종료 · 낙찰 → 데모신청B 가 잔금을 결제해야 함 (결제 기한은 하루 뒤)
+        Auction won = saveAuction(shopOwner, shop, c0, "(테스트) 한정판 아크릴 스탠드 세트", "낙찰 후 잔금 결제를 기다리는 시연용 경매입니다.",
+            25000, 3750, now.minusHours(1), images.get(1 % images.size()));
+        bid(won, userA, 28000, null);
+        bid(won, userB, 41000, null);
+        finishAuction(won, now.plusDays(1));
+
+        // 5) 종료 · 낙찰 → 데모교환A 가 잔금까지 결제 완료 (구매 내역·정산 기록 포함)
+        Auction paid = saveAuction(shopOwner, shop, c1, "(테스트) 일러스트 포스터 세트", "잔금 결제까지 끝난 시연용 경매입니다.",
+            28000, 4200, now.minusDays(2), images.get(2 % images.size()));
+        bid(paid, userB, 30000, null);
+        bid(paid, userA, 38000, null);
+        finishAuction(paid, now.minusDays(1));
+        payAuctionBalance(paid, userA, now.minusDays(2).plusHours(5));
+
+        // 6) 종료 · 유찰 (입찰 없음)
+        Auction failed = saveAuction(shopOwner, shop, c2, "(테스트) 응원봉 키링 (유찰)", "입찰이 없어서 유찰된 시연용 경매입니다.",
+            15000, 2250, now.minusDays(3), images.get(3 % images.size()));
+        failed.end();
+        auctionRepository.save(failed);
+
+        // 7) 취소
+        Auction cancelled = saveAuction(shopOwner, shop, c0, "(테스트) 취소된 경매 상품", "가게가 취소한 시연용 경매입니다.",
+            22000, 3300, now.plusDays(1), images.get(4 % images.size()));
+        cancelled.cancel();
+        auctionRepository.save(cancelled);
+    }
+
+    private Auction saveAuction(User shopOwner, Shop shop, Category category, String title, String description,
+                                int startPrice, int deposit, LocalDateTime deadline, String imageUrl) {
+        Item item = itemRepository.save(Item.builder()
+            .sellerUserId(shopOwner.getId())
+            .shopId(shop.getId())
+            .category(category)
+            .title(title)
+            .description(description)
+            .price(startPrice)
+            .saleType(SaleType.AUCTION)
+            .status(ItemStatus.ON_SALE)
+            .imageUrl(imageUrl)
+            .build());
+        return auctionRepository.save(Auction.builder()
+            .shop(shop).item(item).startPrice(startPrice).deadline(deadline).depositAmount(deposit)
+            .build());
+    }
+
+    // 입찰 한 건. 그 경매의 첫 입찰이면 보증금 결제를 만들고, 이미 낸 사람은 같은 보증금 결제를 다시 쓴다.
+    private Payment bid(Auction auction, User user, int amount, Payment existingDeposit) {
+        Payment deposit = existingDeposit != null ? existingDeposit
+            : paymentRepository.save(demoPayment(user, auction.getDepositAmount(), PaymentPurpose.AUCTION_DEPOSIT));
+        bidRepository.save(Bid.builder().auction(auction).user(user).bidAmount(amount).depositPaymentId(deposit.getPaymentId()).build());
+        auction.updateCurrentBid(amount, user);
+        auction.setWinningPaymentId(deposit.getPaymentId());
+        auctionRepository.save(auction);
+        return deposit;
+    }
+
+    // 마감 처리: 낙찰 상태로 바꾸고 결제 기한을 정한 뒤, 패찰자 보증금은 환불된 것으로 둔다
+    private void finishAuction(Auction auction, LocalDateTime balanceDueAt) {
+        auction.end();
+        auction.markLosersRefunded();
+        auctionRepository.save(auction);
+        auctionRepository.flush();
+        jdbcTemplate.update("update auction_tb set balance_due_at = ? where id = ?", Timestamp.valueOf(balanceDueAt), auction.getId());
+        // 낙찰자가 아닌 입찰자의 보증금은 돌려준 상태로 만든다
+        for (String paymentId : bidRepository.findLoserDepositPaymentIds(auction.getId(), auction.getCurrentWinner().getId())) {
+            paymentRepository.findByPaymentId(paymentId).ifPresent(p -> p.refund(auction.getDepositAmount()));
+        }
+    }
+
+    // 낙찰자의 잔금 결제 완료: 잔금 결제, 구매 내역, 가게 정산(낙찰가 전액)까지 기록
+    private void payAuctionBalance(Auction auction, User winner, LocalDateTime paidAt) {
+        Payment balance = paymentRepository.save(demoPayment(winner, auction.getBalanceAmount(), PaymentPurpose.AUCTION_BALANCE));
+        auction.completeBalance(balance.getPaymentId());
+        auction.getItem().updateStatus(ItemStatus.SOLD);
+        auctionRepository.save(auction);
+        purchaseRepository.save(Purchase.builder()
+            .item(auction.getItem()).user(winner).paymentId(balance.getPaymentId())
+            .deliveryAddress("서울시 마포구 데모로 12, 101호").source(PurchaseSource.AUCTION).amount(auction.getCurrentPrice())
+            .build());
+        recordFee(auction.getShop(), balance, auction.getAuctionSettlementAmount(), SettlementHistoryType.AUCTION_SALE);
+        settlementHistoryRepository.flush();
+        jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'AUCTION_SALE'",
+            Timestamp.valueOf(paidAt), balance.getId());
     }
 
     private Item saveEventItem(User shopOwner, Shop shop, Category category, String title, String description, int price, String imageUrl) {
