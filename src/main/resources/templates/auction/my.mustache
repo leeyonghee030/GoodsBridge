@@ -1,4 +1,5 @@
 {{> fragments/header}}
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
 
 <style>
 .pu-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: 0 0 0.8rem; }
@@ -13,7 +14,35 @@
 .pu-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 .pu-badge.is-warn { background: #FDECEA; color: #C0392B; }
 /* 경매 한 건 = 한 줄 */
-.am-row { display: flex; gap: 0.9rem; align-items: center; padding: 0.9rem 0; border-top: 1px solid var(--color-border); color: inherit; text-decoration: none; }
+.am-row { display: flex; gap: 0.9rem; align-items: center; padding: 0.9rem 0; border-top: 1px solid var(--color-border); }
+.am-link { flex: 1; min-width: 0; display: flex; gap: 0.9rem; align-items: center; color: inherit; text-decoration: none; }
+/* 낙찰 안내 (잔금 결제 필요) */
+.am-win { margin: 0.2rem 0 0.4rem; padding: 0.7rem 0.9rem; border-radius: 10px; background: #EAF5EE; color: #2E7D4F; font-size: 0.82rem; line-height: 1.6; }
+.am-win.is-warn { background: #FDECEA; color: #C0392B; }
+.am-win b { font-size: 0.95rem; }
+.am-group { border-top: 1px solid var(--color-border); }
+.am-group:first-child { border-top: 0; }
+.am-group .am-row { border-top: 0; padding-bottom: 0.5rem; }
+.am-group .am-win { margin: 0 0 0.9rem calc(72px + 0.9rem); display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.am-group .am-win button { flex: none; width: auto; padding: 0.4rem 1rem; font-size: 0.8rem; border-radius: 999px; }
+.am-group .am-win button:disabled { opacity: 0.45; cursor: not-allowed; }
+/* 잔금 결제 창 */
+.modal-card.order-modal { max-width: 480px; padding: 0; max-height: 90vh; overflow-y: auto; }
+.order-modal h1 { margin: 0; padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--color-border); font-size: 1.05rem; text-align: center; }
+.order-modal .modal-close { top: 1rem; }
+.order-section { padding: 1.2rem 1.5rem; border-bottom: 8px solid var(--color-surface); }
+.order-section h2 { margin: 0 0 0.9rem; font-size: 0.98rem; }
+.order-item { display: flex; gap: 0.9rem; align-items: center; }
+.order-item-thumb { flex: none; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
+.order-item-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.order-item small { display: block; font-size: 0.76rem; color: var(--color-muted); }
+.order-item strong { display: block; margin-top: 0.15rem; font-size: 0.92rem; font-weight: 500; }
+.order-sum div { display: flex; justify-content: space-between; margin-bottom: 0.45rem; font-size: 0.86rem; color: var(--color-muted); }
+.order-sum div.total { margin: 0.7rem 0 0; padding-top: 0.7rem; border-top: 1px solid var(--color-border); color: var(--color-text); font-weight: 600; }
+.order-sum div.total b { font-size: 1.15rem; }
+.order-submit { padding: 1rem 1.5rem 1.4rem; }
+#am-pay { width: 100%; }
+#am-pay:disabled { opacity: 0.45; cursor: not-allowed; }
 .am-row:first-child { border-top: 0; }
 .am-thumb { flex: none; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
 .am-thumb img { width: 100%; height: 100%; object-fit: contain; }
@@ -41,6 +70,34 @@
 </section>
 </div>
 
+<!-- 낙찰 잔금 결제 창 -->
+<div class="modal-backdrop" id="am-modal" hidden>
+<div class="modal-card order-modal">
+    <button type="button" class="modal-close" id="am-close">✕</button>
+    <h1>낙찰 잔금 결제</h1>
+    <section class="order-section">
+        <h2>낙찰 상품</h2>
+        <div class="order-item">
+            <div class="order-item-thumb" id="am-thumb"></div>
+            <div><small id="am-shop"></small><strong id="am-title"></strong></div>
+        </div>
+    </section>
+    <section class="order-section">
+        <h2>배송지</h2>
+        <textarea id="am-address" rows="2" maxlength="255" placeholder="배송받을 주소를 입력해 주세요 (예: 서울시 마포구 …)"></textarea>
+    </section>
+    <section class="order-section order-sum">
+        <h2>결제금액</h2>
+        <div><span>낙찰가</span><span id="s-price"></span></div>
+        <div><span>이미 낸 보증금</span><span id="s-deposit"></span></div>
+        <div class="total"><span>지금 결제할 잔금</span><b id="s-balance"></b></div>
+    </section>
+    <div class="order-submit">
+        <button type="button" id="am-pay">잔금 결제하기</button>
+    </div>
+</div>
+</div>
+
 <script>
 (() => {
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
@@ -48,6 +105,14 @@
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const date = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
     const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    const portoneStoreId = '{{portoneStoreId}}';
+    const portoneChannelKey = '{{portoneChannelKey}}';
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    // TODO(데모 종료 후 제거): 데모 모드면 결제창 없이 결제 (데모 바의 결제 O/X 토글을 따른다)
+    const skipPayment = () => '{{skipPayment}}' === 'true' && window.gbPaySkip && window.gbPaySkip();
 
     // 탭: 입찰중(진행 중) / 낙찰(내가 낙찰받은 경매) / 종료·취소(패찰, 유찰, 취소)
     const TABS = [['BIDDING', '입찰중'], ['WON', '낙찰'], ['DONE', '종료 · 취소']];
@@ -92,16 +157,25 @@
         }
         listEl.innerHTML = shown.map(a => {
             const needPay = a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid;
+            const overdue = needPay && a.balanceDueAt && new Date(a.balanceDueAt.slice(0, 19)) < new Date();
             return `
-            <a class="am-row" href="/test/auction/${a.id}">
-                <span class="am-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
-                <span class="am-main">
-                    <small>${esc(a.shopName)}</small>
-                    <strong>${esc(a.itemTitle)}</strong>
-                    <span class="am-price">${a.status === 'ACTIVE' ? '현재가' : '낙찰가'} <b>${money(a.currentPrice)}</b> <small style="display:inline;">· ${infoOf(a)}</small></span>
-                </span>
-                <span class="am-side">${badgeOf(a)}${needPay ? '<span class="pu-badge is-dark">상세에서 잔금 결제 ›</span>' : ''}</span>
-            </a>`;
+            <div class="am-group">
+                <div class="am-row">
+                    <a class="am-link" href="/test/auction/${a.id}">
+                        <span class="am-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
+                        <span class="am-main">
+                            <small>${esc(a.shopName)}</small>
+                            <strong>${esc(a.itemTitle)}</strong>
+                            <span class="am-price">${a.status === 'ACTIVE' ? '현재가' : '낙찰가'} <b>${money(a.currentPrice)}</b> <small style="display:inline;">· ${infoOf(a)}</small></span>
+                        </span>
+                    </a>
+                    <span class="am-side">${badgeOf(a)}</span>
+                </div>
+                ${needPay ? `<div class="am-win ${overdue ? 'is-warn' : ''}">
+                    <span><b>낙찰되셨어요!</b><br>잔금 <b>${money(a.balanceAmount)}</b>을 ${a.balanceDueAt ? date(a.balanceDueAt) + '까지' : '기한 안에'} 결제해야 해요. 기한 안에 결제하지 않으면 낙찰이 무효가 되고 보증금은 돌려받지 못해요.</span>
+                    <button type="button" data-pay="${a.id}" ${overdue ? 'disabled' : ''}>${overdue ? '결제 기한이 지났어요' : `잔금 ${money(a.balanceAmount)} 결제하기`}</button>
+                </div>` : ''}
+            </div>`;
         }).join('');
     }
 
@@ -119,6 +193,59 @@
     subtabs.addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
         if (b) { sub = b.dataset.sub; render(); }
+    });
+
+    // ----- 낙찰 잔금 결제 (마이페이지에서 바로) -----
+    const modal = document.getElementById('am-modal');
+    const $ = id => document.getElementById(id);
+    let paying = null;
+    async function pay(amount, orderName) {
+        if (skipPayment()) return { paymentId: `demo-pay-${crypto.randomUUID()}` };
+        if (!window.PortOne) throw new Error('포트원 SDK를 불러오지 못했습니다.');
+        const result = await PortOne.requestPayment({
+            storeId: portoneStoreId, channelKey: portoneChannelKey,
+            paymentId: `goodsbridge-auction-${crypto.randomUUID()}`,
+            orderName, totalAmount: amount, currency: 'KRW', payMethod: 'CARD'
+        });
+        if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+        return result;
+    }
+    listEl.addEventListener('click', ev => {
+        const btn = ev.target.closest('[data-pay]');
+        if (!btn || btn.disabled) return;
+        paying = rows.find(x => String(x.id) === btn.dataset.pay);
+        if (!paying) return;
+        $('am-thumb').innerHTML = paying.itemImageUrl ? `<img src="${esc(paying.itemImageUrl)}" alt="">` : '';
+        $('am-shop').textContent = paying.shopName || '';
+        $('am-title').textContent = paying.itemTitle;
+        $('s-price').textContent = money(paying.currentPrice);
+        $('s-deposit').textContent = money(paying.depositAmount);
+        $('s-balance').textContent = money(paying.balanceAmount);
+        $('am-address').value = '';
+        modal.hidden = false;
+    });
+    $('am-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
+    $('am-pay').addEventListener('click', async () => {
+        const address = $('am-address').value.trim();
+        if (!address) { await alert('배송지를 입력해 주세요.'); return; }
+        const btn = $('am-pay');
+        btn.disabled = true;
+        try {
+            const paid = await pay(paying.balanceAmount, `${paying.itemTitle} 경매 낙찰 잔금`);
+            const res = await pageFetch(`/api/auctions/${paying.id}/pay-balance`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: paid.paymentId, deliveryAddress: address })
+            });
+            if (!res.ok) throw new Error(await errorText(res, '잔금 결제에 실패했습니다.'));
+            modal.hidden = true;
+            await alert('잔금 결제가 완료됐어요! 구매 내역에서 배송 상태를 확인할 수 있어요.');
+        } catch (err) {
+            await alert(err.message);
+        } finally {
+            btn.disabled = false;
+            await load();
+        }
     });
 
     load();
