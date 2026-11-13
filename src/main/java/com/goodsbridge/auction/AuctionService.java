@@ -5,6 +5,8 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.*;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
@@ -20,6 +22,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -44,6 +47,7 @@ public class AuctionService {
     private final PurchaseRepository purchaseRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final EntityManager entityManager;
+    private final ApplicationEventPublisher publisher;
 
     // 경매 개설
     @Transactional
@@ -173,6 +177,23 @@ public class AuctionService {
         // 낙찰이면 잔금 결제 기한이 정해진다. 수수료 정산은 잔금 결제가 끝난 뒤(payBalance)에 한다.
         // 패찰자 보증금 환불은 PortOne 호출이라 마감 트랜잭션과 분리해 스케줄러가 처리한다(refundLosers).
         auction.end();
+
+        if (auction.getStatus() == Status.ENDED_SUCCESS){
+            publisher.publishEvent(
+                new NotificationEvent(
+                    auction.getCurrentWinner().getId(),
+                    Notification.Type.AUCTION_WIN,
+                    "[상품 낙찰]",
+                    auction.getItem().getTitle() + " 상품에 낙찰되셨습니다!\n" +
+                        auction.getBalanceDueAt() + "까지 잔여 결제 금액 " +
+                        auction.getBalanceAmount() + "원을 결제해 주세요.\n" +
+                        "기한 내 결제를 완료하면 상품을 수령할 수 있습니다.",
+                    Notification.ReferenceType.AUCTION,
+                    auction.getId()
+                )
+            );
+        }
+
     }
 
     // 스케줄러가 호출하는 단건 마감.

@@ -55,4 +55,7 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
         where b.auction.id = :auctionId and b.user.id <> :winnerId
         """)
     List<String> findLoserDepositPaymentIds(@Param("auctionId") Long auctionId, @Param("winnerId") Long winnerId);
+
+    @Query("select distinct b.user.id from Bid b where b.auction.id = :auctionId")
+    List<Long> findBidderUserIds(@Param("auctionId") Long auctionId);
 }
