@@ -37,6 +37,17 @@ ALTER TABLE notifications_tb MODIFY type VARCHAR(40) NOT NULL, MODIFY reference_
 - **기존 알림 데이터는 그대로 남아요.**
 - 서버 재시작은 필요 없어요.
 
+### 더 안전한 방법: SQL 파일 실행
+`docs/sql/fix_notifications_columns.sql` 은 **언제 실행해도 안전**해요. (여러 번 실행해도 됨)
+- 테이블이 아직 없으면 → 아무것도 바꾸지 않고 "서버를 한 번 실행한 뒤 다시 실행하세요"라고 알려줘요.
+- 이미 문자열 칸이면 → 바꿀 게 없다고 알려줘요.
+- 예전 enum 칸이면 → 문자열로 바꿔요. (기존 알림은 그대로)
+
+```bash
+docker exec -i goodsbridge-mysql mysql -uroot -p goodsbridge < docs/sql/fix_notifications_columns.sql
+```
+(Windows PowerShell은 `<` 를 못 쓰니 위의 "해결 방법"처럼 mysql에 들어가서 파일 내용을 붙여 넣으세요.)
+
 ### 다른 방법: DB 새로 만들기
 ```bash
 docker compose down -v
