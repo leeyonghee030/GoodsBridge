@@ -173,6 +173,15 @@
     const isWinner = () => userId !== null && a.currentWinnerUserId === userId;
     const isOwnerShop = () => myShopIds.includes(a.shopId);
     const myBidCount = () => bids.filter(b => b.userId === userId).length;
+    // 최소 입찰가: 아직 입찰이 없으면 시작가 그대로도 가능, 입찰이 있으면 현재가보다 높아야 한다
+    const minBid = () => a.bidCount ? a.currentPrice + 1 : a.currentPrice;
+    // 서버/네트워크 오류를 사용자가 알아보기 쉬운 문장으로
+    const friendly = err => {
+        const m = String((err && err.message) || err || '');
+        if (/failed to fetch|networkerror|load failed/i.test(m)) return '서버와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.\n(입찰은 아직 처리되지 않았어요)';
+        if (/401|로그인|인증/.test(m)) return '로그인이 필요해요. 다시 로그인해 주세요.';
+        return m || '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
+    };
     const date = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
     const statusLabel = () => a.status === 'CANCELLED' ? '취소'
         : a.status === 'ENDED_SUCCESS' ? '낙찰'
@@ -230,8 +239,8 @@
                     ? `최초 입찰 시 보증금 ${money(a.depositAmount)}이 결제돼요. 낙찰에 실패하거나 경매가 취소되면 보증금은 환불돼요.`
                     : '이미 보증금을 냈어요. 더 높은 금액으로 입찰하면 돼요.';
                 const input = $('au-bid-input');
-                if (!input.value) input.value = Number(a.currentPrice + (a.bidCount ? 1000 : 0)).toLocaleString('ko-KR');
-                input.dataset.min = a.currentPrice + (a.bidCount ? 1 : 0);
+                if (!input.value) input.value = Number(a.bidCount ? a.currentPrice + 1000 : a.currentPrice).toLocaleString('ko-KR');
+                input.placeholder = a.bidCount ? `${money(minBid())} 이상` : `시작가 ${money(a.currentPrice)} 이상`;
                 $('au-bid-btn').textContent = first ? `보증금 ${money(a.depositAmount)} 결제하고 입찰하기` : '입찰하기';
             }
         } else if (a.status === 'ENDED_SUCCESS') {
@@ -329,7 +338,10 @@
     $('au-bid-btn').addEventListener('click', async () => {
         if (userId === null) { needLogin(); return; }
         const amount = digits(bidInput);
-        if (!amount || amount <= a.currentPrice) { await alert(`입찰가는 현재가 ${money(a.currentPrice)}보다 높아야 해요.`); return; }
+        if (!amount || amount < minBid()) {
+            await alert(a.bidCount ? `현재가 ${money(a.currentPrice)}보다 높게 입찰해 주세요.\n(${money(minBid())} 이상)` : `시작가 ${money(a.currentPrice)} 이상으로 입찰해 주세요.`);
+            return;
+        }
         const first = myBidCount() === 0;
         if (!(await gbConfirm(`${money(amount)}에 입찰할까요?${first ? '\n최초 입찰이라 보증금 ' + money(a.depositAmount) + '이 결제돼요.' : ''}`))) return;
         const btn = $('au-bid-btn');
@@ -344,7 +356,7 @@
             bidInput.value = '';
             await alert('입찰했어요!');
         } catch (err) {
-            await alert(err.message);
+            await alert(friendly(err));
         } finally {
             btn.disabled = false;
             await load(false);
@@ -377,7 +389,7 @@
             modal.hidden = true;
             await alert('잔금 결제가 완료됐어요! 구매 내역에서 확인할 수 있어요.');
         } catch (err) {
-            await alert(err.message);
+            await alert(friendly(err));
         } finally {
             btn.disabled = false;
             await load(false);
