@@ -74,14 +74,13 @@ public class DemoDataService {
     static final String SHOP_B_EMAIL = "demo-shop-b@goodsbridge.demo";
     static final String ADMIN_EMAIL = "demo-admin@goodsbridge.demo";
 
-    private static final String FALLBACK_IMAGE = "/img/nav-shop.jpg";
-    // 새 DB 에는 카테고리가 하나도 없어서(카테고리는 API 로만 만들어진다) 시연 데이터가 비지 않게 기본 카테고리를 만든다
-    private static final List<String> DEFAULT_CATEGORIES = List.of(
-        "포토카드", "앨범", "피규어", "응원봉", "포스터", "스티커", "키링", "포카홀더", "엽서", "포토북", "인형");
-    // 업로드 폴더(/images/seed_photo_*)는 git 에 없어서 다른 컴퓨터에는 없다. 그럴 땐 저장소에 들어 있는 사진을 돌려 쓴다.
-    private static final List<String> REPO_IMAGES = List.of(
-        "/img/event-plush-short.jpg", "/img/event-plush-long.jpg", "/img/event-figure.jpg", "/img/event-manga.jpg",
-        "/img/auction-figure-box.jpg", "/img/auction-plush.jpg", "/img/event-kuji.jpg", "/img/nav-shop.jpg", "/img/nav-exchange.jpg");
+    // 시연 데이터는 어느 컴퓨터에서 만들어도 똑같이 나오게, 카테고리와 사진을 이름으로 고정한다.
+    // (카테고리는 API 로만 만들어져서 컴퓨터마다 DB 에 있는 카테고리가 다르면 시연 상품이 달라졌다)
+    private static final List<String> DEMO_CATEGORIES = List.of(
+        "포토카드", "앨범", "피규어", "응원봉", "포스터", "스티커", "키링", "포카홀더", "엽서", "포토북", "인형", "패션");
+    // 시연 상품 사진: 저장소의 static/img/demo 에 들어 있다 (업로드 폴더는 git 에 없어서 다른 컴퓨터에는 없다)
+    private static final List<String> DEMO_PHOTOS = List.of(
+        "/img/demo/seed_photo_1.jpg", "/img/demo/seed_photo_11.jpg", "/img/demo/seed_photo_12.jpg", "/img/demo/seed_photo_13.jpg", "/img/demo/seed_photo_14.jpg", "/img/demo/seed_photo_15.jpg", "/img/demo/seed_photo_16.jpg", "/img/demo/seed_photo_19.jpg", "/img/demo/seed_photo_2.jpg", "/img/demo/seed_photo_20.jpg", "/img/demo/seed_photo_21.jpg", "/img/demo/seed_photo_22.jpg", "/img/demo/seed_photo_23.jpg", "/img/demo/seed_photo_24.jpg", "/img/demo/seed_photo_27.jpg", "/img/demo/seed_photo_28.jpg", "/img/demo/seed_photo_29.jpg", "/img/demo/seed_photo_30.jpg", "/img/demo/seed_photo_34.jpg", "/img/demo/seed_photo_35.jpg", "/img/demo/seed_photo_36.jpg", "/img/demo/seed_photo_37.jpg", "/img/demo/seed_photo_38.jpg", "/img/demo/seed_photo_39.jpg", "/img/demo/seed_photo_40.jpg", "/img/demo/seed_photo_41.jpg", "/img/demo/seed_photo_42.jpg", "/img/demo/seed_photo_43.jpg", "/img/demo/seed_photo_44.jpg", "/img/demo/seed_photo_45.jpg", "/img/demo/seed_photo_47.jpg", "/img/demo/seed_photo_48.jpg", "/img/demo/seed_photo_51.jpg", "/img/demo/seed_photo_53.jpg", "/img/demo/seed_photo_7.jpg", "/img/demo/seed_photo_9.jpg");
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
@@ -227,14 +226,13 @@ public class DemoDataService {
     }
 
     private void seed(User userA, User userB, User shopOwner, Shop shop) {
-        List<Category> categories = categoryRepository.findAll();
-        if (categories.isEmpty()) {
-            categories = categoryRepository.saveAll(DEFAULT_CATEGORIES.stream().map(n -> Category.builder().name(n).build()).toList());
-        }
-        // 기존 시드 상품 사진(/images/seed_photo_*.jpg)을 돌려가며 써서 시연 상품마다 사진이 다르게 보이게 한다
-        List<String> images = jdbcTemplate.queryForList(
-            "select distinct image_url from item_tb where image_url like '/images/%' order by image_url", String.class);
-        if (images.isEmpty()) images = REPO_IMAGES;
+        // 시연 카테고리는 이름으로 찾고, 없으면 만든다 (DB 에 다른 카테고리가 있어도 시연 데이터는 같게 나온다)
+        List<Category> existing = categoryRepository.findAll();
+        List<Category> categories = DEMO_CATEGORIES.stream()
+            .map(name -> existing.stream().filter(c -> name.equals(c.getName())).findFirst()
+                .orElseGet(() -> categoryRepository.save(Category.builder().name(name).build())))
+            .toList();
+        List<String> images = DEMO_PHOTOS;
         int[] cursor = {0};
         List<Long> pinnedItemIds = new ArrayList<>();
         List<Long> pinnedExchangeIds = new ArrayList<>();
