@@ -2,9 +2,10 @@
 <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
 
 <div class="container detail-container exchange-detail-container">
+<a href="/exchange" class="back-link">← 목록으로</a>
 <div class="detail-grid">
     <div class="detail-media">
-        <div class="detail-image">
+        <div class="detail-image image-contain">
             {{#item.itemImageUrl}}<img src="{{item.itemImageUrl}}" alt="{{item.itemTitle}}">{{/item.itemImageUrl}}
             {{^item.itemImageUrl}}이미지 없음{{/item.itemImageUrl}}
         </div>
@@ -149,6 +150,12 @@
         const proposeModal = document.getElementById('propose-modal');
         const openPropose = document.getElementById('open-propose');
         openPropose.hidden = false;
+        // 가게 계정은 교환을 신청할 수 없다
+        if ({{shopAccount}}) {
+            openPropose.disabled = true;
+            openPropose.textContent = '가게 계정은 교환할 수 없어요';
+            return;
+        }
         if (!postOpen) {
             openPropose.disabled = true;
             openPropose.textContent = '신청 마감';

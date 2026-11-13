@@ -128,6 +128,10 @@ public class ExchangeService {
         //각각의 Repository di해서
         //여기서 user,shop,item Repository로 id 값을 조회해서 값가지고와서 값넣기
 
+        // 가게 계정은 교환 게시글을 올릴 수 없다 (교환은 손님끼리, 가게는 중개만)
+        if (isShopOwner(userId)) {
+            throw new ForbiddenException("가게 계정은 교환에 참여할 수 없습니다.");
+        }
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
         Shop shop = shopRepository.findById(request.getShopId())
@@ -262,6 +266,10 @@ public class ExchangeService {
     }
 
     private ProposalTarget validateProposal(Long exchangeItemId, Long itemBId, Long userId) {
+        // 가게 계정은 교환을 신청할 수 없다
+        if (isShopOwner(userId)) {
+            throw new ForbiddenException("가게 계정은 교환에 참여할 수 없습니다.");
+        }
         Item item = itemRepository.findById(itemBId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
         //1. 로그인한사람이랑 아이템 주인 같은지
@@ -418,7 +426,7 @@ public class ExchangeService {
 
     // 내 가게(삭제되지 않은)가 있는 사장님인지
     public boolean isShopOwner(Long userId) {
-        return shopRepository.findAllByOwnerUserIdAndDeletedFalse(userId, org.springframework.data.domain.Pageable.ofSize(1)).hasContent();
+        return shopRepository.existsByOwnerUserIdAndDeletedFalse(userId);
     }
 
     public ShopExchangeListResponse getShopExchanges(Long userId, String tab, String keyword) {

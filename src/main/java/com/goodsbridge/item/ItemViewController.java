@@ -50,6 +50,8 @@ public class ItemViewController {
             || (item.getShopId() != null && shopRepository.findById(item.getShopId()).map(shop -> shop.isOwner(userId)).orElse(false)));
         model.addAttribute("item", item);
         model.addAttribute("ownItem", ownItem);
+        // 가게 계정은 다른 가게 상품도 살 수 없다 (서버에서도 거절하지만 버튼부터 막는다)
+        model.addAttribute("shopAccount", userId != null && shopRepository.existsByOwnerUserIdAndDeletedFalse(userId));
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);

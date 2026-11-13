@@ -95,6 +95,8 @@ public class ExchangeViewController {
         Long currentUserId = SecurityUtil.getCurrentUserIdOrNull();
         model.addAttribute("currentUserId", currentUserId);
         model.addAttribute("userId", currentUserId);
+        // 가게 계정은 교환을 신청할 수 없다 (서버에서도 거절하지만 버튼부터 막는다)
+        model.addAttribute("shopAccount", currentUserId != null && exchangeService.isShopOwner(currentUserId));
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);

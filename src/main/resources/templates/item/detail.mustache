@@ -24,8 +24,8 @@
 .order-section:last-of-type { border-bottom: 0; }
 .order-section h2 { margin: 0 0 0.9rem; font-size: 0.98rem; }
 .order-item { display: flex; gap: 0.9rem; align-items: center; }
-.order-item-thumb { flex: none; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; background: var(--color-surface); }
-.order-item-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.order-item-thumb { flex: none; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
+.order-item-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .order-item small { display: block; font-size: 0.76rem; color: var(--color-muted); }
 .order-item strong { display: block; margin-top: 0.15rem; font-size: 0.92rem; font-weight: 500; }
 .order-qty { display: flex; justify-content: space-between; margin-top: 0.9rem; padding: 0.8rem 1rem; border-radius: 8px; background: var(--color-surface); font-size: 0.84rem; }
@@ -43,6 +43,7 @@
 </style>
 
 <div class="container detail-container item-detail">
+<a href="/test/item" class="back-link">← 목록으로</a>
 <div class="detail-grid">
     <div class="detail-media">
         <div class="detail-image">
@@ -151,6 +152,12 @@ const errorText = async (res, fallback) => {
 
     if (statusEl.dataset.status !== 'ON_SALE') {
         buyButton.textContent = '판매완료';
+        buyButton.disabled = true;
+        return;
+    }
+    // 가게 계정은 어떤 상품도 살 수 없다
+    if ({{shopAccount}}) {
+        buyButton.textContent = '가게 계정은 구매할 수 없어요';
         buyButton.disabled = true;
         return;
     }

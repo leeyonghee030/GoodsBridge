@@ -70,6 +70,10 @@ public class PurchaseService {
         if (item.getSellerUserId().equals(userId)) {
             throw new BadRequestException("본인이 등록한 상품은 구매할 수 없습니다.");
         }
+        // 가게 계정은 다른 가게 상품도 구매할 수 없다
+        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
+            throw new ForbiddenException("가게 계정은 상품을 구매할 수 없습니다.");
+        }
 
         // 이미 구매된 상품인지 확인
         if (purchaseRepository.existsByUserIdAndItemId(userId, itemId)) {
