@@ -2,13 +2,10 @@ package com.goodsbridge.shop;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -20,19 +17,8 @@ public class ShopSubscriptionController {
 
     private final ShopSubscriptionService shopSubscriptionService;
 
-    // 구독 시작/갱신 (가게 주인)
-    @PostMapping("/api/shops/{id}/subscription")
-    public ResponseEntity<Long> subscribe(@PathVariable Long id, @RequestBody ShopSubscriptionRequest request) {
-        Long userId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.status(HttpStatus.CREATED).body(shopSubscriptionService.create(userId, id, request));
-    }
-
-    // 내 가게 구독 현황 (가게 주인)
-    @GetMapping("/api/shops/{id}/subscription")
-    public ResponseEntity<ShopSubscriptionResponse> mySubscription(@PathVariable Long id) {
-        Long userId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.ok(shopSubscriptionService.findById(userId, id));
-    }
+    // 가게 주인용 구독 시작/조회(POST·GET /api/shops/{shopId}/subscription)는 ShopViewController 에 있다.
+    // 같은 주소를 여기에도 두면 요청 시 Ambiguous handler 로 500 이 나서 관리자용만 남긴다.
 
     // 구독 취소 (관리자)
     @PatchMapping("/api/admin/subscriptions/{id}/cancel")
