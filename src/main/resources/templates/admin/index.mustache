@@ -1,6 +1,31 @@
 {{> fragments/header}}
 
+
 <style>
+    .forbidden {
+        max-width: 420px;
+        margin: 4rem auto;
+        padding: 2rem;
+        text-align: center;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        background: #fff;
+    }
+
+    .forbidden p {
+        color: #666;
+        margin-bottom: 1.5rem;
+    }
+
+    .forbidden a {
+        display: inline-block;
+        padding: .6rem 1.1rem;
+        color: #fff;
+        background: #222;
+        border-radius: 8px;
+        text-decoration: none;
+    }
+
     .dashboard {
         display: grid;
         gap: 1.5rem;
@@ -32,16 +57,15 @@
         color: #fff;
     }
 
-    .dashboard-chart {
+    .dashboard-section {
         padding: 1.5rem;
         border: 1px solid #e8e8e8;
-        border-radius: 16px;
+        border-radius: 12px;
         background: #fff;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, .05);
     }
 
-    .dashboard-chart h2 {
-        margin-top: 0;
+    .dashboard-section h2 {
+        margin: 0 0 .25rem;
     }
 
     .dashboard-message {
@@ -52,311 +76,274 @@
         color: #c62828;
     }
 
-    .ops-cards {
+    /* 카드: 왼쪽 색 띠 + 아이콘 + 라벨/값 */
+    .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 1rem;
+        margin-top: 1rem;
     }
 
-    .ops-card {
+    .kpi {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
         padding: 1rem;
         border: 1px solid #e8e8e8;
-        border-radius: 12px;
-        background: #fafafa;
+        border-left: 4px solid var(--color);
+        border-radius: 10px;
+        background: #fff;
     }
 
-    .ops-card small {
+    .kpi-icon {
+        flex: none;
+        width: 44px;
+        height: 44px;
+        display: grid;
+        place-items: center;
+        font-size: 1.3rem;
+        border-radius: 10px;
+        background: #f3f4f6;
+    }
+
+    .kpi small {
         display: block;
         color: #777;
-        margin-bottom: .35rem;
+        margin-bottom: .25rem;
     }
 
-    .ops-card strong {
-        font-size: 1.3rem;
+    .kpi strong {
+        font-size: 1.35rem;
     }
 
-    .ops-card.warn strong {
-        color: #c62828;
+    /* 그래프 3개를 한 줄에 나란히. 높이는 고정해서 세로로 커지지 않게 한다. */
+    .chart-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    .chart-box {
+        position: relative;
+        height: 260px;
+    }
+
+    .chart-box h3 {
+        margin: 0 0 .5rem;
+        font-size: 1rem;
+    }
+
+    .chart-canvas {
+        position: relative;
+        height: 220px;
     }
 </style>
 
-<div class="dashboard">
-    <div class="dashboard-header">
-        <div>
-            <h1>관리자 대시보드</h1>
-            <p id="selected-month">통계를 불러오는 중입니다.</p>
+{{^isAdmin}}
+    <div class="forbidden">
+        <h1>접근 권한이 없습니다.</h1>
+        <p>관리자만 이용할 수 있는 페이지입니다.</p>
+        <a href="/">홈으로 돌아가기</a>
+    </div>
+{{/isAdmin}}
+
+{{#isAdmin}}
+    <div class="dashboard">
+        <div class="dashboard-header">
+            <div>
+                <h1>관리자 대시보드</h1>
+                <p id="selected-month">통계를 불러오는 중입니다.</p>
+            </div>
+
+            <form id="dashboard-form" class="dashboard-filter">
+                <input id="month" type="month" required>
+                <button type="submit">조회</button>
+            </form>
         </div>
 
-        <form id="dashboard-form" class="dashboard-filter">
-            <input id="month" type="month" required>
-            <button type="submit">조회</button>
-        </form>
+        <p id="dashboard-message" class="dashboard-message">통계를 불러오는 중입니다.</p>
+
+        <section class="dashboard-section">
+            <h2>처리 대기 현황</h2>
+            <p class="dashboard-message">월과 무관한 현재 값입니다. 빨간색은 처리가 필요한 항목입니다.</p>
+            <div id="pending-cards" class="kpi-grid"></div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2>월 운영 지표</h2>
+            <p class="dashboard-message">플랫폼 매출은 가게 구독료, 가게 매출은 일반 판매 대금·교환 수수료·노쇼 몰수금·경매 낙찰가·이벤트 참가비입니다.</p>
+            <div id="month-cards" class="kpi-grid"></div>
+        </section>
+
+        <section class="dashboard-section">
+            <h2>최근 6개월 추이</h2>
+            <div class="chart-grid">
+                <div class="chart-box">
+                    <h3>월 가입자 수</h3>
+                    <div class="chart-canvas"><canvas id="signup-chart"></canvas></div>
+                </div>
+                <div class="chart-box">
+                    <h3>월 매출</h3>
+                    <div class="chart-canvas"><canvas id="revenue-chart"></canvas></div>
+                </div>
+                <div class="chart-box">
+                    <h3>월 거래 건수</h3>
+                    <div class="chart-canvas"><canvas id="payment-chart"></canvas></div>
+                </div>
+            </div>
+        </section>
     </div>
 
-    <p id="dashboard-message" class="dashboard-message">
-        통계를 불러오는 중입니다.
-    </p>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 
-    <section class="dashboard-chart">
-        <h2>처리 대기 현황</h2>
-        <p class="dashboard-message">월과 무관한 현재 값입니다. 0이 아니면 처리가 필요한 항목입니다.</p>
-        <div id="pending-cards" class="ops-cards"></div>
-    </section>
+    <script>
+        (() => {
+            const form = document.getElementById('dashboard-form');
+            const monthInput = document.getElementById('month');
+            const selectedMonth = document.getElementById('selected-month');
+            const message = document.getElementById('dashboard-message');
 
-    <section class="dashboard-chart">
-        <h2>월 운영 지표</h2>
-        <div id="month-cards" class="ops-cards"></div>
-        <h3>결제 목적별 금액</h3>
-        <div id="purpose-cards" class="ops-cards"></div>
-    </section>
+            const charts = {};
+            const errorMessage = {
+                400: '날짜 형식이 올바르지 않습니다.',
+                403: '관리자 권한이 필요합니다.'
+            };
 
-    <section class="dashboard-chart">
-        <h2>전체 가입자 수</h2>
-        <p class="dashboard-message">조회 월과 무관한 누적 가입자 수입니다.</p>
-        <canvas id="user-count-chart"></canvas>
-    </section>
+            const won = value => Number(value || 0).toLocaleString('ko-KR') + '원';
+            const count = value => Number(value || 0).toLocaleString('ko-KR') + '건';
+            const person = value => Number(value || 0).toLocaleString('ko-KR') + '명';
 
-    <section class="dashboard-chart">
-        <h2>거래량</h2>
-        <p id="payment-amount">거래 금액 합계를 불러오는 중입니다.</p>
-        <canvas id="payment-count-chart"></canvas>
-    </section>
+            // 오늘 기준 이번 달(브라우저 현지 시간)을 YYYY-MM으로 만든다.
+            const now = new Date();
+            monthInput.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 
-    <section class="dashboard-chart">
-        <h2>월 매출</h2>
-        <p class="dashboard-message">플랫폼 수익이 아니라, 선택한 월의 결제 금액에서 환불액을 뺀 순 결제액입니다.</p>
-        <canvas id="revenue-chart"></canvas>
-    </section>
-</div>
+            async function loadDashboard(month) {
+                message.textContent = '통계를 불러오는 중입니다.';
+                message.className = 'dashboard-message';
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                try {
+                    const response = await fetch(
+                        '/api/admin/dashboard?month=' + encodeURIComponent(month),
+                        {credentials: 'same-origin'}
+                    );
 
-<script>
-    (() => {
-        const pageFetch = (path, options = {}) =>
-            fetch(path, Object.assign({credentials: 'same-origin'}, options));
-        const form = document.getElementById('dashboard-form');
-        const monthInput = document.getElementById('month');
-        const selectedMonth = document.getElementById('selected-month');
-        const message = document.getElementById('dashboard-message');
-        const paymentAmount = document.getElementById('payment-amount');
-
-        let userCountChart = null;
-        let paymentCountChart = null;
-        let revenueChart = null;
-
-        const currentMonth = new Date().toISOString().slice(0, 7);
-        monthInput.value = currentMonth;
-
-        async function loadDashboard(month) {
-            message.textContent = '통계를 불러오는 중입니다.';
-            message.className = 'dashboard-message';
-
-            try {
-                const response = await pageFetch(
-                    '/api/admin/dashboard?month=' + encodeURIComponent(month)
-                );
-
-                if (!response.ok) {
-                    if (response.status === 403) {
-                        throw new Error('관리자 권한이 필요합니다.');
+                    if (!response.ok) {
+                        message.textContent = errorMessage[response.status] || '대시보드 통계를 불러오지 못했습니다.';
+                        message.className = 'dashboard-error';
+                        return;
                     }
 
-                    if (response.status === 400) {
-                        throw new Error('날짜 형식이 올바르지 않습니다.');
-                    }
+                    const data = await response.json();
+                    selectedMonth.textContent = month + ' 기준 통계';
+                    message.textContent = '통계 조회가 완료되었습니다.';
 
-                    throw new Error('대시보드 통계를 불러오지 못했습니다.');
+                    renderCards(data);
+                    renderCharts(data.months);
+                } catch (error) {
+                    message.textContent = '서버와 통신하지 못했습니다.';
+                    message.className = 'dashboard-error';
+                }
+            }
+
+            // 카드 하나를 만든다. 값은 textContent로 넣어서 HTML이 섞이지 않게 한다.
+            function addCard(container, icon, title, value, color) {
+                const card = document.createElement('div');
+                card.className = 'kpi';
+                card.style.setProperty('--color', color);
+
+                const iconBox = document.createElement('div');
+                iconBox.className = 'kpi-icon';
+                iconBox.textContent = icon;
+
+                const body = document.createElement('div');
+                const label = document.createElement('small');
+                label.textContent = title;
+                const strong = document.createElement('strong');
+                strong.textContent = value;
+
+                body.append(label, strong);
+                card.append(iconBox, body);
+                container.appendChild(card);
+            }
+
+            function renderCards(data) {
+                const pending = document.getElementById('pending-cards');
+                const monthly = document.getElementById('month-cards');
+                pending.replaceChildren();
+                monthly.replaceChildren();
+
+                // count에는 값, 뒤는 색깔
+                addCard(pending, '💸', '환불 승인 대기', count(data.pendingRefundCount), '#dc2626');
+                addCard(pending, '📦', '발송 대기', count(data.pendingShipmentCount), '#f59e0b');
+                addCard(pending, '🔨', '진행 중 경매', count(data.activeAuctionCount), '#0ea5e9');
+                addCard(pending, '🏁', '종료된 경매', count(data.endedAuctionCount), '#6b7280');
+                addCard(pending, '⏳', '잔금 미납 낙찰', count(data.unpaidBalanceCount), '#16a34a' );
+
+                // 마지막 원소가 조회한 달이다.
+                const m = data.months[data.months.length - 1];
+                addCard(monthly, '👤', '월 가입자 수', person(m.signupCount), '#f59e0b');
+                addCard(monthly, '🧾', '월 거래 건수', count(m.paymentCount), '#16a34a');
+                addCard(monthly, '🏦', '월 정산 금액', won(m.settlementAmount), '#0ea5e9');
+                addCard(monthly, '↩️', '월 환불 금액', won(m.refundedAmount), '#dc2626');
+                addCard(monthly, '🏢', '플랫폼 월 매출', won(m.platformRevenue), '#7c3aed');
+                addCard(monthly, '🏪', '가게 월 매출', won(m.shopRevenue), '#db2777');
+            }
+
+            // 가로 막대 그래프 하나를 그린다. format은 값 뒤에 단위를 붙이는 함수다.
+            function drawChart(canvasId, labels, datasets, format) {
+                if (charts[canvasId]) {
+                    charts[canvasId].destroy();
                 }
 
-                const data = await response.json();
-
-                selectedMonth.textContent = month + ' 기준 통계';
-                message.textContent = '통계 조회가 완료되었습니다.';
-                paymentAmount.textContent = '거래 금액 합계: ' + Number(data.paymentAmount || 0).toLocaleString('ko-KR') + '원';
-
-                renderOps(data);
-                renderCharts(month, data);
-            } catch (error) {
-                message.textContent = error.message;
-                message.className = 'dashboard-error';
-            }
-        }
-
-        const won = value => Number(value || 0).toLocaleString('ko-KR') + '원';
-        const count = value => Number(value || 0).toLocaleString('ko-KR') + '건';
-        const purposeLabel = {
-            PURCHASE: '일반 구매',
-            AUCTION_DEPOSIT: '경매 보증금',
-            AUCTION_BALANCE: '경매 낙찰 잔금',
-            EXCHANGE_DEPOSIT: '교환 예치금',
-            EVENT_FEE: '이벤트 참가비',
-            SHOP_SUBSCRIPTION: '가게 구독'
-        };
-
-        // 카드 하나를 그린다 (값은 textContent로 넣어 HTML이 섞이지 않게 한다)
-        function addCard(container, title, value, warn) {
-            const card = document.createElement('div');
-            card.className = 'ops-card' + (warn ? ' warn' : '');
-            const label = document.createElement('small');
-            label.textContent = title;
-            const strong = document.createElement('strong');
-            strong.textContent = value;
-            card.appendChild(label);
-            card.appendChild(strong);
-            container.appendChild(card);
-        }
-
-        function renderOps(data) {
-            const pending = document.getElementById('pending-cards');
-            const monthly = document.getElementById('month-cards');
-            const purpose = document.getElementById('purpose-cards');
-            pending.replaceChildren();
-            monthly.replaceChildren();
-            purpose.replaceChildren();
-
-            addCard(pending, '환불 승인 대기', count(data.pendingRefundCount), data.pendingRefundCount > 0);
-            addCard(pending, '발송 대기 구매', count(data.pendingShipmentCount), data.pendingShipmentCount > 0);
-            addCard(pending, '진행 중 경매', count(data.activeAuctionCount), false);
-            addCard(pending, '잔금 미납 낙찰', count(data.unpaidBalanceCount), data.unpaidBalanceCount > 0);
-            addCard(pending, '자동 환불 실패(수동 확인)', count(data.failedWebhookRefundCount), data.failedWebhookRefundCount > 0);
-
-            addCard(monthly, '환불 금액', won(data.refundedAmount), false);
-            addCard(monthly, '가게 정산 금액', won(data.settlementAmount), false);
-            addCard(monthly, '미기록 결제 자동 환불', count(data.autoRefundedCount), false);
-
-            const entries = Object.entries(data.paymentAmountByPurpose || {});
-            if (!entries.length) {
-                addCard(purpose, '결제 없음', '-', false);
-            }
-            entries.forEach(([key, amount]) => addCard(purpose, purposeLabel[key] || key, won(amount), false));
-        }
-
-        function renderCharts(month, data) {
-            if (userCountChart) {
-                userCountChart.destroy();
-            }
-
-            if (paymentCountChart) {
-                paymentCountChart.destroy();
-            }
-
-            if (revenueChart) {
-                revenueChart.destroy();
-            }
-
-            userCountChart = new Chart(
-                document.getElementById('user-count-chart'),
-                {
+                charts[canvasId] = new Chart(document.getElementById(canvasId), {
                     type: 'bar',
-                    data: {
-                        labels: [month],
-                        datasets: [
-                            {
-                                label: '전체 가입자 수',
-                                data: [data.userCount],
-                                backgroundColor: '#4f46e5'
-                            }
-                        ]
-                    },
+                    data: {labels: labels, datasets: datasets},
                     options: {
+                        indexAxis: 'y',
                         responsive: true,
+                        maintainAspectRatio: false,
                         scales: {
-                            y: {
+                            x: {
                                 beginAtZero: true,
-                                ticks: {
-                                    precision: 0
-                                }
-                            }
-                        }
-                    }
-                }
-            );
-
-            paymentCountChart = new Chart(
-                document.getElementById('payment-count-chart'),
-                {
-                    type: 'bar',
-                    data: {
-                        labels: [month],
-                        datasets: [
-                            {
-                                label: '거래량',
-                                data: [data.paymentCount],
-                                backgroundColor: '#16a34a'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    precision: 0
-                                }
-                            }
-                        }
-                    }
-                }
-            );
-
-            revenueChart = new Chart(
-                document.getElementById('revenue-chart'),
-                {
-                    type: 'bar',
-                    data: {
-                        labels: [month],
-                        datasets: [
-                            {
-                                label: '월 매출',
-                                data: [data.revenue],
-                                backgroundColor: '#dc2626'
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    callback: function (value) {
-                                        return Number(value)
-                                            .toLocaleString('ko-KR') + '원';
-                                    }
-                                }
+                                ticks: {precision: 0, callback: value => format(value)}
                             }
                         },
                         plugins: {
                             tooltip: {
-                                callbacks: {
-                                    label: function (context) {
-                                        return Number(context.raw)
-                                            .toLocaleString('ko-KR') + '원';
-                                    }
-                                }
+                                callbacks: {label: context => context.dataset.label + ': ' + format(context.raw)}
                             }
                         }
                     }
-                }
-            );
-        }
-
-        form.addEventListener('submit', function (event) {
-            event.preventDefault();
-
-            if (!monthInput.value) {
-                message.textContent = '조회할 월을 선택해주세요.';
-                message.className = 'dashboard-error';
-                return;
+                });
             }
 
-            loadDashboard(monthInput.value);
-        });
+            function renderCharts(months) {
+                const labels = months.map(m => m.month);
 
-        loadDashboard(monthInput.value);
-    })();
-</script>
+                drawChart('signup-chart', labels, [
+                    {label: '가입자 수', data: months.map(m => m.signupCount), backgroundColor: '#f59e0b'}
+                ], person);
+
+                drawChart('revenue-chart', labels, [
+                    {label: '플랫폼(구독료)', data: months.map(m => m.platformRevenue), backgroundColor: '#7c3aed'},
+                    {label: '가게', data: months.map(m => m.shopRevenue), backgroundColor: '#db2777'}
+                ], won);
+
+                drawChart('payment-chart', labels, [
+                    {label: '거래 건수', data: months.map(m => m.paymentCount), backgroundColor: '#16a34a'}
+                ], count);
+            }
+
+            // 월이 비어 있는 경우는 input의 required가 막아 주므로 따로 검사하지 않는다.
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                loadDashboard(monthInput.value);
+            });
+
+            loadDashboard(monthInput.value);
+        })();
+    </script>
+{{/isAdmin}}
 
 {{> fragments/footer}}
