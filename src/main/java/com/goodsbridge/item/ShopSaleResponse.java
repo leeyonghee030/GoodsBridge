@@ -3,6 +3,7 @@ package com.goodsbridge.item;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.purchase.DeliveryStatus;
 import com.goodsbridge.purchase.Purchase;
+import com.goodsbridge.purchase.PurchaseSource;
 import com.goodsbridge.purchase.PurchaseStatus;
 import com.goodsbridge.refund.Refund;
 import com.goodsbridge.refund.RequestedBy;
@@ -27,6 +28,7 @@ public class ShopSaleResponse {
     private final DeliveryStatus deliveryStatus;
     private final String trackingNumber;
     private final PurchaseStatus purchaseStatus;
+    private final PurchaseSource source;   // 구매 경로 (일반 판매 / 경매 낙찰)
     private final String paymentId;
     private final Integer refundableAmount;
     private final LocalDateTime purchasedAt;
@@ -46,6 +48,7 @@ public class ShopSaleResponse {
         this.deliveryStatus = purchase.getDeliveryStatus();
         this.trackingNumber = purchase.getTrackingNumber();
         this.purchaseStatus = purchase.getStatus();
+        this.source = purchase.getSource();
         this.paymentId = purchase.getPaymentId();
         this.refundableAmount = payment != null ? payment.getRefundableAmount() : 0;
         this.purchasedAt = purchase.getCreatedAt();

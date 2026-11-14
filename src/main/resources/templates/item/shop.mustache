@@ -46,6 +46,14 @@
 .si-subtabs button:hover { background: none; color: var(--color-text); }
 .si-subtabs button.active, .si-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
 .si-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.si-kind { display: inline-block; margin-right: 0.35rem; padding: 0.05rem 0.45rem; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: var(--color-surface); color: var(--color-muted); vertical-align: 1px; }
+.si-kind.is-auction { background: #FFF1D6; color: #9A5B00; }
+.si-kinds { display: flex; gap: 0.4rem; margin: 0 0 0.6rem; }
+.si-kinds[hidden] { display: none; }
+.si-kinds button { width: auto; padding: 0.3rem 0.8rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg); font: inherit; font-size: 0.8rem; color: var(--color-muted); cursor: pointer; }
+.si-kinds button:hover { background: var(--color-surface); color: var(--color-text); }
+.si-kinds button.active, .si-kinds button.active:hover { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.si-kinds button small { margin-left: 0.3rem; opacity: 0.7; }
 .si-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 /* 판매 정산 (가게 교환 관리의 수수료 수익 패널과 같은 모양) */
 .si-fee[hidden] { display: none; }
@@ -176,6 +184,7 @@
             <button type="button" class="write-link" id="si-open-create">상품 등록</button>
         </div>
     </div>
+    <div class="si-kinds" id="si-kinds" hidden></div>
     <div class="si-subtabs" id="si-subtabs" hidden></div>
     <section class="si-fee" id="si-fee" hidden>
         <div class="si-fee-note">구매자가 구매 확정한 상품의 판매 금액이에요. 구매 확정 전 판매는 정산 예정 금액으로 따로 보여요.</div>
@@ -314,6 +323,9 @@
         REFUND_REQUESTED: '<span class="si-badge is-warn">환불 요청중</span>'
     };
     let saleSub = 'ALL';
+    let saleKind = 'ALL';   // ALL / SHOP(일반 판매) / AUCTION(경매 낙찰)
+    const KINDS = [['ALL', '전체'], ['SHOP', '상품 판매'], ['AUCTION', '경매 낙찰']];
+    const kindTag = x => x.source === 'AUCTION' ? '<span class="si-kind is-auction">경매 낙찰</span>' : '<span class="si-kind">상품 판매</span>';
     let saleFees = [];   // 상품 판매 정산 (SettlementHistory 중 PURCHASE_FEE)
 
     // 기간 기준 날짜: 판매완료는 구매일, 환불은 최근 환불 요청일 (구매 내역이 없는 판매완료 상품은 날짜 없음)
@@ -333,6 +345,7 @@
     };
     const rowsFor = t => {
         let rows = periodRows(t);
+        if (t === 'SOLD' && saleKind !== 'ALL') rows = rows.filter(x => (x.source || 'SHOP') === saleKind);
         if (t === 'SOLD' && saleSub !== 'ALL') rows = rows.filter(x => saleState(x) === saleSub);
         return rows.sort(byLatest(t));
     };
@@ -363,6 +376,7 @@
         if (isFee) {
             periodBox.hidden = true;
             document.getElementById('si-subtabs').hidden = true;
+            document.getElementById('si-kinds').hidden = true;
             renderFee();
             return;
         }
@@ -411,9 +425,9 @@
                 <div class="related-item-link" data-purchase="${s.purchaseId}">
                     ${thumb(s.imageUrl)}
                     <span class="related-item-text">
-                        <small>${esc(s.categoryName)}${shopLabel(s.shopId)}</small>
+                        <small>${kindTag(s)}${esc(s.categoryName)}${shopLabel(s.shopId)}</small>
                         <strong>${esc(s.itemTitle)}</strong>
-                        <small>${money(s.price)} · ${sub}</small>
+                        <small>${s.source === 'AUCTION' ? '낙찰가 ' : ''}${money(s.price)} · ${sub}</small>
                     </span>
                     ${badge}
                 </div>`;
@@ -424,13 +438,25 @@
         const box = document.getElementById('si-subtabs');
         box.hidden = tab !== 'SOLD';
         if (box.hidden) return;
-        const rows = periodRows('SOLD');
+        const all = periodRows('SOLD');
+        const kindBox = document.getElementById('si-kinds');
+        const kindCount = k => k === 'ALL' ? all.length : all.filter(x => (x.source || 'SHOP') === k).length;
+        // 경매 낙찰이 하나도 없으면 구분 버튼은 숨긴다
+        kindBox.hidden = kindCount('AUCTION') === 0;
+        kindBox.innerHTML = KINDS.map(([k, label]) => `<button type="button" data-kind="${k}" class="${saleKind === k ? 'active' : ''}">${label}<small>${kindCount(k)}</small></button>`).join('');
+        const rows = saleKind === 'ALL' ? all : all.filter(x => (x.source || 'SHOP') === saleKind);
         const count = key => key === 'ALL' ? rows.length : rows.filter(x => saleState(x) === key).length;
         // 기타 판매는 있을 때만 보여준다
         box.innerHTML = SALE_STATES.filter(([key]) => key !== 'OTHER' || count(key) > 0)
             .map(([key, label]) => `<button type="button" data-sub="${key}" class="${saleSub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`)
             .join('');
     }
+    document.getElementById('si-kinds').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-kind]');
+        if (!b) return;
+        saleKind = b.dataset.kind;
+        render();
+    });
     document.getElementById('si-subtabs').addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
         if (!b) return;
