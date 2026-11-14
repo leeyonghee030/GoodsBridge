@@ -179,12 +179,12 @@
             ${canRefund ? `
             <form id="pu-refund-form" style="margin-top:0.8rem;">
                 <span class="price-input">
-                    <input id="pu-refund-amount" type="text" inputmode="numeric" value="${Number(p.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" required>
+                    <input id="pu-refund-amount" type="text" inputmode="numeric" value="${Number(p.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" ${kindOf(p) === 'AUCTION' ? 'readonly' : ''} required>
                     <span class="price-input-unit">원</span>
                 </span>
                 <textarea id="pu-refund-reason" rows="2" maxlength="500" placeholder="환불 사유 (예: 상품 하자, 구성품 누락)" required></textarea>
                 <button type="submit">환불 신청</button>
-                <p class="pu-note">환불 가능 금액 ${money(p.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.</p>
+                <p class="pu-note">환불 가능 금액 ${money(p.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.${kindOf(p) === 'AUCTION' ? '<br>경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있어요. 가게 사정이나 배송 문제로 받지 못한 경우 사유를 적어 신청해 주세요.' : ''}</p>
             </form>` : (pending ? '<p class="pu-note">처리 대기 중인 환불 요청이 있어요.</p>' : '')}
             <p id="pu-message" class="form-message"></p>`;
     }

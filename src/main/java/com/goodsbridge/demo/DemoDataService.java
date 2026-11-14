@@ -452,6 +452,24 @@ public class DemoDataService {
         finishAuction(lost, now.minusDays(4));
         payAuctionBalance(lost, userA, now.minusDays(4).plusHours(3));
 
+        // 10~14) 종료 · 데모신청B 가 낙찰해 잔금까지 결제한 경매의 배송 · 구매 확정 · 환불 단계별 시연
+        // (가게 '판매 상품 관리'의 판매완료와 B 의 '구매 내역'에 경매 낙찰로 보인다)
+        String[][] orders = {
+            {"(테스트) 한정판 키링 세트 (배송중)", "SHIPPED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 캐릭터 엽서 박스 (배송 완료)", "DELIVERED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 일러스트 아트북 (구매 확정)", "CONFIRMED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 한정판 포카 바인더 (환불 요청중)", "REFUND_REQUESTED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 아크릴 무드등 (환불 완료)", "REFUNDED", "서울시 마포구 데모로 12, 101호"},
+        };
+        for (int i = 0; i < orders.length; i++) {
+            Auction order = saveAuction(shopOwner, shop, categories.get((i + 3) % categories.size()), orders[i][0], "낙찰 후 잔금까지 결제한 시연용 경매입니다. (" + orders[i][1] + ")",
+                24000 + i * 2000, 3600 + i * 300, now.minusDays(6 + i), images.get((7 + i) % images.size()));
+            bid(order, userA, 25000 + i * 2000, null);
+            bid(order, userB, 30000 + i * 2500, null);
+            finishAuction(order, now.minusDays(5 + i));
+            seedAuctionOrder(order, userB, now.minusDays(5 + i).plusHours(2), orders[i][1], "CJ" + (700100200300L + i), orders[i][2]);
+        }
+
         // 8) 종료 · 낙찰자가 기한 안에 잔금을 내지 않음 → 낙찰 무효, 낙찰자의 보증금만 가게 정산 (NO_SHOW_FEE)
         Auction forfeited = saveAuction(shopOwner, shop, c1, "(테스트) 캐릭터 아크릴 키링 (잔금 미결제)", "낙찰자가 기한 안에 잔금을 내지 않아 보증금만 정산된 시연용 경매입니다.",
             18000, 2700, now.minusDays(4), images.get(5 % images.size()));
@@ -522,6 +540,30 @@ public class DemoDataService {
         settlementHistoryRepository.flush();
         jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'AUCTION_SALE'",
             Timestamp.valueOf(paidAt), balance.getId());
+    }
+
+    // 낙찰자가 잔금까지 결제한 뒤의 단계: SHIPPED / DELIVERED / CONFIRMED / REFUND_REQUESTED / REFUNDED
+    private void seedAuctionOrder(Auction auction, User winner, LocalDateTime paidAt, String state, String tracking, String address) {
+        payAuctionBalance(auction, winner, paidAt);
+        Purchase purchase = purchaseRepository.findByPaymentId(auction.getBalancePaymentId()).orElseThrow();
+        purchase.ship(tracking);
+        if (!state.equals("SHIPPED")) purchase.markDelivered();
+        if (state.equals("CONFIRMED")) purchase.confirm();
+        purchaseRepository.save(purchase);
+        Payment balance = paymentRepository.findByPaymentId(auction.getBalancePaymentId()).orElseThrow();
+        if (state.equals("REFUND_REQUESTED")) {
+            // 경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있다
+            demoRefund(balance, winner, auction.getCurrentPrice(), "배송된 상품의 포장이 심하게 파손되어 환불 요청합니다", RequestedBy.USER, Status.REQUESTED);
+        }
+        if (state.equals("REFUNDED")) {
+            Refund refund = demoRefund(balance, winner, auction.getCurrentPrice(), "배송 중 분실되어 상품을 받지 못했어요", RequestedBy.USER, Status.REQUESTED);
+            refund.approve();
+            balance.refund(balance.getRefundableAmount());
+            paymentRepository.findByPaymentId(auction.getWinningPaymentId()).ifPresent(d -> d.refund(d.getRefundableAmount()));
+            settlementHistoryRepository.flush();
+            // 전액 환불이라 가게 정산(낙찰가 전액)도 취소된 상태
+            settlementHistoryRepository.deleteByPaymentAndType(balance, SettlementHistoryType.AUCTION_SALE);
+        }
     }
 
     private Item saveEventItem(User shopOwner, Shop shop, Category category, String title, String description, int price, String imageUrl) {

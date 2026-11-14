@@ -473,7 +473,7 @@
         document.getElementById('si-fee-today').textContent = money(sum(between(today, new Date(y, m, now.getDate() + 1))));
         document.getElementById('si-fee-month').textContent = money(sum(month));
         document.getElementById('si-fee-last').textContent = money(sum(between(new Date(y, m - 1, 1), new Date(y, m, 1))));
-        const pending = sales.filter(x => x.purchaseStatus === 'PAID');
+        const pending = sales.filter(x => x.purchaseStatus === 'PAID' && x.source !== 'AUCTION');   // 경매는 잔금 결제 때 이미 정산돼요
         document.getElementById('si-fee-pending').textContent = `${pending.length}건 · ${money(pending.reduce((acc, x) => acc + (x.refundableAmount || 0), 0))}`;
 
         // ----- 달력: 보고 있는 달의 날짜별 정산 금액 -----
@@ -788,12 +788,12 @@
             ${canRefund ? `
             <form id="si-refund-form" style="margin-top:0.8rem;">
                 <span class="price-input">
-                    <input id="si-refund-amount" type="text" inputmode="numeric" value="${Number(s.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" required>
+                    <input id="si-refund-amount" type="text" inputmode="numeric" value="${Number(s.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" ${s.source === 'AUCTION' ? 'readonly' : ''} required>
                     <span class="price-input-unit">원</span>
                 </span>
                 <textarea id="si-refund-reason" rows="2" maxlength="500" placeholder="환불 사유 (예: 재고 부족, 상품 하자)" required></textarea>
                 <button type="submit">환불 신청</button>
-                <p class="si-note">환불 가능 금액 ${money(s.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.</p>
+                <p class="si-note">환불 가능 금액 ${money(s.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.${s.source === 'AUCTION' ? '<br>경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있어요. 환불하면 가게 정산도 함께 취소돼요.' : ''}</p>
             </form>` : (pending ? '<p class="si-note">처리 대기 중인 환불 요청이 있어요.</p>' : '')}
             <p id="si-detail-message" class="form-message"></p>`;
     }

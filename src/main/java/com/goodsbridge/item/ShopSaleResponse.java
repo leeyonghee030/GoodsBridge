@@ -50,7 +50,9 @@ public class ShopSaleResponse {
         this.purchaseStatus = purchase.getStatus();
         this.source = purchase.getSource();
         this.paymentId = purchase.getPaymentId();
-        this.refundableAmount = payment != null ? payment.getRefundableAmount() : 0;
+        // 경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있어서 환불 가능 금액도 낙찰가 전체로 보여준다
+        int refundable = payment != null ? payment.getRefundableAmount() : 0;
+        this.refundableAmount = purchase.isAuction() && refundable > 0 && purchase.getAmount() != null ? purchase.getAmount() : refundable;
         this.purchasedAt = purchase.getCreatedAt();
         this.refunds = refunds.stream().map(RefundDto::new).toList();
     }
