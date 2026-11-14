@@ -52,6 +52,14 @@ public class AuctionSearchController {
         return ResponseEntity.ok(auctionSearchService.searchShop(SecurityUtil.getCurrentUserId(), tab, sub, keyword, page, size));
     }
 
+    // 가게가 등록한 경매 전용 상품 목록 (아직 팔리지 않은 것)
+    @GetMapping("/api/shop-auctions/items")
+    public ResponseEntity<Page<AuctionItemResponse>> shopItems(@RequestParam(required = false) String keyword,
+                                                               @RequestParam(defaultValue = "0") int page,
+                                                               @RequestParam(defaultValue = "12") int size) {
+        return ResponseEntity.ok(auctionSearchService.searchShopItems(SecurityUtil.getCurrentUserId(), keyword, page, size));
+    }
+
     @GetMapping("/api/shop-auctions/counts")
     public ResponseEntity<Map<String, Object>> shopCounts(@RequestParam(required = false) String keyword) {
         return ResponseEntity.ok(auctionSearchService.shopCounts(SecurityUtil.getCurrentUserId(), keyword));

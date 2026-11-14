@@ -58,6 +58,23 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     boolean existsByItemIdAndStatus(@Param("itemId") Long itemId, @Param("status") Status status);
 
+    // 상품의 진행 중인 경매 id (최신순). 경매 전용 상품의 상세 페이지에서 경매로 안내할 때 쓴다
+    @Query("""
+        select a.id from Auction a
+        where a.item.id = :itemId and a.status = com.goodsbridge.auction.Status.ACTIVE
+        order by a.id desc
+        """)
+    List<Long> findActiveAuctionIdsByItemId(@Param("itemId") Long itemId);
+
+    // 상품이 지금 경매에 쓰이는 중인지: 진행 중인 경매가 있거나, 낙찰됐지만 낙찰자가 아직 잔금을 결제하지 않은 경매가 있다
+    @Query("""
+        select count(a) > 0 from Auction a
+        where a.item.id = :itemId
+          and (a.status = com.goodsbridge.auction.Status.ACTIVE
+               or (a.status = com.goodsbridge.auction.Status.ENDED_SUCCESS and a.balancePaymentId is null))
+        """)
+    boolean existsInUseByItemId(@Param("itemId") Long itemId);
+
     // 낙찰됐지만 낙찰자가 아직 잔금을 결제하지 않은 경매가 있는 상품인지 (이런 상품은 새 경매에 올릴 수 없다)
     @Query("""
         select count(a) > 0 from Auction a

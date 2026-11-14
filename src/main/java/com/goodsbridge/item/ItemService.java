@@ -29,6 +29,7 @@ public class ItemService {
     private final CategoryJpaRepository categoryRepository;
     private final ShopRepository shopRepository;
     private final ShopSubscriptionRepository shopSubscriptionRepository;
+    private final com.goodsbridge.auction.AuctionRepository auctionRepository;
 
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -176,6 +177,7 @@ public class ItemService {
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
+        assertNotInAuction(item);
 
         if (request.getShopId() == null) {
             // 가게 없는 상품(교환용)은 가게 ID 없이 수정 가능. 가게 상품은 가게를 떼어낼 수 없음
@@ -222,8 +224,16 @@ public class ItemService {
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
+        assertNotInAuction(item);
 
         item.deleteItem();
+    }
+
+    // 경매 중이거나 낙찰자의 잔금 결제를 기다리는 상품은 종류·가격·상태를 바꾸거나 삭제하면 경매가 꼬이므로 막는다
+    private void assertNotInAuction(Item item) {
+        if (auctionRepository.existsInUseByItemId(item.getId())) {
+            throw new BadRequestException("경매 중이거나 낙찰자의 잔금 결제를 기다리는 상품은 수정하거나 삭제할 수 없습니다.");
+        }
     }
 
     /**

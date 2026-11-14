@@ -49,6 +49,7 @@ public class AuctionService {
     private final PurchaseRepository purchaseRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final SettlementHistoryRepository settlementHistoryRepository;
+    private final com.goodsbridge.shop.ShopSubscriptionService shopSubscriptionService;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher publisher;
 
@@ -60,6 +61,10 @@ public class AuctionService {
             .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("가게의 주인만 경매를 열 수 있습니다.");
+        }
+        // 상품 등록·수정과 같이 구독이 활성화된 가게만 경매를 열 수 있다
+        if (!shopSubscriptionService.isSubscriptionActive(shopId)) {
+            throw new ForbiddenException("구독이 활성화된 가게만 경매를 열 수 있습니다.");
         }
         // 상품 행을 잠가 같은 상품의 동시 경매 개설을 직렬화한다.
         Item item = entityManager.find(

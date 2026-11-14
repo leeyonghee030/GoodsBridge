@@ -178,6 +178,7 @@ public class AuctionSearchService {
         result.put("ACTIVE", count(shopFilter(ownerUserId, keyword).and(shopTab("ACTIVE", null))));
         result.put("ENDED", count(shopFilter(ownerUserId, keyword).and(shopTab("ENDED", "ALL"))));
         result.put("CANCELLED", count(shopFilter(ownerUserId, keyword).and(shopTab("CANCELLED", null))));
+        result.put("ITEMS", countShopItems(ownerUserId, keyword));
         for (String sub : List.of("WAITING", "DONE", "FORFEITED", "FAIL")) {
             result.put("ENDED_" + sub, count(shopFilter(ownerUserId, keyword).and(shopTab("ENDED", sub))));
         }
@@ -196,6 +197,54 @@ public class AuctionSearchService {
         List<?> activeItemIds = ids.getResultList();
         result.put("activeItemIds", activeItemIds);
         return result;
+    }
+
+    // ===================== 가게의 경매 전용 상품 목록 (/shop/auctions '경매 상품' 탭) =====================
+
+    private static final String ITEM_FROM = " from Item i join i.category c where i.saleType = com.goodsbridge.item.SaleType.AUCTION"
+        + " and i.deleted = false and i.status = com.goodsbridge.item.ItemStatus.ON_SALE"
+        + " and i.shopId in (select s.id from Shop s where s.ownerUserId = :uid and s.deleted = false)";
+
+    // 아직 팔리지 않은 경매 전용 상품 (최근 등록순). inUse 가 true 면 경매 중이거나 낙찰자 잔금 결제 대기 중이라 수정 · 삭제 · 새 경매가 안 된다.
+    public Page<AuctionItemResponse> searchShopItems(Long ownerUserId, String keyword, int page, int size) {
+        int pageSize = clampSize(size);
+        int pageIndex = Math.max(0, page);
+        String kw = keyword == null ? "" : keyword.trim().toLowerCase().replace("%", "").replace("_", "");
+        String where = ITEM_FROM + (kw.isEmpty() ? "" : " and lower(i.title) like :kw");
+
+        TypedQuery<Long> countQuery = em.createQuery("select count(i)" + where, Long.class);
+        TypedQuery<com.goodsbridge.item.Item> dataQuery = em.createQuery(
+            "select i" + where.replace(" join i.category c", " join fetch i.category c") + " order by i.id desc",
+            com.goodsbridge.item.Item.class);
+        for (Query q : List.<Query>of(countQuery, dataQuery)) {
+            q.setParameter("uid", ownerUserId);
+            if (!kw.isEmpty()) {
+                q.setParameter("kw", "%" + kw + "%");
+            }
+        }
+        long total = countQuery.getSingleResult();
+        List<com.goodsbridge.item.Item> items = dataQuery.setFirstResult(pageIndex * pageSize).setMaxResults(pageSize).getResultList();
+
+        Set<Long> inUse = new HashSet<>();
+        if (!items.isEmpty()) {
+            inUse.addAll(em.createQuery(
+                    "select distinct a.item.id from Auction a where a.item.id in :ids and (a.status = " + ACTIVE
+                        + " or (a.status = " + ENDED_SUCCESS + " and a.balancePaymentId is null))", Long.class)
+                .setParameter("ids", items.stream().map(com.goodsbridge.item.Item::getId).toList()).getResultList());
+        }
+        List<AuctionItemResponse> content = items.stream().map(i -> new AuctionItemResponse(i, inUse.contains(i.getId()))).toList();
+        return new PageImpl<>(content, PageRequest.of(pageIndex, pageSize), total);
+    }
+
+    // 경매 상품 탭 건수 (검색어 반영)
+    private long countShopItems(Long ownerUserId, String keyword) {
+        String kw = keyword == null ? "" : keyword.trim().toLowerCase().replace("%", "").replace("_", "");
+        TypedQuery<Long> q = em.createQuery("select count(i)" + ITEM_FROM + (kw.isEmpty() ? "" : " and lower(i.title) like :kw"), Long.class);
+        q.setParameter("uid", ownerUserId);
+        if (!kw.isEmpty()) {
+            q.setParameter("kw", "%" + kw + "%");
+        }
+        return q.getSingleResult();
     }
 
     // ===================== 공통 =====================

@@ -27,6 +27,8 @@
 .se-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
 .se-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 .se-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.se-actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+.se-actions button:disabled:hover { background: transparent; border-color: var(--color-border); }
 .se-more-loading { padding: 1.2rem 0 1.4rem; text-align: center; font-size: 0.78rem; color: var(--color-muted); }
 .se-empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
 .se-section { margin: 0.9rem 0 0.4rem; font-size: 0.82rem; color: var(--color-muted); }
@@ -151,6 +153,7 @@
         <button type="button" class="filter-chip active" data-tab="ACTIVE">진행중<small id="se-cnt-ACTIVE"></small></button>
         <button type="button" class="filter-chip" data-tab="ENDED">종료<small id="se-cnt-ENDED"></small></button>
         <button type="button" class="filter-chip" data-tab="CANCELLED">취소<small id="se-cnt-CANCELLED"></small></button>
+        <button type="button" class="filter-chip" data-tab="ITEMS">경매 상품<small id="se-cnt-ITEMS"></small></button>
         <button type="button" class="filter-chip" data-tab="FEE">경매 정산</button>
     </div>
     <div class="se-bar-right">
@@ -193,8 +196,8 @@
 <div class="modal-backdrop" id="ai-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" data-close>✕</button>
-        <h1>경매 상품 등록</h1>
-        <p class="se-hint" style="margin:-0.3rem 0 0.8rem;">경매 전용 상품이라 일반 판매 목록에는 보이지 않고, 경매 열기에서만 쓸 수 있어요.</p>
+        <h1 id="ai-title-h">경매 상품 등록</h1>
+        <p class="se-hint" id="ai-intro" style="margin:-0.3rem 0 0.8rem;">경매 전용 상품이라 일반 판매 목록에는 보이지 않고, 경매 열기에서만 쓸 수 있어요.</p>
         <form id="ai-form">
             <p id="ai-shop-row">
                 <label for="ai-shop" class="sr-only">가게</label>
@@ -347,7 +350,7 @@
 
     // 탭 · 분류 건수 표시
     function renderTabs() {
-        ['ACTIVE', 'ENDED', 'CANCELLED'].forEach(t => { $('se-cnt-' + t).textContent = counts[t] ?? ''; });
+        ['ACTIVE', 'ENDED', 'CANCELLED', 'ITEMS'].forEach(t => { $('se-cnt-' + t).textContent = counts[t] ?? ''; });
         // 종료 탭 위에는 낙찰(잔금 대기 · 정산 완료 · 미결제) · 유찰 분류
         const subBox = $('se-subtabs');
         subBox.hidden = tab !== 'ENDED';
@@ -360,8 +363,30 @@
     function renderList() {
         if (!firstLoadDone) { listEl.innerHTML = '<p class="se-empty">불러오는 중...</p>'; return; }
         if (!auctions.length) {
-            const msg = keyword ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: endedSub === 'ALL' ? '종료된 경매가 없어요.' : `${ENDED_SUBS.find(x => x[0] === endedSub)[1]} 경매가 없어요.`, CANCELLED: '취소한 경매가 없어요.' }[tab];
+            const msg = keyword ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: endedSub === 'ALL' ? '종료된 경매가 없어요.' : `${ENDED_SUBS.find(x => x[0] === endedSub)[1]} 경매가 없어요.`, CANCELLED: '취소한 경매가 없어요.', ITEMS: '등록한 경매 상품이 없어요. 오른쪽 위 경매 상품 등록으로 만들어 보세요.' }[tab];
             listEl.innerHTML = `<p class="se-empty">${msg}</p>`;
+            return;
+        }
+        if (tab === 'ITEMS') {
+            // 경매 전용 상품 목록 (아직 팔리지 않은 것). 경매 중이거나 낙찰자 잔금 결제 대기 중이면 수정 · 삭제 · 새 경매가 안 된다.
+            listEl.innerHTML = auctions.map(i => {
+                const why = '경매 중이거나 낙찰자의 잔금 결제를 기다리는 상품은 수정·삭제할 수 없어요.';
+                return `
+            <div class="se-row">
+                <span class="se-thumb">${i.imageUrl ? `<img src="${esc(i.imageUrl)}" alt="">` : ''}</span>
+                <span class="se-row-main">
+                    <strong>${esc(i.title)}</strong>
+                    <small><span class="se-badge ${i.inUse ? 'is-warn' : 'is-ok'}" style="margin-right:0.4rem;">${i.inUse ? '경매에 사용 중' : '사용 가능'}</span>${multiShop ? esc(shopNames[i.shopId] || '') + ' · ' : ''}${esc(i.categoryName)} · 기준 가격 ${money(i.price)}</small>
+                    <small>${esc((i.description || '설명 없음').replace(/\s+/g, ' ').slice(0, 60))}</small>
+                </span>
+                <span class="se-actions">
+                    <button type="button" data-item-open="${i.id}" ${i.inUse ? 'disabled title="이미 경매에 쓰고 있어요."' : ''}>경매 열기</button>
+                    <button type="button" data-item-edit="${i.id}" ${i.inUse ? `disabled title="${why}"` : ''}>수정</button>
+                    <button type="button" data-item-delete="${i.id}" ${i.inUse ? `disabled title="${why}"` : ''}>삭제</button>
+                </span>
+            </div>`;
+            }).join('') + (hasMore ? '<div class="se-more-loading" id="se-sentinel">더 불러오는 중...</div>' : '');
+            requestAnimationFrame(checkMore);
             return;
         }
         listEl.innerHTML = auctions.map(a => {
@@ -430,7 +455,7 @@
         try {
             const params = new URLSearchParams({ tab, sub: endedSub, page, size: STEP });
             if (keyword) params.set('keyword', keyword);
-            const res = await pageFetch('/api/shop-auctions/search?' + params);
+            const res = await pageFetch((tab === 'ITEMS' ? '/api/shop-auctions/items?' : '/api/shop-auctions/search?') + params);
             if (seq !== requestSeq) return;
             if (!res.ok) throw new Error(await errorText(res, '경매를 불러오지 못했어요.'));
             const data = await res.json();
@@ -678,6 +703,27 @@
             menu.hidden = !willOpen;
             return;
         }
+        // ----- 경매 상품 탭의 버튼: 경매 열기 / 수정 / 삭제 -----
+        const itemOpen = ev.target.closest('[data-item-open]');
+        if (itemOpen) { if (!itemOpen.disabled) openCreate(Number(itemOpen.dataset.itemOpen)); return; }
+        const itemEdit = ev.target.closest('[data-item-edit]');
+        if (itemEdit) {
+            if (itemEdit.disabled) return;
+            const item = auctions.find(x => x.id === Number(itemEdit.dataset.itemEdit));
+            if (item) await openItemEdit(item);
+            return;
+        }
+        const itemDel = ev.target.closest('[data-item-delete]');
+        if (itemDel) {
+            if (itemDel.disabled) return;
+            const item = auctions.find(x => x.id === Number(itemDel.dataset.itemDelete));
+            if (!item) return;
+            if (!(await gbConfirm(`'${item.title}' 경매 상품을 삭제할까요?\n삭제하면 되돌릴 수 없어요.`))) return;
+            const res = await pageFetch(`/api/items/${item.id}`, { method: 'DELETE' });
+            if (!res.ok) { await alert(await errorText(res, '삭제에 실패했습니다.')); return; }
+            await load();
+            return;
+        }
         const editBtn = ev.target.closest('[data-edit-auction]');
         if (editBtn) { closeMenus(); openEdit(auctions.find(x => x.id === Number(editBtn.dataset.editAuction))); return; }
         const reopenBtn = ev.target.closest('[data-reopen]');
@@ -821,7 +867,22 @@
     const aiMessage = $('ai-message');
     const aiFail = text => { aiMessage.textContent = text; aiMessage.className = 'form-message error'; };
     let categories = [];
+    let editingAuctionItem = null;   // 수정 중인 경매 상품 (null 이면 새로 등록)
+    const shopNames = Object.fromEntries([...shopSelect.options].map(o => [Number(o.value), o.textContent]));
     $('ai-shop-row').hidden = !multiShop;
+    async function ensureCategories() {
+        if (categories.length) return;
+        const res = await pageFetch('/api/categories');
+        categories = res.ok ? await res.json() : [];
+        $('ai-category').innerHTML = '<option value="">카테고리 선택</option>' + categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    }
+    function setItemMode(item) {
+        editingAuctionItem = item;
+        $('ai-title-h').textContent = item ? '경매 상품 수정' : '경매 상품 등록';
+        $('ai-intro').textContent = item ? '경매에 쓰고 있지 않은 상품만 수정할 수 있어요. 이미지를 새로 고르지 않으면 그대로 유지돼요.' : '경매 전용 상품이라 일반 판매 목록에는 보이지 않고, 경매 열기에서만 쓸 수 있어요.';
+        $('ai-submit').textContent = item ? '수정 저장' : '등록하고 경매 열기';
+        $('ai-shop-row').hidden = !!item || !multiShop;
+    }
     $('ai-price').addEventListener('input', () => {
         const d = $('ai-price').value.replace(/\D/g, '').replace(/^0+/, '');
         $('ai-price').value = d ? Number(d).toLocaleString('ko-KR') : '';
@@ -830,11 +891,8 @@
         $('ai-image-name').textContent = $('ai-image').files[0] ? $('ai-image').files[0].name : '선택된 이미지 없음';
     });
     $('se-open-item').addEventListener('click', async () => {
-        if (!categories.length) {
-            const res = await pageFetch('/api/categories');
-            categories = res.ok ? await res.json() : [];
-            $('ai-category').innerHTML = '<option value="">카테고리 선택</option>' + categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-        }
+        await ensureCategories();
+        setItemMode(null);
         const keepShop = $('ai-shop').value;
         aiForm.reset();
         $('ai-shop').value = keepShop;
@@ -843,6 +901,19 @@
         aiModal.hidden = false;
         $('ai-title').focus();
     });
+    // 경매 상품 수정 창: 현재 값을 채워 같은 창을 연다
+    async function openItemEdit(item) {
+        await ensureCategories();
+        setItemMode(item);
+        aiForm.reset();
+        $('ai-title').value = item.title;
+        $('ai-category').value = String(item.categoryId);
+        $('ai-price').value = Number(item.price).toLocaleString('ko-KR');
+        $('ai-description').value = item.description || '';
+        $('ai-image-name').textContent = item.imageUrl ? '현재 이미지 유지 (새로 고르면 교체)' : '선택된 이미지 없음';
+        aiMessage.textContent = '';
+        aiModal.hidden = false;
+    }
     aiForm.addEventListener('submit', async ev => {
         ev.preventDefault();
         const price = Number($('ai-price').value.replace(/\D/g, ''));
@@ -860,13 +931,25 @@
                 if (!up.ok) { aiFail(await errorText(up, '이미지 업로드에 실패했습니다.')); return; }
                 imageUrl = (await up.json()).imageUrl;
             }
+            const fields = {
+                categoryId: Number($('ai-category').value),
+                title: $('ai-title').value.trim(), description: $('ai-description').value.trim() || null,
+                price, saleType: 'AUCTION'
+            };
+            if (editingAuctionItem) {
+                // 수정: 이미지를 새로 고르지 않으면 기존 이미지를 유지한다
+                const res = await pageFetch(`/api/items/${editingAuctionItem.id}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Object.assign(fields, { shopId: editingAuctionItem.shopId, status: 'ON_SALE', imageUrl: imageUrl || editingAuctionItem.imageUrl || null }))
+                });
+                if (!res.ok) { aiFail(await errorText(res, '경매 상품 수정에 실패했습니다.')); return; }
+                aiModal.hidden = true;
+                await load();
+                return;
+            }
             const res = await pageFetch('/api/items', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    shopId: Number($('ai-shop').value), categoryId: Number($('ai-category').value),
-                    title: $('ai-title').value.trim(), description: $('ai-description').value.trim() || null,
-                    price, saleType: 'AUCTION', imageUrl
-                })
+                body: JSON.stringify(Object.assign(fields, { shopId: Number($('ai-shop').value), imageUrl }))
             });
             if (!res.ok) { aiFail(await errorText(res, '경매 상품 등록에 실패했습니다.')); return; }
             const itemId = await res.json();

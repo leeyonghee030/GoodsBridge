@@ -226,7 +226,7 @@
 <div class="modal-backdrop" id="si-create-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" data-close>✕</button>
-        <h1>상품 등록</h1>
+        <h1 id="si-modal-title">상품 등록</h1>
         <form id="si-form">
             <p>
                 <label for="si-shop" class="sr-only">가게</label>
@@ -417,15 +417,20 @@
             return;
         }
         if (tab === 'ON_SALE') {
+            // 행을 누르면 상품 상세, 오른쪽 버튼으로 수정 · 삭제 (경매 중인 경매 전용 상품은 이 목록에 없다)
             listEl.innerHTML = rows.map(i => `
-                <a class="related-item-link" href="/test/item/${i.id}">
+                <div class="related-item-link" data-open="/test/item/${i.id}">
                     ${thumb(i.imageUrl)}
                     <span class="related-item-text">
                         <small>${esc(i.categoryName)}${shopLabel(i.shopId)}</small>
                         <strong>${esc(i.title)}</strong>
                         <small>${money(i.price)}</small>
                     </span>
-                </a>`).join('');
+                    <span class="si-row-actions">
+                        <button type="button" data-item-edit="${i.id}">수정</button>
+                        <button type="button" data-item-delete="${i.id}">삭제</button>
+                    </span>
+                </div>`).join('');
             return;
         }
         listEl.innerHTML = rows.map(s => {
@@ -719,6 +724,13 @@
     const message = document.getElementById('si-message');
     const fail = text => { message.textContent = text; message.className = 'form-message error'; };
 
+    let editingItem = null;   // 수정 중인 상품 (null 이면 새 상품 등록)
+    function setItemMode(item) {
+        editingItem = item;
+        document.getElementById('si-modal-title').textContent = item ? '상품 수정' : '상품 등록';
+        document.getElementById('si-submit').textContent = item ? '수정 저장' : '등록';
+        shopSelect.closest('p').hidden = !!item || !multiShop;
+    }
     function resetForm() {
         const keepShop = shopSelect.value;
         form.reset();
@@ -726,6 +738,22 @@
         categoryId = null;
         imageName.textContent = '선택된 이미지 없음';
         message.textContent = '';
+        setItemMode(null);
+    }
+    // 판매중 상품 수정: 현재 값을 채워 같은 창을 연다 (이미지는 새로 고르지 않으면 그대로 유지)
+    function openItemEdit(item) {
+        resetForm();
+        setItemMode(item);
+        shopSelect.value = String(item.shopId);
+        document.getElementById('si-title').value = item.title;
+        catInput.value = item.categoryName;
+        const cat = categories.find(c => c.name === item.categoryName);
+        categoryId = cat ? cat.id : null;
+        priceInput.value = Number(item.price).toLocaleString('ko-KR');
+        document.getElementById('si-description').value = item.description || '';
+        imageName.textContent = item.imageUrl ? '현재 이미지 유지 (새로 고르면 교체)' : '선택된 이미지 없음';
+        createModal.hidden = false;
+        document.getElementById('si-title').focus();
     }
     document.getElementById('si-open-create').addEventListener('click', () => {
         resetForm();
@@ -759,17 +787,20 @@
                 imageUrl = (await up.json()).imageUrl;
             }
             const body = {
-                shopId: Number(shopSelect.value),
+                shopId: editingItem ? editingItem.shopId : Number(shopSelect.value),
                 categoryId: categoryId,
                 title: document.getElementById('si-title').value.trim(),
                 description: document.getElementById('si-description').value.trim() || null,
                 price: price,
                 saleType: 'NORMAL',
-                imageUrl: imageUrl
+                imageUrl: editingItem ? (imageUrl || editingItem.imageUrl || null) : imageUrl
             };
-            const res = await pageFetch('/api/items', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(body) });
-            if (!res.ok) { fail(await errorText(res, '등록에 실패했습니다.')); return; }
-            message.textContent = '상품이 등록되었습니다.';
+            if (editingItem) body.status = 'ON_SALE';
+            const res = editingItem
+                ? await pageFetch(`/api/items/${editingItem.id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify(body) })
+                : await pageFetch('/api/items', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(body) });
+            if (!res.ok) { fail(await errorText(res, editingItem ? '수정에 실패했습니다.' : '등록에 실패했습니다.')); return; }
+            message.textContent = editingItem ? '상품이 수정되었습니다.' : '상품이 등록되었습니다.';
             message.className = 'form-message';
             tab = 'ON_SALE';
             document.querySelectorAll('#si-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === 'ON_SALE'));
@@ -778,6 +809,30 @@
         } finally {
             submit.disabled = false;
         }
+    });
+
+    // 판매중 목록: 행을 누르면 상세, 수정 · 삭제 버튼
+    listEl.addEventListener('click', async ev => {
+        const editBtn = ev.target.closest('[data-item-edit]');
+        if (editBtn) {
+            ev.stopPropagation();
+            const item = items.find(i => i.id === Number(editBtn.dataset.itemEdit));
+            if (item) openItemEdit(item);
+            return;
+        }
+        const delBtn = ev.target.closest('[data-item-delete]');
+        if (delBtn) {
+            ev.stopPropagation();
+            const item = items.find(i => i.id === Number(delBtn.dataset.itemDelete));
+            if (!item) return;
+            if (!(await gbConfirm(`'${item.title}' 상품을 삭제할까요?\n삭제하면 판매 목록에서 사라지고 되돌릴 수 없어요.`))) return;
+            const res = await pageFetch(`/api/items/${item.id}`, { method: 'DELETE' });
+            if (!res.ok) { await alert(await errorText(res, '삭제에 실패했습니다.')); return; }
+            await load();
+            return;
+        }
+        const row = ev.target.closest('[data-open]');
+        if (row) location.href = row.dataset.open;
     });
 
     // ===== 판매 상세 창: 구매자/배송지, 송장 입력, 환불 내역/신청 =====

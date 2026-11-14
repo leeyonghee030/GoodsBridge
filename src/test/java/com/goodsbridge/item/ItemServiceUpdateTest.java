@@ -38,6 +38,10 @@ class ItemServiceUpdateTest {
     @Mock
     private ShopSubscriptionRepository shopSubscriptionRepository;
 
+    // 경매 중인 상품은 수정할 수 없다는 검사에 쓰인다 (기본값 false = 경매 중이 아님)
+    @Mock
+    private com.goodsbridge.auction.AuctionRepository auctionRepository;
+
     // 승인된 가게 생성
     private Shop createApprovedShop(Long ownerUserId) {
         return Shop.builder()
