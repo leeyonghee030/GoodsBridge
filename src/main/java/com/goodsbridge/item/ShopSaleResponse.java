@@ -41,7 +41,7 @@ public class ShopSaleResponse {
         this.shopId = item.getShopId();
         this.itemTitle = item.getTitle();
         this.categoryName = item.getCategory().getName();
-        this.price = item.getPrice();
+        this.price = purchase.getAmount() != null ? purchase.getAmount() : item.getPrice();   // 경매는 낙찰가, 일반 구매는 결제 시점 금액
         this.imageUrl = item.getImageUrl();
         this.buyerNickname = purchase.getUser().getNickname();
         this.deliveryAddress = purchase.getDeliveryAddress();
