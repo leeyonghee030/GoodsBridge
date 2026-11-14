@@ -62,6 +62,30 @@
 .am-main .am-price { font-size: 0.84rem; color: var(--color-text); font-variant-numeric: tabular-nums; }
 .am-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
 .am-side .btn-pay { width: auto; padding: 0.35rem 0.8rem; font-size: 0.78rem; border-radius: 999px; }
+/* 경매 영수증 창 */
+.rc-card { max-width: 440px; padding: 0; max-height: 90vh; overflow-y: auto; }
+.rc-head { padding: 1.3rem 1.5rem 1rem; text-align: center; border-bottom: 1px dashed var(--color-border); }
+.rc-head h1 { margin: 0; font-size: 1.05rem; }
+.rc-head p { margin: 0.35rem 0 0; font-size: 0.76rem; color: var(--color-muted); }
+.rc-item { display: flex; gap: 0.9rem; align-items: center; padding: 1.1rem 1.5rem; }
+.rc-item .se-thumb { width: 56px; height: 56px; }
+.rc-item small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.rc-item strong { display: block; margin-top: 0.1rem; font-size: 0.92rem; font-weight: 500; }
+.rc-state { margin: 0 1.5rem 0.2rem; padding: 0.55rem 0.8rem; border-radius: 8px; font-size: 0.8rem; background: var(--color-surface); color: var(--color-muted); }
+.rc-state.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.rc-state.is-warn { background: #FDECEA; color: #C0392B; }
+.rc-sec { padding: 0.9rem 1.5rem; border-top: 1px dashed var(--color-border); }
+.rc-sec h2 { margin: 0 0 0.6rem; font-size: 0.82rem; color: var(--color-muted); font-weight: 500; }
+.rc-line { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 0.4rem; font-size: 0.86rem; }
+.rc-line span:first-child { color: var(--color-muted); flex: none; }
+.rc-line span:last-child { text-align: right; word-break: keep-all; }
+.rc-line.total { margin: 0.6rem 0 0; padding-top: 0.6rem; border-top: 1px solid var(--color-border); font-weight: 600; }
+.rc-line.total span:first-child { color: var(--color-text); }
+.rc-line.total b { font-size: 1.15rem; }
+.rc-foot { padding: 0.9rem 1.5rem 1.3rem; border-top: 1px dashed var(--color-border); text-align: center; }
+.rc-foot a { font-size: 0.82rem; color: var(--color-muted); }
+.rc-thumb { flex: none; width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
+.rc-thumb img { width: 100%; height: 100%; object-fit: contain; }
 @media (max-width: 640px) { .am-row { flex-wrap: wrap; } .am-side { flex-direction: row; align-items: center; margin-left: calc(72px + 0.9rem); } }
 </style>
 
@@ -78,6 +102,14 @@
 <section class="pu-panel">
     <div class="pu-list" id="am-list"><p class="empty">경매 내역을 불러오는 중...</p></div>
 </section>
+</div>
+
+<!-- 경매 영수증 창 -->
+<div class="modal-backdrop" id="rc-modal" hidden>
+    <div class="modal-card rc-card">
+        <button type="button" class="modal-close" id="rc-close">✕</button>
+        <div id="rc-body"></div>
+    </div>
 </div>
 
 <!-- 낙찰 잔금 결제 창 -->
@@ -124,12 +156,17 @@
     // TODO(데모 종료 후 제거): 데모 모드면 결제창 없이 결제 (데모 바의 결제 O/X 토글을 따른다)
     const skipPayment = () => '{{skipPayment}}' === 'true' && window.gbPaySkip && window.gbPaySkip();
 
-    // 탭: 입찰중(진행 중) / 낙찰(내가 낙찰받은 경매) / 종료·취소(패찰, 유찰, 취소)
-    const TABS = [['BIDDING', '입찰중'], ['WON', '낙찰'], ['DONE', '종료 · 취소']];
+    // 탭: 입찰중 / 낙찰(잔금 대기 · 결제 완료로 나눔) / 패찰(다른 사람이 낙찰) / 미결제(내가 낙찰받고 잔금을 안 냄) / 경매 취소(가게가 취소)
+    const TABS = [['BIDDING', '입찰중'], ['WAIT', '낙찰 · 잔금 대기'], ['PAID', '낙찰 · 결제 완료'], ['LOST', '패찰'], ['FORFEIT', '미결제'], ['CANCELLED', '경매 취소']];
     const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
     const isWinner = a => a.currentWinnerUserId === userId;
     const tabOf = a => a.status === 'ACTIVE' ? 'BIDDING'
-        : a.status === 'ENDED_SUCCESS' && isWinner(a) ? 'WON' : 'DONE';
+        : a.status === 'ENDED_SUCCESS' ? (isWinner(a) ? (a.balancePaid ? 'PAID' : 'WAIT') : 'LOST')
+        : a.status === 'ENDED_FAIL' ? (isWinner(a) ? 'FORFEIT' : 'LOST')   // 낙찰자가 잔금을 안 내 무효가 된 경매: 낙찰자 본인이면 미결제, 나머지는 패찰
+        : 'CANCELLED';
+
+    // 내가 낙찰받은 경매(잔금 대기 · 결제 완료 · 미결제)는 경매 게시글 대신 영수증을 보여준다
+    const hasReceipt = a => isWinner(a) && (a.status === 'ENDED_SUCCESS' || a.status === 'ENDED_FAIL');
 
     function badgeOf(a) {
         if (a.status === 'ACTIVE') {
@@ -142,7 +179,7 @@
             const overdue = a.balanceDueAt && new Date(a.balanceDueAt.slice(0, 19)) < new Date();
             return overdue ? '<span class="pu-badge is-warn">결제 기한 지남</span>' : '<span class="pu-badge is-warn">잔금 결제 필요</span>';
         }
-        if (a.status === 'ENDED_FAIL') return '<span class="pu-badge">유찰</span>';
+        if (a.status === 'ENDED_FAIL') return isWinner(a) ? '<span class="pu-badge is-warn">미결제 · 보증금 몰수</span>' : '<span class="pu-badge">패찰 · 보증금 환불</span>';
         return '<span class="pu-badge">경매 취소 · 환불</span>';
     }
     function infoOf(a) {
@@ -170,12 +207,12 @@
             return `
             <div class="am-group">
                 <div class="am-row">
-                    <a class="am-link" href="/test/auction/${a.id}">
+                    <a class="am-link" href="/test/auction/${a.id}" ${hasReceipt(a) ? `data-receipt="${a.id}"` : ''}>
                         <span class="am-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
                         <span class="am-main">
                             <small>${esc(a.shopName)}</small>
                             <strong>${esc(a.itemTitle)}</strong>
-                            <span class="am-price">${a.status === 'ACTIVE' ? '현재가' : '낙찰가'} <b>${money(a.currentPrice)}</b> <small style="display:inline;">· ${infoOf(a)}</small></span>
+                            <span class="am-price">${a.status === 'ACTIVE' ? '현재가' : a.status === 'ENDED_SUCCESS' ? '낙찰가' : '최종 입찰가'} <b>${money(a.currentPrice)}</b> <small style="display:inline;">· ${infoOf(a)}</small></span>
                         </span>
                     </a>
                     <span class="am-side">${badgeOf(a)}</span>
@@ -184,6 +221,14 @@
                     <span class="am-win-text"><b>낙찰되셨어요!</b> 잔금 <b>${money(a.balanceAmount)}</b>${a.balanceDueAt ? ' · ' + date(a.balanceDueAt) + '까지' : ''}
                         <small>기한 안에 결제하지 않으면 낙찰이 무효가 되고 보증금은 돌려받지 못해요.</small></span>
                     <button type="button" data-pay="${a.id}" ${overdue ? 'disabled' : ''}>${overdue ? '결제 기한 지남' : '잔금 결제하기'}</button>
+                </div>` : ''}
+                ${a.status === 'ENDED_FAIL' && isWinner(a) ? `<div class="am-win is-warn">
+                    <span class="am-win-text"><b>잔금을 기한 안에 내지 않아 낙찰이 무효가 됐어요.</b>
+                        <small>낙찰자가 낸 보증금 ${money(a.depositAmount)}은 가게에 정산되어 돌려받을 수 없어요.</small></span>
+                </div>` : ''}
+                ${a.status === 'CANCELLED' ? `<div class="am-win">
+                    <span class="am-win-text"><b>가게 사정으로 경매가 취소됐어요.</b>
+                        <small>입찰하며 낸 보증금은 모두 환불돼요.</small></span>
                 </div>` : ''}
             </div>`;
         }).join('');
@@ -196,7 +241,7 @@
         // 잔금 결제가 필요한 낙찰을 먼저 보여준다
         const rank = a => (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) ? 0 : 1;
         rows.sort((x, y) => rank(x) - rank(y) || new Date(y.deadline) - new Date(x.deadline));
-        if (rows.some(a => tabOf(a) === 'WON' && !a.balancePaid) && !rows.some(a => tabOf(a) === 'BIDDING')) sub = 'WON';
+        if (rows.some(a => tabOf(a) === 'WAIT') && !rows.some(a => tabOf(a) === 'BIDDING')) sub = 'WAIT';
         render();
     }
 
@@ -205,9 +250,62 @@
         if (b) { sub = b.dataset.sub; render(); }
     });
 
+    // ----- 낙찰 영수증 (낙찰가 · 결제 내역 · 배송지) -----
+    const $ = id => document.getElementById(id);
+    const DELIVERY_LABEL = { PREPARING: '배송 준비중', SHIPPED: '배송중', DELIVERED: '배송 완료' };
+    const fullDate = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+    async function openReceipt(id) {
+        const res = await pageFetch(`/api/auctions/${id}/receipt`);
+        if (!res.ok) { await alert(await errorText(res, '영수증을 불러오지 못했어요.')); return; }
+        const rc = await res.json();
+        const line = (k, v) => `<div class="rc-line"><span>${k}</span><span>${v}</span></div>`;
+        const stateBox = {
+            DONE: ['is-ok', '잔금까지 결제를 마쳤어요. 가게에서 배송을 준비하고 있어요.'],
+            WAITING: ['is-warn', `잔금 결제가 필요해요. ${rc.balanceDueAt ? fullDate(rc.balanceDueAt) + '까지 결제하지 않으면 낙찰이 무효가 되고 보증금은 돌려받을 수 없어요.' : ''}`],
+            FORFEITED: ['is-warn', '기한 안에 잔금을 내지 않아 낙찰이 무효가 됐어요. 낸 보증금은 가게에 정산되어 돌려받을 수 없어요.']
+        }[rc.result];
+        const paidAll = rc.result === 'DONE';
+        const totalLabel = paidAll ? '총 결제 금액 (보증금 + 잔금)' : rc.result === 'FORFEITED' ? '돌려받지 못하는 금액 (보증금)' : '결제해야 할 총 금액 (낙찰가)';
+        const totalValue = rc.result === 'FORFEITED' ? rc.depositAmount : rc.finalPrice;
+        $('rc-body').innerHTML = `
+            <div class="rc-head"><h1>낙찰 영수증</h1><p>${esc(rc.shopName)} · 경매 마감 ${fullDate(rc.deadline)}</p></div>
+            <div class="rc-item">
+                <span class="rc-thumb">${rc.itemImageUrl ? `<img src="${esc(rc.itemImageUrl)}" alt="">` : ''}</span>
+                <div><small>입찰 ${rc.bidCount}회</small><strong>${esc(rc.itemTitle)}</strong></div>
+            </div>
+            ${stateBox ? `<div class="rc-state ${stateBox[0]}">${stateBox[1]}</div>` : ''}
+            <div class="rc-sec">
+                <h2>낙찰 정보</h2>
+                ${line('시작가', money(rc.startPrice))}
+                ${line('낙찰가', `<b>${money(rc.finalPrice)}</b>`)}
+            </div>
+            <div class="rc-sec">
+                <h2>결제 내역</h2>
+                ${line('보증금 (입찰 시 결제)', money(rc.depositAmount))}
+                ${line('잔금 (낙찰가 - 보증금)', money(rc.balanceAmount) + (paidAll ? ' · 결제 완료' : rc.result === 'WAITING' ? ' · 결제 대기' : ' · 미결제'))}
+                ${paidAll ? line('잔금 결제일', fullDate(rc.paidAt)) : ''}
+                <div class="rc-line total"><span>${totalLabel}</span><b>${money(totalValue)}</b></div>
+            </div>
+            ${paidAll ? `<div class="rc-sec">
+                <h2>배송 정보</h2>
+                ${line('배송지', esc(rc.deliveryAddress || '-'))}
+                ${line('배송 상태', DELIVERY_LABEL[rc.deliveryStatus] || '-')}
+                ${rc.trackingNumber ? line('운송장 번호', esc(rc.trackingNumber)) : ''}
+            </div>` : ''}
+            <div class="rc-foot"><a href="/test/auction/${rc.auctionId}">경매 게시글 보기 →</a>${paidAll ? ' &nbsp;·&nbsp; <a href="/my/purchases">구매 내역에서 배송 확인 →</a>' : ''}</div>`;
+        $('rc-modal').hidden = false;
+    }
+    $('rc-close').addEventListener('click', () => { $('rc-modal').hidden = true; });
+    $('rc-modal').addEventListener('click', e => { if (e.target === $('rc-modal')) $('rc-modal').hidden = true; });
+    listEl.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-receipt]');
+        if (!b) return;
+        ev.preventDefault();
+        openReceipt(b.dataset.receipt);
+    });
+
     // ----- 낙찰 잔금 결제 (마이페이지에서 바로) -----
     const modal = document.getElementById('am-modal');
-    const $ = id => document.getElementById(id);
     let paying = null;
     async function pay(amount, orderName) {
         if (skipPayment()) return { paymentId: `demo-pay-${crypto.randomUUID()}` };

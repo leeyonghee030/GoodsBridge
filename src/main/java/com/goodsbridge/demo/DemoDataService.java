@@ -444,6 +444,14 @@ public class DemoDataService {
         cancelled.cancel();
         auctionRepository.save(cancelled);
 
+        // 9) 종료 · 데모신청B 는 패찰 (데모교환A 가 낙찰해 잔금까지 결제, B 의 보증금은 환불)
+        Auction lost = saveAuction(shopOwner, shop, c0, "(테스트) 아크릴 홀더 세트 (패찰)", "데모신청B 가 패찰한 시연용 경매입니다.",
+            20000, 3000, now.minusDays(5), images.get(6 % images.size()));
+        bid(lost, userB, 22000, null);
+        bid(lost, userA, 27000, null);
+        finishAuction(lost, now.minusDays(4));
+        payAuctionBalance(lost, userA, now.minusDays(4).plusHours(3));
+
         // 8) 종료 · 낙찰자가 기한 안에 잔금을 내지 않음 → 낙찰 무효, 낙찰자의 보증금만 가게 정산 (NO_SHOW_FEE)
         Auction forfeited = saveAuction(shopOwner, shop, c1, "(테스트) 캐릭터 아크릴 키링 (잔금 미결제)", "낙찰자가 기한 안에 잔금을 내지 않아 보증금만 정산된 시연용 경매입니다.",
             18000, 2700, now.minusDays(4), images.get(5 % images.size()));

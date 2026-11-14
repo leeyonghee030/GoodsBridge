@@ -134,13 +134,14 @@ public class AuctionService {
         return auctionPage.map(a -> new AuctionResponse(a).withBidCount(counts.getOrDefault(a.getId(), 0L)));
     }
 
-    // 가게 사장님용 경매 영수증 (낙찰가·낙찰자·결제/배송 정보)
+    // 경매 영수증 (낙찰가·낙찰자·결제/배송 정보): 가게 주인, 그리고 그 경매의 낙찰자 본인만 볼 수 있다
     @Transactional(readOnly = true)
     public AuctionReceiptResponse getReceipt(Long userId, Long auctionId) {
         Auction auction = auctionRepository.findById(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
-        if (!auction.getShop().isOwner(userId)) {
-            throw new ForbiddenException("본인 가게의 경매만 조회할 수 있습니다.");
+        boolean isWinner = auction.getCurrentWinner() != null && auction.getCurrentWinner().getId().equals(userId);
+        if (!auction.getShop().isOwner(userId) && !isWinner) {
+            throw new ForbiddenException("가게 주인 또는 낙찰자만 영수증을 볼 수 있습니다.");
         }
         long bidCount = 0;
         for (Object[] row : bidRepository.countBidsByAuctionIds(java.util.List.of(auctionId))) {
