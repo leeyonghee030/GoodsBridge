@@ -7,7 +7,7 @@
         <form id="post-edit-form">
             <p>
                 <label for="post-edit-title" class="sr-only">제목</label>
-                <input id="post-edit-title" type="text" placeholder="제목" maxlength="100" autocomplete="off" required>
+                <input id="post-edit-title" type="text" placeholder="게시글 제목 (비우면 상품 이름이 제목이 돼요)" maxlength="100" autocomplete="off">
             </p>
             <p>
                 <label for="post-edit-want" class="sr-only">원하는 것</label>
@@ -42,7 +42,7 @@
 
     function openEdit(post) {
         editing = post;
-        document.getElementById('post-edit-title').value = post.itemTitle || '';
+        document.getElementById('post-edit-title').value = post.title || post.itemTitle || '';
         document.getElementById('post-edit-want').value = post.wantDescription || '';
         document.getElementById('post-edit-shop-name').value = post.shopName || '';
         document.getElementById('post-edit-shop-id').value = post.shopId || '';
@@ -121,7 +121,7 @@
                 const post = resolvePost(Number(card.dataset.postId), card);
                 if (!post) return;
                 if (edit) { openEdit(post); return; }
-                if (!(await gbConfirm(`'${post.itemTitle}' 게시글을 삭제할까요?\n올린 상품은 내 아이템에 그대로 남아요.`))) return;
+                if (!(await gbConfirm(`'${post.title || post.itemTitle}' 게시글을 삭제할까요?\n올린 상품은 내 아이템에 그대로 남아요.`))) return;
                 const res = await pageFetch('/api/exchange-items/' + post.id, { method: 'DELETE' });
                 if (!res.ok) { alert(await errorText(res, '삭제에 실패했습니다.')); return; }
                 if (onChanged) await onChanged();

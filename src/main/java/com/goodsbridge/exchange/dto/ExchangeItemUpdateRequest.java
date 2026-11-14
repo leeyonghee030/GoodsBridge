@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class ExchangeItemUpdateRequest {
 
-    private String title;           // 게시글(상품) 제목 — 비어 있으면 그대로 둔다
+    private String title;           // 게시글 제목 — 비우면 상품 이름이 제목으로 보인다 (상품 이름은 바뀌지 않는다)
     private String wantDescription; // 원하는 것
     private Long shopId;            // 교환장소
 

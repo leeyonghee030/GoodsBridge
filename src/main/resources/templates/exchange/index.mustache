@@ -49,13 +49,13 @@
 
 <div class="card-grid" id="item-grid">
 {{#items}}
-    <a class="card" href="/exchange/{{id}}" data-price="{{itemPrice}}" data-created="{{createdAt}}" data-title="{{itemTitle}}" data-category="{{categoryName}}" data-want="{{wantDescription}}" data-shop-id="{{shopId}}" data-request-count="{{requestCount}}">
+    <a class="card" href="/exchange/{{id}}" data-price="{{itemPrice}}" data-created="{{createdAt}}" data-title="{{title}}" data-category="{{categoryName}}" data-want="{{wantDescription}}" data-shop-id="{{shopId}}" data-request-count="{{requestCount}}">
         <span class="card-tag">■ {{status.displayName}}</span>
         <div class="card-image">
             {{#itemImageUrl}}<img src="{{itemImageUrl}}" alt="{{itemTitle}}">{{/itemImageUrl}}
             {{^itemImageUrl}}이미지 없음{{/itemImageUrl}}
         </div>
-        <p class="card-title">{{itemTitle}}</p>
+        <p class="card-title">{{title}}</p>
         <p class="card-price">{{#money}}{{itemPrice}}{{/money}}원</p>
         <p class="card-meta">원하는 것: {{wantDescription}}</p>
     </a>
@@ -74,6 +74,10 @@
                 <select id="itemId" name="itemId" required>
                     <option value="">내 아이템을 선택하세요</option>
                 </select>
+            </p>
+            <p>
+                <label for="postTitle" class="sr-only">게시글 제목</label>
+                <input id="postTitle" name="postTitle" type="text" placeholder="게시글 제목 (비우면 상품 이름이 제목이 돼요)" maxlength="100" autocomplete="off">
             </p>
             <p>
                 <textarea id="wantDescription" name="wantDescription" placeholder="원하는 것을 적어주세요" rows="3" required></textarea>
@@ -460,6 +464,7 @@
         if (!shopId) { message.textContent = '목록에서 가게를 선택해주세요.'; message.className = 'form-message error'; return; }
         const body = {
             itemId: Number(document.getElementById('itemId').value),
+            title: document.getElementById('postTitle').value.trim(),
             wantDescription: document.getElementById('wantDescription').value.trim(),
             shopId: Number(shopId)
         };
@@ -658,10 +663,10 @@
     const PAGE_SIZE = 20;
 
     function cardHtml(item) {
-        return `<a class="card" href="/exchange/${item.id}" data-price="${item.itemPrice}" data-created="${item.createdAt}" data-title="${esc(item.itemTitle)}" data-category="${esc(item.categoryName)}" data-want="${esc(item.wantDescription)}" data-shop-id="${item.shopId}" data-request-count="${item.requestCount || 0}">
+        return `<a class="card" href="/exchange/${item.id}" data-price="${item.itemPrice}" data-created="${item.createdAt}" data-title="${esc(item.title || item.itemTitle)}" data-category="${esc(item.categoryName)}" data-want="${esc(item.wantDescription)}" data-shop-id="${item.shopId}" data-request-count="${item.requestCount || 0}">
             <span class="card-tag">■ ${esc(statusLabels[item.status] || item.status)}</span>
             <div class="card-image">${item.itemImageUrl ? `<img src="${esc(item.itemImageUrl)}" alt="${esc(item.itemTitle)}">` : '이미지 없음'}</div>
-            <p class="card-title">${esc(item.itemTitle)}</p>
+            <p class="card-title">${esc(item.title || item.itemTitle)}</p>
             <p class="card-price">${money(item.itemPrice)}</p>
             <p class="card-meta">원하는 것: ${esc(item.wantDescription)}</p>
         </a>`;

@@ -12,10 +12,11 @@
     </div>
     <div class="detail-info exchange-detail-info">
         <div class="detail-head-top">
-            <h1 class="detail-title">{{item.itemTitle}}</h1>
+            <h1 class="detail-title">{{item.title}}</h1>
             <button id="open-propose" type="button" class="propose-open-btn" hidden>교환하기</button>
         </div>
         <p class="card-price">{{#money}}{{item.itemPrice}}{{/money}}원</p>
+        <p class="card-meta">올린 상품: {{item.itemTitle}}</p>
         <p>원하는 것: {{item.wantDescription}}</p>
         <p class="card-meta">교환장소: {{item.shopName}} · <span class="badge">{{item.status}}</span></p>
 

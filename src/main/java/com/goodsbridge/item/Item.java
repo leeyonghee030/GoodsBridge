@@ -190,17 +190,6 @@ public class Item {
     }
 
     // 점주가 직접 상품 상태 변경
-    // 교환 게시글 수정에서 상품 제목만 바꿀 때 쓴다 (다른 필드는 그대로)
-    public void changeTitle(String title) {
-        if (title == null || title.isBlank()) {
-            throw new BadRequestException("상품 제목은 필수입니다.");
-        }
-        if (title.trim().length() > 100) {
-            throw new BadRequestException("상품 제목은 100자 이내여야 합니다.");
-        }
-        this.title = title.trim();
-    }
-
     public void updateStatus(ItemStatus status) {
         if (status == null) {
             throw new BadRequestException("상품 상태는 필수입니다.");

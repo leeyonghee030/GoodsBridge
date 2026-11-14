@@ -150,6 +150,7 @@ public class ExchangeService {
             .item(item)
             .shop(shop)
             .wantDescription(request.getWantDescription())
+            .title(request.getTitle())
             .build();
         exchangeItemRepository.save(exchangeItem);
         exchangeItemRepository.flush();
@@ -202,7 +203,7 @@ public class ExchangeService {
         return updateExchangeItem(id, userId, null, wantDescription, shopId);
     }
 
-    // title 이 비어 있지 않으면 게시글에 올린 상품의 제목도 함께 바꾼다
+    // 게시글 제목(title)만 바꾸고 올린 상품의 이름은 그대로 둔다. 제목을 비우면 상품 이름이 제목으로 보인다
     @Transactional
     public ExchangeItemResponse updateExchangeItem(Long id, Long userId, String title, String wantDescription, Long shopId) {
         ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
@@ -222,9 +223,7 @@ public class ExchangeService {
             throw new BadRequestException("입점 승인된 가게만 교환장소로 지정할 수 있습니다.");
         }
         exchangeItem.update(wantDescription.trim(), shop);
-        if (title != null && !title.isBlank()) {
-            exchangeItem.getItem().changeTitle(title);
-        }
+        exchangeItem.changeTitle(title);
         return ExchangeItemResponse.from(exchangeItem);
     }
 
