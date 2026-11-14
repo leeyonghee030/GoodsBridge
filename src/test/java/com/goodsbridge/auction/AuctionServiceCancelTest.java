@@ -70,7 +70,7 @@ class AuctionServiceCancelTest {
     }
 
     @Test
-    void cancel_rejectsOwnerWhenBidsExist() {
+    void cancel_allowsOwnerEvenWhenBidsExist() {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(1L)).thenReturn(true);
         Auction auction = activeAuction(shop);
@@ -79,9 +79,11 @@ class AuctionServiceCancelTest {
         User owner = user(Role.USER);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
 
-        assertThrows(BadRequestException.class, () -> auctionService.cancel(1L, 1L));
+        // 가게 사정으로 입찰이 있어도 취소할 수 있다 (입찰자 보증금은 refundCancelled 가 환불)
+        AuctionResponse response = auctionService.cancel(1L, 1L);
 
-        assertEquals(Status.ACTIVE, auction.getStatus());
+        assertEquals(Status.CANCELLED, response.getStatus());
+        assertEquals(Status.CANCELLED, auction.getStatus());
     }
 
     @Test

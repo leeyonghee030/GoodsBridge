@@ -120,6 +120,16 @@
 .rc-line.total b { font-size: 1.15rem; }
 .rc-foot { padding: 0.9rem 1.5rem 1.3rem; border-top: 1px dashed var(--color-border); text-align: center; }
 .rc-foot a { font-size: 0.82rem; color: var(--color-muted); }
+.rc-bids { max-height: 220px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.rc-bids.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+.rc-bid { display: grid; grid-template-columns: 2.6rem 1fr auto; gap: 0.1rem 0.6rem; align-items: center; padding: 0.45rem 0; border-top: 1px solid var(--color-border); font-size: 0.84rem; }
+.rc-bid:first-child { border-top: 0; }
+.rc-bid .rk { grid-row: span 2; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.rc-bid .am { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rc-bid .at { grid-column: 2 / -1; font-size: 0.72rem; color: var(--color-muted); }
+.rc-bid.is-top .rk { color: var(--color-text); font-weight: 600; }
+.rc-foot .rc-cancel { display: block; width: 100%; margin: 0 0 0.7rem; padding: 0.6rem; border: 1px solid #E8B4AE; border-radius: 8px; background: #fff; color: #C0392B; font: inherit; font-size: 0.86rem; cursor: pointer; }
+.rc-foot .rc-cancel:hover { background: #FDECEA; color: #C0392B; }
 @media (max-width: 640px) { .se-row { flex-wrap: wrap; } .se-actions { margin-left: calc(64px + 0.9rem); } }
 </style>
 
@@ -258,7 +268,9 @@
     // 마감시간이 지났는데 아직 처리되지 않은 경매는 '마감 처리 중'으로 본다
     const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
     const tabOf = a => a.status === 'ACTIVE' ? 'ACTIVE' : a.status === 'CANCELLED' ? 'CANCELLED' : 'ENDED';
-    const canCancel = a => a.status === 'ACTIVE' && a.bidCount === 0;
+    const canCancel = a => a.status === 'ACTIVE';   // 입찰이 있어도 가게 사정으로 취소할 수 있다
+    // 상세(영수증/현황) 창이 있는 경매: 진행중, 낙찰, 낙찰자가 결제하지 않아 무효가 된 경매
+    const hasReceipt = a => a.status === 'ACTIVE' || a.status === 'ENDED_SUCCESS' || (a.status === 'ENDED_FAIL' && !!a.currentWinnerUserId);
     const canClose = a => a.status === 'ACTIVE' && !isLive(a);
     const badgeOf = a => a.status === 'ACTIVE' ? (isLive(a) ? ['진행중', 'is-ok'] : ['마감 처리 중', ''])
         : a.status === 'ENDED_SUCCESS' ? (a.balancePaid ? ['낙찰 · 정산 완료', 'is-ok'] : ['낙찰 · 잔금 대기', 'is-warn'])
@@ -306,14 +318,14 @@
             <div class="se-row">
                 <span class="se-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
                 <span class="se-row-main">
-                    <strong><a href="/test/auction/${a.id}" ${a.status === 'ENDED_SUCCESS' || (a.status === 'ENDED_FAIL' && a.currentWinnerUserId) ? `data-receipt="${a.id}"` : ''}>${esc(a.itemTitle)}</a></strong>
+                    <strong><a href="/test/auction/${a.id}" ${hasReceipt(a) ? `data-receipt="${a.id}"` : ''}>${esc(a.itemTitle)}</a></strong>
                     <small>${multiShop ? esc(a.shopName) + ' · ' : ''}시작가 ${money(a.startPrice)} · ${a.bidCount ? '현재가 ' + money(a.currentPrice) : '입찰 없음'} · 입찰 ${a.bidCount}회 · 보증금 ${money(a.depositAmount)}</small>
                     <small>마감 ${dateTime(a.deadline)}</small>
                     ${earnLine(a)}
                 </span>
                 <span class="se-actions">
                     <span class="se-badge ${cls}">${label}</span>
-                    ${a.status === 'ENDED_SUCCESS' || (a.status === 'ENDED_FAIL' && a.currentWinnerUserId) ? `<button type="button" data-receipt="${a.id}">상세</button>` : `<a class="btn" href="/test/auction/${a.id}">상세</a>`}
+                    ${hasReceipt(a) ? `<button type="button" data-receipt="${a.id}">상세</button>` : `<a class="btn" href="/test/auction/${a.id}">상세</a>`}
                     ${canCancel(a) || canClose(a) ? `<span class="se-more">
                         <button type="button" class="se-more-btn" data-more="${a.id}" aria-label="더보기">···</button>
                         <span class="se-more-menu" hidden>
@@ -344,10 +356,63 @@
     // ===== 경매 영수증 (낙찰가 · 낙찰자 · 결제 · 배송지) =====
     const DELIVERY = { PREPARING: '배송 준비중', SHIPPED: '배송중', DELIVERED: '배송 완료' };
     const fullDate = iso => iso ? new Date(iso.slice(0, 19)).toLocaleString('ko-KR', { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+    // 진행중 경매 현황 창: 현재가 · 입찰 내역 · 보관 중인 보증금, 여기서 경매 취소도 할 수 있다
+    async function openLive(r) {
+        const res = await pageFetch(`/api/auctions/${r.auctionId}/bids?page=0&size=100`);
+        const bids = res.ok ? ((await res.json()).content || []).sort((x, y) => y.bidAmount - x.bidAmount || new Date(y.createdAt) - new Date(x.createdAt)) : [];
+        const bidders = new Set(bids.map(b => b.userId)).size;
+        const ms = new Date(r.deadline.slice(0, 19)) - new Date();
+        const left = ms <= 0 ? null : (() => {
+            const m = Math.floor(ms / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60);
+            return d > 0 ? `${d}일 ${h}시간` : h > 0 ? `${h}시간 ${m % 60}분` : `${m}분`;
+        })();
+        const line = (k, v) => `<div class="rc-line"><span>${k}</span><span>${v}</span></div>`;
+        const when = iso => { const d = new Date(iso.slice(0, 19)); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        $('rc-body').innerHTML = `
+            <div class="rc-head"><h1>경매 현황</h1><p>${esc(r.shopName)} · 경매 마감 ${fullDate(r.deadline)}</p></div>
+            <div class="rc-item">
+                <span class="se-thumb">${r.itemImageUrl ? `<img src="${esc(r.itemImageUrl)}" alt="">` : ''}</span>
+                <div><small>입찰 ${r.bidCount}회 · ${bidders}명</small><strong>${esc(r.itemTitle)}</strong></div>
+            </div>
+            <div class="rc-state is-ok">${left ? `진행 중 · 마감까지 ${left}` : '마감 시간이 지났어요. 곧 낙찰 처리돼요.'}</div>
+            <div class="rc-sec">
+                <h2>입찰 현황</h2>
+                ${line('시작가', money(r.startPrice))}
+                ${line('현재가', `<b>${money(r.finalPrice)}</b>`)}
+                ${line('최고 입찰자', r.winnerNickname ? esc(r.winnerNickname) : '아직 없어요')}
+            </div>
+            <div class="rc-sec">
+                <h2>보증금</h2>
+                ${line('1인당 보증금', money(r.depositAmount))}
+                <div class="rc-line total"><span>지금 보관 중인 보증금</span><b>${money(r.depositAmount * bidders)}</b></div>
+                <p class="se-hint" style="margin-top:0.5rem;">경매가 끝나면 낙찰자 외 입찰자의 보증금은 환불돼요. 가게가 경매를 취소하면 입찰자 모두에게 환불돼요.</p>
+            </div>
+            <div class="rc-sec">
+                <h2>입찰 내역</h2>
+                <div class="rc-bids" id="rc-bids">${bids.length ? bids.map((b, i) => `
+                    <div class="rc-bid ${i === 0 ? 'is-top' : ''}">
+                        <span class="rk">${i === 0 ? '최고' : i + 1}</span>
+                        <span>${esc(b.nickname)}</span>
+                        <span class="am">${money(b.bidAmount)}</span>
+                        <span class="at">${when(b.createdAt)}</span>
+                    </div>`).join('') : '<p class="se-hint" style="text-align:center;margin:0.8rem 0;">아직 입찰이 없어요.</p>'}</div>
+            </div>
+            <div class="rc-foot">
+                <button type="button" class="rc-cancel" data-live-cancel="${r.auctionId}">${r.bidCount > 0 ? '가게 사정으로 경매 취소 (보증금 전액 환불)' : '경매 취소'}</button>
+                <a href="/test/auction/${r.auctionId}">경매 게시글 보기 →</a>
+            </div>`;
+        const bidBox = $('rc-bids');
+        let st;
+        bidBox.addEventListener('scroll', () => { bidBox.classList.add('is-scrolling'); clearTimeout(st); st = setTimeout(() => bidBox.classList.remove('is-scrolling'), 600); });
+        $('rc-body').querySelector('[data-live-cancel]').addEventListener('click', () => cancelAuctionById(r.auctionId));
+        $('rc-modal').hidden = false;
+    }
+
     async function openReceipt(id) {
         const res = await pageFetch(`/api/auctions/${id}/receipt`);
         if (!res.ok) { await alert(await errorText(res, '영수증을 불러오지 못했어요.')); return; }
         const r = await res.json();
+        if (r.status === 'ACTIVE') { await openLive(r); return; }
         const line = (k, v) => `<div class="rc-line"><span>${k}</span><span>${v}</span></div>`;
         const stateBox = {
             DONE: ['is-ok', '낙찰자가 잔금까지 결제해서 정산이 끝났어요.'],
@@ -490,13 +555,26 @@
         if (!btn) return;
         const id = Number(btn.dataset.cancelAuction || btn.dataset.closeAuction);
         const a = auctions.find(x => x.id === id);
-        const msg = cancelBtn ? `'${a.itemTitle}' 경매를 취소할까요?` : `'${a.itemTitle}' 경매를 마감 처리할까요?\n입찰이 있으면 최고가 입찰자가 낙찰돼요.`;
-        if (!(await gbConfirm(msg))) return;
+        if (cancelBtn) { await cancelAuctionById(id); return; }
+        if (!(await gbConfirm(`'${a.itemTitle}' 경매를 마감 처리할까요?\n입찰이 있으면 최고가 입찰자가 낙찰돼요.`))) return;
         btn.disabled = true;
-        const res = await pageFetch(`/api/auctions/${id}/${cancelBtn ? 'cancel' : 'close'}`, { method: 'PATCH' });
+        const res = await pageFetch(`/api/auctions/${id}/close`, { method: 'PATCH' });
         if (!res.ok) await alert(await errorText(res, '처리에 실패했습니다.'));
         await load();
     });
+    // 경매 취소 (목록 메뉴와 현황 창에서 같이 사용). 입찰이 있으면 입찰자 모두에게 보증금이 환불된다.
+    async function cancelAuctionById(id) {
+        const a = auctions.find(x => x.id === id);
+        const msg = a.bidCount > 0
+            ? `'${a.itemTitle}' 경매를 취소할까요?\n\n입찰 ${a.bidCount}회가 있어요. 취소하면 입찰자 모두에게 보증금이 환불되고, 취소한 경매는 되돌릴 수 없어요.`
+            : `'${a.itemTitle}' 경매를 취소할까요?`;
+        if (!(await gbConfirm(msg))) return false;
+        const res = await pageFetch(`/api/auctions/${id}/cancel`, { method: 'PATCH' });
+        if (!res.ok) { await alert(await errorText(res, '처리에 실패했습니다.')); return false; }
+        $('rc-modal').hidden = true;
+        await load();
+        return true;
+    }
     document.addEventListener('click', closeMenus);
 
     // ===== 모달 공통 =====

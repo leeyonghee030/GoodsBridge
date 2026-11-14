@@ -94,7 +94,11 @@ public class UserController {
 
     // GET http://localhost:8080/login
     @GetMapping("/login")
-    public String loginForm() {
+    public String loginForm(@AuthenticationPrincipal Long userId) {
+        // 이미 로그인한 사용자는 로그인 화면 대신 홈으로 보낸다
+        if (userId != null) {
+            return "redirect:/";
+        }
         return "user/login-form";
     }
 

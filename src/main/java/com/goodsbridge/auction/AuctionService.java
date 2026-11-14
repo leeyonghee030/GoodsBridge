@@ -223,10 +223,7 @@ public class AuctionService {
         if (auction.getStatus() != Status.ACTIVE) {
             throw new BadRequestException("진행 중인 경매만 취소할 수 있습니다.");
         }
-        // 입찰이 있는 경우 가게 주인은 경매를 취소할 수 없고, 관리자만 권한이 있다.
-        if (!isAdmin && auction.getCurrentWinner() != null) {
-            throw new BadRequestException("입찰이 있는 경매는 관리자만 취소할 수 있습니다.");
-        }
+        // 입찰이 있어도 가게 사정으로 취소할 수 있다. 취소하면 모든 입찰자의 보증금이 환불된다 (refundCancelled).
 
         auction.cancel();
         return new AuctionResponse(auction);
