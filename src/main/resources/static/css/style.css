@@ -2009,6 +2009,9 @@ button.link-button:hover { background: none; color: var(--color-text); }
 .gb-bid-amount strong { display: block; margin: 0.15rem 0 0.2rem; font-size: 1.7rem; font-weight: 800; color: var(--color-text); letter-spacing: -0.02em; }
 .gb-bid-sub { margin: 0.5rem 0 0; font-size: 0.78rem; color: var(--color-muted); }
 .gb-dialog-input { width: 100%; margin: -0.25rem 0 1.25rem; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.9rem; }
+.gb-dialog.is-wide { max-width: 460px; }
+textarea.gb-dialog-input { display: block; min-height: 8rem; line-height: 1.6; text-align: left; resize: vertical; box-sizing: border-box; }
+.gb-dialog-count { margin: -1rem 0.1rem 1.1rem; text-align: right; font-size: 0.74rem; color: var(--color-muted); }
 .gb-dialog-input:focus { outline: none; border-color: var(--color-dark); }
 .gb-dialog-actions { display: flex; gap: 0.5rem; }
 .gb-dialog-actions button { flex: 1; padding: 0.65rem 0; border-radius: 8px; font: inherit; font-size: 0.88rem; font-weight: var(--fw-semibold); }

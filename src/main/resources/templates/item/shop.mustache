@@ -918,7 +918,7 @@
             if (!(await gbConfirm(msg))) return;
             url = `/api/shops/${s.shopId}/refunds/${id}/approve`;
         } else {
-            const reason = await gbPrompt(act === 'reject' ? '거절 사유를 입력해 주세요.' : '거절 사유를 수정해 주세요.', act === 'editreason' ? (rf.rejectReason || '') : '');
+            const reason = await gbPrompt(act === 'reject' ? '거절 사유를 입력해 주세요.' : '거절 사유를 수정해 주세요.', act === 'editreason' ? (rf.rejectReason || '') : '', { multiline: true });
             if (reason === null) return;
             if (!reason.trim()) { await alert('거절 사유를 입력해 주세요.'); return; }
             url = `/api/shops/${s.shopId}/refunds/${id}/reject?rejectReason=${encodeURIComponent(reason.trim())}`;
