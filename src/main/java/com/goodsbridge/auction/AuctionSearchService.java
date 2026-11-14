@@ -172,7 +172,7 @@ public class AuctionSearchService {
         return fetch(filter, orderBy, page, size, null);
     }
 
-    // 탭 · 분류별 건수, 정산 예정(잔금 대기) 합계, 진행 중인 경매의 상품 id (경매 열기에서 이미 경매 중인 상품 제외용)
+    // 탭 · 분류별 건수, 정산 예정(잔금 대기) 합계, 사용 중인 경매 상품 id (경매 열기에서 선택 불가로 표시하는 용도)
     public Map<String, Object> shopCounts(Long ownerUserId, String keyword) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("ACTIVE", count(shopFilter(ownerUserId, keyword).and(shopTab("ACTIVE", null))));
@@ -187,7 +187,9 @@ public class AuctionSearchService {
         bind(sum, waiting.params, "select coalesce(sum(a.currentPrice), 0) from Auction a join a.item i join a.shop s where " + waiting.where);
         result.put("pendingAmount", ((Number) sum.getSingleResult()).longValue());
         result.put("pendingCount", count(waiting));
-        Filter active = shopFilter(ownerUserId, null).and(shopTab("ACTIVE", null));
+        // 사용 중인 상품: 진행 중인 경매의 상품 + 낙찰자의 잔금 결제를 기다리는 경매의 상품
+        Filter active = shopFilter(ownerUserId, null)
+            .and("(a.status = " + ACTIVE + " or (a.status = " + ENDED_SUCCESS + " and a.balancePaymentId is null))");
         String idsJpql = "select i.id from Auction a join a.item i join a.shop s where " + active.where;
         Query ids = em.createQuery(idsJpql);
         bind(ids, active.params, idsJpql);

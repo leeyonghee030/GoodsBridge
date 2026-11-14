@@ -78,6 +78,11 @@ public class AuctionService {
             throw new ForbiddenException("해당 가게의 상품만 경매에 등록할 수 있습니다.");
         }
 
+        // 일반 판매 상품은 경매 전에 다른 사람이 살 수 있으므로, 경매 전용(AUCTION)으로 등록한 상품만 경매에 올릴 수 있다.
+        if (item.getSaleType() != com.goodsbridge.item.SaleType.AUCTION) {
+            throw new BadRequestException("경매 전용으로 등록한 상품만 경매에 올릴 수 있습니다. '경매 상품 등록'으로 먼저 등록해 주세요.");
+        }
+
         // 이미 팔렸거나(SOLD) 판매 중지(CLOSED)된 상품, 삭제된 상품은 경매에 올릴 수 없다.
         if (item.isDeleted() || item.getStatus() != ItemStatus.ON_SALE) {
             throw new BadRequestException("판매 중인 상품만 경매에 등록할 수 있습니다.");
@@ -86,6 +91,9 @@ public class AuctionService {
         // 상품이 현재 경매중인 경우
         if (auctionRepository.existsByItemIdAndStatus(item.getId(), Status.ACTIVE)) {
             throw new BadRequestException("이미 진행 중인 경매가 있는 상품입니다.");
+        }
+        if (auctionRepository.existsUnpaidWinnerByItemId(item.getId())) {
+            throw new BadRequestException("낙찰자의 잔금 결제를 기다리는 상품은 경매에 올릴 수 없습니다.");
         }
 
         Auction auction = Auction.builder()

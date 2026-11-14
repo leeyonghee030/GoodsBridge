@@ -155,6 +155,7 @@
     <div class="se-bar-right">
         <label for="se-search" class="sr-only">경매 검색</label>
         <input id="se-search" type="text" placeholder="상품 · 가게명 검색" autocomplete="off">
+        <button type="button" class="write-link" id="se-open-item">경매 상품 등록</button>
         <button type="button" class="write-link" id="se-open-create">경매 열기</button>
     </div>
 </div>
@@ -185,6 +186,48 @@
 </section>
 <section class="se-panel" id="se-panel"><div id="se-list"><p class="se-empty">불러오는 중...</p></div></section>
 
+</div>
+
+<!-- 경매 상품 등록 창: 경매에만 쓰는 상품이라 일반 판매 목록에는 나오지 않는다 -->
+<div class="modal-backdrop" id="ai-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" data-close>✕</button>
+        <h1>경매 상품 등록</h1>
+        <p class="se-hint" style="margin:-0.3rem 0 0.8rem;">경매 전용 상품이라 일반 판매 목록에는 보이지 않고, 경매 열기에서만 쓸 수 있어요.</p>
+        <form id="ai-form">
+            <p id="ai-shop-row">
+                <label for="ai-shop" class="sr-only">가게</label>
+                <select id="ai-shop" required>
+                    {{#shops}}<option value="{{id}}">{{name}}</option>{{/shops}}
+                </select>
+            </p>
+            <p>
+                <label for="ai-title" class="sr-only">상품명</label>
+                <input id="ai-title" type="text" placeholder="상품명" maxlength="100" autocomplete="off" required>
+            </p>
+            <p>
+                <label for="ai-category" class="sr-only">카테고리</label>
+                <select id="ai-category" required><option value="">카테고리 선택</option></select>
+            </p>
+            <p>
+                <label for="ai-price" class="se-field-label">기준 가격 (경매 시작가 초안)</label>
+                <span class="price-input">
+                    <input id="ai-price" type="text" inputmode="numeric" placeholder="기준 가격" autocomplete="off" required>
+                    <span class="price-input-unit">원</span>
+                </span>
+            </p>
+            <p>
+                <textarea id="ai-description" placeholder="상품 설명 (선택)" rows="3" maxlength="5000"></textarea>
+            </p>
+            <p class="image-picker">
+                <input id="ai-image" type="file" class="sr-only" accept="image/jpeg,image/png,image/gif,image/webp">
+                <label for="ai-image" class="image-picker-btn">이미지 선택</label>
+                <span id="ai-image-name" class="image-picker-name">선택된 이미지 없음</span>
+            </p>
+            <button type="submit" id="ai-submit">등록하고 경매 열기</button>
+        </form>
+        <p id="ai-message" class="form-message"></p>
+    </div>
 </div>
 
 <!-- 경매 열기 창: 내 가게의 판매중 상품을 골라 경매로 올린다 -->
@@ -692,11 +735,15 @@
     function fillItems() {
         const shopId = Number(shopSelect.value);
         const busy = new Set(counts.activeItemIds || []);
-        const list = myItems.filter(i => i.shopId === shopId && i.status === 'ON_SALE' && i.saleType !== 'EVENT' && !busy.has(i.id));
-        itemSelect.innerHTML = '<option value="">상품 선택</option>' + list.map(i => `<option value="${i.id}" data-price="${i.price}">${esc(i.title)} (${money(i.price)})</option>`).join('');
-        $('au-item-hint').innerHTML = list.length
-            ? '판매중인 내 가게 상품만 올릴 수 있어요.'
-            : '경매에 올릴 수 있는 상품이 없어요. <a href="/shop/items">판매 상품 관리</a>에서 먼저 상품을 등록해 주세요.';
+        // 경매에는 '경매 상품 등록'으로 만든 경매 전용 상품만 올릴 수 있다 (일반 판매 상품은 경매 전에 팔릴 수 있어서)
+        const list = myItems.filter(i => i.shopId === shopId && i.status === 'ON_SALE' && i.saleType === 'AUCTION');
+        itemSelect.innerHTML = '<option value="">상품 선택</option>' + list.map(i => busy.has(i.id)
+            ? `<option value="${i.id}" disabled>${esc(i.title)} · 경매에 사용 중 (선택 불가)</option>`
+            : `<option value="${i.id}" data-price="${i.price}">${esc(i.title)} (${money(i.price)})</option>`).join('');
+        const free = list.filter(i => !busy.has(i.id)).length;
+        $('au-item-hint').innerHTML = free
+            ? '경매 전용 상품만 올릴 수 있어요. 경매 중이거나 낙찰자의 잔금 결제를 기다리는 상품은 고를 수 없어요.'
+            : '올릴 수 있는 경매 상품이 없어요. 위의 <b>경매 상품 등록</b>으로 먼저 등록해 주세요.';
     }
     function updateDepositHint() {
         const start = digits(startInput);
@@ -747,21 +794,90 @@
         modal.hidden = false;
     }
 
-    $('se-open-create').addEventListener('click', async () => {
+    // 경매 열기 창. preselectItemId 가 있으면 그 상품을 고른 채로 연다 (경매 상품 등록 직후)
+    async function openCreate(preselectItemId) {
         setMode(false);
-        if (!myItems.length) {
-            const res = await pageFetch('/api/items/me');
-            myItems = res.ok ? await res.json() : [];
-        }
+        const res = await pageFetch('/api/items/me');
+        myItems = res.ok ? await res.json() : [];
         form.reset();
         setDesc('');
         message.textContent = '';
         fillItems();
+        if (preselectItemId) {
+            itemSelect.value = String(preselectItemId);
+            itemSelect.dispatchEvent(new Event('change'));
+        }
         deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
         deadlineInput.value = localInput(new Date(Date.now() + 3 * 86400000));   // 기본 3일 뒤
         updateDepositHint();
         modal.hidden = false;
+    }
+    $('se-open-create').addEventListener('click', () => openCreate());
+
+    // ===== 경매 상품 등록 (경매 전용 상품: saleType AUCTION) =====
+    const aiModal = $('ai-modal');
+    const aiForm = $('ai-form');
+    const aiMessage = $('ai-message');
+    const aiFail = text => { aiMessage.textContent = text; aiMessage.className = 'form-message error'; };
+    let categories = [];
+    $('ai-shop-row').hidden = !multiShop;
+    $('ai-price').addEventListener('input', () => {
+        const d = $('ai-price').value.replace(/\D/g, '').replace(/^0+/, '');
+        $('ai-price').value = d ? Number(d).toLocaleString('ko-KR') : '';
     });
+    $('ai-image').addEventListener('change', () => {
+        $('ai-image-name').textContent = $('ai-image').files[0] ? $('ai-image').files[0].name : '선택된 이미지 없음';
+    });
+    $('se-open-item').addEventListener('click', async () => {
+        if (!categories.length) {
+            const res = await pageFetch('/api/categories');
+            categories = res.ok ? await res.json() : [];
+            $('ai-category').innerHTML = '<option value="">카테고리 선택</option>' + categories.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+        }
+        const keepShop = $('ai-shop').value;
+        aiForm.reset();
+        $('ai-shop').value = keepShop;
+        $('ai-image-name').textContent = '선택된 이미지 없음';
+        aiMessage.textContent = '';
+        aiModal.hidden = false;
+        $('ai-title').focus();
+    });
+    aiForm.addEventListener('submit', async ev => {
+        ev.preventDefault();
+        const price = Number($('ai-price').value.replace(/\D/g, ''));
+        if (!$('ai-category').value) { aiFail('카테고리를 선택해 주세요.'); return; }
+        if (!price) { aiFail('기준 가격을 입력해 주세요.'); return; }
+        const submit = $('ai-submit');
+        submit.disabled = true;
+        try {
+            let imageUrl = null;
+            const file = $('ai-image').files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('image', file);
+                const up = await pageFetch('/api/items/images', { method: 'POST', body: formData });
+                if (!up.ok) { aiFail(await errorText(up, '이미지 업로드에 실패했습니다.')); return; }
+                imageUrl = (await up.json()).imageUrl;
+            }
+            const res = await pageFetch('/api/items', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    shopId: Number($('ai-shop').value), categoryId: Number($('ai-category').value),
+                    title: $('ai-title').value.trim(), description: $('ai-description').value.trim() || null,
+                    price, saleType: 'AUCTION', imageUrl
+                })
+            });
+            if (!res.ok) { aiFail(await errorText(res, '경매 상품 등록에 실패했습니다.')); return; }
+            const itemId = await res.json();
+            aiModal.hidden = true;
+            // 등록한 상품을 고른 채로 경매 열기 창을 바로 연다
+            await openCreate(itemId);
+        } finally {
+            submit.disabled = false;
+        }
+    });
+
+
     shopSelect.addEventListener('change', fillItems);
     itemSelect.addEventListener('change', () => {
         const opt = itemSelect.selectedOptions[0];

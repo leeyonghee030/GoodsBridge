@@ -58,6 +58,15 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     boolean existsByItemIdAndStatus(@Param("itemId") Long itemId, @Param("status") Status status);
 
+    // 낙찰됐지만 낙찰자가 아직 잔금을 결제하지 않은 경매가 있는 상품인지 (이런 상품은 새 경매에 올릴 수 없다)
+    @Query("""
+        select count(a) > 0 from Auction a
+        where a.item.id = :itemId
+          and a.status = com.goodsbridge.auction.Status.ENDED_SUCCESS
+          and a.balancePaymentId is null
+        """)
+    boolean existsUnpaidWinnerByItemId(@Param("itemId") Long itemId);
+
     // 상품이 주어진 상태들 중 하나의 경매에 걸려 있는지 확인 (일반 구매 차단용)
     @Query("""
         select case when count(a) > 0 then true else false end

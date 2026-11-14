@@ -579,7 +579,7 @@
         const [itemRes, saleRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/items/shop-sales')]);
         if (!itemRes.ok || !saleRes.ok) { listEl.innerHTML = '<p class="empty">상품을 불러오지 못했어요.</p>'; return; }
         // 선착순 이벤트 상품은 이벤트 관리 화면에서 다룬다
-        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT').sort((a, b) => b.id - a.id);
+        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT' && i.saleType !== 'AUCTION').sort((a, b) => b.id - a.id);   // 이벤트·경매 상품은 각 관리 화면에서 다룬다
         sales = await saleRes.json();
         const salesByPayment = Object.fromEntries(sales.map(x => [x.paymentId, x]));
         const lists = await Promise.all([...shopIds].map(id =>

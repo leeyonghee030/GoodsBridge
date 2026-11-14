@@ -472,6 +472,17 @@ public class DemoDataService {
             seedAuctionOrder(order, userB, now.minusDays(5 + i).plusHours(2), orders[i][1], "CJ" + (700100200300L + i), orders[i][2]);
         }
 
+        // 경매 전용으로 등록만 해 두고 아직 경매에 올리지 않은 상품 2개 ('경매 열기'에서 고를 수 있다)
+        String[][] spare = {{"(테스트) 한정판 아크릴 인형 (경매 대기)", "28000"}, {"(테스트) 캐릭터 일러스트 액자 (경매 대기)", "35000"}};
+        for (int i = 0; i < spare.length; i++) {
+            itemRepository.save(Item.builder()
+                .sellerUserId(shopOwner.getId()).shopId(shop.getId()).category(categories.get((i + 5) % categories.size()))
+                .title(spare[i][0]).description("경매 전용으로 등록해 둔 상품입니다. 경매 열기에서 골라 경매로 올릴 수 있어요.")
+                .price(Integer.parseInt(spare[i][1])).saleType(SaleType.AUCTION).status(ItemStatus.ON_SALE)
+                .imageUrl(images.get((12 + i) % images.size()))
+                .build());
+        }
+
         // 8) 종료 · 낙찰자가 기한 안에 잔금을 내지 않음 → 낙찰 무효, 낙찰자의 보증금만 가게 정산 (NO_SHOW_FEE)
         Auction forfeited = saveAuction(shopOwner, shop, c1, "(테스트) 캐릭터 아크릴 키링 (잔금 미결제)", "낙찰자가 기한 안에 잔금을 내지 않아 보증금만 정산된 시연용 경매입니다.",
             18000, 2700, now.minusDays(4), images.get(5 % images.size()));
