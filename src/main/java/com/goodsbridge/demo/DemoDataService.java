@@ -460,6 +460,8 @@ public class DemoDataService {
             {"(테스트) 일러스트 아트북 (구매 확정)", "CONFIRMED", "서울시 마포구 데모로 12, 101호"},
             {"(테스트) 한정판 포카 바인더 (환불 요청중)", "REFUND_REQUESTED", "서울시 마포구 데모로 12, 101호"},
             {"(테스트) 아크릴 무드등 (환불 완료)", "REFUNDED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 캐릭터 머그컵 (환불 요청중)", "REFUND_REQUESTED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 한정판 스티커 팩 (환불 거절)", "REFUND_REJECTED", "서울시 마포구 데모로 12, 101호"},
         };
         for (int i = 0; i < orders.length; i++) {
             Auction order = saveAuction(shopOwner, shop, categories.get((i + 3) % categories.size()), orders[i][0], "낙찰 후 잔금까지 결제한 시연용 경매입니다. (" + orders[i][1] + ")",
@@ -554,6 +556,11 @@ public class DemoDataService {
         if (state.equals("REFUND_REQUESTED")) {
             // 경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있다
             demoRefund(balance, winner, auction.getCurrentPrice(), "배송된 상품의 포장이 심하게 파손되어 환불 요청합니다", RequestedBy.USER, Status.REQUESTED);
+        }
+        if (state.equals("REFUND_REJECTED")) {
+            // 구매자가 환불을 요청했지만 가게가 상품 상태를 확인하고 거절한 경우 (가게 화면에서 '승인으로 변경'으로 재검토 가능)
+            demoRefund(balance, winner, auction.getCurrentPrice(), "상품이 마음에 들지 않아 환불 요청합니다", RequestedBy.USER, Status.REQUESTED)
+                .reject("상품 상태에 이상이 없고 단순 변심은 낙찰 상품 환불 대상이 아니라 거절합니다");
         }
         if (state.equals("REFUNDED")) {
             Refund refund = demoRefund(balance, winner, auction.getCurrentPrice(), "배송 중 분실되어 상품을 받지 못했어요", RequestedBy.USER, Status.REQUESTED);
