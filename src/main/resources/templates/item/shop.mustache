@@ -323,6 +323,14 @@
         REFUND_REQUESTED: '<span class="si-badge is-warn">환불 요청중</span>'
     };
     let saleSub = 'ALL';
+    // 환불 탭 분류: 가장 최근 환불 요청의 상태 기준 (판매가보다 적게 환불된 승인 건은 부분 환불)
+    let refundSub = 'ALL';
+    const REFUND_STATES = [['ALL', '전체'], ['REQUESTED', '환불 요청중'], ['DONE', '환불 완료'], ['PARTIAL', '부분 환불'], ['REJECTED', '환불 거절']];
+    const refundState = x => {
+        const rf = latestRefund(x);
+        if (!rf) return 'DONE';
+        return rf.status === 'REQUESTED' ? 'REQUESTED' : rf.status === 'REJECTED' ? 'REJECTED' : rf.amount < x.price ? 'PARTIAL' : 'DONE';
+    };
     let saleKind = 'ALL';   // ALL / SHOP(일반 판매) / AUCTION(경매 낙찰)
     const KINDS = [['ALL', '전체'], ['SHOP', '상품 판매'], ['AUCTION', '경매 낙찰']];
     const kindTag = x => x.source === 'AUCTION' ? '<span class="si-kind is-auction">경매 낙찰</span>' : '<span class="si-kind">상품 판매</span>';
@@ -347,6 +355,7 @@
         let rows = periodRows(t);
         if (t === 'SOLD' && saleKind !== 'ALL') rows = rows.filter(x => (x.source || 'SHOP') === saleKind);
         if (t === 'SOLD' && saleSub !== 'ALL') rows = rows.filter(x => saleState(x) === saleSub);
+        if (t === 'REFUND' && refundSub !== 'ALL') rows = rows.filter(x => refundState(x) === refundSub);
         return rows.sort(byLatest(t));
     };
     // 카테고리만 적용한 목록 (달력의 월별 건수 계산에도 사용)
@@ -385,7 +394,7 @@
         renderSubtabs();
         const rows = rowsFor(tab);
         if (rows.length === 0) {
-            const msg = { ON_SALE: '판매 중인 상품이 없어요. 오른쪽 위 상품 등록으로 올려 보세요.', SOLD: saleSub === 'ALL' ? '판매 완료된 상품이 없어요.' : `${SALE_STATES.find(x => x[0] === saleSub)[1]} 상태인 판매가 없어요.`, REFUND: '환불 내역이 없어요.' }[tab]
+            const msg = { ON_SALE: '판매 중인 상품이 없어요. 오른쪽 위 상품 등록으로 올려 보세요.', SOLD: saleSub === 'ALL' ? '판매 완료된 상품이 없어요.' : `${SALE_STATES.find(x => x[0] === saleSub)[1]} 상태인 판매가 없어요.`, REFUND: refundSub === 'ALL' ? '환불 내역이 없어요.' : `${REFUND_STATES.find(x => x[0] === refundSub)[1]} 건이 없어요.` }[tab]
                 .replace('없어요', tab !== 'ON_SALE' && period.from ? period.label + '에는 없어요' : '없어요');
             listEl.innerHTML = `<p class="empty">${msg}</p>`;
             return;
@@ -416,7 +425,7 @@
             }
             const r = latestRefund(s);
             const badge = tab === 'REFUND'
-                ? `<span class="si-badge ${r.status === 'REQUESTED' ? 'is-warn' : ''}">${refundLabel(r, s)}</span>`
+                ? `<span class="si-badge ${{ REQUESTED: 'is-warn', DONE: 'is-ok', PARTIAL: 'is-dark', REJECTED: '' }[refundState(s)]}">${refundLabel(r, s)}</span>`
                 : STATE_BADGE[saleState(s)];
             const sub = tab === 'REFUND'
                 ? `${BY[r.requestedBy]} 요청 · ${money(r.amount)} · ${date(r.requestedAt)}`
@@ -436,10 +445,18 @@
 
     function renderSubtabs() {
         const box = document.getElementById('si-subtabs');
-        box.hidden = tab !== 'SOLD';
-        if (box.hidden) return;
-        const all = periodRows('SOLD');
         const kindBox = document.getElementById('si-kinds');
+        box.hidden = tab !== 'SOLD' && tab !== 'REFUND';
+        // 상품 판매/경매 낙찰 구분은 판매완료 탭에서만 보인다
+        if (tab !== 'SOLD') kindBox.hidden = true;
+        if (box.hidden) return;
+        if (tab === 'REFUND') {
+            const refunds = periodRows('REFUND');
+            const cnt = key => key === 'ALL' ? refunds.length : refunds.filter(x => refundState(x) === key).length;
+            box.innerHTML = REFUND_STATES.map(([key, label]) => `<button type="button" data-sub="${key}" class="${refundSub === key ? 'active' : ''}">${label}<small>${cnt(key)}</small></button>`).join('');
+            return;
+        }
+        const all = periodRows('SOLD');
         const kindCount = k => k === 'ALL' ? all.length : all.filter(x => (x.source || 'SHOP') === k).length;
         // 경매 낙찰이 하나도 없으면 구분 버튼은 숨긴다
         kindBox.hidden = kindCount('AUCTION') === 0;
@@ -460,7 +477,7 @@
     document.getElementById('si-subtabs').addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
         if (!b) return;
-        saleSub = b.dataset.sub;
+        if (tab === 'REFUND') refundSub = b.dataset.sub; else saleSub = b.dataset.sub;
         render();
     });
 
