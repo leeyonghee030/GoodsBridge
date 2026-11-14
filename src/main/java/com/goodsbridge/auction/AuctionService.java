@@ -11,6 +11,8 @@ import com.goodsbridge.payment.*;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.purchase.PurchaseSource;
+import com.goodsbridge.settlement.SettlementHistory;
+import com.goodsbridge.settlement.SettlementHistoryRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -46,6 +48,7 @@ public class AuctionService {
     private final BidRepository bidRepository;
     private final PurchaseRepository purchaseRepository;
     private final SettlementHistoryService settlementHistoryService;
+    private final SettlementHistoryRepository settlementHistoryRepository;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher publisher;
 
@@ -129,6 +132,45 @@ public class AuctionService {
             }
         }
         return auctionPage.map(a -> new AuctionResponse(a).withBidCount(counts.getOrDefault(a.getId(), 0L)));
+    }
+
+    // 가게 사장님용 경매 영수증 (낙찰가·낙찰자·결제/배송 정보)
+    @Transactional(readOnly = true)
+    public AuctionReceiptResponse getReceipt(Long userId, Long auctionId) {
+        Auction auction = auctionRepository.findById(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        if (!auction.getShop().isOwner(userId)) {
+            throw new ForbiddenException("본인 가게의 경매만 조회할 수 있습니다.");
+        }
+        long bidCount = 0;
+        for (Object[] row : bidRepository.countBidsByAuctionIds(java.util.List.of(auctionId))) {
+            bidCount = ((Number) row[1]).longValue();
+        }
+        Purchase purchase = auction.getBalancePaymentId() == null ? null
+            : purchaseRepository.findByPaymentId(auction.getBalancePaymentId()).orElse(null);
+        return new AuctionReceiptResponse(auction, bidCount, purchase);
+    }
+
+    // 가게의 경매 정산 내역: 낙찰 정산(AUCTION_SALE) + 낙찰자 미결제로 받은 보증금(NO_SHOW_FEE 중 경매 건)
+    @Transactional(readOnly = true)
+    public java.util.List<AuctionSettlementResponse> getShopSettlements(Long userId, Long shopId) {
+        Shop shop = shopRepository.findById(shopId)
+            .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인 가게의 정산 내역만 조회할 수 있습니다.");
+        }
+        java.util.List<AuctionSettlementResponse> result = new java.util.ArrayList<>();
+        for (SettlementHistory history : settlementHistoryRepository.findByAllShopId(shopId)) {
+            String paymentId = history.getPayment().getPaymentId();
+            if (history.getType() == SettlementHistoryType.AUCTION_SALE) {
+                auctionRepository.findByBalancePaymentId(paymentId).ifPresent(a ->
+                    result.add(new AuctionSettlementResponse(a, "AUCTION_SALE", history.getAmount(), history.getCreatedAt())));
+            } else if (history.getType() == SettlementHistoryType.NO_SHOW_FEE) {
+                auctionRepository.findByWinningPaymentId(paymentId).ifPresent(a ->
+                    result.add(new AuctionSettlementResponse(a, "NO_SHOW_FEE", history.getAmount(), history.getCreatedAt())));
+            }
+        }
+        return result;
     }
 
     // 경매 상세 조회

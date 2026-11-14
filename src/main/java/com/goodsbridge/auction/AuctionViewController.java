@@ -34,6 +34,18 @@ public class AuctionViewController {
         return ResponseEntity.ok(auctionService.findAll(page, size, status));
     }
 
+    // 가게 경매 영수증 (가게 주인만)
+    @GetMapping("/api/auctions/{id}/receipt")
+    public ResponseEntity<AuctionReceiptResponse> receipt(@PathVariable Long id) {
+        return ResponseEntity.ok(auctionService.getReceipt(SecurityUtil.getCurrentUserId(), id));
+    }
+
+    // 가게 경매 정산 내역 (가게 주인만)
+    @GetMapping("/api/shops/{id}/auction-settlements")
+    public ResponseEntity<java.util.List<AuctionSettlementResponse>> shopSettlements(@PathVariable Long id) {
+        return ResponseEntity.ok(auctionService.getShopSettlements(SecurityUtil.getCurrentUserId(), id));
+    }
+
     // 경매 상세
     @GetMapping("/api/auctions/{id}")
     public ResponseEntity<AuctionResponse> findById(@PathVariable Long id) {

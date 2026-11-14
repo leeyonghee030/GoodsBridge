@@ -46,6 +46,10 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
     @Query("select a from Auction a where a.id = :id")
     Optional<Auction> findByIdLock(@Param("id") Long id);
 
+    Optional<Auction> findByBalancePaymentId(String balancePaymentId);
+
+    Optional<Auction> findByWinningPaymentId(String winningPaymentId);
+
     // 같은 상품으로 진행 중인 경매가 이미 있는지 확인
     @Query("""
         select case when count(a) > 0 then true else false end
