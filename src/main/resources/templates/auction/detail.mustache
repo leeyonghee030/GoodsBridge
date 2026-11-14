@@ -343,7 +343,12 @@
             return;
         }
         const first = myBidCount() === 0;
-        if (!(await gbConfirm(`${money(amount)}에 입찰할까요?${first ? '\n최초 입찰이라 보증금 ' + money(a.depositAmount) + '이 결제돼요.' : ''}`))) return;
+        // 이미 내가 최고가이거나, 현재가보다 5만원 이상 높게 부르면 한 번 더 확인한다 (둘 다면 한 안내문에 같이)
+        const warns = [];
+        if (isWinner()) warns.push('지금 내가 최고 입찰자예요. 또 입찰할 필요가 없을 수 있어요.');
+        if (a.bidCount && amount - a.currentPrice >= 50000) warns.push(`현재가보다 ${money(amount - a.currentPrice)} 높은 금액이에요. 금액을 다시 확인해 주세요.`);
+        const warnText = warns.length ? warns.map(w => '⚠ ' + w).join('\n') + '\n\n' : '';
+        if (!(await gbConfirm(`${warnText}${money(amount)}에 입찰할까요?${first ? '\n최초 입찰이라 보증금 ' + money(a.depositAmount) + '이 결제돼요.' : ''}`))) return;
         const btn = $('au-bid-btn');
         btn.disabled = true;
         try {
