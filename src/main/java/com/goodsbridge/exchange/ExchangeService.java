@@ -199,6 +199,12 @@ public class ExchangeService {
     //교환 게시글 수정 (원하는 것, 교환 장소) - 주인만, 모집중일 때만
     @Transactional
     public ExchangeItemResponse updateExchangeItem(Long id, Long userId, String wantDescription, Long shopId) {
+        return updateExchangeItem(id, userId, null, wantDescription, shopId);
+    }
+
+    // title 이 비어 있지 않으면 게시글에 올린 상품의 제목도 함께 바꾼다
+    @Transactional
+    public ExchangeItemResponse updateExchangeItem(Long id, Long userId, String title, String wantDescription, Long shopId) {
         ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글입니다."));
         if (!exchangeItem.isOwner(userId)) {
@@ -216,6 +222,9 @@ public class ExchangeService {
             throw new BadRequestException("입점 승인된 가게만 교환장소로 지정할 수 있습니다.");
         }
         exchangeItem.update(wantDescription.trim(), shop);
+        if (title != null && !title.isBlank()) {
+            exchangeItem.getItem().changeTitle(title);
+        }
         return ExchangeItemResponse.from(exchangeItem);
     }
 

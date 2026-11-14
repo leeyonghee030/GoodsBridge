@@ -6,6 +6,10 @@
         <h1>교환 게시글 수정</h1>
         <form id="post-edit-form">
             <p>
+                <label for="post-edit-title" class="sr-only">제목</label>
+                <input id="post-edit-title" type="text" placeholder="제목" maxlength="100" autocomplete="off" required>
+            </p>
+            <p>
                 <label for="post-edit-want" class="sr-only">원하는 것</label>
                 <textarea id="post-edit-want" rows="3" placeholder="원하는 것을 적어주세요" required></textarea>
             </p>
@@ -38,6 +42,7 @@
 
     function openEdit(post) {
         editing = post;
+        document.getElementById('post-edit-title').value = post.itemTitle || '';
         document.getElementById('post-edit-want').value = post.wantDescription || '';
         document.getElementById('post-edit-shop-name').value = post.shopName || '';
         document.getElementById('post-edit-shop-id').value = post.shopId || '';
@@ -76,7 +81,7 @@
         if (!shopId) { message.textContent = '목록에서 가게를 선택해주세요.'; return; }
         const res = await pageFetch('/api/exchange-items/' + editing.id, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wantDescription: document.getElementById('post-edit-want').value.trim(), shopId: Number(shopId) })
+            body: JSON.stringify({ title: document.getElementById('post-edit-title').value.trim(), wantDescription: document.getElementById('post-edit-want').value.trim(), shopId: Number(shopId) })
         });
         if (!res.ok) { message.textContent = await errorText(res, '수정에 실패했습니다.'); return; }
         modal.hidden = true;
