@@ -1,6 +1,7 @@
 package com.goodsbridge._core.config;
 
-import com.goodsbridge._core.util.SecurityUtil;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -14,6 +15,8 @@ public class CurrentUserAdvice {
 
     @ModelAttribute("userId")
     public Long userId() {
-        return SecurityUtil.getCurrentUserIdOrNull();
+        // 로그인한 사용자의 principal 이 userId(Long) 일 때만 내려준다 (그 외 형태의 인증이면 비로그인으로 본다)
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getPrincipal() instanceof Long id ? id : null;
     }
 }
