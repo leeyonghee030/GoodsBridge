@@ -178,6 +178,7 @@
     // 서버/네트워크 오류를 사용자가 알아보기 쉬운 문장으로
     const friendly = err => {
         const m = String((err && err.message) || err || '');
+        if (/PAY_PROCESS_CANCELED|결제를 취소/.test(m)) return '결제를 취소했어요. 입찰은 진행되지 않았어요.';
         if (/failed to fetch|networkerror|load failed/i.test(m)) return '서버와 연결하지 못했어요. 잠시 후 다시 시도해 주세요.\n(입찰은 아직 처리되지 않았어요)';
         if (/401|로그인|인증/.test(m)) return '로그인이 필요해요. 다시 로그인해 주세요.';
         return m || '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
