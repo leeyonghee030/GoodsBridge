@@ -54,6 +54,12 @@
 .si-kinds button:hover { background: var(--color-surface); color: var(--color-text); }
 .si-kinds button.active, .si-kinds button.active:hover { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
 .si-kinds button small { margin-left: 0.3rem; opacity: 0.7; }
+.si-row-actions { flex: none; display: flex; gap: 0.3rem; margin-left: 0.5rem; }
+.si-row-actions button, .si-refund-actions button { width: auto; padding: 0.25rem 0.7rem; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-text); font: inherit; font-size: 0.74rem; white-space: nowrap; cursor: pointer; }
+.si-row-actions button:hover, .si-refund-actions button:hover { background: var(--color-surface); color: var(--color-text); }
+.si-row-actions button.is-primary, .si-refund-actions button.is-primary { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.si-row-actions button.is-primary:hover, .si-refund-actions button.is-primary:hover { background: var(--color-dark-hover, #333); color: #fff; }
+.si-refund-actions { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
 .si-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 /* 판매 정산 (가게 교환 관리의 수수료 수익 패널과 같은 모양) */
 .si-fee[hidden] { display: none; }
@@ -304,6 +310,17 @@
 
     // ===== 목록 =====
     const latestRefund = s => s.refunds[0] || null;
+    // 가게 주인이 하는 환불 처리 버튼: 요청중 → 승인/거절, 거절한 건 → 승인으로 변경(재검토) / 거절 사유 수정
+    const refundButtons = (s, rf, cls) => {
+        const attrs = `data-refund-id="${rf.id}"`;
+        if (rf.status === 'REQUESTED') {
+            return `<span class="${cls}"><button type="button" class="is-primary" data-refund-action="approve" ${attrs}>승인</button><button type="button" data-refund-action="reject" ${attrs}>거절</button></span>`;
+        }
+        if (rf.status === 'REJECTED' && s.refunds[0] === rf) {
+            return `<span class="${cls}"><button type="button" data-refund-action="reapprove" ${attrs}>승인으로 변경</button><button type="button" data-refund-action="editreason" ${attrs}>거절 사유 수정</button></span>`;
+        }
+        return '';
+    };
     // 판매완료 상태: 환불 요청중 > 구매 확정 > 배송 단계, 구매 내역이 없으면(경매 등) 기타
     const SALE_STATES = [
         ['ALL', '전체'], ['PREPARING', '배송 준비중'], ['SHIPPED', '배송중'], ['DELIVERED', '배송 완료'],
@@ -439,6 +456,7 @@
                         <small>${s.source === 'AUCTION' ? '낙찰가 ' : ''}${money(s.price)} · ${sub}</small>
                     </span>
                     ${badge}
+                    ${tab === 'REFUND' ? refundButtons(s, r, 'si-row-actions') : ''}
                 </div>`;
         }).join('');
     }
@@ -801,6 +819,7 @@
                 <div class="si-refund-row">
                     <strong>${refundLabel(r, s)}</strong> · ${money(r.amount)} <small>(${BY[r.requestedBy]} 요청 · ${date(r.requestedAt)})</small><br>
                     <small>사유: ${esc(r.reason)}${r.rejectReason ? ' / 거절 사유: ' + esc(r.rejectReason) : ''}</small>
+                    ${refundButtons(s, r, 'si-refund-actions')}
                 </div>`).join('') : '<p class="si-note">환불 내역이 없어요.</p>'}
             ${canRefund ? `
             <form id="si-refund-form" style="margin-top:0.8rem;">
@@ -878,6 +897,42 @@
             btn.disabled = false;
         }
     });
+
+    // ===== 가게 주인의 환불 승인 / 거절 / 재검토 =====
+    // 목록 줄을 눌러 상세가 열리는 동작보다 먼저 받도록 캡처 단계에서 처리한다
+    document.addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-refund-action]');
+        if (!b) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        const id = Number(b.dataset.refundId);
+        const found = sales.flatMap(x => x.refunds.map(rf => ({ s: x, rf }))).find(o => o.rf.id === id);
+        if (!found) return;
+        const { s, rf } = found;
+        const act = b.dataset.refundAction;
+        let url;
+        if (act === 'approve' || act === 'reapprove') {
+            const msg = act === 'approve'
+                ? `${money(rf.amount)} 환불을 승인할까요?\n승인하면 결제가 바로 취소되고 되돌릴 수 없어요.`
+                : `거절했던 환불을 승인으로 바꿀까요?\n${money(rf.amount)}이 환불되고 결제가 바로 취소되며 되돌릴 수 없어요.`;
+            if (!(await gbConfirm(msg))) return;
+            url = `/api/shops/${s.shopId}/refunds/${id}/approve`;
+        } else {
+            const reason = await gbPrompt(act === 'reject' ? '거절 사유를 입력해 주세요.' : '거절 사유를 수정해 주세요.', act === 'editreason' ? (rf.rejectReason || '') : '');
+            if (reason === null) return;
+            if (!reason.trim()) { await alert('거절 사유를 입력해 주세요.'); return; }
+            url = `/api/shops/${s.shopId}/refunds/${id}/reject?rejectReason=${encodeURIComponent(reason.trim())}`;
+        }
+        b.disabled = true;
+        const res = await pageFetch(url, { method: 'PATCH' });
+        if (!res.ok) await alert(await errorText(res, '환불 처리에 실패했습니다.'));
+        if (!detailModal.hidden && current) {
+            current = { purchaseId: s.purchaseId };
+            await refreshDetail();
+        } else {
+            await load();
+        }
+    }, true);
 
     load();
 })();

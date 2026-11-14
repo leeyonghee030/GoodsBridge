@@ -90,8 +90,11 @@ public class RefundService {
         if (!refund.isPending()) {
             throw new BadRequestException("대기 중인 환불 요청만 거절할 수 있습니다.");
         }
-        refund.reject(rejectReason);
+        rejectRefund(refund, rejectReason);
+    }
 
+    private void rejectRefund(Refund refund, String rejectReason) {
+        refund.reject(rejectReason);
         publisher.publishEvent(
             new NotificationEvent(
                 refund.getUser().getId(),
@@ -99,9 +102,45 @@ public class RefundService {
                 "[환불거절]",
                 rejectReason,
                 Notification.ReferenceType.REFUND,
-                refundId
+                refund.getId()
             )
         );
+    }
+
+    // 가게 주인: 자기 가게에서 판매된 상품의 환불 요청 거절 (이미 거절한 건은 거절 사유만 수정)
+    @Transactional
+    public void rejectByShop(Long userId, Long shopId, Long refundId, String rejectReason) {
+        Refund refund = refundRepository.findByIdLock(refundId)
+            .orElseThrow(() -> new NotFoundException("환불 요청을 찾을 수 없습니다."));
+        validateShopOwnsRefund(userId, shopId, refund);
+        if (refund.getStatus() == Status.REJECTED) {
+            refund.changeRejectReason(rejectReason);
+            return;
+        }
+        if (!refund.isPending()) {
+            throw new BadRequestException("대기 중인 환불 요청만 거절할 수 있습니다.");
+        }
+        rejectRefund(refund, rejectReason);
+    }
+
+    // 가게 주인: 환불 요청 승인. 가게가 실수로 거절한 건(REJECTED)은 다시 승인할 수 있다.
+    // (승인되어 이미 결제가 취소된 환불은 되돌릴 수 없다)
+    @Transactional
+    public void approveByShop(Long userId, Long shopId, Long refundId) {
+        Refund refund = refundRepository.findByIdLock(refundId)
+            .orElseThrow(() -> new NotFoundException("환불 요청을 찾을 수 없습니다."));
+        validateShopOwnsRefund(userId, shopId, refund);
+        approveRefund(refund, true);
+    }
+
+    private void validateShopOwnsRefund(Long userId, Long shopId, Refund refund) {
+        Purchase purchase = purchaseRepository.findByPaymentId(refund.getPayment().getPaymentId())
+            .orElseThrow(() -> new NotFoundException("해당 환불의 구매 내역을 찾을 수 없습니다."));
+        Shop shop = shopRepository.findById(shopId)
+            .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
+        if (!shop.isOwner(userId) || !shopId.equals(purchase.getItem().getShopId())) {
+            throw new ForbiddenException("본인 가게에서 판매된 상품의 환불만 처리할 수 있습니다.");
+        }
     }
 
     // 관리자 승인 여부 확인
@@ -110,7 +149,12 @@ public class RefundService {
         validateAdmin(adminUserId);
         Refund refund = refundRepository.findByIdLock(refundId)
             .orElseThrow(() -> new NotFoundException("환불 요청을 찾을 수 없습니다."));
-        if (!refund.isPending()) {
+        approveRefund(refund, false);
+    }
+
+    private void approveRefund(Refund refund, boolean allowReconsider) {
+        boolean reconsider = allowReconsider && refund.getStatus() == Status.REJECTED;
+        if (!reconsider && !refund.isPending()) {
             throw new BadRequestException("대기 중인 환불 요청만 환불 승인 신청이 가능합니다.");
         }
         Payment payment = paymentRepository.findByPaymentIdLock(refund.getPayment().getPaymentId())
@@ -128,7 +172,11 @@ public class RefundService {
         rejectAuctionPayment(payment);
         // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
         // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
-        refund.approve();
+        if (reconsider) {
+            refund.reapprove();
+        } else {
+            refund.approve();
+        }
         createSettlementIfNeeded(refund, payment);
         if (auction) {
             refundAuctionAll(payment, refund.getReason());
