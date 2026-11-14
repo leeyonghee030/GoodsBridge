@@ -34,6 +34,12 @@ public class AuctionViewController {
         return ResponseEntity.ok(auctionService.findAll(page, size, status));
     }
 
+    // 입찰 전 경매 수정 (가게 주인만)
+    @PatchMapping("/api/auctions/{id}")
+    public ResponseEntity<AuctionResponse> update(@PathVariable Long id, @RequestBody AuctionUpdateRequest request) {
+        return ResponseEntity.ok(auctionService.update(SecurityUtil.getCurrentUserId(), id, request));
+    }
+
     // 가게 경매 영수증 (가게 주인만)
     @GetMapping("/api/auctions/{id}/receipt")
     public ResponseEntity<AuctionReceiptResponse> receipt(@PathVariable Long id) {

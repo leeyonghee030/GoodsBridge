@@ -98,6 +98,20 @@ public class Auction {
         }
     }
 
+    // 입찰이 없는 진행 중 경매의 시작가 · 마감 시간 · 보증금 수정
+    public void updateBeforeBids(Integer startPrice, LocalDateTime deadline, Integer depositAmount) {
+        if (status != Status.ACTIVE) {
+            throw new BadRequestException("진행 중인 경매만 수정할 수 있습니다.");
+        }
+        if (currentWinner != null) {
+            throw new BadRequestException("입찰이 있는 경매는 수정할 수 없습니다.");
+        }
+        this.startPrice = startPrice;
+        this.currentPrice = startPrice;
+        this.deadline = deadline;
+        this.depositAmount = depositAmount;
+    }
+
     // 경매 취소 (진행 중인 경매만). 입찰자 보증금 환불은 스케줄러가 처리한다.
     public void cancel() {
         if (status != Status.ACTIVE) {

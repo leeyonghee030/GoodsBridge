@@ -128,6 +128,8 @@
 .rc-bid .am { text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
 .rc-bid .at { grid-column: 2 / -1; font-size: 0.72rem; color: var(--color-muted); }
 .rc-bid.is-top .rk { color: var(--color-text); font-weight: 600; }
+.rc-foot .rc-edit { display: block; width: 100%; margin: 0 0 0.5rem; padding: 0.6rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); font: inherit; font-size: 0.86rem; cursor: pointer; }
+.rc-foot .rc-edit:hover { background: var(--color-surface); color: var(--color-text); }
 .rc-foot .rc-cancel { display: block; width: 100%; margin: 0 0 0.7rem; padding: 0.6rem; border: 1px solid #E8B4AE; border-radius: 8px; background: #fff; color: #C0392B; font: inherit; font-size: 0.86rem; cursor: pointer; }
 .rc-foot .rc-cancel:hover { background: #FDECEA; color: #C0392B; }
 @media (max-width: 640px) { .se-row { flex-wrap: wrap; } .se-actions { margin-left: calc(64px + 0.9rem); } }
@@ -157,7 +159,7 @@
 </div>
 <div class="se-subtabs" id="se-subtabs" hidden></div>
 <section class="se-fee" id="se-fee" hidden>
-    <div class="se-fee-note">낙찰자가 잔금을 결제하면 낙찰가 전액이, 기한 안에 결제하지 않으면 낙찰자가 낸 보증금만 정산돼요. 아직 결제 기한 안인 낙찰은 아래 '정산 예정'에 보여요.</div>
+    <div class="se-fee-note">낙찰자가 잔금을 결제하면 낙찰가 전액이, 기한 안에 결제하지 않으면 낙찰자가 낸 보증금만 정산돼요. 플랫폼 수수료는 없고 구독료만 내요. 아직 결제 기한 안인 낙찰은 아래 '정산 예정'에 보여요.</div>
     <div class="se-fee-grid">
         <div class="main"><small>오늘</small><b id="se-fee-today">-</b></div>
         <div><small>이번 달</small><b id="se-fee-month">-</b></div>
@@ -188,7 +190,8 @@
 <div class="modal-backdrop" id="au-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" data-close>✕</button>
-        <h1>경매 열기</h1>
+        <h1 id="au-title">경매 열기</h1>
+        <p class="se-hint" id="au-edit-note" hidden></p>
         <form id="au-form">
             <p>
                 <label for="au-shop" class="sr-only">가게</label>
@@ -268,6 +271,9 @@
     // 마감시간이 지났는데 아직 처리되지 않은 경매는 '마감 처리 중'으로 본다
     const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
     const tabOf = a => a.status === 'ACTIVE' ? 'ACTIVE' : a.status === 'CANCELLED' ? 'CANCELLED' : 'ENDED';
+    const canEdit = a => a.status === 'ACTIVE' && a.bidCount === 0;   // 입찰이 하나라도 있으면 수정할 수 없다
+    // 유찰 · 낙찰자 미결제 · 취소된 경매는 같은 상품으로 다시 열 수 있다
+    const canReopen = a => a.status === 'ENDED_FAIL' || a.status === 'CANCELLED';
     const canCancel = a => a.status === 'ACTIVE';   // 입찰이 있어도 가게 사정으로 취소할 수 있다
     // 상세(영수증/현황) 창이 있는 경매: 진행중, 낙찰, 낙찰자가 결제하지 않아 무효가 된 경매
     const hasReceipt = a => a.status === 'ACTIVE' || a.status === 'ENDED_SUCCESS' || (a.status === 'ENDED_FAIL' && !!a.currentWinnerUserId);
@@ -325,10 +331,12 @@
                 </span>
                 <span class="se-actions">
                     <span class="se-badge ${cls}">${label}</span>
+                    ${canReopen(a) ? `<button type="button" data-reopen="${a.id}">다시 열기</button>` : ''}
                     ${hasReceipt(a) ? `<button type="button" data-receipt="${a.id}">상세</button>` : `<a class="btn" href="/test/auction/${a.id}">상세</a>`}
                     ${canCancel(a) || canClose(a) ? `<span class="se-more">
                         <button type="button" class="se-more-btn" data-more="${a.id}" aria-label="더보기">···</button>
                         <span class="se-more-menu" hidden>
+                            ${canEdit(a) ? `<button type="button" data-edit-auction="${a.id}">경매 수정</button>` : ''}
                             ${canClose(a) ? `<button type="button" data-close-auction="${a.id}">마감 처리</button>` : ''}
                             ${canCancel(a) ? `<button type="button" class="is-danger" data-cancel-auction="${a.id}">경매 취소</button>` : ''}
                         </span>
@@ -385,7 +393,7 @@
                 <h2>보증금</h2>
                 ${line('1인당 보증금', money(r.depositAmount))}
                 <div class="rc-line total"><span>지금 보관 중인 보증금</span><b>${money(r.depositAmount * bidders)}</b></div>
-                <p class="se-hint" style="margin-top:0.5rem;">경매가 끝나면 낙찰자 외 입찰자의 보증금은 환불돼요. 가게가 경매를 취소하면 입찰자 모두에게 환불돼요.</p>
+                <p class="se-hint" style="margin-top:0.5rem;">경매가 끝나면 낙찰자 외 입찰자의 보증금은 환불돼요. 가게가 경매를 취소하면 입찰자 모두에게 환불돼요. (취소 후 1분 안에 자동 접수)</p>
             </div>
             <div class="rc-sec">
                 <h2>입찰 내역</h2>
@@ -398,6 +406,7 @@
                     </div>`).join('') : '<p class="se-hint" style="text-align:center;margin:0.8rem 0;">아직 입찰이 없어요.</p>'}</div>
             </div>
             <div class="rc-foot">
+                ${r.bidCount === 0 ? `<button type="button" class="rc-edit" data-live-edit="${r.auctionId}">경매 수정 (시작가 · 마감 · 보증금)</button>` : ''}
                 <button type="button" class="rc-cancel" data-live-cancel="${r.auctionId}">${r.bidCount > 0 ? '가게 사정으로 경매 취소 (보증금 전액 환불)' : '경매 취소'}</button>
                 <a href="/test/auction/${r.auctionId}">경매 게시글 보기 →</a>
             </div>`;
@@ -405,6 +414,8 @@
         let st;
         bidBox.addEventListener('scroll', () => { bidBox.classList.add('is-scrolling'); clearTimeout(st); st = setTimeout(() => bidBox.classList.remove('is-scrolling'), 600); });
         $('rc-body').querySelector('[data-live-cancel]').addEventListener('click', () => cancelAuctionById(r.auctionId));
+        const liveEdit = $('rc-body').querySelector('[data-live-edit]');
+        if (liveEdit) liveEdit.addEventListener('click', () => { $('rc-modal').hidden = true; openEdit(auctions.find(x => x.id === r.auctionId)); });
         $('rc-modal').hidden = false;
     }
 
@@ -549,6 +560,10 @@
             menu.hidden = !willOpen;
             return;
         }
+        const editBtn = ev.target.closest('[data-edit-auction]');
+        if (editBtn) { closeMenus(); openEdit(auctions.find(x => x.id === Number(editBtn.dataset.editAuction))); return; }
+        const reopenBtn = ev.target.closest('[data-reopen]');
+        if (reopenBtn) { openReopen(auctions.find(x => x.id === Number(reopenBtn.dataset.reopen))); return; }
         const cancelBtn = ev.target.closest('[data-cancel-auction]');
         const closeBtn = ev.target.closest('[data-close-auction]');
         const btn = cancelBtn || closeBtn;
@@ -566,7 +581,7 @@
     async function cancelAuctionById(id) {
         const a = auctions.find(x => x.id === id);
         const msg = a.bidCount > 0
-            ? `'${a.itemTitle}' 경매를 취소할까요?\n\n입찰 ${a.bidCount}회가 있어요. 취소하면 입찰자 모두에게 보증금이 환불되고, 취소한 경매는 되돌릴 수 없어요.`
+            ? `'${a.itemTitle}' 경매를 취소할까요?\n\n입찰 ${a.bidCount}회가 있어요. 취소하면 입찰자 모두에게 보증금이 환불되고, 취소한 경매는 되돌릴 수 없어요.\n\n환불은 취소 후 1분 안에 자동으로 접수돼요. (카드사에 따라 실제 카드 환불 반영은 며칠 걸릴 수 있어요)`
             : `'${a.itemTitle}' 경매를 취소할까요?`;
         if (!(await gbConfirm(msg))) return false;
         const res = await pageFetch(`/api/auctions/${id}/cancel`, { method: 'PATCH' });
@@ -610,7 +625,50 @@
         $('au-deposit-hint').textContent = start ? `보증금은 ${money(Math.ceil(start * 0.1))} ~ ${money(Math.floor(start * 0.2))} 사이로 입력해 주세요.` : '';
     }
 
+    let editingId = null;   // 수정 중인 경매 id (null 이면 새 경매 열기)
+    function setMode(edit) {
+        editingId = null;
+        $('au-title').textContent = edit ? '경매 수정' : '경매 열기';
+        $('au-submit').textContent = edit ? '수정 저장' : '경매 열기';
+        itemSelect.closest('p').hidden = edit;
+        itemSelect.required = !edit;
+        shopSelect.closest('p').hidden = edit || !multiShop;
+        $('au-edit-note').hidden = !edit;
+        message.textContent = '';
+    }
+    function openEdit(a) {
+        setMode(true);
+        editingId = a.id;
+        form.reset();
+        $('au-edit-note').textContent = `${a.itemTitle} · 입찰이 아직 없는 경매만 수정할 수 있어요.`;
+        startInput.value = Number(a.startPrice).toLocaleString('ko-KR');
+        depositInput.value = Number(a.depositAmount).toLocaleString('ko-KR');
+        deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
+        deadlineInput.value = a.deadline.slice(0, 16);
+        updateDepositHint();
+        modal.hidden = false;
+    }
+    // 유찰 · 미결제 · 취소된 경매를 같은 상품과 같은 조건으로 다시 연다 (마감은 3일 뒤로 새로 정한다)
+    async function openReopen(a) {
+        const res = await pageFetch('/api/items/me');
+        myItems = res.ok ? await res.json() : [];
+        setMode(false);
+        form.reset();
+        shopSelect.value = String(a.shopId);
+        fillItems();
+        const option = [...itemSelect.options].find(o => o.value === String(a.itemId));
+        if (!option) { await alert('이 상품은 지금 경매에 올릴 수 없어요.\n판매중이 아니거나, 이미 진행 중인 경매가 있는지 확인해 주세요.'); return; }
+        itemSelect.value = String(a.itemId);
+        startInput.value = Number(a.startPrice).toLocaleString('ko-KR');
+        depositInput.value = Number(a.depositAmount).toLocaleString('ko-KR');
+        deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
+        deadlineInput.value = localInput(new Date(Date.now() + 3 * 86400000));
+        updateDepositHint();
+        modal.hidden = false;
+    }
+
     $('se-open-create').addEventListener('click', async () => {
+        setMode(false);
         if (!myItems.length) {
             const res = await pageFetch('/api/items/me');
             myItems = res.ok ? await res.json() : [];
@@ -642,7 +700,7 @@
 
     form.addEventListener('submit', async ev => {
         ev.preventDefault();
-        if (!itemSelect.value) { fail('경매에 올릴 상품을 선택해 주세요.'); return; }
+        if (!editingId && !itemSelect.value) { fail('경매에 올릴 상품을 선택해 주세요.'); return; }
         const start = digits(startInput), deposit = digits(depositInput);
         if (!start) { fail('시작가를 입력해 주세요.'); return; }
         if (deposit * 100 < start * 10 || deposit * 100 > start * 20) { fail('보증금은 시작가의 10% 이상 20% 이하여야 해요.'); return; }
@@ -650,11 +708,16 @@
         const submit = $('au-submit');
         submit.disabled = true;
         try {
-            const res = await pageFetch(`/api/shops/${shopSelect.value}/auctions`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ itemId: Number(itemSelect.value), startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00' })
-            });
-            if (!res.ok) { fail(await errorText(res, '경매를 열지 못했어요.')); return; }
+            const res = editingId
+                ? await pageFetch(`/api/auctions/${editingId}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00' })
+                })
+                : await pageFetch(`/api/shops/${shopSelect.value}/auctions`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ itemId: Number(itemSelect.value), startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00' })
+                });
+            if (!res.ok) { fail(await errorText(res, editingId ? '경매를 수정하지 못했어요.' : '경매를 열지 못했어요.')); return; }
             modal.hidden = true;
             tab = 'ACTIVE';
             document.querySelectorAll('#se-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === 'ACTIVE'));

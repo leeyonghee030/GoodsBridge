@@ -53,6 +53,53 @@ class AuctionServiceCancelTest {
         return user;
     }
 
+    private AuctionUpdateRequest updateRequest(int start, int deposit) {
+        AuctionUpdateRequest request = new AuctionUpdateRequest();
+        org.springframework.test.util.ReflectionTestUtils.setField(request, "startPrice", start);
+        org.springframework.test.util.ReflectionTestUtils.setField(request, "depositAmount", deposit);
+        org.springframework.test.util.ReflectionTestUtils.setField(request, "deadline", LocalDateTime.now().plusDays(2));
+        return request;
+    }
+
+    @Test
+    void update_changesStartPriceDeadlineAndDepositWhenThereAreNoBids() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(1L)).thenReturn(true);
+        Auction auction = activeAuction(shop);
+        when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
+
+        AuctionResponse response = auctionService.update(1L, 1L, updateRequest(30_000, 4_500));
+
+        assertEquals(30_000, response.getStartPrice());
+        assertEquals(30_000, response.getCurrentPrice());
+        assertEquals(4_500, response.getDepositAmount());
+    }
+
+    @Test
+    void update_rejectsWhenBidsExist() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(1L)).thenReturn(true);
+        Auction auction = activeAuction(shop);
+        auction.updateCurrentBid(15_000, mock(User.class));
+        when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
+
+        assertThrows(BadRequestException.class, () -> auctionService.update(1L, 1L, updateRequest(30_000, 4_500)));
+
+        assertEquals(10_000, auction.getStartPrice());
+    }
+
+    @Test
+    void update_rejectsNonOwnerAndBadDeposit() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(5L)).thenReturn(false);
+        Auction auction = activeAuction(shop);
+        when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
+
+        assertThrows(ForbiddenException.class, () -> auctionService.update(5L, 1L, updateRequest(30_000, 4_500)));
+        // 보증금이 시작가의 10~20% 범위를 벗어나면 검증에서 거절 (경매 조회 전에 실패)
+        assertThrows(BadRequestException.class, () -> auctionService.update(1L, 1L, updateRequest(30_000, 100)));
+    }
+
     @Test
     void cancel_allowsOwnerWhenThereAreNoBids() {
         Shop shop = mock(Shop.class);

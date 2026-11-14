@@ -134,6 +134,19 @@ public class AuctionService {
         return auctionPage.map(a -> new AuctionResponse(a).withBidCount(counts.getOrDefault(a.getId(), 0L)));
     }
 
+    // 경매 수정: 가게 주인만, 입찰이 하나도 없을 때만 (시작가 · 마감 시간 · 보증금)
+    @Transactional
+    public AuctionResponse update(Long userId, Long auctionId, AuctionUpdateRequest request) {
+        request.validate();
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        if (!auction.getShop().isOwner(userId)) {
+            throw new ForbiddenException("가게의 주인만 경매를 수정할 수 있습니다.");
+        }
+        auction.updateBeforeBids(request.getStartPrice(), request.getDeadline(), request.getDepositAmount());
+        return new AuctionResponse(auction);
+    }
+
     // 경매 영수증 (낙찰가·낙찰자·결제/배송 정보): 가게 주인, 그리고 그 경매의 낙찰자 본인만 볼 수 있다
     @Transactional(readOnly = true)
     public AuctionReceiptResponse getReceipt(Long userId, Long auctionId) {
