@@ -55,13 +55,13 @@
     const grid = document.getElementById('item-grid');
     const emptyEl = document.getElementById('empty-state');
     const keywordInput = document.getElementById('keyword-input');
+    const sentinel = document.getElementById('more-sentinel');
     const TAB_LABELS = { ACTIVE: '진행중', MINE: '내 입찰', ENDED: '종료' };
     const SORT_LABELS = { DEADLINE: '마감 임박순', NEWEST: '최근 등록순', PRICE_DESC: '현재가 높은순', PRICE_ASC: '현재가 낮은순', BIDS: '입찰 많은순' };
-    let auctions = [];
-    let mine = new Set();      // 내가 입찰한 경매 id
-    // 처음에는 50개만 가져오고, 화면에는 12개씩 보여 준다. 끝까지 내리면 다음 12개(다 보였으면 서버에서 다음 50개)를 이어서 가져온다.
-    const PAGE_SIZE = 50, STEP = 12;
-    let nextPage = 2, hasMore = false, visibleCount = STEP, loadingMore = false;
+    // 탭 · 검색 · 정렬은 서버에서 처리하고, 한 번에 12개씩만 가져온다 (맨 아래로 내리면 다음 12개)
+    const STEP = 12;
+    let auctions = [];           // 지금까지 가져온 경매 (현재 탭/검색/정렬 기준)
+    let page = 0, hasMore = false, loading = false, firstLoadDone = false, requestSeq = 0;
     let tab = 'ACTIVE';
     let sortKey = 'DEADLINE';
 
@@ -87,35 +87,13 @@
     // 헤더의 '전체 매장' 선택을 교환 게시판처럼 따른다
     const selectedShopId = () => { try { return localStorage.getItem('gb_shop_id') || ''; } catch (e) { return ''; } };
 
-    function sortList(list) {
-        const by = {
-            DEADLINE: (a, b) => (isLive(b) - isLive(a)) || (isLive(a) ? deadlineOf(a) - deadlineOf(b) : deadlineOf(b) - deadlineOf(a)),
-            NEWEST: (a, b) => b.id - a.id,
-            PRICE_DESC: (a, b) => b.currentPrice - a.currentPrice,
-            PRICE_ASC: (a, b) => a.currentPrice - b.currentPrice,
-            BIDS: (a, b) => b.bidCount - a.bidCount || deadlineOf(a) - deadlineOf(b)
-        }[sortKey];
-        return [...list].sort(by);
-    }
-
-    function rows() {
-        const kw = keywordInput.value.trim().toLowerCase();
-        const shopId = selectedShopId();
-        return sortList(auctions)
-            .filter(a => tab === 'MINE' ? mine.has(a.id) : tab === 'ENDED' ? !isLive(a) : isLive(a))
-            .filter(a => !shopId || String(a.shopId) === shopId)
-            .filter(a => !kw || `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(kw));
-    }
-
     function myTag(a) {
-        if (!mine.has(a.id)) return '';
+        if (!a.participated) return '';
         return a.currentWinnerUserId === userId ? ' · 내가 최고가' : ' · 내 입찰';
     }
 
     function render() {
-        const all = rows();
-        const list = all.slice(0, visibleCount);
-        grid.innerHTML = list.map(a => `
+        grid.innerHTML = auctions.map(a => `
             <a class="card" href="/test/auction/${a.id}">
                 <span class="card-tag">■ ${statusLabel(a)}${myTag(a)}</span>
                 <div class="card-image">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="${esc(a.itemTitle)}">` : '이미지 없음'}</div>
@@ -125,72 +103,60 @@
                 <p class="card-meta au-line">${esc(a.shopName)}</p>
             </a>`).join('');
         const msg = { ACTIVE: '지금 진행 중인 경매가 없어요.', MINE: userId === null ? '로그인하면 내가 입찰한 경매를 볼 수 있어요.' : '입찰한 경매가 없어요.', ENDED: '종료된 경매가 없어요.' }[tab];
-        emptyEl.textContent = keywordInput.value.trim() ? '검색 결과가 없어요.' : msg;
-        emptyEl.hidden = all.length > 0 || hasMore;
-        // 더 보여 줄 게 있으면(화면에서 더 늘릴 수 있거나 서버에 다음 페이지가 있으면) 맨 아래 감시 영역을 켠다
-        sentinel.hidden = !(visibleCount < all.length || hasMore);
-        // 그린 직후에도 맨 아래가 화면 근처에 있으면(목록이 짧거나 막 늘어났을 때) 이어서 불러온다
+        emptyEl.textContent = !firstLoadDone ? '경매를 불러오는 중...' : keywordInput.value.trim() ? '검색 결과가 없어요.' : msg;
+        emptyEl.hidden = auctions.length > 0 || (!firstLoadDone);
+        if (!firstLoadDone) emptyEl.hidden = false;
+        sentinel.hidden = !hasMore;
+        // 그린 직후에도 맨 아래가 화면 근처에 있으면(목록이 짧을 때) 이어서 불러온다
         requestAnimationFrame(checkMore);
     }
 
-    const sentinel = document.getElementById('more-sentinel');
-    async function fetchNextPage() {
-        const res = await pageFetch(`/api/auctions?page=${nextPage}&size=${PAGE_SIZE}`);
-        if (!res.ok) { hasMore = false; return; }
-        const data = await res.json();
-        auctions = auctions.concat(data.content || []);
-        hasMore = !data.last;
-        nextPage++;
-    }
-    // 정렬·검색은 전체 기준이어야 하므로, 서버에 남은 페이지가 있으면 모두 가져온 뒤 적용한다
-    async function ensureAll() {
-        while (hasMore) await fetchNextPage();
-    }
-    async function showMore() {
-        if (loadingMore) return;
-        loadingMore = true;
-        try {
-            if (visibleCount < rows().length) {
-                visibleCount += STEP;
-            } else if (hasMore) {
-                await fetchNextPage();
-                visibleCount += STEP;
-            }
+    // reset 이면 처음(0페이지)부터 다시, 아니면 다음 페이지를 이어서 가져온다.
+    // 그 사이 탭/검색/정렬이 바뀌어 늦게 도착한 응답은 버린다.
+    async function loadPage(reset) {
+        if (reset) {
+            requestSeq++;
+            auctions = [];
+            page = 0;
+            hasMore = false;
+            firstLoadDone = false;
             render();
-        } finally {
-            loadingMore = false;
+        } else if (loading || !hasMore) {
+            return;
         }
-    }
-    // 맨 아래 감시 영역이 화면 아래 300px 안으로 들어오면 다음 12개를 보여 준다 (스크롤할 때와 그릴 때마다 확인)
-    const checkMore = () => {
-        if (!sentinel.hidden && sentinel.getBoundingClientRect().top < window.innerHeight + 300) showMore();
-    };
-    window.addEventListener('scroll', checkMore, { passive: true });
-
-    async function load() {
+        const seq = requestSeq;
+        loading = true;
         try {
-            const res = await pageFetch(`/api/auctions?page=1&size=${PAGE_SIZE}`);
+            const params = new URLSearchParams({ tab, sort: sortKey, page, size: STEP });
+            const kw = keywordInput.value.trim();
+            if (kw) params.set('keyword', kw);
+            const shopId = selectedShopId();
+            if (shopId) params.set('shopId', shopId);
+            const res = await pageFetch('/api/auctions/search?' + params);
+            if (seq !== requestSeq) return;
             if (!res.ok) throw new Error('경매를 불러오지 못했어요.');
-            const first = await res.json();
-            auctions = first.content || [];
-            hasMore = !first.last;
-            nextPage = 2;
-            if (userId !== null) {
-                // 내가 입찰한 경매 id (탭 구분용). 입찰한 경매가 많으면 여러 페이지를 이어서 가져온다
-                for (let page = 0; ; page++) {
-                    const meRes = await pageFetch(`/api/auctions/me?page=${page}&size=${PAGE_SIZE}`);
-                    if (!meRes.ok) break;
-                    const me = await meRes.json();
-                    (me.content || []).forEach(a => mine.add(a.id));
-                    if (me.last) break;
-                }
-            }
+            const data = await res.json();
+            auctions = auctions.concat(data.content || []);
+            hasMore = !data.last;
+            page++;
+            firstLoadDone = true;
+            loading = false;
             render();
         } catch (e) {
+            if (seq !== requestSeq) return;
+            loading = false;
+            hasMore = false;
+            firstLoadDone = true;
             emptyEl.textContent = e.message;
             emptyEl.hidden = false;
         }
     }
+
+    // 맨 아래 감시 영역이 화면 아래 300px 안으로 들어오면 다음 12개를 가져온다 (스크롤할 때와 그릴 때마다 확인)
+    function checkMore() {
+        if (!sentinel.hidden && !loading && hasMore && sentinel.getBoundingClientRect().top < window.innerHeight + 300) loadPage(false);
+    }
+    window.addEventListener('scroll', checkMore, { passive: true });
 
     // 남은 시간만 1초마다 갱신
     setInterval(() => {
@@ -212,12 +178,11 @@
         const item = ev.target.closest('.scope-menu-item');
         if (!item) return;
         tab = item.dataset.tab;
-        visibleCount = STEP;
         scopeTrigger.textContent = TAB_LABELS[tab];
         document.getElementById('toolbar-label').textContent = TAB_LABELS[tab];
         scopeMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
         scopeMenu.hidden = true;
-        render();
+        loadPage(true);
     });
     document.getElementById('sort-dropdown').addEventListener('click', ev => {
         ev.stopPropagation();
@@ -226,14 +191,18 @@
         const item = ev.target.closest('.scope-menu-item');
         if (!item) return;
         sortKey = item.dataset.sort;
-        visibleCount = STEP;
         sortTrigger.textContent = SORT_LABELS[sortKey];
         sortMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
         sortMenu.hidden = true;
-        ensureAll().then(render);
+        loadPage(true);
     });
     document.addEventListener('click', () => { scopeMenu.hidden = true; sortMenu.hidden = true; });
-    keywordInput.addEventListener('input', () => { visibleCount = STEP; ensureAll().then(render); });
+    // 검색어: 입력을 멈추고 0.3초 뒤에 현재 탭 안에서만 서버에 검색한다
+    let searchTimer;
+    keywordInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => loadPage(true), 300);
+    });
 
     // 헤더에서 매장을 고르면 안내 문구를 보여준다
     const shopInfo = document.getElementById('shop-filter-info');
@@ -245,7 +214,7 @@
             shopInfo.hidden = false;
         });
     }
-    load();
+    loadPage(true);
 })();
 </script>
 

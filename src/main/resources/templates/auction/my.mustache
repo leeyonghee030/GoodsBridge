@@ -168,11 +168,6 @@
     const TABS = [['BIDDING', '입찰중'], ['WAIT', '낙찰 · 잔금 대기'], ['PAID', '낙찰 · 결제 완료'], ['LOST', '패찰'], ['FORFEIT', '미결제'], ['CANCELLED', '경매 취소']];
     const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
     const isWinner = a => a.currentWinnerUserId === userId;
-    const tabOf = a => a.status === 'ACTIVE' ? 'BIDDING'
-        : a.status === 'ENDED_SUCCESS' ? (isWinner(a) ? (a.balancePaid ? 'PAID' : 'WAIT') : 'LOST')
-        : a.status === 'ENDED_FAIL' ? (isWinner(a) ? 'FORFEIT' : 'LOST')   // 낙찰자가 잔금을 안 내 무효가 된 경매: 낙찰자 본인이면 미결제, 나머지는 패찰
-        : 'CANCELLED';
-
     // 내가 낙찰받은 경매(잔금 대기 · 결제 완료 · 미결제)는 경매 게시글 대신 영수증을 보여준다
     const hasReceipt = a => isWinner(a) && (a.status === 'ENDED_SUCCESS' || a.status === 'ENDED_FAIL');
 
@@ -197,31 +192,25 @@
 
     const listEl = document.getElementById('am-list');
     const subtabs = document.getElementById('am-subtabs');
-    let rows = [];
+    // 탭 · 검색은 서버에서 처리하고(선택한 탭 안에서만 검색), 한 번에 12개씩만 가져온다. 목록 맨 아래로 내리면 다음 12개.
+    const STEP = 12;
+    let rows = [];                  // 현재 탭 · 검색어 기준으로 지금까지 가져온 경매
+    let counts = {};                // 탭별 건수 (서버에서 계산, 검색어 반영)
     let sub = 'BIDDING';
-    // 처음에는 50개만 가져오고 목록에는 12개씩 보여 준다. 끝까지 내리면 다음 12개(다 보였으면 서버에서 다음 50개)를 이어서 가져온다.
-    const PAGE_SIZE = 50, STEP = 12;
-    let nextPage = 1, hasMore = false, visibleCount = STEP, loadingMore = false, keyword = '';
-    // 잔금 결제가 필요한 낙찰을 먼저 보여준다
-    const sortRows = () => {
-        const rank = a => (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) ? 0 : 1;
-        rows.sort((x, y) => rank(x) - rank(y) || new Date(y.deadline) - new Date(x.deadline));
-    };
-    const matched = () => keyword ? rows.filter(a => `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(keyword)) : rows;
+    let page = 0, hasMore = false, loading = false, firstLoadDone = false, requestSeq = 0, keyword = '', firstInit = true;
 
-    function render() {
-        const base = matched();
-        // 서버에 아직 안 가져온 페이지가 있으면 건수 뒤에 + 를 붙인다
-        const count = key => base.filter(a => tabOf(a) === key).length + (hasMore ? '+' : '');
+    function renderTabs() {
         subtabs.innerHTML = TABS.map(([key, label]) =>
-            `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
-        const all = base.filter(a => tabOf(a) === sub);
-        const shown = all.slice(0, visibleCount);
-        if (!shown.length && !hasMore) {
+            `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${counts[key] ?? 0}</small></button>`).join('');
+    }
+
+    function renderList() {
+        if (!firstLoadDone) { listEl.innerHTML = '<p class="empty">경매 내역을 불러오는 중...</p>'; return; }
+        if (!rows.length) {
             listEl.innerHTML = `<p class="empty">${keyword ? '검색 결과가 없어요.' : TABS.find(t => t[0] === sub)[1] + ' 경매가 없어요.'}</p>`;
             return;
         }
-        listEl.innerHTML = shown.map(a => {
+        listEl.innerHTML = rows.map(a => {
             const needPay = a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid;
             const overdue = needPay && a.balanceDueAt && new Date(a.balanceDueAt.slice(0, 19)) < new Date();
             return `
@@ -251,69 +240,89 @@
                         <small>입찰하며 낸 보증금은 모두 환불돼요. 환불은 취소 후 1분 안에 자동으로 접수되고, 카드사에 따라 카드에 반영되기까지 며칠 걸릴 수 있어요.</small></span>
                 </div>` : ''}
             </div>`;
-        }).join('') + (shown.length < all.length || hasMore ? '<div class="am-more" id="am-sentinel">더 불러오는 중...</div>' : '');
-        // 그린 직후에도 맨 아래가 목록 영역 근처에 있으면 이어서 불러온다
+        }).join('') + (hasMore ? '<div class="am-more" id="am-sentinel">더 불러오는 중...</div>' : '');
+        // 그린 직후에도 맨 아래가 목록 영역 근처에 있으면(목록이 짧을 때) 이어서 불러온다
         requestAnimationFrame(checkMore);
     }
 
-    // 맨 아래 감시 영역이 목록 아래 80px 안으로 들어오면 다음 12개를 보여 준다 (목록을 스크롤할 때와 그릴 때마다 확인)
-    const checkMore = () => {
-        const sentinel = document.getElementById('am-sentinel');
-        if (sentinel && sentinel.getBoundingClientRect().top < listEl.getBoundingClientRect().bottom + 80) showMore();
-    };
-    listEl.addEventListener('scroll', checkMore, { passive: true });
-    async function fetchNextPage() {
-        const res = await pageFetch(`/api/auctions/me?page=${nextPage}&size=${PAGE_SIZE}`);
-        if (!res.ok) { hasMore = false; return false; }
-        const data = await res.json();
-        rows = rows.concat(data.content || []);
-        hasMore = !data.last;
-        nextPage++;
-        sortRows();
-        return true;
-    }
-    async function showMore() {
-        if (loadingMore) return;
-        loadingMore = true;
-        try {
-            if (visibleCount < matched().filter(a => tabOf(a) === sub).length) {
-                visibleCount += STEP;
-            } else if (hasMore) {
-                await fetchNextPage();
-                visibleCount += STEP;
-            }
-            render();
-        } finally {
-            loadingMore = false;
-        }
-    }
-    // 검색은 전체 기준이어야 하므로, 서버에 남은 페이지가 있으면 모두 가져온 뒤 적용한다
-    async function ensureAll() {
-        while (hasMore) { if (!(await fetchNextPage())) break; }
-    }
-    async function load() {
-        nextPage = 0;
-        const res = await pageFetch(`/api/auctions/me?page=${nextPage}&size=${PAGE_SIZE}`);
-        if (!res.ok) { listEl.innerHTML = '<p class="empty">경매 내역을 불러오지 못했어요. 로그인 상태를 확인해 주세요.</p>'; return; }
-        const first = await res.json();
-        rows = first.content || [];
-        hasMore = !first.last;
-        nextPage = 1;
-        sortRows();
-        if (rows.some(a => tabOf(a) === 'WAIT') && !rows.some(a => tabOf(a) === 'BIDDING')) sub = 'WAIT';
-        render();
+    async function loadCounts() {
+        const res = await pageFetch('/api/auctions/me/counts' + (keyword ? '?keyword=' + encodeURIComponent(keyword) : ''));
+        if (res.ok) counts = await res.json();
+        renderTabs();
     }
 
-    document.getElementById('am-search').addEventListener('input', async ev => {
-        keyword = ev.target.value.trim().toLowerCase();
-        visibleCount = STEP;
-        listEl.scrollTop = 0;
-        await ensureAll();
-        render();
+    // reset 이면 선택한 탭의 첫 12개부터 다시, 아니면 다음 12개를 이어서 가져온다.
+    // 그 사이 탭/검색이 바뀌어 늦게 도착한 응답은 버린다.
+    async function loadPage(reset) {
+        if (reset) {
+            requestSeq++;
+            rows = [];
+            page = 0;
+            hasMore = false;
+            firstLoadDone = false;
+            listEl.scrollTop = 0;
+            renderList();
+        } else if (loading || !hasMore) {
+            return;
+        }
+        const seq = requestSeq;
+        loading = true;
+        try {
+            const params = new URLSearchParams({ tab: sub, page, size: STEP });
+            if (keyword) params.set('keyword', keyword);
+            const res = await pageFetch('/api/auctions/me/search?' + params);
+            if (seq !== requestSeq) return;
+            if (!res.ok) { listEl.innerHTML = '<p class="empty">경매 내역을 불러오지 못했어요. 로그인 상태를 확인해 주세요.</p>'; loading = false; hasMore = false; return; }
+            const data = await res.json();
+            rows = rows.concat(data.content || []);
+            hasMore = !data.last;
+            page++;
+            firstLoadDone = true;
+            loading = false;
+            renderList();
+        } catch (e) {
+            if (seq !== requestSeq) return;
+            loading = false;
+            hasMore = false;
+            listEl.innerHTML = '<p class="empty">경매 내역을 불러오지 못했어요.</p>';
+        }
+    }
+
+    // 처음 열 때와 잔금 결제 뒤 새로고침: 탭 건수 → 선택한 탭의 첫 12개
+    async function load() {
+        await loadCounts();
+        if (firstInit) {
+            firstInit = false;
+            // 입찰중이 없고 잔금 결제가 필요한 낙찰이 있으면 그 탭부터 보여준다
+            if (!counts.BIDDING && counts.WAIT) sub = 'WAIT';
+            renderTabs();
+        }
+        await loadPage(true);
+    }
+
+    // 목록 맨 아래가 목록 영역 아래 80px 안으로 들어오면 다음 12개를 가져온다 (목록을 스크롤할 때와 그릴 때마다 확인)
+    function checkMore() {
+        const sentinel = document.getElementById('am-sentinel');
+        if (sentinel && !loading && hasMore && sentinel.getBoundingClientRect().top < listEl.getBoundingClientRect().bottom + 80) loadPage(false);
+    }
+    listEl.addEventListener('scroll', checkMore, { passive: true });
+
+    // 검색어: 입력을 멈추고 0.3초 뒤에 현재 탭 안에서만 서버에 검색하고, 탭별 건수도 검색 결과 기준으로 다시 센다
+    let searchTimer;
+    document.getElementById('am-search').addEventListener('input', ev => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            keyword = ev.target.value.trim();
+            loadCounts();
+            loadPage(true);
+        }, 300);
     });
     subtabs.addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
-        if (b) { sub = b.dataset.sub; visibleCount = STEP; listEl.scrollTop = 0; render(); }
+        if (!b || b.dataset.sub === sub) return;
+        sub = b.dataset.sub;
+        renderTabs();
+        loadPage(true);
     });
 
     // ----- 낙찰 영수증 (낙찰가 · 결제 내역 · 배송지) -----

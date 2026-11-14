@@ -26,6 +26,7 @@ public class AuctionResponse {
     private String categoryName;
     private String shopName;
     private String shopAddress;
+    private boolean participated;          // 로그인한 사용자가 이 경매에 입찰했는지 (검색 목록에서만 채운다)
     private long bidCount;                  // 입찰 횟수 (목록/상세에서 채운다, 그 외에는 0)
 
     public AuctionResponse(Auction auction) {
@@ -49,6 +50,11 @@ public class AuctionResponse {
         this.categoryName = auction.getItem().getCategory() != null ? auction.getItem().getCategory().getName() : null;
         this.shopName = auction.getShop().getName();
         this.shopAddress = auction.getShop().getAddress();
+    }
+
+    public AuctionResponse withParticipated(boolean participated) {
+        this.participated = participated;
+        return this;
     }
 
     public AuctionResponse withBidCount(long bidCount) {

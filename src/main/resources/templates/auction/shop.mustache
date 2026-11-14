@@ -26,6 +26,7 @@
 .se-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
 .se-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 .se-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.se-more-loading { padding: 1.2rem 0 1.4rem; text-align: center; font-size: 0.78rem; color: var(--color-muted); }
 .se-empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
 .se-section { margin: 0.9rem 0 0.4rem; font-size: 0.82rem; color: var(--color-muted); }
 .se-field-label, .se-form-row label { display: block; margin-bottom: 0.25rem; font-size: 0.78rem; color: var(--color-muted); }
@@ -263,19 +264,20 @@
     if (!multiShop) shopSelect.closest('p').hidden = true;
 
     const listEl = $('se-list');
-    let auctions = [];
+    // 탭 · 분류 · 검색은 서버에서 처리하고(선택한 탭 안에서만 검색), 한 번에 12개씩만 가져온다. 맨 아래로 내리면 다음 12개.
+    const STEP = 12;
+    let auctions = [];       // 현재 탭 · 분류 · 검색어 기준으로 지금까지 가져온 경매
+    let counts = {};         // 탭 · 분류별 건수, 정산 예정, 진행 중인 경매의 상품 id (서버에서 계산, 검색어 반영)
+    let page = 0, hasMore = false, loading = false, firstLoadDone = false, requestSeq = 0, keyword = '';
     let tab = 'ACTIVE';
-    let endedSub = 'ALL';   // 종료 탭 안의 분류: ALL / WAITING(잔금 대기) / DONE(정산 완료) / FAIL(유찰)
+    let endedSub = 'ALL';   // 종료 탭 안의 분류: ALL / WAITING(잔금 대기) / DONE(정산 완료) / FORFEITED(낙찰자 미결제) / FAIL(유찰)
     let fees = [];           // 경매 정산 내역 (SettlementHistory 중 AUCTION_SALE)
     let feeView = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let feeDay = null;
     const ENDED_SUBS = [['ALL', '전체'], ['WAITING', '낙찰 · 잔금 대기'], ['DONE', '낙찰 · 정산 완료'], ['FORFEITED', '낙찰 · 미결제'], ['FAIL', '유찰']];
-    // 낙찰자가 기한 안에 잔금을 내지 않으면 상태가 ENDED_FAIL 이 되지만 낙찰자(입찰자)는 남아 있다 → 유찰(입찰 없음)과 구분
-    const endedKind = a => a.status === 'ENDED_FAIL' ? (a.currentWinnerUserId ? 'FORFEITED' : 'FAIL') : a.balancePaid ? 'DONE' : 'WAITING';
 
     // 마감시간이 지났는데 아직 처리되지 않은 경매는 '마감 처리 중'으로 본다
     const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
-    const tabOf = a => a.status === 'ACTIVE' ? 'ACTIVE' : a.status === 'CANCELLED' ? 'CANCELLED' : 'ENDED';
     const canEdit = a => a.status === 'ACTIVE' && a.bidCount === 0;   // 입찰이 하나라도 있으면 수정할 수 없다
     // 유찰 · 낙찰자 미결제 · 취소된 경매는 같은 상품으로 다시 열 수 있다
     const canReopen = a => a.status === 'ENDED_FAIL' || a.status === 'CANCELLED';
@@ -299,31 +301,26 @@
         return '';
     }
 
-    function render() {
-        const q = $('se-search').value.trim().toLowerCase();
-        const matched = q ? auctions.filter(a => `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(q)) : auctions;
-        ['ACTIVE', 'ENDED', 'CANCELLED'].forEach(t => { $('se-cnt-' + t).textContent = matched.filter(a => tabOf(a) === t).length; });
-        const isFee = tab === 'FEE';
-        $('se-fee').hidden = !isFee;
-        $('se-panel').hidden = isFee;
-        $('se-search').hidden = isFee;
-        // 종료 탭 위에는 낙찰(잔금 대기 · 정산 완료) · 유찰 분류
+    // 탭 · 분류 건수 표시
+    function renderTabs() {
+        ['ACTIVE', 'ENDED', 'CANCELLED'].forEach(t => { $('se-cnt-' + t).textContent = counts[t] ?? ''; });
+        // 종료 탭 위에는 낙찰(잔금 대기 · 정산 완료 · 미결제) · 유찰 분류
         const subBox = $('se-subtabs');
-        const endedAll = matched.filter(a => tabOf(a) === 'ENDED');
         subBox.hidden = tab !== 'ENDED';
         if (tab === 'ENDED') {
-            const cnt = k => k === 'ALL' ? endedAll.length : endedAll.filter(a => endedKind(a) === k).length;
+            const cnt = k => (k === 'ALL' ? counts.ENDED : counts['ENDED_' + k]) ?? 0;
             subBox.innerHTML = ENDED_SUBS.map(([k, label]) => `<button type="button" data-sub="${k}" class="${endedSub === k ? 'active' : ''}">${label}<small>${cnt(k)}</small></button>`).join('');
         }
-        if (isFee) { renderFee(); return; }
-        const rows = matched.filter(a => tabOf(a) === tab && (tab !== 'ENDED' || endedSub === 'ALL' || endedKind(a) === endedSub))
-            .sort((x, y) => tab === 'ACTIVE' ? new Date(x.deadline) - new Date(y.deadline) : new Date(y.deadline) - new Date(x.deadline));
-        if (!rows.length) {
-            const msg = q ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: endedSub === 'ALL' ? '종료된 경매가 없어요.' : `${ENDED_SUBS.find(x => x[0] === endedSub)[1]} 경매가 없어요.`, CANCELLED: '취소한 경매가 없어요.' }[tab];
+    }
+
+    function renderList() {
+        if (!firstLoadDone) { listEl.innerHTML = '<p class="se-empty">불러오는 중...</p>'; return; }
+        if (!auctions.length) {
+            const msg = keyword ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: endedSub === 'ALL' ? '종료된 경매가 없어요.' : `${ENDED_SUBS.find(x => x[0] === endedSub)[1]} 경매가 없어요.`, CANCELLED: '취소한 경매가 없어요.' }[tab];
             listEl.innerHTML = `<p class="se-empty">${msg}</p>`;
             return;
         }
-        listEl.innerHTML = rows.map(a => {
+        listEl.innerHTML = auctions.map(a => {
             const [label, cls] = badgeOf(a);
             return `
             <div class="se-row">
@@ -348,19 +345,80 @@
                     </span>` : ''}
                 </span>
             </div>`;
-        }).join('');
+        }).join('') + (hasMore ? '<div class="se-more-loading" id="se-sentinel">더 불러오는 중...</div>' : '');
+        // 그린 직후에도 맨 아래가 화면 근처에 있으면(목록이 짧을 때) 이어서 불러온다
+        requestAnimationFrame(checkMore);
     }
 
+    // 탭 전환 · 건수 · 목록(또는 정산 화면)을 현재 상태대로 다시 그린다
+    function render() {
+        const isFee = tab === 'FEE';
+        $('se-fee').hidden = !isFee;
+        $('se-panel').hidden = isFee;
+        $('se-search').hidden = isFee;
+        renderTabs();
+        if (isFee) { renderFee(); return; }
+        renderList();
+    }
+
+    async function loadCounts() {
+        const res = await pageFetch('/api/shop-auctions/counts' + (keyword ? '?keyword=' + encodeURIComponent(keyword) : ''));
+        if (res.ok) counts = await res.json();
+        renderTabs();
+        if (tab === 'FEE') renderFee();
+    }
+
+    // reset 이면 선택한 탭 · 분류의 첫 12개부터 다시, 아니면 다음 12개를 이어서 가져온다.
+    // 그 사이 탭/검색이 바뀌어 늦게 도착한 응답은 버린다.
+    async function loadPage(reset) {
+        if (reset) {
+            requestSeq++;
+            auctions = [];
+            page = 0;
+            hasMore = false;
+            firstLoadDone = false;
+            renderList();
+        } else if (loading || !hasMore) {
+            return;
+        }
+        const seq = requestSeq;
+        loading = true;
+        try {
+            const params = new URLSearchParams({ tab, sub: endedSub, page, size: STEP });
+            if (keyword) params.set('keyword', keyword);
+            const res = await pageFetch('/api/shop-auctions/search?' + params);
+            if (seq !== requestSeq) return;
+            if (!res.ok) throw new Error(await errorText(res, '경매를 불러오지 못했어요.'));
+            const data = await res.json();
+            auctions = auctions.concat(data.content || []);
+            hasMore = !data.last;
+            page++;
+            firstLoadDone = true;
+            loading = false;
+            renderList();
+        } catch (e) {
+            if (seq !== requestSeq) return;
+            loading = false;
+            hasMore = false;
+            listEl.innerHTML = `<p class="se-empty">${esc(e.message)}</p>`;
+        }
+    }
+
+    // 맨 아래가 화면 아래 300px 안으로 들어오면 다음 12개를 가져온다 (스크롤할 때와 그릴 때마다 확인)
+    function checkMore() {
+        const sentinel = document.getElementById('se-sentinel');
+        if (sentinel && !loading && hasMore && sentinel.getBoundingClientRect().top < window.innerHeight + 300) loadPage(false);
+    }
+    window.addEventListener('scroll', checkMore, { passive: true });
+
+    // 처음 열 때와 경매 열기 · 수정 · 취소 · 마감 뒤 새로고침: 건수와 정산 내역 → 선택한 탭의 첫 12개
     async function load() {
         try {
-            const lists = await Promise.all(shopIds.map(id => pageFetch(`/api/auctions?shopId=${id}&page=1&size=50`).then(async r => {
-                if (!r.ok) throw new Error(await errorText(r, '경매를 불러오지 못했어요.'));
-                return (await r.json()).content || [];
-            })));
-            auctions = lists.flat().sort((a, b) => b.id - a.id);
-            const feeLists = await Promise.all(shopIds.map(id => pageFetch(`/api/shops/${id}/auction-settlements`).then(r => r.ok ? r.json() : [])));
-            fees = feeLists.flat();
+            const feeLoad = Promise.all(shopIds.map(id => pageFetch(`/api/shops/${id}/auction-settlements`).then(r => r.ok ? r.json() : [])));
+            await loadCounts();
+            fees = (await feeLoad).flat();
             render();
+            if (tab !== 'FEE') await loadPage(true);
         } catch (e) {
             listEl.innerHTML = `<p class="se-empty">${esc(e.message)}</p>`;
         }
@@ -476,8 +534,10 @@
     $('se-subtabs').addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
         if (!b) return;
+        if (b.dataset.sub === endedSub) return;
         endedSub = b.dataset.sub;
-        render();
+        renderTabs();
+        loadPage(true);
     });
 
     // ===== 경매 정산 (달력 + 날짜별 내역) =====
@@ -490,8 +550,7 @@
         $('se-fee-today').textContent = money(sum(between(today, new Date(y, m, now.getDate() + 1))));
         $('se-fee-month').textContent = money(sum(between(new Date(y, m, 1), new Date(y, m + 1, 1))));
         $('se-fee-last').textContent = money(sum(between(new Date(y, m - 1, 1), new Date(y, m, 1))));
-        const pending = auctions.filter(a => a.status === 'ENDED_SUCCESS' && !a.balancePaid);
-        $('se-fee-pending').textContent = `${pending.length}건 · ${money(pending.reduce((acc, a) => acc + a.currentPrice, 0))}`;
+        $('se-fee-pending').textContent = `${counts.pendingCount || 0}건 · ${money(counts.pendingAmount || 0)}`;
 
         const cy = feeView.getFullYear(), cm = feeView.getMonth();
         const monthList = between(new Date(cy, cm, 1), new Date(cy, cm + 1, 1));
@@ -544,13 +603,23 @@
         el.addEventListener('scroll', () => { el.classList.add('is-scrolling'); clearTimeout(t); t = setTimeout(() => el.classList.remove('is-scrolling'), 600); });
     })();
 
-    $('se-search').addEventListener('input', render);
+    // 검색어: 입력을 멈추고 0.3초 뒤에 현재 탭 안에서만 서버에 검색하고, 탭 · 분류별 건수도 검색 결과 기준으로 다시 센다
+    let searchTimer;
+    $('se-search').addEventListener('input', ev => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(async () => {
+            keyword = ev.target.value.trim();
+            await loadCounts();
+            if (tab !== 'FEE') loadPage(true);
+        }, 300);
+    });
     $('se-tabs').addEventListener('click', ev => {
         const t = ev.target.closest('[data-tab]');
-        if (!t) return;
+        if (!t || t.dataset.tab === tab) return;
         tab = t.dataset.tab;
         document.querySelectorAll('#se-tabs [data-tab]').forEach(el => el.classList.toggle('active', el === t));
         render();
+        if (tab !== 'FEE') loadPage(true);
     });
 
     // ===== '···' 메뉴 / 경매 취소 / 마감 처리 =====
@@ -622,7 +691,7 @@
     // 내 가게의 판매중 상품 중, 이벤트 상품이 아니고 진행 중인 경매가 없는 것만
     function fillItems() {
         const shopId = Number(shopSelect.value);
-        const busy = new Set(auctions.filter(a => a.status === 'ACTIVE' && a.shopId === shopId).map(a => a.itemId));
+        const busy = new Set(counts.activeItemIds || []);
         const list = myItems.filter(i => i.shopId === shopId && i.status === 'ON_SALE' && i.saleType !== 'EVENT' && !busy.has(i.id));
         itemSelect.innerHTML = '<option value="">상품 선택</option>' + list.map(i => `<option value="${i.id}" data-price="${i.price}">${esc(i.title)} (${money(i.price)})</option>`).join('');
         $('au-item-hint').innerHTML = list.length
