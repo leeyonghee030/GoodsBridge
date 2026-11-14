@@ -95,6 +95,7 @@ public class AuctionService {
             .deadline(request.getDeadline())
             .depositAmount(request.getDepositAmount())
             .build();
+        auction.changeDescription(request.getDescription());
         Auction savedAuction = auctionRepository.save(auction);
         return new AuctionResponse(savedAuction);
     }
@@ -143,7 +144,7 @@ public class AuctionService {
         if (!auction.getShop().isOwner(userId)) {
             throw new ForbiddenException("가게의 주인만 경매를 수정할 수 있습니다.");
         }
-        auction.updateBeforeBids(request.getStartPrice(), request.getDeadline(), request.getDepositAmount());
+        auction.updateBeforeBids(request.getStartPrice(), request.getDeadline(), request.getDepositAmount(), request.getDescription());
         return new AuctionResponse(auction);
     }
 

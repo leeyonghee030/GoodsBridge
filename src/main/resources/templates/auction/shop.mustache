@@ -225,6 +225,11 @@
                 <label for="au-deadline" class="se-field-label">마감 일시</label>
                 <input id="au-deadline" type="datetime-local" required>
             </p>
+            <p>
+                <label for="au-desc" class="se-field-label">경매 설명 (선택)</label>
+                <textarea id="au-desc" rows="4" maxlength="500" placeholder="상품 상태, 구성품, 배송·수령 안내 등을 적어 주세요."></textarea>
+                <span class="se-hint" id="au-desc-count">0 / 500 · 비워 두면 상품 설명이 보여요.</span>
+            </p>
             <button type="submit" id="au-submit">경매 열기</button>
         </form>
         <p id="au-message" class="form-message"></p>
@@ -606,6 +611,10 @@
     const startInput = $('au-start');
     const depositInput = $('au-deposit');
     const deadlineInput = $('au-deadline');
+    const descInput = $('au-desc');
+    const updateDescCount = () => { $('au-desc-count').textContent = `${descInput.value.length} / 500 · 비워 두면 상품 설명이 보여요.`; };
+    descInput.addEventListener('input', updateDescCount);
+    const setDesc = text => { descInput.value = text || ''; updateDescCount(); };
     let myItems = [];
 
     const localInput = d => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -645,6 +654,7 @@
         depositInput.value = Number(a.depositAmount).toLocaleString('ko-KR');
         deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
         deadlineInput.value = a.deadline.slice(0, 16);
+        setDesc(a.itemDescription);
         updateDepositHint();
         modal.hidden = false;
     }
@@ -663,6 +673,7 @@
         depositInput.value = Number(a.depositAmount).toLocaleString('ko-KR');
         deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
         deadlineInput.value = localInput(new Date(Date.now() + 3 * 86400000));
+        setDesc(a.itemDescription);
         updateDepositHint();
         modal.hidden = false;
     }
@@ -674,6 +685,7 @@
             myItems = res.ok ? await res.json() : [];
         }
         form.reset();
+        setDesc('');
         message.textContent = '';
         fillItems();
         deadlineInput.min = localInput(new Date(Date.now() + 10 * 60000));
@@ -691,6 +703,9 @@
             depositInput.value = Math.round(price * 0.15 / 100) * 100 ? (Math.round(price * 0.15 / 100) * 100).toLocaleString('ko-KR') : '';
             updateDepositHint();
         }
+        // 상품 설명을 경매 설명 초안으로 채워 준다 (이미 직접 적은 내용이 있으면 그대로 둔다)
+        const item = myItems.find(i => String(i.id) === itemSelect.value);
+        if (item && !descInput.value.trim()) setDesc(item.description);
     });
     [startInput, depositInput].forEach(el => el.addEventListener('input', () => {
         const d = el.value.replace(/\D/g, '').replace(/^0+/, '');
@@ -711,11 +726,11 @@
             const res = editingId
                 ? await pageFetch(`/api/auctions/${editingId}`, {
                     method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00' })
+                    body: JSON.stringify({ startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00', description: descInput.value.trim() })
                 })
                 : await pageFetch(`/api/shops/${shopSelect.value}/auctions`, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ itemId: Number(itemSelect.value), startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00' })
+                    body: JSON.stringify({ itemId: Number(itemSelect.value), startPrice: start, depositAmount: deposit, deadline: deadlineInput.value + ':00', description: descInput.value.trim() })
                 });
             if (!res.ok) { fail(await errorText(res, editingId ? '경매를 수정하지 못했어요.' : '경매를 열지 못했어요.')); return; }
             modal.hidden = true;

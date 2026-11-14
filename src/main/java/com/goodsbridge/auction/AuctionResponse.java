@@ -44,7 +44,8 @@ public class AuctionResponse {
         this.balanceDueAt = auction.getBalanceDueAt();
         this.itemTitle = auction.getItem().getTitle();
         this.itemImageUrl = auction.getItem().getImageUrl();
-        this.itemDescription = auction.getItem().getDescription();
+        // 경매 설명이 있으면 그것을, 없으면 상품 설명을 보여준다
+        this.itemDescription = auction.getDescription() != null ? auction.getDescription() : auction.getItem().getDescription();
         this.categoryName = auction.getItem().getCategory() != null ? auction.getItem().getCategory().getName() : null;
         this.shopName = auction.getShop().getName();
         this.shopAddress = auction.getShop().getAddress();
