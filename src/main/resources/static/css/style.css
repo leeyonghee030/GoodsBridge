@@ -1999,6 +1999,15 @@ button.link-button:hover { background: none; color: var(--color-text); }
 .gb-dialog-backdrop { z-index: 300; animation: gb-fade .15s ease; }
 .gb-dialog { max-width: 340px; padding: 1.75rem 1.5rem 1.25rem; text-align: center; animation: gb-pop .18s ease; }
 .gb-dialog-msg { margin: 0 0 1.25rem; font-size: 0.95rem; font-weight: var(--fw-medium); line-height: 1.6; color: var(--color-text); white-space: pre-line; word-break: keep-all; }
+.gb-dialog-msg.is-rich { white-space: normal; }
+/* 입찰 확인창 */
+.gb-bid-warns { display: grid; gap: 0.45rem; margin: 0 0 1rem; text-align: left; }
+.gb-bid-warn { display: flex; gap: 0.55rem; align-items: flex-start; padding: 0.65rem 0.8rem; border-radius: 10px; background: #FFF6E5; color: #8A5A00; font-size: 0.82rem; font-weight: var(--fw-medium); line-height: 1.5; }
+.gb-bid-warn::before { content: '!'; flex: none; width: 1.1rem; height: 1.1rem; margin-top: 0.1rem; border-radius: 50%; background: #F0A020; color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 1.1rem; text-align: center; }
+.gb-bid-warn b { font-weight: 700; }
+.gb-bid-amount { margin: 0; font-size: 0.82rem; color: var(--color-muted); }
+.gb-bid-amount strong { display: block; margin: 0.15rem 0 0.2rem; font-size: 1.7rem; font-weight: 800; color: var(--color-text); letter-spacing: -0.02em; }
+.gb-bid-sub { margin: 0.5rem 0 0; font-size: 0.78rem; color: var(--color-muted); }
 .gb-dialog-input { width: 100%; margin: -0.25rem 0 1.25rem; padding: 0.6rem 0.75rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.9rem; }
 .gb-dialog-input:focus { outline: none; border-color: var(--color-dark); }
 .gb-dialog-actions { display: flex; gap: 0.5rem; }
