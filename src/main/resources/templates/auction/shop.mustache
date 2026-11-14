@@ -306,7 +306,7 @@
             <div class="se-row">
                 <span class="se-thumb">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="">` : ''}</span>
                 <span class="se-row-main">
-                    <strong><a href="/test/auction/${a.id}">${esc(a.itemTitle)}</a></strong>
+                    <strong><a href="/test/auction/${a.id}" ${a.status === 'ENDED_SUCCESS' || (a.status === 'ENDED_FAIL' && a.currentWinnerUserId) ? `data-receipt="${a.id}"` : ''}>${esc(a.itemTitle)}</a></strong>
                     <small>${multiShop ? esc(a.shopName) + ' · ' : ''}시작가 ${money(a.startPrice)} · ${a.bidCount ? '현재가 ' + money(a.currentPrice) : '입찰 없음'} · 입찰 ${a.bidCount}회 · 보증금 ${money(a.depositAmount)}</small>
                     <small>마감 ${dateTime(a.deadline)}</small>
                     ${earnLine(a)}
