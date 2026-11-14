@@ -413,7 +413,8 @@
                 <header class="my-group-head">
                     <div class="my-thumb">${thumb(first.itemImageUrl, first.itemTitle)}</div>
                     <div class="my-group-title">
-                        <strong>${esc(first.itemTitle)}</strong>
+                        <strong>${esc(first.exchangeItemTitle || first.itemTitle)}</strong>
+                        <small>상품: ${esc(first.itemTitle)}</small>
                         <small>받은 신청 ${rows.length}건${pending ? ` · 대기 중 ${pending}건` : ''}</small>
                     </div>
                     <a class="my-group-link" href="/exchange/${postId}">게시글 보기</a>
