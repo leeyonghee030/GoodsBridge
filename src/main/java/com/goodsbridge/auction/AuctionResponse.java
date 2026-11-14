@@ -18,6 +18,7 @@ public class AuctionResponse {
     private boolean balancePaid;            // 낙찰 잔금 결제 완료 여부
     private Integer balanceAmount;          // 낙찰 성공 시 낙찰자가 낼 잔금 (낙찰가 - 보증금)
     private LocalDateTime balanceDueAt;     // 잔금 결제 기한
+    private String balancePaymentId;        // 잔금 결제 id (가게 정산 내역과 연결할 때 사용)
 
     // 화면용: 경매 상품/가게 정보와 입찰 횟수
     private String itemTitle;
@@ -42,6 +43,7 @@ public class AuctionResponse {
         this.balancePaid = auction.isBalancePaid();
         this.balanceAmount = auction.getStatus() == Status.ENDED_SUCCESS ? auction.getBalanceAmount() : null;
         this.balanceDueAt = auction.getBalanceDueAt();
+        this.balancePaymentId = auction.getBalancePaymentId();
         this.itemTitle = auction.getItem().getTitle();
         this.itemImageUrl = auction.getItem().getImageUrl();
         this.itemDescription = auction.getItem().getDescription();

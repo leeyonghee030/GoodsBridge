@@ -45,6 +45,59 @@
 .se-actions .se-more-menu button { display: block; width: 100%; min-width: 0; padding: 0.55rem 0.9rem; font-size: 0.82rem; text-align: left; border: 0; border-radius: 0; background: none; color: var(--color-text); }
 .se-actions .se-more-menu button:hover, .se-actions .se-more-menu button:focus { background: var(--color-surface); border: 0; transform: none; }
 .se-actions .se-more-menu button.is-danger, .se-actions .se-more-menu button.is-danger:hover { color: #C0392B; }
+.se-subtabs { display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem; margin: 0 0 0.7rem; }
+.se-subtabs[hidden] { display: none; }
+.se-subtabs button { width: auto; background: none; border: 0; border-radius: 6px; padding: 0.35rem 0.6rem; font: inherit; font-size: 0.84rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.se-subtabs button:hover { background: none; color: var(--color-text); }
+.se-subtabs button.active, .se-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
+.se-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+/* 경매 정산 */
+.se-fee[hidden], .se-panel[hidden] { display: none; }
+.se-fee { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; overflow: hidden; }
+.se-fee-note { padding: 0.6rem 1rem; border-bottom: 1px solid var(--color-border); background: var(--color-surface); font-size: 0.76rem; color: var(--color-muted); }
+.se-fee-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 1rem; padding: 1.6rem 1.2rem; }
+.se-fee-grid small { display: block; font-size: 0.74rem; color: var(--color-muted); }
+.se-fee-grid b { display: block; margin-top: 0.25rem; font-size: 1.15rem; font-weight: 500; letter-spacing: -0.01em; }
+.se-fee-grid .main b { font-size: 1.9rem; font-weight: 600; letter-spacing: -0.02em; }
+.se-fee-head { display: flex; justify-content: space-between; align-items: baseline; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+.se-fee-head strong { font-size: 0.88rem; font-weight: 600; }
+.se-fee-head span { font-size: 0.74rem; color: var(--color-muted); }
+.se-fee-body { display: grid; grid-template-columns: minmax(300px, 1fr) 1.2fr; border-top: 1px solid var(--color-border); }
+.se-cal { padding: 1rem 1.2rem 1.2rem; border-right: 1px solid var(--color-border); }
+.se-cal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem; }
+.se-cal-head strong { font-size: 0.95rem; }
+.se-cal-head button { width: auto; padding: 0.2rem 0.6rem; background: transparent; color: var(--color-text); border: 0; font-size: 1.05rem; }
+.se-cal-head button:hover { background: var(--color-surface); }
+.se-cal-head button:disabled { opacity: 0.3; cursor: default; background: transparent; }
+.se-cal .se-cal-total { width: 100%; display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 0.7rem; padding: 0.55rem 0.7rem; background: var(--color-surface); color: var(--color-text); border: 1px solid transparent; border-radius: 8px; font-size: 0.8rem; font-weight: 500; text-align: left; }
+.se-cal .se-cal-total:hover { background: var(--color-surface); border-color: var(--color-border); }
+.se-cal .se-cal-total.active { border-color: var(--color-dark); }
+.se-cal .se-cal-total b { font-size: 1rem; }
+.se-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.se-cal-grid .dow { padding: 0.2rem 0; text-align: center; font-size: 0.7rem; color: var(--color-muted); }
+.se-cal-grid .dow:first-child { color: #C0392B; }
+.se-cal-grid button { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 0.1rem; width: 100%; min-height: 3.1rem; padding: 0.35rem 0.1rem; background: #fff; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.78rem; font-weight: 500; }
+.se-cal-grid button:hover { background: var(--color-surface); }
+.se-cal-grid button small { font-size: 0.62rem; font-weight: 600; color: #2E7D4F; white-space: nowrap; }
+.se-cal-grid button.is-today { border-color: var(--color-text-soft, #888); }
+.se-cal-grid button.active { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.se-cal-grid button.active small { color: #fff; }
+.se-cal-grid button:disabled { background: transparent; color: var(--color-border); cursor: default; }
+.se-cal-grid .blank { min-height: 3.1rem; }
+.se-fee-side { display: flex; flex-direction: column; min-width: 0; }
+.se-fee-side .se-fee-head { border-top: 0; border-bottom: 1px solid var(--color-border); }
+.se-fee-list { height: 380px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
+.se-fee-list.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
+.se-fee-row { display: grid; grid-template-columns: 7.2rem 1fr auto; align-items: center; gap: 0.2rem 0.9rem; padding: 0.7rem 1.2rem; border-top: 1px solid var(--color-border); font-size: 0.84rem; color: inherit; text-decoration: none; }
+.se-fee-row:first-child { border-top: 0; }
+.se-fee-row:hover { background: var(--color-surface); }
+.se-fee-row .at { color: var(--color-muted); font-size: 0.76rem; }
+.se-fee-row .who { min-width: 0; }
+.se-fee-row .who strong { display: block; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.se-fee-row .who small { display: block; margin-top: 0.1rem; font-size: 0.72rem; color: var(--color-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.se-fee-row .amt { min-width: 5rem; text-align: right; font-weight: 600; white-space: nowrap; }
+.se-fee-empty { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 0.85rem; color: var(--color-muted); }
+@media (max-width: 640px) { .se-fee-grid { grid-template-columns: 1fr; } .se-fee-body { grid-template-columns: 1fr; } .se-cal { border-right: 0; } .se-fee-row { grid-template-columns: 1fr auto; } .se-fee-row .at { grid-column: 1 / -1; } }
 @media (max-width: 640px) { .se-row { flex-wrap: wrap; } .se-actions { margin-left: calc(64px + 0.9rem); } }
 </style>
 
@@ -62,6 +115,7 @@
         <button type="button" class="filter-chip active" data-tab="ACTIVE">진행중<small id="se-cnt-ACTIVE"></small></button>
         <button type="button" class="filter-chip" data-tab="ENDED">종료<small id="se-cnt-ENDED"></small></button>
         <button type="button" class="filter-chip" data-tab="CANCELLED">취소<small id="se-cnt-CANCELLED"></small></button>
+        <button type="button" class="filter-chip" data-tab="FEE">경매 정산</button>
     </div>
     <div class="se-bar-right">
         <label for="se-search" class="sr-only">경매 검색</label>
@@ -69,8 +123,33 @@
         <button type="button" class="write-link" id="se-open-create">경매 열기</button>
     </div>
 </div>
-<div class="se-sum" id="se-sum" hidden></div>
-<section class="se-panel"><div id="se-list"><p class="se-empty">불러오는 중...</p></div></section>
+<div class="se-subtabs" id="se-subtabs" hidden></div>
+<section class="se-fee" id="se-fee" hidden>
+    <div class="se-fee-note">낙찰자가 잔금을 결제하면 낙찰가 전액이 정산돼요. 잔금을 결제하기 전 낙찰은 아래 '정산 예정'에 보여요.</div>
+    <div class="se-fee-grid">
+        <div class="main"><small>오늘</small><b id="se-fee-today">-</b></div>
+        <div><small>이번 달</small><b id="se-fee-month">-</b></div>
+        <div><small>저번 달</small><b id="se-fee-last">-</b></div>
+    </div>
+    <div class="se-fee-body">
+        <div class="se-cal">
+            <div class="se-cal-head">
+                <button type="button" id="se-cal-prev" aria-label="이전 달">‹</button>
+                <strong id="se-cal-title"></strong>
+                <button type="button" id="se-cal-next" aria-label="다음 달">›</button>
+            </div>
+            <button type="button" class="se-cal-total" id="se-cal-total"></button>
+            <div class="se-cal-grid" id="se-cal-grid"></div>
+        </div>
+        <div class="se-fee-side">
+            <div class="se-fee-head"><strong id="se-fee-title"></strong><span id="se-fee-count"></span></div>
+            <div class="se-fee-list" id="se-fee-list"></div>
+        </div>
+    </div>
+    <div class="se-fee-head"><strong>정산 예정 (잔금 결제 대기)</strong><span id="se-fee-pending"></span></div>
+</section>
+<section class="se-panel" id="se-panel"><div id="se-list"><p class="se-empty">불러오는 중...</p></div></section>
+
 </div>
 
 <!-- 경매 열기 창: 내 가게의 판매중 상품을 골라 경매로 올린다 -->
@@ -138,6 +217,12 @@
     const listEl = $('se-list');
     let auctions = [];
     let tab = 'ACTIVE';
+    let endedSub = 'ALL';   // 종료 탭 안의 분류: ALL / WAITING(잔금 대기) / DONE(정산 완료) / FAIL(유찰)
+    let fees = [];           // 경매 정산 내역 (SettlementHistory 중 AUCTION_SALE)
+    let feeView = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let feeDay = null;
+    const ENDED_SUBS = [['ALL', '전체'], ['WAITING', '낙찰 · 잔금 대기'], ['DONE', '낙찰 · 정산 완료'], ['FAIL', '유찰']];
+    const endedKind = a => a.status === 'ENDED_FAIL' ? 'FAIL' : a.balancePaid ? 'DONE' : 'WAITING';
 
     // 마감시간이 지났는데 아직 처리되지 않은 경매는 '마감 처리 중'으로 본다
     const isLive = a => a.status === 'ACTIVE' && new Date(a.deadline.slice(0, 19)) > new Date();
@@ -161,23 +246,23 @@
         const q = $('se-search').value.trim().toLowerCase();
         const matched = q ? auctions.filter(a => `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(q)) : auctions;
         ['ACTIVE', 'ENDED', 'CANCELLED'].forEach(t => { $('se-cnt-' + t).textContent = matched.filter(a => tabOf(a) === t).length; });
-        // 종료 탭 위에는 낙찰 대금 요약
-        const sumEl = $('se-sum');
+        const isFee = tab === 'FEE';
+        $('se-fee').hidden = !isFee;
+        $('se-panel').hidden = isFee;
+        $('se-search').hidden = isFee;
+        // 종료 탭 위에는 낙찰(잔금 대기 · 정산 완료) · 유찰 분류
+        const subBox = $('se-subtabs');
+        const endedAll = matched.filter(a => tabOf(a) === 'ENDED');
+        subBox.hidden = tab !== 'ENDED';
         if (tab === 'ENDED') {
-            const sold = matched.filter(a => a.status === 'ENDED_SUCCESS');
-            const paid = sold.filter(a => a.balancePaid);
-            const waiting = sold.filter(a => !a.balancePaid);
-            sumEl.innerHTML = `<div><small>낙찰 정산 완료</small><b>${money(paid.reduce((s, a) => s + a.currentPrice, 0))}</b></div>`
-                + `<div><small>잔금 결제 대기 (낙찰가)</small><b>${money(waiting.reduce((s, a) => s + a.currentPrice, 0))}</b></div>`
-                + `<div><small>유찰</small><b>${matched.filter(a => a.status === 'ENDED_FAIL').length}건</b></div>`;
-            sumEl.hidden = false;
-        } else {
-            sumEl.hidden = true;
+            const cnt = k => k === 'ALL' ? endedAll.length : endedAll.filter(a => endedKind(a) === k).length;
+            subBox.innerHTML = ENDED_SUBS.map(([k, label]) => `<button type="button" data-sub="${k}" class="${endedSub === k ? 'active' : ''}">${label}<small>${cnt(k)}</small></button>`).join('');
         }
-        const rows = matched.filter(a => tabOf(a) === tab)
+        if (isFee) { renderFee(); return; }
+        const rows = matched.filter(a => tabOf(a) === tab && (tab !== 'ENDED' || endedSub === 'ALL' || endedKind(a) === endedSub))
             .sort((x, y) => tab === 'ACTIVE' ? new Date(x.deadline) - new Date(y.deadline) : new Date(y.deadline) - new Date(x.deadline));
         if (!rows.length) {
-            const msg = q ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: '종료된 경매가 없어요.', CANCELLED: '취소한 경매가 없어요.' }[tab];
+            const msg = q ? '검색 결과가 없어요.' : { ACTIVE: '진행 중인 경매가 없어요. 오른쪽 위 경매 열기로 시작해 보세요.', ENDED: endedSub === 'ALL' ? '종료된 경매가 없어요.' : `${ENDED_SUBS.find(x => x[0] === endedSub)[1]} 경매가 없어요.`, CANCELLED: '취소한 경매가 없어요.' }[tab];
             listEl.innerHTML = `<p class="se-empty">${msg}</p>`;
             return;
         }
@@ -214,11 +299,85 @@
                 return (await r.json()).content || [];
             })));
             auctions = lists.flat().sort((a, b) => b.id - a.id);
+            const feeLists = await Promise.all(shopIds.map(id => pageFetch(`/api/shops/${id}/settlements`).then(r => r.ok ? r.json() : [])));
+            const byPayment = Object.fromEntries(auctions.filter(a => a.balancePaymentId).map(a => [a.balancePaymentId, a]));
+            fees = feeLists.flat().filter(x => x.type === 'AUCTION_SALE').map(x => Object.assign({}, x, { auction: byPayment[x.paymentId] || {} }));
             render();
         } catch (e) {
             listEl.innerHTML = `<p class="se-empty">${esc(e.message)}</p>`;
         }
     }
+
+    $('se-subtabs').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-sub]');
+        if (!b) return;
+        endedSub = b.dataset.sub;
+        render();
+    });
+
+    // ===== 경매 정산 (달력 + 날짜별 내역) =====
+    function renderFee() {
+        const now = new Date();
+        const sum = list => list.reduce((acc, x) => acc + (x.amount || 0), 0);
+        const between = (from, to) => fees.filter(x => { const d = new Date(x.createdAt); return d >= from && d < to; });
+        const y = now.getFullYear(), m = now.getMonth();
+        const today = new Date(y, m, now.getDate());
+        $('se-fee-today').textContent = money(sum(between(today, new Date(y, m, now.getDate() + 1))));
+        $('se-fee-month').textContent = money(sum(between(new Date(y, m, 1), new Date(y, m + 1, 1))));
+        $('se-fee-last').textContent = money(sum(between(new Date(y, m - 1, 1), new Date(y, m, 1))));
+        const pending = auctions.filter(a => a.status === 'ENDED_SUCCESS' && !a.balancePaid);
+        $('se-fee-pending').textContent = `${pending.length}건 · ${money(pending.reduce((acc, a) => acc + a.currentPrice, 0))}`;
+
+        const cy = feeView.getFullYear(), cm = feeView.getMonth();
+        const monthList = between(new Date(cy, cm, 1), new Date(cy, cm + 1, 1));
+        const byDay = {};
+        monthList.forEach(x => { const d = new Date(x.createdAt).getDate(); byDay[d] = (byDay[d] || 0) + x.amount; });
+        $('se-cal-title').textContent = `${cy}년 ${cm + 1}월`;
+        $('se-cal-next').disabled = cy === y && cm === m;
+        const totalBtn = $('se-cal-total');
+        totalBtn.innerHTML = `<span>${cm + 1}월 전체 · ${monthList.length}건</span><b>${money(sum(monthList))}</b>`;
+        totalBtn.classList.toggle('active', feeDay === null);
+        const short = v => v >= 10000 ? '+' + (Math.round(v / 1000) / 10) + '만' : '+' + v.toLocaleString('ko-KR');
+        const firstDow = new Date(cy, cm, 1).getDay();
+        const lastDate = new Date(cy, cm + 1, 0).getDate();
+        let cells = ['일', '월', '화', '수', '목', '금', '토'].map(d => `<span class="dow">${d}</span>`).join('');
+        cells += '<span class="blank"></span>'.repeat(firstDow);
+        for (let d = 1; d <= lastDate; d++) {
+            const future = new Date(cy, cm, d) > today;
+            const cls = [(cy === y && cm === m && d === now.getDate()) ? 'is-today' : '', feeDay === d ? 'active' : ''].join(' ');
+            cells += `<button type="button" data-day="${d}" class="${cls}" ${future ? 'disabled' : ''}>${d}<small>${byDay[d] ? short(byDay[d]) : ''}</small></button>`;
+        }
+        $('se-cal-grid').innerHTML = cells;
+
+        const list = feeDay === null ? monthList : monthList.filter(x => new Date(x.createdAt).getDate() === feeDay);
+        $('se-fee-title').textContent = feeDay === null ? `${cm + 1}월 정산 내역` : `${cm + 1}월 ${feeDay}일 정산 내역`;
+        $('se-fee-count').textContent = `${list.length}건 · ${money(sum(list))}`;
+        const fmt = iso => { const d = new Date(iso); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+        $('se-fee-list').innerHTML = list.length
+            ? list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(x => `
+                <a class="se-fee-row" ${x.auction.id ? `href="/test/auction/${x.auction.id}"` : ''}>
+                    <span class="at">${fmt(x.createdAt)}</span>
+                    <span class="who"><strong>${esc(x.auction.itemTitle || '경매 낙찰')}</strong><small>${x.auction.id ? `보증금 ${money(x.auction.depositAmount)} + 잔금 ${money(x.auction.balanceAmount)}` : '낙찰 잔금 결제 완료'}</small></span>
+                    <span class="amt">+${money(x.amount)}</span>
+                </a>`).join('')
+            : `<div class="se-fee-empty">${feeDay === null ? (cm + 1) + '월' : (cm + 1) + '월 ' + feeDay + '일'}에는 경매 정산이 없어요.</div>`;
+    }
+    $('se-cal-prev').addEventListener('click', () => { feeView = new Date(feeView.getFullYear(), feeView.getMonth() - 1, 1); feeDay = null; renderFee(); });
+    $('se-cal-next').addEventListener('click', () => { feeView = new Date(feeView.getFullYear(), feeView.getMonth() + 1, 1); feeDay = null; renderFee(); });
+    $('se-cal-total').addEventListener('click', () => { feeDay = null; renderFee(); });
+    $('se-cal-grid').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-day]');
+        if (!b || b.disabled) return;
+        const d = Number(b.dataset.day);
+        feeDay = feeDay === d ? null : d;
+        renderFee();
+    });
+    // 정산 내역: 스크롤하는 동안에만 스크롤바 표시
+    (() => {
+        const el = $('se-fee-list');
+        let t;
+        el.addEventListener('scroll', () => { el.classList.add('is-scrolling'); clearTimeout(t); t = setTimeout(() => el.classList.remove('is-scrolling'), 600); });
+    })();
 
     $('se-search').addEventListener('input', render);
     $('se-tabs').addEventListener('click', ev => {
