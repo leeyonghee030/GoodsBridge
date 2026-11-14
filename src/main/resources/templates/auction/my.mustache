@@ -9,6 +9,10 @@
 .pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
 .pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
 /* 탭이 바뀌어도 높이가 같게 고정하고, 많아지면 안에서 스크롤 (스크롤바는 스크롤하는 동안에만 보인다) */
+.am-tools { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin: 0 0 0.8rem; }
+.am-tools .pu-subtabs { margin: 0; }
+.am-tools .am-search { flex: none; width: 13rem; margin: 0 0 0 auto; }
+.am-more { padding: 0.9rem 0 1.1rem; text-align: center; font-size: 0.78rem; color: var(--color-muted); }
 #am-list { height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: transparent transparent; }
 #am-list.is-scrolling { scrollbar-color: #c9c9c9 transparent; }
 #am-list::-webkit-scrollbar { display: block; width: 8px; }
@@ -98,7 +102,11 @@
     <a href="/my/auctions" class="active">경매 내역</a>
 </nav>
 
-<div class="pu-subtabs" id="am-subtabs"></div>
+<div class="am-tools">
+    <div class="pu-subtabs" id="am-subtabs"></div>
+    <label for="am-search" class="sr-only">내 경매 검색</label>
+    <input id="am-search" type="text" class="am-search" placeholder="상품 · 가게명 검색" autocomplete="off">
+</div>
 <section class="pu-panel">
     <div class="pu-list" id="am-list"><p class="empty">경매 내역을 불러오는 중...</p></div>
 </section>
@@ -191,14 +199,28 @@
     const subtabs = document.getElementById('am-subtabs');
     let rows = [];
     let sub = 'BIDDING';
+    // 처음에는 50개만 가져오고 목록에는 12개씩 보여 준다. 끝까지 내리면 다음 12개(다 보였으면 서버에서 다음 50개)를 이어서 가져온다.
+    const PAGE_SIZE = 50, STEP = 12;
+    let nextPage = 1, hasMore = false, visibleCount = STEP, loadingMore = false, keyword = '';
+    let observer = null;
+    // 잔금 결제가 필요한 낙찰을 먼저 보여준다
+    const sortRows = () => {
+        const rank = a => (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) ? 0 : 1;
+        rows.sort((x, y) => rank(x) - rank(y) || new Date(y.deadline) - new Date(x.deadline));
+    };
+    const matched = () => keyword ? rows.filter(a => `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(keyword)) : rows;
 
     function render() {
-        const count = key => rows.filter(a => tabOf(a) === key).length;
+        const base = matched();
+        // 서버에 아직 안 가져온 페이지가 있으면 건수 뒤에 + 를 붙인다
+        const count = key => base.filter(a => tabOf(a) === key).length + (hasMore ? '+' : '');
         subtabs.innerHTML = TABS.map(([key, label]) =>
             `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
-        const shown = rows.filter(a => tabOf(a) === sub);
-        if (!shown.length) {
-            listEl.innerHTML = `<p class="empty">${TABS.find(t => t[0] === sub)[1]} 경매가 없어요.</p>`;
+        const all = base.filter(a => tabOf(a) === sub);
+        const shown = all.slice(0, visibleCount);
+        if (observer) { observer.disconnect(); observer = null; }
+        if (!shown.length && !hasMore) {
+            listEl.innerHTML = `<p class="empty">${keyword ? '검색 결과가 없어요.' : TABS.find(t => t[0] === sub)[1] + ' 경매가 없어요.'}</p>`;
             return;
         }
         listEl.innerHTML = shown.map(a => {
@@ -228,26 +250,69 @@
                 </div>` : ''}
                 ${a.status === 'CANCELLED' ? `<div class="am-win">
                     <span class="am-win-text"><b>가게 사정으로 경매가 취소됐어요.</b>
-                        <small>입찰하며 낸 보증금은 모두 환불돼요.</small></span>
+                        <small>입찰하며 낸 보증금은 모두 환불돼요. 환불은 취소 후 1분 안에 자동으로 접수되고, 카드사에 따라 카드에 반영되기까지 며칠 걸릴 수 있어요.</small></span>
                 </div>` : ''}
             </div>`;
-        }).join('');
+        }).join('') + (shown.length < all.length || hasMore ? '<div class="am-more" id="am-sentinel">더 불러오는 중...</div>' : '');
+        const sentinel = document.getElementById('am-sentinel');
+        if (sentinel) {
+            observer = new IntersectionObserver(entries => { if (entries[0].isIntersecting) showMore(); }, { root: listEl, rootMargin: '60px' });
+            observer.observe(sentinel);
+        }
     }
 
+    async function fetchNextPage() {
+        const res = await pageFetch(`/api/auctions/me?page=${nextPage}&size=${PAGE_SIZE}`);
+        if (!res.ok) { hasMore = false; return false; }
+        const data = await res.json();
+        rows = rows.concat(data.content || []);
+        hasMore = !data.last;
+        nextPage++;
+        sortRows();
+        return true;
+    }
+    async function showMore() {
+        if (loadingMore) return;
+        loadingMore = true;
+        try {
+            if (visibleCount < matched().filter(a => tabOf(a) === sub).length) {
+                visibleCount += STEP;
+            } else if (hasMore) {
+                await fetchNextPage();
+                visibleCount += STEP;
+            }
+            render();
+        } finally {
+            loadingMore = false;
+        }
+    }
+    // 검색은 전체 기준이어야 하므로, 서버에 남은 페이지가 있으면 모두 가져온 뒤 적용한다
+    async function ensureAll() {
+        while (hasMore) { if (!(await fetchNextPage())) break; }
+    }
     async function load() {
-        const res = await pageFetch('/api/auctions/me?page=0&size=50');
+        nextPage = 0;
+        const res = await pageFetch(`/api/auctions/me?page=${nextPage}&size=${PAGE_SIZE}`);
         if (!res.ok) { listEl.innerHTML = '<p class="empty">경매 내역을 불러오지 못했어요. 로그인 상태를 확인해 주세요.</p>'; return; }
-        rows = ((await res.json()).content || []);
-        // 잔금 결제가 필요한 낙찰을 먼저 보여준다
-        const rank = a => (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) ? 0 : 1;
-        rows.sort((x, y) => rank(x) - rank(y) || new Date(y.deadline) - new Date(x.deadline));
+        const first = await res.json();
+        rows = first.content || [];
+        hasMore = !first.last;
+        nextPage = 1;
+        sortRows();
         if (rows.some(a => tabOf(a) === 'WAIT') && !rows.some(a => tabOf(a) === 'BIDDING')) sub = 'WAIT';
         render();
     }
 
+    document.getElementById('am-search').addEventListener('input', async ev => {
+        keyword = ev.target.value.trim().toLowerCase();
+        visibleCount = STEP;
+        listEl.scrollTop = 0;
+        await ensureAll();
+        render();
+    });
     subtabs.addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
-        if (b) { sub = b.dataset.sub; render(); }
+        if (b) { sub = b.dataset.sub; visibleCount = STEP; listEl.scrollTop = 0; render(); }
     });
 
     // ----- 낙찰 영수증 (낙찰가 · 결제 내역 · 배송지) -----
