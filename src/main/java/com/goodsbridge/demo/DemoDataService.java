@@ -424,13 +424,13 @@ public class DemoDataService {
         bid(won, userB, 41000, null);
         finishAuction(won, now.plusDays(1));
 
-        // 5) 종료 · 낙찰 → 데모교환A 가 잔금까지 결제 완료 (구매 내역·정산 기록 포함)
+        // 5) 종료 · 낙찰 → 데모신청B 가 잔금까지 결제 완료 (구매 내역·정산 기록 포함, B 로 배송·구매확정까지 시연)
         Auction paid = saveAuction(shopOwner, shop, c1, "(테스트) 일러스트 포스터 세트", "잔금 결제까지 끝난 시연용 경매입니다.",
             28000, 4200, now.minusDays(2), images.get(2 % images.size()));
-        bid(paid, userB, 30000, null);
-        bid(paid, userA, 38000, null);
+        bid(paid, userA, 30000, null);   // A 는 패찰 (보증금 환불)
+        bid(paid, userB, 38000, null);
         finishAuction(paid, now.minusDays(1));
-        payAuctionBalance(paid, userA, now.minusDays(2).plusHours(5));
+        payAuctionBalance(paid, userB, now.minusDays(2).plusHours(5));
 
         // 6) 종료 · 유찰 (입찰 없음)
         Auction failed = saveAuction(shopOwner, shop, c2, "(테스트) 응원봉 키링 (유찰)", "입찰이 없어서 유찰된 시연용 경매입니다.",
