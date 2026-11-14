@@ -129,6 +129,8 @@
         emptyEl.hidden = all.length > 0 || hasMore;
         // 더 보여 줄 게 있으면(화면에서 더 늘릴 수 있거나 서버에 다음 페이지가 있으면) 맨 아래 감시 영역을 켠다
         sentinel.hidden = !(visibleCount < all.length || hasMore);
+        // 그린 직후에도 맨 아래가 화면 근처에 있으면(목록이 짧거나 막 늘어났을 때) 이어서 불러온다
+        requestAnimationFrame(checkMore);
     }
 
     const sentinel = document.getElementById('more-sentinel');
@@ -159,7 +161,11 @@
             loadingMore = false;
         }
     }
-    new IntersectionObserver(entries => { if (entries[0].isIntersecting) showMore(); }, { rootMargin: '200px' }).observe(sentinel);
+    // 맨 아래 감시 영역이 화면 아래 300px 안으로 들어오면 다음 12개를 보여 준다 (스크롤할 때와 그릴 때마다 확인)
+    const checkMore = () => {
+        if (!sentinel.hidden && sentinel.getBoundingClientRect().top < window.innerHeight + 300) showMore();
+    };
+    window.addEventListener('scroll', checkMore, { passive: true });
 
     async function load() {
         try {

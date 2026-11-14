@@ -202,7 +202,6 @@
     // 처음에는 50개만 가져오고 목록에는 12개씩 보여 준다. 끝까지 내리면 다음 12개(다 보였으면 서버에서 다음 50개)를 이어서 가져온다.
     const PAGE_SIZE = 50, STEP = 12;
     let nextPage = 1, hasMore = false, visibleCount = STEP, loadingMore = false, keyword = '';
-    let observer = null;
     // 잔금 결제가 필요한 낙찰을 먼저 보여준다
     const sortRows = () => {
         const rank = a => (a.status === 'ENDED_SUCCESS' && isWinner(a) && !a.balancePaid) ? 0 : 1;
@@ -218,7 +217,6 @@
             `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
         const all = base.filter(a => tabOf(a) === sub);
         const shown = all.slice(0, visibleCount);
-        if (observer) { observer.disconnect(); observer = null; }
         if (!shown.length && !hasMore) {
             listEl.innerHTML = `<p class="empty">${keyword ? '검색 결과가 없어요.' : TABS.find(t => t[0] === sub)[1] + ' 경매가 없어요.'}</p>`;
             return;
@@ -254,13 +252,16 @@
                 </div>` : ''}
             </div>`;
         }).join('') + (shown.length < all.length || hasMore ? '<div class="am-more" id="am-sentinel">더 불러오는 중...</div>' : '');
-        const sentinel = document.getElementById('am-sentinel');
-        if (sentinel) {
-            observer = new IntersectionObserver(entries => { if (entries[0].isIntersecting) showMore(); }, { root: listEl, rootMargin: '60px' });
-            observer.observe(sentinel);
-        }
+        // 그린 직후에도 맨 아래가 목록 영역 근처에 있으면 이어서 불러온다
+        requestAnimationFrame(checkMore);
     }
 
+    // 맨 아래 감시 영역이 목록 아래 80px 안으로 들어오면 다음 12개를 보여 준다 (목록을 스크롤할 때와 그릴 때마다 확인)
+    const checkMore = () => {
+        const sentinel = document.getElementById('am-sentinel');
+        if (sentinel && sentinel.getBoundingClientRect().top < listEl.getBoundingClientRect().bottom + 80) showMore();
+    };
+    listEl.addEventListener('scroll', checkMore, { passive: true });
     async function fetchNextPage() {
         const res = await pageFetch(`/api/auctions/me?page=${nextPage}&size=${PAGE_SIZE}`);
         if (!res.ok) { hasMore = false; return false; }
