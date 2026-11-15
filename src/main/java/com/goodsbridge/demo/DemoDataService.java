@@ -100,6 +100,7 @@ public class DemoDataService {
     private final ExchangeMessageRepository exchangeMessageRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
+    private final DemoSampleDataService demoSampleDataService;
 
     @Transactional
     public void reset() {
@@ -125,6 +126,8 @@ public class DemoDataService {
         deleteDemoData(List.of(userA.getId(), userB.getId(), shopOwner.getId()));
         seed(userA, userB, shopOwner, shop);
         seedBranches();
+        // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
+        demoSampleDataService.seed();
     }
 
     private User findOrCreateUser(String email, String nickname) {

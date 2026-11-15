@@ -1,0 +1,1579 @@
+{
+ "users": [
+  {
+   "email": "owner1@test.com",
+   "nickname": "테스트가게주인1"
+  },
+  {
+   "email": "owner2@test.com",
+   "nickname": "테스트가게주인2"
+  },
+  {
+   "email": "tester1@test.com",
+   "nickname": "테스트유저1"
+  },
+  {
+   "email": "tester4@test.com",
+   "nickname": "테스트유저4"
+  },
+  {
+   "email": "tester5@test.com",
+   "nickname": "테스트유저5"
+  },
+  {
+   "email": "tester6@test.com",
+   "nickname": "테스트유저6"
+  },
+  {
+   "email": "tester7@test.com",
+   "nickname": "테스트유저7"
+  },
+  {
+   "email": "tester8@test.com",
+   "nickname": "테스트유저8"
+  },
+  {
+   "email": "tester9@test.com",
+   "nickname": "테스트유저9"
+  },
+  {
+   "email": "tester10@test.com",
+   "nickname": "테스트유저10"
+  },
+  {
+   "email": "tester11@test.com",
+   "nickname": "테스트유저11"
+  },
+  {
+   "email": "tester12@test.com",
+   "nickname": "테스트유저12"
+  },
+  {
+   "email": "tester13@test.com",
+   "nickname": "테스트유저13"
+  },
+  {
+   "email": "tester14@test.com",
+   "nickname": "테스트유저14"
+  },
+  {
+   "email": "tester15@test.com",
+   "nickname": "테스트유저15"
+  }
+ ],
+ "shops": [
+  {
+   "name": "홍대 굿즈샵",
+   "region": "서울 마포구",
+   "address": "서울시 마포구 홍대입구역 3번출구 앞",
+   "owner": "owner1@test.com"
+  },
+  {
+   "name": "강남 포토카드 전문점",
+   "region": "서울 강남구",
+   "address": "서울시 강남구 강남역 11번출구",
+   "owner": "owner2@test.com"
+  },
+  {
+   "name": "부산 굿즈브릿지",
+   "region": "부산 해운대구",
+   "address": "부산시 해운대구 센텀시티",
+   "owner": "owner1@test.com"
+  },
+  {
+   "name": "서울 마포구 굿즈샵 1",
+   "region": "서울 마포구",
+   "address": "서울 마포구 1번길 1-1",
+   "owner": "owner2@test.com"
+  },
+  {
+   "name": "서울 송파구 굿즈샵 2",
+   "region": "서울 송파구",
+   "address": "서울 송파구 2번길 2-2",
+   "owner": "tester1@test.com"
+  },
+  {
+   "name": "부산 해운대구 굿즈샵 3",
+   "region": "부산 해운대구",
+   "address": "부산 해운대구 3번길 3-3",
+   "owner": "tester4@test.com"
+  },
+  {
+   "name": "대구 수성구 굿즈샵 4",
+   "region": "대구 수성구",
+   "address": "대구 수성구 4번길 4-4",
+   "owner": "tester5@test.com"
+  },
+  {
+   "name": "인천 연수구 굿즈샵 5",
+   "region": "인천 연수구",
+   "address": "인천 연수구 5번길 5-5",
+   "owner": "tester6@test.com"
+  },
+  {
+   "name": "대전 유성구 굿즈샵 6",
+   "region": "대전 유성구",
+   "address": "대전 유성구 6번길 6-6",
+   "owner": "tester7@test.com"
+  },
+  {
+   "name": "광주 서구 굿즈샵 7",
+   "region": "광주 서구",
+   "address": "광주 서구 7번길 7-7",
+   "owner": "tester8@test.com"
+  },
+  {
+   "name": "수원 영통구 굿즈샵 8",
+   "region": "수원 영통구",
+   "address": "수원 영통구 8번길 8-8",
+   "owner": "tester9@test.com"
+  },
+  {
+   "name": "성남 분당구 굿즈샵 9",
+   "region": "성남 분당구",
+   "address": "성남 분당구 9번길 9-9",
+   "owner": "tester10@test.com"
+  },
+  {
+   "name": "서울 강남구 굿즈샵 10",
+   "region": "서울 강남구",
+   "address": "서울 강남구 10번길 10-10",
+   "owner": "tester11@test.com"
+  },
+  {
+   "name": "서울 마포구 굿즈샵 11",
+   "region": "서울 마포구",
+   "address": "서울 마포구 11번길 11-11",
+   "owner": "tester12@test.com"
+  },
+  {
+   "name": "서울 송파구 굿즈샵 12",
+   "region": "서울 송파구",
+   "address": "서울 송파구 12번길 12-12",
+   "owner": "tester13@test.com"
+  },
+  {
+   "name": "부산 해운대구 굿즈샵 13",
+   "region": "부산 해운대구",
+   "address": "부산 해운대구 13번길 13-13",
+   "owner": "tester14@test.com"
+  },
+  {
+   "name": "대구 수성구 굿즈샵 14",
+   "region": "대구 수성구",
+   "address": "대구 수성구 14번길 14-14",
+   "owner": "tester15@test.com"
+  },
+  {
+   "name": "인천 연수구 굿즈샵 15",
+   "region": "인천 연수구",
+   "address": "인천 연수구 15번길 15-15",
+   "owner": "owner1@test.com"
+  },
+  {
+   "name": "대전 유성구 굿즈샵 16",
+   "region": "대전 유성구",
+   "address": "대전 유성구 16번길 16-16",
+   "owner": "owner2@test.com"
+  },
+  {
+   "name": "광주 서구 굿즈샵 17",
+   "region": "광주 서구",
+   "address": "광주 서구 17번길 17-17",
+   "owner": "tester1@test.com"
+  },
+  {
+   "name": "수원 영통구 굿즈샵 18",
+   "region": "수원 영통구",
+   "address": "수원 영통구 18번길 18-18",
+   "owner": "tester4@test.com"
+  },
+  {
+   "name": "성남 분당구 굿즈샵 19",
+   "region": "성남 분당구",
+   "address": "성남 분당구 19번길 19-19",
+   "owner": "tester5@test.com"
+  },
+  {
+   "name": "서울 강남구 굿즈샵 20",
+   "region": "서울 강남구",
+   "address": "서울 강남구 20번길 20-20",
+   "owner": "tester6@test.com"
+  },
+  {
+   "name": "서울 마포구 굿즈샵 21",
+   "region": "서울 마포구",
+   "address": "서울 마포구 21번길 21-21",
+   "owner": "tester7@test.com"
+  },
+  {
+   "name": "서울 송파구 굿즈샵 22",
+   "region": "서울 송파구",
+   "address": "서울 송파구 22번길 22-22",
+   "owner": "tester8@test.com"
+  },
+  {
+   "name": "부산 해운대구 굿즈샵 23",
+   "region": "부산 해운대구",
+   "address": "부산 해운대구 23번길 23-23",
+   "owner": "tester9@test.com"
+  },
+  {
+   "name": "대구 수성구 굿즈샵 24",
+   "region": "대구 수성구",
+   "address": "대구 수성구 24번길 24-24",
+   "owner": "tester10@test.com"
+  },
+  {
+   "name": "인천 연수구 굿즈샵 25",
+   "region": "인천 연수구",
+   "address": "인천 연수구 25번길 25-25",
+   "owner": "tester11@test.com"
+  },
+  {
+   "name": "대전 유성구 굿즈샵 26",
+   "region": "대전 유성구",
+   "address": "대전 유성구 26번길 26-26",
+   "owner": "tester12@test.com"
+  },
+  {
+   "name": "광주 서구 굿즈샵 27",
+   "region": "광주 서구",
+   "address": "광주 서구 27번길 27-27",
+   "owner": "tester13@test.com"
+  },
+  {
+   "name": "수원 영통구 굿즈샵 28",
+   "region": "수원 영통구",
+   "address": "수원 영통구 28번길 28-28",
+   "owner": "tester14@test.com"
+  },
+  {
+   "name": "성남 분당구 굿즈샵 29",
+   "region": "성남 분당구",
+   "address": "성남 분당구 29번길 29-29",
+   "owner": "tester15@test.com"
+  },
+  {
+   "name": "서울 강남구 굿즈샵 30",
+   "region": "서울 강남구",
+   "address": "서울 강남구 30번길 30-30",
+   "owner": "owner1@test.com"
+  },
+  {
+   "name": "서울 마포구 굿즈샵 31",
+   "region": "서울 마포구",
+   "address": "서울 마포구 31번길 31-31",
+   "owner": "owner2@test.com"
+  },
+  {
+   "name": "서울 송파구 굿즈샵 32",
+   "region": "서울 송파구",
+   "address": "서울 송파구 32번길 32-32",
+   "owner": "tester1@test.com"
+  },
+  {
+   "name": "부산 해운대구 굿즈샵 33",
+   "region": "부산 해운대구",
+   "address": "부산 해운대구 33번길 33-33",
+   "owner": "tester4@test.com"
+  },
+  {
+   "name": "대구 수성구 굿즈샵 34",
+   "region": "대구 수성구",
+   "address": "대구 수성구 34번길 34-34",
+   "owner": "tester5@test.com"
+  },
+  {
+   "name": "인천 연수구 굿즈샵 35",
+   "region": "인천 연수구",
+   "address": "인천 연수구 35번길 35-35",
+   "owner": "tester6@test.com"
+  },
+  {
+   "name": "대전 유성구 굿즈샵 36",
+   "region": "대전 유성구",
+   "address": "대전 유성구 36번길 36-36",
+   "owner": "tester7@test.com"
+  },
+  {
+   "name": "광주 서구 굿즈샵 37",
+   "region": "광주 서구",
+   "address": "광주 서구 37번길 37-37",
+   "owner": "tester8@test.com"
+  },
+  {
+   "name": "수원 영통구 굿즈샵 38",
+   "region": "수원 영통구",
+   "address": "수원 영통구 38번길 38-38",
+   "owner": "tester9@test.com"
+  },
+  {
+   "name": "성남 분당구 굿즈샵 39",
+   "region": "성남 분당구",
+   "address": "성남 분당구 39번길 39-39",
+   "owner": "tester10@test.com"
+  },
+  {
+   "name": "서울 강남구 굿즈샵 40",
+   "region": "서울 강남구",
+   "address": "서울 강남구 40번길 40-40",
+   "owner": "tester11@test.com"
+  },
+  {
+   "name": "서울 마포구 굿즈샵 41",
+   "region": "서울 마포구",
+   "address": "서울 마포구 41번길 41-41",
+   "owner": "tester12@test.com"
+  },
+  {
+   "name": "서울 송파구 굿즈샵 42",
+   "region": "서울 송파구",
+   "address": "서울 송파구 42번길 42-42",
+   "owner": "tester13@test.com"
+  },
+  {
+   "name": "부산 해운대구 굿즈샵 43",
+   "region": "부산 해운대구",
+   "address": "부산 해운대구 43번길 43-43",
+   "owner": "tester14@test.com"
+  },
+  {
+   "name": "대구 수성구 굿즈샵 44",
+   "region": "대구 수성구",
+   "address": "대구 수성구 44번길 44-44",
+   "owner": "tester15@test.com"
+  },
+  {
+   "name": "인천 연수구 굿즈샵 45",
+   "region": "인천 연수구",
+   "address": "인천 연수구 45번길 45-45",
+   "owner": "owner1@test.com"
+  },
+  {
+   "name": "대전 유성구 굿즈샵 46",
+   "region": "대전 유성구",
+   "address": "대전 유성구 46번길 46-46",
+   "owner": "owner2@test.com"
+  },
+  {
+   "name": "광주 서구 굿즈샵 47",
+   "region": "광주 서구",
+   "address": "광주 서구 47번길 47-47",
+   "owner": "tester1@test.com"
+  }
+ ],
+ "items": [
+  {
+   "key": 1,
+   "title": "스케일 피규어 · 옐로우 민소매 (미개봉)",
+   "price": 15000,
+   "saleType": "NORMAL",
+   "status": "SOLD",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "피규어",
+   "description": "뉴진스 하니 포토카드, 미개봉 새제품입니다.",
+   "image": "/img/demo/seed_photo_43.jpg"
+  },
+  {
+   "key": 2,
+   "title": "VOA 아트시리즈 인형 · 블루 롱헤어 코트 (미개봉)",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "인형",
+   "description": "아이브 장원영 포토카드, 중고 S급입니다.",
+   "image": "/img/demo/seed_photo_27.jpg"
+  },
+  {
+   "key": 3,
+   "title": "스케일 피규어 3종 세트 · 서머 크루 (미개봉)",
+   "price": 25000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner1@test.com",
+   "shop": "홍대 굿즈샵",
+   "category": "피규어",
+   "description": "세븐틴 정규 3집 앨범, 포토카드 포함.",
+   "image": "/img/demo/seed_photo_42.jpg"
+  },
+  {
+   "key": 4,
+   "title": "VOA 아트시리즈 인형 · 그린 드레드 (미개봉)",
+   "price": 45000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner2@test.com",
+   "shop": "강남 포토카드 전문점",
+   "category": "인형",
+   "description": "뉴진스 응원봉, 미개봉.",
+   "image": "/img/demo/seed_photo_24.jpg"
+  },
+  {
+   "key": 5,
+   "title": "VOA 베이직 인형 · 브라운헤어 그레이티 (미개봉)",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner2@test.com",
+   "shop": "강남 포토카드 전문점",
+   "category": "인형",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_16.jpg"
+  },
+  {
+   "key": 6,
+   "title": "고딕 스케일 피규어 · 레인보우헤어 Ver. (미개봉)",
+   "price": 20500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": "부산 굿즈브릿지",
+   "category": "피규어",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_53.jpg"
+  },
+  {
+   "key": 7,
+   "title": "스케일 피규어 · 레드헤어 스트라이프 (미개봉)",
+   "price": 39000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester4@test.com",
+   "shop": "서울 마포구 굿즈샵 1",
+   "category": "피규어",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_41.jpg"
+  },
+  {
+   "key": 8,
+   "title": "VOA 펠라인 고양이 인형 · 고등어태비 블랙티 (미개봉)",
+   "price": 13500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester5@test.com",
+   "shop": "서울 송파구 굿즈샵 2",
+   "category": "인형",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_36.jpg"
+  },
+  {
+   "key": 9,
+   "title": "VOA 아트시리즈 인형 · 레드 컬리 (미개봉)",
+   "price": 56500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester6@test.com",
+   "shop": "부산 해운대구 굿즈샵 3",
+   "category": "인형",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_23.jpg"
+  },
+  {
+   "key": 10,
+   "title": "VOA 데일리 인형 · 핑크헤어 안경 (미개봉)",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester7@test.com",
+   "shop": "대구 수성구 굿즈샵 4",
+   "category": "인형",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_15.jpg"
+  },
+  {
+   "key": 11,
+   "title": "고딕 스케일 피규어 · 카모 셔츠 Ver. (미개봉)",
+   "price": 22500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester8@test.com",
+   "shop": "인천 연수구 굿즈샵 5",
+   "category": "피규어",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_51.jpg"
+  },
+  {
+   "key": 12,
+   "title": "스케일 피규어 · 퍼플헤어 사이드 포즈 (미개봉)",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester9@test.com",
+   "shop": "대전 유성구 굿즈샵 6",
+   "category": "피규어",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_40.jpg"
+  },
+  {
+   "key": 13,
+   "title": "VOA 펠라인 고양이 인형 · 삼색이 프린트티 (미개봉)",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester10@test.com",
+   "shop": "광주 서구 굿즈샵 7",
+   "category": "인형",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_35.jpg"
+  },
+  {
+   "key": 14,
+   "title": "VOA 아트시리즈 인형 · 실버헤어 수트 (미개봉)",
+   "price": 17500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester11@test.com",
+   "shop": "수원 영통구 굿즈샵 8",
+   "category": "인형",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_22.jpg"
+  },
+  {
+   "key": 15,
+   "title": "VOA 데일리 인형 · 컬리헤어 스트라이프 (미개봉)",
+   "price": 46500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester12@test.com",
+   "shop": "성남 분당구 굿즈샵 9",
+   "category": "인형",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_13.jpg"
+  },
+  {
+   "key": 16,
+   "title": "VOA 스트리트 인형 · 블랙 데님 (미개봉)",
+   "price": 11500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester13@test.com",
+   "shop": "서울 강남구 굿즈샵 10",
+   "category": "인형",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_14.jpg"
+  },
+  {
+   "key": 17,
+   "title": "고딕 스케일 피규어 · 블랙 후디 Ver. (미개봉)",
+   "price": 49000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester14@test.com",
+   "shop": "서울 마포구 굿즈샵 11",
+   "category": "피규어",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_48.jpg"
+  },
+  {
+   "key": 18,
+   "title": "스케일 피규어 · 블루헤어 카모 베스트 (미개봉)",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester15@test.com",
+   "shop": "서울 송파구 굿즈샵 12",
+   "category": "피규어",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_39.jpg"
+  },
+  {
+   "key": 19,
+   "title": "VOA 펠라인 고양이 인형 · 샴 옐로우티 (미개봉)",
+   "price": 19500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner1@test.com",
+   "shop": "부산 해운대구 굿즈샵 13",
+   "category": "인형",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_34.jpg"
+  },
+  {
+   "key": 20,
+   "title": "VOA 아트시리즈 인형 · 브레이드 블랙드레스 (미개봉)",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner2@test.com",
+   "shop": "대구 수성구 굿즈샵 14",
+   "category": "인형",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_21.jpg"
+  },
+  {
+   "key": 21,
+   "title": "VOA 스트리트 인형 · 그레이 크루컷 (미개봉)",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": "인천 연수구 굿즈샵 15",
+   "category": "인형",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_12.jpg"
+  },
+  {
+   "key": 22,
+   "title": "VOA 캐주얼 인형 · 스카 페이스 (미개봉)",
+   "price": 30000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester4@test.com",
+   "shop": "대전 유성구 굿즈샵 16",
+   "category": "인형",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_7.jpg"
+  },
+  {
+   "key": 23,
+   "title": "고딕 스케일 피규어 · 브라운헤어 Ver. (미개봉)",
+   "price": 54000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester5@test.com",
+   "shop": "광주 서구 굿즈샵 17",
+   "category": "피규어",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_47.jpg"
+  },
+  {
+   "key": 24,
+   "title": "스케일 피규어 · 고뇌하는 소년 (앉은 포즈) (미개봉)",
+   "price": 9500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester6@test.com",
+   "shop": "수원 영통구 굿즈샵 18",
+   "category": "피규어",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_38.jpg"
+  },
+  {
+   "key": 25,
+   "title": "VOA 펠라인 고양이 인형 · 턱시도 (미개봉)",
+   "price": 41500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester7@test.com",
+   "shop": "성남 분당구 굿즈샵 19",
+   "category": "인형",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_30.jpg"
+  },
+  {
+   "key": 26,
+   "title": "VOA 아트시리즈 인형 · 블랙 슬릭백 수트 (미개봉)",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester8@test.com",
+   "shop": "서울 강남구 굿즈샵 20",
+   "category": "인형",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_20.jpg"
+  },
+  {
+   "key": 27,
+   "title": "VOA 데일리 인형 · 금발 안경 후디 (미개봉)",
+   "price": 16500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester9@test.com",
+   "shop": "서울 마포구 굿즈샵 21",
+   "category": "인형",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_11.jpg"
+  },
+  {
+   "key": 28,
+   "title": "VOA 캐주얼 인형 · 블랙 반팔 세트 (미개봉)",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester10@test.com",
+   "shop": "서울 송파구 굿즈샵 22",
+   "category": "인형",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_2.jpg"
+  },
+  {
+   "key": 29,
+   "title": "고딕 스케일 피규어 · 크로스 초커 (미개봉)",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester11@test.com",
+   "shop": "부산 해운대구 굿즈샵 23",
+   "category": "피규어",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_45.jpg"
+  },
+  {
+   "key": 30,
+   "title": "스케일 피규어 · 블랙헤어 스탠딩 (미개봉)",
+   "price": 27000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester12@test.com",
+   "shop": "대구 수성구 굿즈샵 24",
+   "category": "피규어",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_37.jpg"
+  },
+  {
+   "key": 31,
+   "title": "VOA 펠라인 고양이 인형 · 러시안블루 화이트티 (미개봉)",
+   "price": 41000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester13@test.com",
+   "shop": "인천 연수구 굿즈샵 25",
+   "category": "인형",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_29.jpg"
+  },
+  {
+   "key": 32,
+   "title": "VOA 아트시리즈 인형 · 롱 브라운 웨이브 (미개봉)",
+   "price": 15000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester14@test.com",
+   "shop": "대전 유성구 굿즈샵 26",
+   "category": "인형",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_19.jpg"
+  },
+  {
+   "key": 33,
+   "title": "VOA 데일리 인형 · 그린헤어 후디 (미개봉)",
+   "price": 34000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester15@test.com",
+   "shop": "광주 서구 굿즈샵 27",
+   "category": "인형",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_9.jpg"
+  },
+  {
+   "key": 34,
+   "title": "스케일 피규어 · 레인보우 패치워크 (미개봉)",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner1@test.com",
+   "shop": "수원 영통구 굿즈샵 28",
+   "category": "피규어",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_44.jpg"
+  },
+  {
+   "key": 35,
+   "title": "스케일 피규어 · 레인보우 패치워크",
+   "price": 29000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner2@test.com",
+   "shop": "성남 분당구 굿즈샵 29",
+   "category": "피규어",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_44.jpg"
+  },
+  {
+   "key": 36,
+   "title": "VOA 아트시리즈 인형 · 블랙 드레드",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": "서울 강남구 굿즈샵 30",
+   "category": "인형",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_28.jpg"
+  },
+  {
+   "key": 37,
+   "title": "스케일 피규어 · 옐로우 민소매",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester4@test.com",
+   "shop": "서울 마포구 굿즈샵 31",
+   "category": "피규어",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_43.jpg"
+  },
+  {
+   "key": 38,
+   "title": "VOA 아트시리즈 인형 · 블루 롱헤어 코트",
+   "price": 24000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester5@test.com",
+   "shop": "서울 송파구 굿즈샵 32",
+   "category": "인형",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_27.jpg"
+  },
+  {
+   "key": 39,
+   "title": "스케일 피규어 3종 세트 · 서머 크루",
+   "price": 48500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester6@test.com",
+   "shop": "부산 해운대구 굿즈샵 33",
+   "category": "피규어",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_42.jpg"
+  },
+  {
+   "key": 40,
+   "title": "VOA 아트시리즈 인형 · 그린 드레드",
+   "price": 13000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester7@test.com",
+   "shop": "대구 수성구 굿즈샵 34",
+   "category": "인형",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_24.jpg"
+  },
+  {
+   "key": 41,
+   "title": "VOA 베이직 인형 · 브라운헤어 그레이티",
+   "price": 26500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester8@test.com",
+   "shop": "인천 연수구 굿즈샵 35",
+   "category": "인형",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_16.jpg"
+  },
+  {
+   "key": 42,
+   "title": "고딕 스케일 피규어 · 레인보우헤어 Ver.",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester9@test.com",
+   "shop": "대전 유성구 굿즈샵 36",
+   "category": "피규어",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_53.jpg"
+  },
+  {
+   "key": 43,
+   "title": "스케일 피규어 · 레드헤어 스트라이프",
+   "price": 26000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester10@test.com",
+   "shop": "광주 서구 굿즈샵 37",
+   "category": "피규어",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_41.jpg"
+  },
+  {
+   "key": 44,
+   "title": "VOA 펠라인 고양이 인형 · 고등어태비 블랙티",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester11@test.com",
+   "shop": "수원 영통구 굿즈샵 38",
+   "category": "인형",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_36.jpg"
+  },
+  {
+   "key": 45,
+   "title": "VOA 아트시리즈 인형 · 레드 컬리",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester12@test.com",
+   "shop": "성남 분당구 굿즈샵 39",
+   "category": "인형",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_23.jpg"
+  },
+  {
+   "key": 46,
+   "title": "VOA 데일리 인형 · 핑크헤어 안경",
+   "price": 21000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester13@test.com",
+   "shop": "서울 강남구 굿즈샵 40",
+   "category": "인형",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_15.jpg"
+  },
+  {
+   "key": 47,
+   "title": "고딕 스케일 피규어 · 카모 셔츠 Ver.",
+   "price": 35500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester14@test.com",
+   "shop": "서울 마포구 굿즈샵 41",
+   "category": "피규어",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_51.jpg"
+  },
+  {
+   "key": 48,
+   "title": "스케일 피규어 · 퍼플헤어 사이드 포즈",
+   "price": 11000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester15@test.com",
+   "shop": "서울 송파구 굿즈샵 42",
+   "category": "피규어",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_40.jpg"
+  },
+  {
+   "key": 49,
+   "title": "VOA 펠라인 고양이 인형 · 삼색이 프린트티",
+   "price": 54500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner1@test.com",
+   "shop": "부산 해운대구 굿즈샵 43",
+   "category": "인형",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_35.jpg"
+  },
+  {
+   "key": 50,
+   "title": "VOA 아트시리즈 인형 · 실버헤어 수트",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner2@test.com",
+   "shop": "대구 수성구 굿즈샵 44",
+   "category": "인형",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_22.jpg"
+  },
+  {
+   "key": 51,
+   "title": "VOA 데일리 인형 · 컬리헤어 스트라이프",
+   "price": 23000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": "인천 연수구 굿즈샵 45",
+   "category": "인형",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_13.jpg"
+  },
+  {
+   "key": 52,
+   "title": "VOA 스트리트 인형 · 블랙 데님",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester4@test.com",
+   "shop": "대전 유성구 굿즈샵 46",
+   "category": "인형",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_14.jpg"
+  },
+  {
+   "key": 53,
+   "title": "고딕 스케일 피규어 · 블랙 후디 Ver.",
+   "price": 12000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester5@test.com",
+   "shop": "광주 서구 굿즈샵 47",
+   "category": "피규어",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_48.jpg"
+  },
+  {
+   "key": 54,
+   "title": "스케일 피규어 · 블루헤어 카모 베스트",
+   "price": 18000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester6@test.com",
+   "shop": "홍대 굿즈샵",
+   "category": "피규어",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_39.jpg"
+  },
+  {
+   "key": 55,
+   "title": "VOA 펠라인 고양이 인형 · 샴 옐로우티",
+   "price": 43000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester7@test.com",
+   "shop": "강남 포토카드 전문점",
+   "category": "인형",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_34.jpg"
+  },
+  {
+   "key": 56,
+   "title": "VOA 아트시리즈 인형 · 브레이드 블랙드레스",
+   "price": 9000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester8@test.com",
+   "shop": "부산 굿즈브릿지",
+   "category": "인형",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_21.jpg"
+  },
+  {
+   "key": 57,
+   "title": "VOA 스트리트 인형 · 그레이 크루컷",
+   "price": 47000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester9@test.com",
+   "shop": "서울 마포구 굿즈샵 1",
+   "category": "인형",
+   "description": "있지 피규어 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_12.jpg"
+  },
+  {
+   "key": 58,
+   "title": "VOA 캐주얼 인형 · 스카 페이스",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester10@test.com",
+   "shop": "서울 송파구 굿즈샵 2",
+   "category": "인형",
+   "description": "스트레이키즈 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_7.jpg"
+  },
+  {
+   "key": 59,
+   "title": "고딕 스케일 피규어 · 브라운헤어 Ver.",
+   "price": 20000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester11@test.com",
+   "shop": "부산 해운대구 굿즈샵 3",
+   "category": "피규어",
+   "description": "투모로우바이투게더 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_47.jpg"
+  },
+  {
+   "key": 60,
+   "title": "스케일 피규어 · 고뇌하는 소년 (앉은 포즈)",
+   "price": 5000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester12@test.com",
+   "shop": "대구 수성구 굿즈샵 4",
+   "category": "피규어",
+   "description": "뉴진스 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_38.jpg"
+  },
+  {
+   "key": 61,
+   "title": "VOA 펠라인 고양이 인형 · 턱시도",
+   "price": 8500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester13@test.com",
+   "shop": "인천 연수구 굿즈샵 5",
+   "category": "인형",
+   "description": "아이브 포토카드 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_30.jpg"
+  },
+  {
+   "key": 62,
+   "title": "VOA 아트시리즈 인형 · 블랙 슬릭백 수트",
+   "price": 15000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester14@test.com",
+   "shop": "대전 유성구 굿즈샵 6",
+   "category": "인형",
+   "description": "세븐틴 앨범 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_20.jpg"
+  },
+  {
+   "key": 63,
+   "title": "VOA 데일리 인형 · 금발 안경 후디",
+   "price": 50500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester15@test.com",
+   "shop": "광주 서구 굿즈샵 7",
+   "category": "인형",
+   "description": "르세라핌 응원봉 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_11.jpg"
+  },
+  {
+   "key": 64,
+   "title": "VOA 캐주얼 인형 · 블랙 반팔 세트",
+   "price": 14500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "owner1@test.com",
+   "shop": "수원 영통구 굿즈샵 8",
+   "category": "인형",
+   "description": "에스파 포스터 테스트 상품 설명입니다.",
+   "image": "/img/demo/seed_photo_2.jpg"
+  },
+  {
+   "key": 68,
+   "title": "고딕 스케일 피규어 · 크로스 초커",
+   "price": 15000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "피규어",
+   "description": "미개봉 포토카드 5장 세트입니다.",
+   "image": "/img/demo/seed_photo_45.jpg"
+  },
+  {
+   "key": 69,
+   "title": "스케일 피규어 · 블랙헤어 스탠딩",
+   "price": 22000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "피규어",
+   "description": "한정판 아크릴 피규어, 박스 보관 새상품.",
+   "image": "/img/demo/seed_photo_37.jpg"
+  },
+  {
+   "key": 70,
+   "title": "VOA 펠라인 고양이 인형 · 러시안블루 화이트티",
+   "price": 45000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "인형",
+   "description": "사용감 거의 없는 응원봉입니다.",
+   "image": "/img/demo/seed_photo_29.jpg"
+  },
+  {
+   "key": 71,
+   "title": "VOA 아트시리즈 인형 · 롱 브라운 웨이브",
+   "price": 13000,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "인형",
+   "description": null,
+   "image": "/img/demo/seed_photo_19.jpg"
+  },
+  {
+   "key": 72,
+   "title": "VOA 데일리 인형 · 그린헤어 후디",
+   "price": 18500,
+   "saleType": "NORMAL",
+   "status": "ON_SALE",
+   "seller": "tester1@test.com",
+   "shop": null,
+   "category": "인형",
+   "description": "1",
+   "image": "/img/demo/seed_photo_9.jpg"
+  }
+ ],
+ "exchanges": [
+  {
+   "item": 1,
+   "owner": "tester1@test.com",
+   "shop": "홍대 굿즈샵",
+   "status": "OPEN",
+   "want": "아이브 장원영 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 2,
+   "owner": "tester1@test.com",
+   "shop": "강남 포토카드 전문점",
+   "status": "OPEN",
+   "want": "세븐틴 포토카드나 앨범 교환 원해요"
+  },
+  {
+   "item": 5,
+   "owner": "owner2@test.com",
+   "shop": "강남 포토카드 전문점",
+   "status": "OPEN",
+   "want": "아이브 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 6,
+   "owner": "tester1@test.com",
+   "shop": "부산 굿즈브릿지",
+   "status": "OPEN",
+   "want": "세븐틴 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 7,
+   "owner": "tester4@test.com",
+   "shop": "서울 마포구 굿즈샵 1",
+   "status": "OPEN",
+   "want": "르세라핌 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 8,
+   "owner": "tester5@test.com",
+   "shop": "서울 송파구 굿즈샵 2",
+   "status": "OPEN",
+   "want": "에스파 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 9,
+   "owner": "tester6@test.com",
+   "shop": "부산 해운대구 굿즈샵 3",
+   "status": "OPEN",
+   "want": "있지 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 10,
+   "owner": "tester7@test.com",
+   "shop": "대구 수성구 굿즈샵 4",
+   "status": "OPEN",
+   "want": "뉴진스 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 11,
+   "owner": "tester8@test.com",
+   "shop": "인천 연수구 굿즈샵 5",
+   "status": "OPEN",
+   "want": "아이브 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 12,
+   "owner": "tester9@test.com",
+   "shop": "대전 유성구 굿즈샵 6",
+   "status": "OPEN",
+   "want": "세븐틴 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 13,
+   "owner": "tester10@test.com",
+   "shop": "광주 서구 굿즈샵 7",
+   "status": "OPEN",
+   "want": "르세라핌 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 14,
+   "owner": "tester11@test.com",
+   "shop": "수원 영통구 굿즈샵 8",
+   "status": "OPEN",
+   "want": "에스파 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 15,
+   "owner": "tester12@test.com",
+   "shop": "성남 분당구 굿즈샵 9",
+   "status": "OPEN",
+   "want": "있지 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 16,
+   "owner": "tester13@test.com",
+   "shop": "서울 강남구 굿즈샵 10",
+   "status": "OPEN",
+   "want": "뉴진스 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 17,
+   "owner": "tester14@test.com",
+   "shop": "서울 마포구 굿즈샵 11",
+   "status": "OPEN",
+   "want": "아이브 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 18,
+   "owner": "tester15@test.com",
+   "shop": "서울 송파구 굿즈샵 12",
+   "status": "OPEN",
+   "want": "세븐틴 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 19,
+   "owner": "owner1@test.com",
+   "shop": "부산 해운대구 굿즈샵 13",
+   "status": "OPEN",
+   "want": "르세라핌 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 20,
+   "owner": "owner2@test.com",
+   "shop": "대구 수성구 굿즈샵 14",
+   "status": "OPEN",
+   "want": "에스파 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 21,
+   "owner": "tester1@test.com",
+   "shop": "인천 연수구 굿즈샵 15",
+   "status": "OPEN",
+   "want": "있지 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 22,
+   "owner": "tester4@test.com",
+   "shop": "대전 유성구 굿즈샵 16",
+   "status": "OPEN",
+   "want": "뉴진스 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 23,
+   "owner": "tester5@test.com",
+   "shop": "광주 서구 굿즈샵 17",
+   "status": "OPEN",
+   "want": "아이브 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 24,
+   "owner": "tester6@test.com",
+   "shop": "수원 영통구 굿즈샵 18",
+   "status": "OPEN",
+   "want": "세븐틴 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 25,
+   "owner": "tester7@test.com",
+   "shop": "성남 분당구 굿즈샵 19",
+   "status": "OPEN",
+   "want": "르세라핌 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 26,
+   "owner": "tester8@test.com",
+   "shop": "서울 강남구 굿즈샵 20",
+   "status": "OPEN",
+   "want": "에스파 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 27,
+   "owner": "tester9@test.com",
+   "shop": "서울 마포구 굿즈샵 21",
+   "status": "OPEN",
+   "want": "있지 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 28,
+   "owner": "tester10@test.com",
+   "shop": "서울 송파구 굿즈샵 22",
+   "status": "OPEN",
+   "want": "뉴진스 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 29,
+   "owner": "tester11@test.com",
+   "shop": "부산 해운대구 굿즈샵 23",
+   "status": "OPEN",
+   "want": "아이브 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 30,
+   "owner": "tester12@test.com",
+   "shop": "대구 수성구 굿즈샵 24",
+   "status": "OPEN",
+   "want": "세븐틴 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 31,
+   "owner": "tester13@test.com",
+   "shop": "인천 연수구 굿즈샵 25",
+   "status": "OPEN",
+   "want": "르세라핌 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 32,
+   "owner": "tester14@test.com",
+   "shop": "대전 유성구 굿즈샵 26",
+   "status": "OPEN",
+   "want": "에스파 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 33,
+   "owner": "tester15@test.com",
+   "shop": "광주 서구 굿즈샵 27",
+   "status": "OPEN",
+   "want": "있지 포토카드랑 교환하고 싶어요"
+  },
+  {
+   "item": 34,
+   "owner": "owner1@test.com",
+   "shop": "수원 영통구 굿즈샵 28",
+   "status": "OPEN",
+   "want": "뉴진스 포토카드랑 교환하고 싶어요"
+  }
+ ],
+ "boards": [
+  {
+   "key": 3,
+   "author": "tester1@test.com",
+   "title": "교환 신청 후 응답은 얼마나 걸리나요?",
+   "content": "교환 신청을 보냈는데 상대방 응답이 언제쯤 오는지 궁금합니다.",
+   "item": null,
+   "secret": false,
+   "status": "PENDING"
+  },
+  {
+   "key": 4,
+   "author": "tester1@test.com",
+   "title": "포토카드 상태 확인은 어떻게 하나요?",
+   "content": "직거래 전에 상품 상태를 미리 확인할 수 있는 방법이 있을까요?",
+   "item": null,
+   "secret": false,
+   "status": "PENDING"
+  },
+  {
+   "key": 5,
+   "author": "tester1@test.com",
+   "title": "가게 보증금은 언제 환불되나요?",
+   "content": "교환이 끝나고 나면 보증금 환불까지 보통 얼마나 걸리나요?",
+   "item": null,
+   "secret": false,
+   "status": "COMPLETED"
+  },
+  {
+   "key": 9,
+   "author": "tester4@test.com",
+   "title": "세븐틴 응원봉 ver.3 재고 있나요?",
+   "content": "색상 옵션이 따로 있는지, 지금도 구매 가능한지 궁금합니다.",
+   "item": 70,
+   "secret": false,
+   "status": "COMPLETED"
+  },
+  {
+   "key": 10,
+   "author": "tester4@test.com",
+   "title": "구매 전 실물 사진 받아볼 수 있나요?",
+   "content": "사진 몇 장만 더 보내주실 수 있을까요?",
+   "item": 72,
+   "secret": false,
+   "status": "PENDING"
+  },
+  {
+   "key": 11,
+   "author": "tester4@test.com",
+   "title": "직거래 가능한 지역이 어디인가요?",
+   "content": "서울 쪽에서 직거래 가능한지 궁금합니다. 가능하면 주말에 뵙고 싶어요.",
+   "item": 70,
+   "secret": false,
+   "status": "COMPLETED"
+  },
+  {
+   "key": 12,
+   "author": "tester4@test.com",
+   "title": "세븐틴 응원봉 배송 문의드립니다",
+   "content": "안녕하세요! 주문한 응원봉 배송은 언제쯤 시작되나요?\n박스 포장 상태도 궁금합니다.\n빠른 답변 부탁드려요.",
+   "item": 70,
+   "secret": false,
+   "status": "COMPLETED"
+  }
+ ],
+ "replies": [
+  {
+   "board": 9,
+   "author": "tester4@test.com",
+   "content": "네, 재고 있습니다! 색상은 기본 1종만 있어요."
+  },
+  {
+   "board": 9,
+   "author": "tester1@test.com",
+   "content": "답변 감사합니다 :)"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "저도 서울 쪽입니다, 가능할 것 같아요!"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "그럼 이번 주 토요일 어떠세요?"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "좋습니다, 홍대 쪽에서 뵐까요?"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "네 좋아요! 오후 2시쯤 괜찮으신가요?"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "네 괜찮습니다, 그때 뵐게요!"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "혹시 가게에서 보증금 내고 진행하는 거 맞나요?"
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "네 맞습니다, 안전하게 가게 통해서 진행해요."
+  },
+  {
+   "board": 11,
+   "author": "tester4@test.com",
+   "content": "알겠습니다 감사합니다!"
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "배송은 결제 확인 후 1~2일 내로 시작됩니다."
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "박스 포장은 에어캡으로 꼼꼼히 해드리고 있어요."
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "감사합니다! 안심이 되네요."
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "혹시 송장 번호도 알 수 있을까요?"
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "발송되면 바로 안내 문자 드릴게요."
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "네 감사합니다!"
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "좋은 하루 되세요 :)"
+  },
+  {
+   "board": 12,
+   "author": "tester4@test.com",
+   "content": "넵 감사합니다~"
+  }
+ ]
+}
