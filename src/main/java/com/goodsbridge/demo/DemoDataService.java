@@ -124,6 +124,7 @@ public class DemoDataService {
         // 이전 시연(또는 테스트)에서 쌓인 데모 가게의 수수료 기록도 초기화해서 수익 요약이 시드 데이터와 맞게 한다
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shop.getId());
         deleteDemoData(List.of(userA.getId(), userB.getId(), shopOwner.getId()));
+        deleteDemoPayments();
         seed(userA, userB, shopOwner, shop);
         seedBranches();
         // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
@@ -209,6 +210,15 @@ public class DemoDataService {
     }
 
     // 시연 계정이 만든 상품/교환글과 거기에 딸린 데이터를 외래키 순서대로 지운다.
+    // 시연 결제(demo- 로 시작)는 초기화할 때마다 새로 만들어지는데 지워지지 않아 결제 기록이 계속 쌓였다.
+    // 위에서 시연 구매·참가·신청을 지웠으니 남은 시연 결제와, 그 결제를 가리키는 환불·정산 기록을 함께 지운다. (실제 PortOne 결제는 건드리지 않는다)
+    private void deleteDemoPayments() {
+        String demoPayments = "(select id from payment_tb where payment_id like 'demo-%')";
+        jdbcTemplate.update("delete from refund_tb where payment_id in " + demoPayments);
+        jdbcTemplate.update("delete from settlement_history_tb where payment_id in " + demoPayments);
+        jdbcTemplate.update("delete from payment_tb where payment_id like 'demo-%'");
+    }
+
     private void deleteDemoData(List<Long> userIds) {
         String u = "(" + String.join(",", userIds.stream().map(String::valueOf).toList()) + ")";
         String items = "(select id from item_tb where seller_user_id in " + u + ")";
