@@ -16,6 +16,8 @@ import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.io.IOException;
@@ -68,6 +70,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity
             .status(exception.getErrorCode().getStatus())
             .body(ErrorResponse.of(exception.getErrorCode(), exception.getMessage()));
+    }
+
+    // 없는 주소에 잘못된 방식(GET 대신 POST 등)으로 요청하면 서버 오류(500)가 아니라 405/415 로 돌려준다
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class, HttpMediaTypeNotSupportedException.class})
+    public ResponseEntity<Void> handleUnsupportedRequest(Exception e) {
+        HttpStatus status = e instanceof HttpRequestMethodNotSupportedException ? HttpStatus.METHOD_NOT_ALLOWED : HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+        return ResponseEntity.status(status).build();
     }
 
     @ExceptionHandler(Exception.class)

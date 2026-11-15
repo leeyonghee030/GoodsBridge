@@ -144,6 +144,14 @@ public class ExchangeService {
         if (!item.getSellerUserId().equals(userId)) {
             throw new ForbiddenException("본인 소유의 상품으로만 게시글을 등록할 수 있습니다.");
         }
+        if (item.isDeleted()) {
+            throw new NotFoundException("삭제된 상품은 교환 게시글로 올릴 수 없습니다.");
+        }
+        // 같은 상품으로 모집중이거나 매칭 중인 게시글이 이미 있으면 또 올릴 수 없다
+        if (exchangeItemRepository.existsByItem_IdAndStatusIn(item.getId(),
+            java.util.List.of(ExchangeItemStatus.OPEN, ExchangeItemStatus.MATCHED))) {
+            throw new BadRequestException("이미 교환 게시글로 올린 상품이에요.");
+        }
 
         ExchangeItem exchangeItem = ExchangeItem.builder()
             .user(user)

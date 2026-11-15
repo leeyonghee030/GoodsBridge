@@ -42,6 +42,13 @@ class ItemServiceUpdateTest {
     @Mock
     private com.goodsbridge.auction.AuctionRepository auctionRepository;
 
+    // 교환에 쓰이는 상품 보호 검사에 쓰인다 (기본값 false = 교환에 쓰이지 않음)
+    @Mock
+    private com.goodsbridge.exchange.ExchangeItemRepository exchangeItemRepository;
+
+    @Mock
+    private com.goodsbridge.exchange.ExchangeRequestRepository exchangeRequestRepository;
+
     // 승인된 가게 생성
     private Shop createApprovedShop(Long ownerUserId) {
         return Shop.builder()

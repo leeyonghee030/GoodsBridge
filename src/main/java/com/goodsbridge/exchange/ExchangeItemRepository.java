@@ -9,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface ExchangeItemRepository extends JpaRepository<ExchangeItem, Long> {
+    // 이 상품이 지금 (모집중·매칭완료) 교환 게시글로 올라가 있는지
+    boolean existsByItem_IdAndStatusIn(Long itemId, java.util.Collection<ExchangeItemStatus> statuses);
+
     //1.탐색  items?category 쿼리
     @Query("""
         select e from ExchangeItem e
