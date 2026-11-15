@@ -481,6 +481,8 @@ textarea:focus {
     z-index: 10;
 }
 
+.autocomplete-list:empty { display: none; }
+
 .autocomplete-item {
     padding: 0.5rem 0.8rem;
     font-size: 0.85rem;

@@ -147,6 +147,11 @@ public class ExchangeService {
         if (item.isDeleted()) {
             throw new NotFoundException("삭제된 상품은 교환 게시글로 올릴 수 없습니다.");
         }
+        // 다른 교환 신청(대기·확정)에 쓰이고 있는 상품은 게시글로 올릴 수 없다
+        if (exchangeRequestRepository.existsByItemBAndStatusIn(item.getId(),
+            java.util.List.of(ExchangeRequestStatus.PENDING, ExchangeRequestStatus.CONFIRMED))) {
+            throw new BadRequestException("다른 교환 신청에 쓰이고 있는 상품은 게시글로 올릴 수 없어요.");
+        }
         // 같은 상품으로 모집중이거나 매칭 중인 게시글이 이미 있으면 또 올릴 수 없다
         if (exchangeItemRepository.existsByItem_IdAndStatusIn(item.getId(),
             java.util.List.of(ExchangeItemStatus.OPEN, ExchangeItemStatus.MATCHED))) {
@@ -305,6 +310,11 @@ public class ExchangeService {
         //4. 판매중인(삭제/교환완료되지 않은) 상품만 제안 가능
         if (item.isDeleted() || item.getStatus() != ItemStatus.ON_SALE) {
             throw new BadRequestException("판매 중인 상품만 교환 제안에 쓸 수 있습니다.");
+        }
+        // 내가 교환 게시글로 올려 둔 상품은 다른 사람 게시글에 제안하는 데 쓸 수 없다 (같은 상품으로 두 교환이 동시에 진행되는 것을 막는다)
+        if (exchangeItemRepository.existsByItem_IdAndStatusIn(itemBId,
+            java.util.List.of(ExchangeItemStatus.OPEN, ExchangeItemStatus.MATCHED))) {
+            throw new BadRequestException("이미 교환 게시글로 올린 상품은 다른 교환 제안에 쓸 수 없어요.");
         }
         //5. 이 아이템이 다른 PENDING/CONFIRMED 제안에 이미 쓰이고 있으면 중복 제안 불가 (한 게시글에 서로 다른 상품으로 여러 번 신청하는 것은 가능)
         List<ExchangeRequestStatus> statuses = new ArrayList<>();

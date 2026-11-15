@@ -36,11 +36,11 @@
             <button type="button" class="filter-chip" data-sort="popular">인기순</button>
         </div>
     </div>
-    <p style="position: relative;">
+    <div style="position: relative; margin: 0 0 0.6rem;">
         <label for="categorySearch" class="sr-only">카테고리</label>
         <input id="categorySearch" type="text" placeholder="카테고리" autocomplete="off">
         <div id="category-results" class="autocomplete-list category-filter-list"></div>
-    </p>
+    </div>
 </div>
 
 {{^items}}
@@ -82,11 +82,11 @@
             <p>
                 <textarea id="wantDescription" name="wantDescription" placeholder="원하는 것을 적어주세요" rows="3" required></textarea>
             </p>
-            <p style="position: relative;">
+            <div style="position: relative; margin: 0 0 0.6rem;">
                 <input id="shopName" type="text" placeholder="교환장소(가게) 이름을 검색하세요" autocomplete="off" required>
                 <input id="shopId" type="hidden" name="shopId">
                 <div id="shop-results" class="autocomplete-list"></div>
-            </p>
+            </div>
             <button type="submit">게시글 등록</button>
         </form>
         <p id="create-message" class="form-message"></p>
@@ -163,24 +163,31 @@
     }
 
     const modal = document.getElementById('create-modal');
-    let itemsLoaded = false;
-    let myOnSaleItems = [];
-
+    // 내 아이템 선택 목록: 이미 교환 게시글로 올렸거나 다른 교환 신청에 쓰이고 있는 상품은 선택할 수 없게 표시한다 (창을 열 때마다 새로 채운다)
     async function loadMyItems() {
-        if (itemsLoaded) return myOnSaleItems;
-        const res = await pageFetch('/api/items/me');
+        const [res, postsRes, reqRes] = await Promise.all([
+            pageFetch('/api/items/me'), pageFetch('/api/exchange-items/me'), pageFetch('/api/exchange-requests/me')
+        ]);
         if (!res.ok) return [];
-        itemsLoaded = true;
         const items = await res.json();
-        myOnSaleItems = items.filter(item => item.status === 'ON_SALE');
+        const posts = postsRes.ok ? await postsRes.json() : [];
+        const requests = reqRes.ok ? await reqRes.json() : [];
+        const posted = new Set(posts.filter(p => ['OPEN', 'MATCHED'].includes(p.status)).map(p => p.itemId));
+        const proposing = new Set(requests.filter(r => ['PENDING', 'CONFIRMED'].includes(r.status)).map(r => r.itemBId));
+        const onSale = items.filter(item => item.status === 'ON_SALE');
         const select = document.getElementById('itemId');
-        myOnSaleItems.forEach(item => {
+        const selected = select.value;
+        while (select.options.length > 1) select.remove(1);   // 첫 번째 안내 옵션만 남기고 비움
+        onSale.forEach(item => {
             const option = document.createElement('option');
             option.value = item.id;
-            option.textContent = `${item.title} (${money(item.price)})`;
+            const reason = posted.has(item.id) ? ' · 이미 올린 상품' : proposing.has(item.id) ? ' · 신청 중' : '';
+            option.disabled = !!reason;
+            option.textContent = `${item.title} (${money(item.price)})${reason}`;
             select.appendChild(option);
         });
-        return myOnSaleItems;
+        select.value = [...select.options].some(o => o.value === selected && !o.disabled) ? selected : '';
+        return onSale;
     }
 
     document.getElementById('open-create').addEventListener('click', async () => {
@@ -295,7 +302,6 @@
         if (!res.ok) { message.textContent = await errorText(res, (wasEditing ? '수정에 실패했습니다.' : '등록에 실패했습니다.')); message.className = 'form-message error'; return; }
         message.textContent = wasEditing ? '상품이 수정되었습니다.' : '상품이 등록되었습니다.';
         message.className = 'form-message';
-        itemsLoaded = false; // 교환 글쓰기의 "내 아이템" 목록에 새로 등록한 상품이 반영되도록
         document.getElementById('itemId').innerHTML = '<option value="">내 아이템을 선택하세요</option>';
         itemCreateForm.reset();
         reuseImageUrl = null;
@@ -401,7 +407,6 @@
             if (!res.ok) { alert(await errorText(res, '삭제에 실패했습니다.')); return; }
             myItemsAll = myItemsAll.filter(i => i.id !== item.id);
             renderMyItems();
-            itemsLoaded = false; // 교환 글쓰기의 "내 아이템" 선택 목록도 새로 불러오도록
             document.getElementById('itemId').innerHTML = '<option value="">내 아이템을 선택하세요</option>';
         }
     });

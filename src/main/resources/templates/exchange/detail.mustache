@@ -173,10 +173,12 @@
 
     // 내 아이템 목록을 다시 채운다. 이미 대기/확정된 다른 신청에 쓰이고 있는 아이템은 '· 신청 중'으로 표시하고 선택할 수 없게 한다.
     async function loadProposeItems() {
-        const [res, myRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/exchange-requests/me')]);
+        const [res, myRes, postRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/exchange-requests/me'), pageFetch('/api/exchange-items/me')]);
         if (!res.ok) return;
         const items = await res.json();
         const myRequests = myRes.ok ? await myRes.json() : [];
+        // 내가 교환 게시글로 올려 둔 상품은 다른 교환 제안에 쓸 수 없다
+        const postedItemIds = new Set((postRes.ok ? await postRes.json() : []).filter(p => ['OPEN', 'MATCHED'].includes(p.status)).map(p => p.itemId));
         const usedItemIds = new Set(myRequests
             .filter(r => r.proposerUserId === currentUserId && ['PENDING', 'CONFIRMED'].includes(r.status))
             .map(r => r.itemBId));
@@ -187,9 +189,9 @@
             const option = document.createElement('option');
             option.value = item.id;
             option.dataset.price = item.price;
-            const used = usedItemIds.has(item.id);
-            option.disabled = used;
-            option.textContent = `${item.title} (${money(item.price)})${used ? ' · 신청 중' : ''}`;
+            const reason = postedItemIds.has(item.id) ? ' · 이미 올린 상품' : usedItemIds.has(item.id) ? ' · 신청 중' : '';
+            option.disabled = !!reason;
+            option.textContent = `${item.title} (${money(item.price)})${reason}`;
             select.appendChild(option);
         });
         // 이전에 골라 둔 아이템이 아직 신청 가능하면 유지, 아니면 안내 옵션으로
