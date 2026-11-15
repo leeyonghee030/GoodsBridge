@@ -194,9 +194,9 @@ public class RefundService {
             return;
         }
         purchaseRepository.findByPaymentId(payment.getPaymentId()).ifPresent(purchase -> {
-            // SOLD 였던 상품만 다시 연다 (판매 종료(CLOSED)한 상품까지 되살리지 않는다)
+            // SOLD 였던 상품만 다시 연다 (판매 종료(CLOSED)·삭제한 상품까지 되살리지 않는다)
             Item item = purchase.getItem();
-            if (item.getStatus() == ItemStatus.SOLD) {
+            if (item.getStatus() == ItemStatus.SOLD && !item.isDeleted()) {
                 // 구독이 만료된 가게의 상품은 다시 팔지 않고 구독으로 판매 중지해 둔다 (재구독하면 다른 상품과 함께 복구된다)
                 if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
                     item.pauseBySubscription();
