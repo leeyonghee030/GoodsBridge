@@ -44,6 +44,9 @@ public class Shop {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // 입점 승인 시각. 승인된 적이 없거나 승인이 취소·재심사로 되돌아가면 null. (이 컬럼이 생기기 전에 승인된 가게도 null이라 조회할 때 createdAt으로 대신한다)
+    private LocalDateTime approvedAt;
+
     @Builder
     public Shop(Long ownerUserId, String name, String region, String address, ShopStatus status) {
         this.ownerUserId = ownerUserId;
@@ -51,6 +54,9 @@ public class Shop {
         this.region = region;
         this.address = address;
         this.status = status != null ? status : ShopStatus.PENDING; // 기본값 PENDING 처리
+        if (this.status == ShopStatus.APPROVED) {
+            this.approvedAt = LocalDateTime.now();
+        }
     }
 
     public void update(String name, String region, String address) {
@@ -68,6 +74,7 @@ public class Shop {
 
         if (this.status == ShopStatus.APPROVED) {
             this.status = ShopStatus.PENDING; // 수정 시 재심사 대기
+            this.approvedAt = null;
         }
     }
 
@@ -77,6 +84,7 @@ public class Shop {
             throw new IllegalStateException("이미 승인 완료된 상점은 대기 상태로 되돌릴 수 없습니다.");
         }
         this.status = newStatus;
+        this.approvedAt = newStatus == ShopStatus.APPROVED ? LocalDateTime.now() : null;
     }
 
 

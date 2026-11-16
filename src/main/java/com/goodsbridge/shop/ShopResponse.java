@@ -13,6 +13,7 @@ public class ShopResponse {
     private final String address;
     private final ShopStatus status;
     private final LocalDateTime createdAt;
+    private final LocalDateTime approvedAt;   // 입점 승인 시각 (승인 전이면 null)
 
     public ShopResponse(Shop shop) {
         this.id = shop.getId();
@@ -22,5 +23,6 @@ public class ShopResponse {
         this.address = shop.getAddress();
         this.status = shop.getStatus();
         this.createdAt = shop.getCreatedAt();
+        this.approvedAt = shop.getApprovedAt();
     }
 }

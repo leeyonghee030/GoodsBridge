@@ -130,10 +130,11 @@ public class ShopViewController {
         @RequestParam(required = false) String name,
         @RequestParam(required = false) String region,
         @RequestParam(required = false) ShopStatus status,
+        @RequestParam(required = false) String month,
         @PageableDefault(size = 10, sort = "createdAt") Pageable pageable) {
 
         Long adminUserId = SecurityUtil.getCurrentUserId();
-        return ResponseEntity.ok(shopService.searchShopsByAdmin(adminUserId, name, region, status, pageable));
+        return ResponseEntity.ok(shopService.searchShopsByAdmin(adminUserId, name, region, status, month, pageable));
     }
 
     // 관리자 입점 승인

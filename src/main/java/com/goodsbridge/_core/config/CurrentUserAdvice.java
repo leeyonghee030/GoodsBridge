@@ -19,4 +19,12 @@ public class CurrentUserAdvice {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         return authentication != null && authentication.getPrincipal() instanceof Long id ? id : null;
     }
+
+    // 관리자 계정이면 true. 관리자는 관리만 하므로 구매·참가·입찰·교환 버튼을 막고, 헤더에 ADMIN 메뉴를 보여준다.
+    @ModelAttribute("adminAccount")
+    public boolean adminAccount() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication != null && authentication.getAuthorities().stream()
+            .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
+    }
 }
