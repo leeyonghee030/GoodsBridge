@@ -53,7 +53,6 @@ public class RefundService {
         if (!payment.isOwner(userId)) {
             throw new ForbiddenException("본인의 결제만 환불 요청할 수 있습니다.");
         }
-        validateNotAuctionPayment(payment);
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
         }
@@ -108,14 +107,13 @@ public class RefundService {
         }
         Payment payment = paymentRepository.findByPaymentIdLock(refund.getPayment().getPaymentId())
             .orElseThrow(() -> new NotFoundException("결제 내역을 찾을 수 없습니다."));
-        validateNotAuctionPayment(payment);
+        rejectAuctionPayment(payment);
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("결제 완료 상태만 환불할 수 있습니다.");
         }
         if (refund.getRequestedAmount() > payment.getRefundableAmount()) {
             throw new BadRequestException("환불 가능 금액을 초과했습니다.");
         }
-        rejectAuctionPayment(payment);
         // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
         // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
         refund.approve();
@@ -248,7 +246,7 @@ public class RefundService {
         if (!shopId.equals(purchase.getItem().getShopId())) {
             throw new ForbiddenException("본인 가게에서 판매된 결제만 환불할 수 있습니다.");
         }
-        validateNotAuctionPayment(payment);
+        rejectAuctionPayment(payment);
         if (payment.getStatus() == PaymentStatus.RELEASED) {
             throw new BadRequestException("수령 확인이 끝난 거래는 환불할 수 없습니다.");
         }
@@ -278,13 +276,5 @@ public class RefundService {
         paymentService.refund(payment.getPaymentId(), shopRefundRequest.getRequestedAmount(), shopRefundRequest.getReason());
         reopenItemIfFullyRefunded(payment);
         return new RefundResponse.ListDto(refund);
-    }
-
-    // 경매 결제(보증금/잔금)는 환불 불가
-    private void validateNotAuctionPayment(Payment payment) {
-        PaymentPurpose purpose = payment.getPurpose();
-        if (purpose == PaymentPurpose.AUCTION_DEPOSIT || purpose == PaymentPurpose.AUCTION_BALANCE) {
-            throw new BadRequestException("경매 결제는 환불할 수 없습니다.");
-        }
     }
 }
