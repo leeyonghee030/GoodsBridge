@@ -2265,3 +2265,31 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .chat-intro-label { margin: 0.65rem 0 0.25rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; color: var(--color-muted); }
 .chat-intro-list { margin: 0; padding-left: 1.05rem; font-size: 0.84rem; line-height: 1.6; }
 .chat-intro-list li { margin: 0.1rem 0; }
+
+/* 푸터에서 연결되는 안내 화면 (소개 / 입점 문의 / 공지사항 / 자주 묻는 질문) */
+.info-page { max-width: 760px; margin-left: auto; margin-right: auto; }
+.info-heading { margin: 1.6rem 0 0.7rem; font-size: 0.95rem; font-weight: 700; }
+.info-heading:first-child { margin-top: 0; }
+.info-cards { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.info-card { padding: 1rem 1.1rem; border: 1px solid var(--color-border); border-radius: 14px; background: #fff; }
+.info-card h2 { margin: 0 0 0.4rem; font-size: 0.95rem; }
+.info-card p { margin: 0; font-size: 0.84rem; line-height: 1.65; color: var(--color-text-soft); }
+.info-steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.info-steps li { position: relative; display: grid; gap: 0.15rem; padding: 0.8rem 0 0.8rem 2.4rem; border-bottom: 1px solid var(--color-border); counter-increment: step; }
+.info-steps li:last-child { border-bottom: 0; }
+.info-steps li::before { content: counter(step); position: absolute; left: 0; top: 0.8rem; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--color-dark); color: #fff; font-size: 0.78rem; font-weight: 700; text-align: center; line-height: 1.6rem; }
+.info-steps span { font-size: 0.84rem; line-height: 1.6; color: var(--color-text-soft); }
+.info-links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.2rem; }
+.info-links a { display: inline-block; padding: 0.4rem 0.95rem; border: 1px solid var(--color-text); border-radius: 999px; font-size: 0.82rem; font-weight: 500; text-decoration: none; color: var(--color-text); }
+.info-links a:hover { background: var(--color-dark); color: #fff; }
+.info-empty { padding: 2.4rem 1rem; text-align: center; }
+.info-empty p { margin: 0.4rem 0 0; font-size: 0.86rem; color: var(--color-muted); }
+.info-empty .info-links { justify-content: center; }
+.faq-item { border-bottom: 1px solid var(--color-border); }
+.faq-item summary { padding: 0.85rem 0; font-size: 0.9rem; font-weight: 600; cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 1rem; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::after { content: "+"; color: var(--color-muted); font-weight: 400; }
+.faq-item[open] summary::after { content: "-"; }
+.faq-item p { margin: 0 0 0.9rem; font-size: 0.86rem; line-height: 1.7; color: var(--color-text-soft); }
+.faq-item p a, .info-more a { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; color: var(--color-text); }
+.info-more { margin: 1.4rem 0 0; font-size: 0.86rem; color: var(--color-muted); }
