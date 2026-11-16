@@ -455,6 +455,23 @@ class RefundServiceTest {
         verifyNoInteractions(paymentService);
     }
 
+    @Test
+    void request_rejectsPaymentsThatAreNeitherPurchaseNorAuctionBalance() {
+        for (PaymentPurpose purpose : java.util.List.of(
+            PaymentPurpose.EXCHANGE_DEPOSIT, PaymentPurpose.EVENT_FEE, PaymentPurpose.SHOP_SUBSCRIPTION)) {
+            User user = mock(User.class);
+            when(user.getId()).thenReturn(1L);
+            Payment payment = Payment.builder().paymentId("p-1").user(user).amount(10_000).purpose(purpose).build();
+            when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+
+            BadRequestException e = assertThrows(BadRequestException.class,
+                () -> refundService.request(1L, request("p-1", 3_000, "단순 변심")));
+
+            assertEquals("구매 또는 경매 낙찰 결제만 환불을 요청할 수 있어요.", e.getMessage());
+        }
+        verify(refundRepository, never()).save(any());
+    }
+
     // ---------- 가게 주인의 환불 승인/거절 + 거절 재검토 ----------
 
     private Purchase shopPurchase(Long shopId, String paymentId) {

@@ -52,6 +52,7 @@ public class RefundService {
     private final SettlementHistoryRepository settlementHistoryRepository;
     private final ApplicationEventPublisher publisher;
     private static final Set<DeliveryStatus> REFUNDABLE_DELIVERY_STATUSES = EnumSet.of(DeliveryStatus.PREPARING, DeliveryStatus.DELIVERED);
+    private static final Set<PaymentPurpose> USER_REFUNDABLE_PURPOSES = EnumSet.of(PaymentPurpose.PURCHASE, PaymentPurpose.AUCTION_BALANCE);
 
     // 환불 요청
     @Transactional
@@ -66,6 +67,9 @@ public class RefundService {
         validateNotAuctionPayment(payment);
         if (!payment.isOwner(userId)) {
             throw new ForbiddenException("본인의 결제만 환불 요청할 수 있습니다.");
+        }
+        if (!USER_REFUNDABLE_PURPOSES.contains(payment.getPurpose())) {      // ← 추가
+            throw new BadRequestException("구매 또는 경매 낙찰 결제만 환불을 요청할 수 있어요.");
         }
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
