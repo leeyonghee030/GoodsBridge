@@ -65,7 +65,7 @@ public class Notification {
     private ReadStatus readStatus = ReadStatus.UNREAD;
 
     // 생성 시간
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
@@ -76,6 +76,12 @@ public class Notification {
     // 읽음 처리
     public void markAsRead() {
         this.readStatus = ReadStatus.READ;
+    }
+
+    public void updateContent(String title, String content) {
+        this.title = title;
+        this.content = content;
+        this.createdAt = LocalDateTime.now();
     }
 
     public enum ReadStatus {
@@ -89,16 +95,51 @@ public class Notification {
         EXCHANGE_REJECTED,      // 교환 거절
         EXCHANGE_CANCELLED,     // 교환 취소
         EXCHANGE_BOOKED,        // 교환 예약
+        EXCHANGE_EXPIRED,       // 교환 만료
+        EXCHANGE_SETTLED,       // 교환 종료
+        EXCHANGE_COMMENT,       // 댓글 작성
+
+        COMMENT_DELETED_BY_ADMIN,   // 운영자 권한 내 댓글 삭제
+
+        EXCHANGE_MEETING_PROPOSED,  // 교환 약속 신청
+        EXCHANGE_MEETING_CONFIRMED, // 교환 약속 확정
+        EXCHANGE_VISIT_REMINDER,    // 방문 기한 확인 메시지
+
+        EXCHANGE_MESSAGE,       // 교환 대상 메시지
+
+        EVENT_CANCELLED,        // 이벤트 취소
+        EVENT_CLOSED,           // 이벤트 인원 마감
 
         AUCTION_BID,            // 경매 입찰
         AUCTION_WIN,            // 경매 낙찰
+        AUCTION_LOST,           // 경매 패찰
+        AUCTION_OUTBID,         // 상위 입찰 당함
+        AUCTION_ENDING_SOON,    // 경매 마감 임박
+        AUCTION_PAID,           // 낙찰자 잔금 결제
+        AUCTION_FORFEITED,      // 잔금 미납으로 낙찰 무효
 
         PAYMENT_COMPLETED,      // 결제 완료 (배송 준비중)
         DELIVERY_STARTED,       // 배송 시작 (배송중)
         DELIVERY_COMPLETED,     // 배송 완료
 
-        AUCTION_REMAINING_PAYMENT, // 경매 잔금 납부 요청
-        REFUND_REJECTED          // 환불 거절
+        SHOP_APPLIED,           // 가게 입점 신청
+        SHOP_REJECTED,          // 가게 입점 거절
+        SHOP_APPROVAL_CANCELED, // 가게 입점 승인 취소
+        SHOP_CLOSED,            // 가게 폐점
+
+        AUCTION_REMAINING_PAYMENT,  // 경매 잔금 납부 요청
+        REFUND_REJECTED,            // 환불 거절
+        REFUND_REQUESTED,           // 환불 신청
+
+        SUBSCRIPTION_CANCELLED,     // 구독 취소
+        SUBSCRIPTION_EXPIRED,       // 구독 만료
+        SUBSCRIPTION_EXPIRING,      // 구독 만료 임박
+        SUBSCRIPTION_PAID,          // 신규 구독
+
+        PURCHASE_ORDERED,           // 새 주문
+        PURCHASE_CANCELLED_BY_SHOP, // 가게 사유 환불처리
+
+        BOARD_REPLY                 // 계시글 댓글
     }
 
     public enum ReferenceType {
@@ -108,8 +149,10 @@ public class Notification {
         REFUND("/my/purchases"),                    // 환불 관련 구매 내역
         EVENT("/test/event/{id}"),                  // 이벤트 상세
         AUCTION("/test/auction"),                   // 경매
+        SHOP(null),
         SHOP_UPDATE("/update"),                     // 가게 업데이트
         SHOP_ADMIN("/test/admin/shops"),            // 관리자 가게
+        SUBSCRIPTION_SHOP(null),
         SUBSCRIPTION_ADMIN("/test/admin/subscriptions"), // 관리자 구독
         BOARD("/test/board/{id}"),                  // 게시글 상세
         DELIVERY(null),                              // 배송 알림은 이동 경로 없음

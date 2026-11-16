@@ -3,12 +3,15 @@ package com.goodsbridge.auction;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.user.User;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,7 @@ public class BidService {
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopRepository shopRepository;
+    private final ApplicationEventPublisher publisher;
 
     // 입찰 여부 판단
     @Transactional
@@ -86,6 +90,22 @@ public class BidService {
             .bidAmount(request.getBidAmount())
             .depositPaymentId(depositPaymentId)
             .build());
+
+        User prevWinner = auction.getCurrentWinner(); // ← 85줄 앞
+        auction.updateCurrentBid(request.getBidAmount(), user);
+        if (prevWinner != null && !prevWinner.getId().equals(userId)) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    auction.getCurrentWinner().getId(),
+                    Notification.Type.AUCTION_OUTBID,
+                    "[상위 입찰]",
+                    "'" + auction.getItem().getTitle() + "' 경매에서 더 높은 입찰이 발생했습니다. " +
+                        "현재 최고 입찰가를 확인해 주세요.",
+                    Notification.ReferenceType.AUCTION,
+                    auction.getId()
+                )
+            );
+        }
 
         auction.updateCurrentBid(request.getBidAmount(), user);
 

@@ -43,6 +43,8 @@ public class PurchaseService {
     private final SettlementHistoryService settlementHistoryService;
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher publisher;
+
+
     // 구매 (서버가 거절하면 이미 승인된 PortOne 결제를 자동 취소한다)
     @Transactional
     public PurchaseResponse.DetailDto purchase(Long itemId, Long userId, PurchaseRequest.CreateDto createDto) {
@@ -143,9 +145,9 @@ public class PurchaseService {
         publisher.publishEvent(
             new NotificationEvent(
                 purchase.getUser().getId(),
-                Notification.Type.PAYMENT_COMPLETED,
-                "[배송준비중]",
-                purchase.getItem().getTitle() + " 상품이 구매가 완료되었습니다",
+                Notification.Type.PURCHASE_ORDERED,
+                "[배송 준비중]",
+                "'{" + purchase.getItem().getTitle() + "}' 주문이 들어왔어요. 배송을 준비해 주세요",
                 Notification.ReferenceType.DELIVERY,
                 purchase.getId()
             )
@@ -190,7 +192,8 @@ public class PurchaseService {
                     purchase.getUser().getId(),
                     Notification.Type.DELIVERY_STARTED,
                     "[배송중]",
-                    purchase.getItem().getTitle() + " 상품이 배송을 시작했습니다",
+                    "'{" + purchase.getItem().getTitle() + "}' 상품이 배송을 시작했습니다 ( 송장 : "
+                    + trackingNumber + ")",
                     Notification.ReferenceType.DELIVERY,
                     purchaseId
                 )
@@ -205,7 +208,7 @@ public class PurchaseService {
                     purchase.getUser().getId(),
                     Notification.Type.DELIVERY_COMPLETED,
                     "[배송완료]",
-                    purchase.getItem().getTitle() + " 상품이 배송 완료 되었습니다",
+                    "'{" + purchase.getItem().getTitle() + "}' 상품이 배송 완료 되었습니다. 구매 확정을 눌러주세요",
                     Notification.ReferenceType.DELIVERY,
                     purchaseId
                 )

@@ -42,6 +42,8 @@ class AuctionSchedulerTest {
                 eq(Status.ACTIVE), any(LocalDateTime.class), any(Pageable.class)))
             .thenReturn(new PageImpl<>(List.of()));
         lenient().when(auctionRepository.findIdsPendingLoserRefund(any())).thenReturn(List.of());
+        lenient().when(auctionRepository.findIdsEndingSoon(any(), any(LocalDateTime.class), any(LocalDateTime.class)))
+            .thenReturn(List.of());
         lenient().when(auctionRepository.findIdsUnpaidOverdue(eq(Status.ENDED_SUCCESS), any(LocalDateTime.class)))
             .thenReturn(List.of());
     }
@@ -77,6 +79,17 @@ class AuctionSchedulerTest {
         auctionScheduler.autoCloseAuctions();
 
         verifyNoInteractions(auctionService);
+    }
+
+    @Test
+    void autoCloseAuctions_sendsEndingSoonReminderForEachDueAuction() {
+        when(auctionRepository.findIdsEndingSoon(eq(Status.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
+            .thenReturn(List.of(51L, 52L));
+
+        auctionScheduler.autoCloseAuctions();
+
+        verify(auctionService).notifyEndingSoon(51L);
+        verify(auctionService).notifyEndingSoon(52L);
     }
 
     @Test

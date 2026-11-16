@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -36,6 +38,7 @@ class ShopSubscriptionProcessorTest {
         processor = new ShopSubscriptionProcessor(
             shopRepository,
             subscriptionRepository,
+            eventPublisher,
             eventPublisher
         );
 
@@ -145,6 +148,43 @@ class ShopSubscriptionProcessorTest {
         verify(subscription, never()).expire();
 
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("D-3 ACTIVE 구독은 가게 주인에게 만료 임박 알림을 발행한다")
+    void D3_구독_만료_알림_test() {
+        givenShopAndSubscription();
+        LocalDate reminderDate = LocalDate.now().plusDays(3);
+        when(shop.getOwnerUserId()).thenReturn(88L);
+        when(subscription.getId()).thenReturn(subscriptionId);
+        when(subscription.getStatus()).thenReturn(ShopSubscriptionStatus.ACTIVE);
+        when(subscription.getEndDate()).thenReturn(reminderDate);
+        when(subscription.isExpiringReminderSent()).thenReturn(false);
+
+        boolean sent = processor.sendExpiringReminderById(subscriptionId, reminderDate);
+
+        assertThat(sent).isTrue();
+        verify(subscription).markExpiringReminderSent();
+        verify(eventPublisher).publishEvent(argThat(event -> event instanceof NotificationEvent notification
+            && notification.userId().equals(88L)
+            && notification.type() == Notification.Type.SUBSCRIPTION_EXPIRING
+            && notification.content().equals("구독이 3일 뒤 만료돼요")
+            && notification.referenceId().equals(subscriptionId)));
+    }
+
+    @Test
+    @DisplayName("이미 D-3 알림을 보낸 구독은 다시 알리지 않는다")
+    void D3_알림_중복_발송하지_않음_test() {
+        givenShopAndSubscription();
+        LocalDate reminderDate = LocalDate.now().plusDays(3);
+        when(subscription.getStatus()).thenReturn(ShopSubscriptionStatus.ACTIVE);
+        when(subscription.getEndDate()).thenReturn(reminderDate);
+        when(subscription.isExpiringReminderSent()).thenReturn(true);
+
+        boolean sent = processor.sendExpiringReminderById(subscriptionId, reminderDate);
+
+        assertThat(sent).isFalse();
+        verifyNoInteractions(eventPublisher);
     }
 
     // 가게 조회 실패

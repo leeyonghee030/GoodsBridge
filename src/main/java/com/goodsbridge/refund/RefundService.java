@@ -70,6 +70,23 @@ public class RefundService {
             .status(Status.REQUESTED).requestedBy(RequestedBy.USER)
             .type(RefundType.PURCHASE)
             .build();
+
+        List<Long> receiveList = userRepository.findIdsByRole(Role.ADMIN);
+        receiveList.add(refund.getUser().getId());
+
+        for (Long receiveId : receiveList){
+            publisher.publishEvent(
+                new NotificationEvent(
+                    receiveId,
+                    Notification.Type.REFUND_REQUESTED,
+                    "[환불 요청]",
+                    "환불 요청이 왔습니다 {" + request.getRequestedAmount() + "}원",
+                    Notification.ReferenceType.REFUND,
+                    refund.getId()
+                )
+            );
+        }
+
         return new RefundResponse.ListDto(refundRepository.save(refund));
     }
 
@@ -121,6 +138,17 @@ public class RefundService {
         refund.approve();
         createSettlementIfNeeded(refund, payment);
         paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                refund.getUser().getId(),
+                Notification.Type.REFUND_REJECTED,
+                "[환불 승인]",
+                "환불 승인이 되었습니다",
+                Notification.ReferenceType.EXCHANGE,
+                refund.getId()
+            )
+        );
 
         reopenItemIfFullyRefunded(payment);
     }
@@ -275,7 +303,21 @@ public class RefundService {
             .type(RefundType.PURCHASE)
             .build());
         // 외부 호출(PortOne 취소)은 DB 변경을 끝낸 뒤 마지막에 호출한다 (approve()와 같은 이유)
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                purchase.getUser().getId(),
+                Notification.Type.PURCHASE_CANCELLED_BY_SHOP,
+                "[환불]",
+                "가게 사정으로 '{" + purchase.getItem().getTitle()
+                    + "}' 주문이 환불됐습니다 ({" + refund.getRequestedAmount() + "}원)",
+                Notification.ReferenceType.REFUND,
+                refund.getId()
+            )
+        );
+
         paymentService.refund(payment.getPaymentId(), shopRefundRequest.getRequestedAmount(), shopRefundRequest.getReason());
+
         reopenItemIfFullyRefunded(payment);
         return new RefundResponse.ListDto(refund);
     }

@@ -31,13 +31,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.NumberFormat;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuctionService {
+    private static final int ENDING_SOON_WINDOW_MINUTES = 60;
     private final AuctionRepository auctionRepository;
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
@@ -48,6 +52,37 @@ public class AuctionService {
     private final SettlementHistoryService settlementHistoryService;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher publisher;
+
+    // 마감 임박 알림은 경매 행 잠금과 저장 플래그로 중복 발송을 막는다.
+    @Transactional
+    public void notifyEndingSoon(Long auctionId) {
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        LocalDateTime now = LocalDateTime.now();
+        if (auction.getStatus() != Status.ACTIVE
+            || auction.isEndingSoonNotified()
+            || auction.getDeadline() == null
+            || !auction.getDeadline().isAfter(now)
+            || auction.getDeadline().isAfter(now.plusMinutes(ENDING_SOON_WINDOW_MINUTES))) {
+            return;
+        }
+
+        String currentPrice = NumberFormat.getIntegerInstance(Locale.KOREA)
+            .format(auction.getCurrentPrice());
+        String content = "'" + auction.getItem().getTitle()
+            + "' 경매가 1시간 뒤 마감돼요 (현재가 " + currentPrice + "원)";
+        for (Long bidderUserId : bidRepository.findBidderUserIds(auctionId)) {
+            publisher.publishEvent(new NotificationEvent(
+                bidderUserId,
+                Notification.Type.AUCTION_ENDING_SOON,
+                "경매 마감 임박",
+                content,
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            ));
+        }
+        auction.markEndingSoonNotified();
+    }
 
     // 경매 개설
     @Transactional
@@ -186,6 +221,22 @@ public class AuctionService {
         }
 
         auction.cancel();
+
+        List<Long> bidderUserIdList = bidRepository.findBidderUserIds(auction.getId());
+
+        for (Long bidderUserId : bidderUserIdList) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    bidderUserId,
+                    Notification.Type.AUCTION_WIN,
+                    "[경매 취소]",
+                    " '{" + auction.getItem().getTitle() + "}' 경매가 취소되었습니다. 보증금은 모두 환불됩니다",
+                    Notification.ReferenceType.AUCTION,
+                    auction.getId()
+                )
+            );
+        }
+
         return new AuctionResponse(auction);
     }
 
@@ -202,7 +253,25 @@ public class AuctionService {
         // 패찰자 보증금 환불은 PortOne 호출이라 마감 트랜잭션과 분리해 스케줄러가 처리한다(refundLosers).
         auction.end();
 
-        if (auction.getStatus() == Status.ENDED_SUCCESS){
+        String title = auction.getCurrentWinner() != null ? "[상품 낙찰]" : "[상품 유찰]";
+        String content = auction.getCurrentWinner() != null ? auction.getItem().getTitle() + " 경매가 " +
+            auction.getCurrentPrice() + "원에 낙찰되었습니다"
+            : auction.getItem().getTitle() + " 경매가 유찰되었습니다";
+
+        // 가게 주인
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getShop().getOwnerUserId(),
+                Notification.Type.AUCTION_WIN,
+                title,
+                content,
+                Notification.ReferenceType.AUCTION,
+                auction.getId()
+            )
+        );
+
+        // 입찰자
+        if (auction.getStatus() == Status.ENDED_SUCCESS) {
             publisher.publishEvent(
                 new NotificationEvent(
                     auction.getCurrentWinner().getId(),
@@ -217,7 +286,6 @@ public class AuctionService {
                 )
             );
         }
-
     }
 
     // 스케줄러가 호출하는 단건 마감.
@@ -262,6 +330,19 @@ public class AuctionService {
         String balancePaymentId = paymentService.verify(
             request.getPaymentId(), balance, PaymentPurpose.AUCTION_BALANCE, userId);
         auction.completeBalance(balancePaymentId);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getShop().getOwnerUserId(),
+                Notification.Type.AUCTION_PAID,
+                "[낙찰자 잔금 결제]",
+                "낙찰자가 " + auction.getItem().getTitle() +
+                    " 잔금을 결제했습니다. 배송을 준비해 주세요",
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            )
+        );
+
         auction.getItem().updateStatus(ItemStatus.SOLD);
 
         purchaseRepository.save(Purchase.builder()
@@ -294,7 +375,24 @@ public class AuctionService {
             return;
         }
         for (String paymentId : bidRepository.findLoserDepositPaymentIds(auctionId, winnerId)) {
+
+            Payment payment = paymentRepository.findByPaymentId(paymentId).orElse(null);
+            if (payment == null) {
+                continue;
+            }
+
             refundDeposit(paymentId, "경매 패찰 보증금 환불");
+
+            publisher.publishEvent(
+                new NotificationEvent(
+                    payment.getUser().getId(),
+                    Notification.Type.AUCTION_LOST,
+                    "[상품 패찰]",
+                    " 아쉽게 낙찰되지 않았습니다. 보증금은 환불됩니다",
+                    Notification.ReferenceType.AUCTION,
+                    auctionId
+                )
+            );
         }
     }
 
@@ -338,6 +436,31 @@ public class AuctionService {
             return;
         }
         auction.forfeitUnpaid();
+
+        // 낙찰자
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getCurrentWinner().getId(),
+                Notification.Type.AUCTION_FORFEITED,
+                "[낙찰 취소]",
+                "잔금 기한이 지나 낙찰이 취소되었습니다",
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            )
+        );
+
+        // 가게
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getShop().getOwnerUserId(),
+                Notification.Type.AUCTION_FORFEITED,
+                "[낙찰 취소]",
+                "낙찰자가 기간 내에 잔금을 지급하지 않았으므로, '{" +
+                 auction.getItem().getTitle() + "}' 경매는 무효 처리 됩니다",
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            )
+        );
 
         if (auction.getWinningPaymentId() != null) {
             Payment deposit = paymentRepository.findByPaymentId(

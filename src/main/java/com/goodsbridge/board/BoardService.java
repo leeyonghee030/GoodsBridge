@@ -2,9 +2,12 @@ package com.goodsbridge.board;
 
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,6 +27,7 @@ public class BoardService {
     private final BoardRepository boardRepository;
     private final ReplyRepository replyRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher publisher;
 
     @Transactional
     public Long createBoard(BoardRequestDto requestDto, Long loginUserId) {
@@ -65,6 +69,20 @@ public class BoardService {
             .build();
 
         Long replyId = replyRepository.save(reply).getId();
+
+        if (!board.getAuthorId().equals(loginUserId)){
+
+            publisher.publishEvent(
+                new NotificationEvent(
+                    board.getAuthorId(),
+                    Notification.Type.BOARD_REPLY,
+                    "[새로운 댓글]",
+                    "{" + board.getTitle() + "}에 새로운 댓글이 달렸습니다",
+                    Notification.ReferenceType.BOARD,
+                    board.getId()
+                )
+            );
+        }
 
         // 3. 댓글이 작성되면 게시판 상태를 '답변 완료'로 자동 변경
         board.complete();

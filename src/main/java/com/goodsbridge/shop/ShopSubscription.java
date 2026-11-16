@@ -49,6 +49,9 @@ public class ShopSubscription {
     @Column(nullable = false, length = 20)
     private ShopSubscriptionStatus status;
 
+    @Column(name = "expiring_reminder_sent", nullable = false, columnDefinition = "boolean default false")
+    private boolean expiringReminderSent = false;
+
     /**
      * 낙관적 락을 위한 버전 필드
      */
@@ -110,6 +113,7 @@ public class ShopSubscription {
         Boolean setupFeePaid,
         String paymentId
     ) {
+        this.expiringReminderSent = false;
         this.startDate = startDate;
         this.endDate = newEndDate;
 
@@ -134,6 +138,9 @@ public class ShopSubscription {
         ShopSubscriptionStatus status,
         String paymentId
     ) {
+        if (endDate != null && !endDate.equals(this.endDate)) {
+            this.expiringReminderSent = false;
+        }
         this.startDate = startDate;
         this.endDate = endDate;
 
@@ -171,5 +178,9 @@ public class ShopSubscription {
      */
     public void expire() {
         this.status = ShopSubscriptionStatus.EXPIRED;
+    }
+
+    public void markExpiringReminderSent() {
+        this.expiringReminderSent = true;
     }
 }
