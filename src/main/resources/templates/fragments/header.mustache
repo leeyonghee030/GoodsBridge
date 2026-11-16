@@ -305,6 +305,9 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
     .then(r => r.ok ? r.json() : null)
     .then(d => {
         if (!(d && d.content && d.content.length)) return;
+        // 가게 사장님의 MY PAGE는 대시보드로 간다 (내 정보는 대시보드 옆 탭에 있다)
+        const myPage = document.getElementById('nav-mypage');
+        if (myPage) myPage.href = '/shop/dashboard';
         // 가게는 체인점 성격이라 개인 구매 내역 탭을 두지 않는다
         document.querySelectorAll('.my-tabs a[href="/my/purchases"], .my-tabs a[href="/my/events"], .my-tabs a[href="/my/auctions"]').forEach(a => a.remove());
         // 개인 이벤트 내역 화면은 가게 계정에 없으니 가게 이벤트 관리로 보낸다
@@ -314,6 +317,7 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
         if (location.pathname === '/my/exchange') return;   // 개인 교환 내역 화면을 직접 연 경우는 그대로 둔다
         document.querySelectorAll('.my-tabs a[href="/my/exchange"]').forEach(a => {
             a.href = '/shop/exchange'; a.textContent = '가게 교환 관리';
+            a.insertAdjacentHTML('beforebegin', '<a href="/shop/dashboard">대시보드</a>');
             a.insertAdjacentHTML('afterend', '<a href="/shop/items">판매 상품 관리</a><a href="/shop/events">이벤트 관리</a><a href="/shop/auctions">경매 관리</a>');
         });
     })
