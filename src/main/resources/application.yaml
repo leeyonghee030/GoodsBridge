@@ -28,7 +28,8 @@ spring:
             genai:
                 api-key: ${GEMINI_API_KEY}
                 chat:
-                    model: gemini-2.5-flash
+                    # 모델은 .env의 GEMINI_MODEL로 바꿀 수 있다. 구형 모델은 새 키에서 막히기도 한다(gemini-2.5-flash는 404).
+                    model: ${GEMINI_MODEL:gemini-3.5-flash}
 
     # 메일 발송 설정 (추가)
     mail:

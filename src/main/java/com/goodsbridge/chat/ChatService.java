@@ -72,7 +72,7 @@ public class ChatService {
                 .content();
         } catch (RuntimeException e) {
             // API 키 오류, 한도 초과, 네트워크 문제 등. 원인은 서버 로그에 남기고 사용자에게는 일반 안내만 한다.
-            log.warn("AI 호출 실패 - userId={}, 원인={}", userId, e.toString());
+            log.warn("AI 호출 실패 - userId={}", userId, e);   // 예외 전체(원인 포함)를 남겨야 키·한도·모델 문제를 구분할 수 있다
             throw new ServiceUnavailableException("AI 응답을 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
         if (reply == null || reply.isBlank()) {
