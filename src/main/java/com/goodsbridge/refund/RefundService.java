@@ -28,6 +28,8 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -312,9 +314,9 @@ public class RefundService {
     }
 
     // 환불 목록 조회
-    public List<RefundResponse.ListDto> findAllAdmin(Long adminId) {
+    public Page<RefundResponse.ListDto> findAllAdmin(Long adminId, Pageable pageable) {
         validateAdmin(adminId);
-        return refundRepository.findAllByOrderByIdDesc().stream().map(RefundResponse.ListDto::new).toList();
+        return refundRepository.findAllAdminPage(pageable).map(RefundResponse.ListDto::new);
     }
 
     // 자신의 환불 내역 찾기

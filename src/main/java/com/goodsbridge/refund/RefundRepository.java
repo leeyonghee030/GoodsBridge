@@ -1,6 +1,8 @@
 package com.goodsbridge.refund;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -35,6 +37,14 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         order by r.id desc
         """)
     List<Refund> findAllByOrderByIdDesc();
+
+    @Query(value = """
+        select r from Refund r
+        join fetch r.payment
+        order by r.id desc
+        """,
+        countQuery = "select count(r) from Refund r")
+    Page<Refund> findAllAdminPage(Pageable pageable);
 
     // 중복 환불 요청 방지
     @Query("""
