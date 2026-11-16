@@ -1941,6 +1941,12 @@ button.link-button:hover { background: none; color: var(--color-text); }
     margin-bottom: 0.6rem;
 }
 
+/* 푸터 알림 확인 버튼: 예전 입력창과 같은 모양(테두리 상자 + 검은 화살표 버튼) */
+.footer-col a.footer-notify { display: flex; margin-top: 0.75rem; border: 1px solid var(--color-border); border-radius: 4px; overflow: hidden; background: #fff; color: var(--color-text); text-decoration: none; }
+.footer-notify span { flex: 1; padding: 0.55rem 0.7rem; font-size: 0.8rem; color: var(--color-muted); }
+.footer-notify b { display: flex; align-items: center; padding: 0 0.9rem; background: var(--color-dark); color: #fff; font-weight: 400; }
+.footer-col a.footer-notify:hover { border-color: var(--color-text); }
+.footer-col a.footer-notify:hover span { color: var(--color-text); }
 .footer-col a:hover { color: var(--color-text); }
 
 .footer-wordmark {

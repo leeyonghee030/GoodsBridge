@@ -22,7 +22,12 @@
         </div>
         <div class="footer-col">
             <h3>NOTIFICATIONS</h3>
-            <p>새로운 교환 신청, 이벤트·경매 소식은 로그인 후 오른쪽 위 종 모양 알림에서 확인할 수 있어요.</p>
+            <p>새로운 교환 신청과 이벤트·경매 소식을 알림으로 받아보세요.</p>
+            <!-- 눌러서 위쪽 종 모양 알림을 연다. 로그인하지 않았으면 로그인으로 보낸다 -->
+            <a class="footer-notify" id="footer-notify" href="/api/kakao-login">
+                <span>알림 확인하기</span>
+                <b aria-hidden="true">&rarr;</b>
+            </a>
         </div>
     </div>
     <div class="footer-wordmark">GoodsBridge</div>
@@ -64,6 +69,19 @@
 {{/adminAccount}}{{/userId}}
 <script src="/js/api.js"></script>
 <script src="/js/notifications.js"></script>
+<script>
+    // 푸터의 "알림 확인하기": 맨 위로 올라가 종 모양 알림 창을 연다 (로그인 전이면 링크대로 로그인으로 간다)
+    (function () {
+        const link = document.getElementById('footer-notify');
+        link.addEventListener('click', function (event) {
+            const trigger = document.getElementById('notification-trigger');
+            if (!trigger) return;
+            event.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(function () { trigger.click(); }, 350);
+        });
+    })();
+</script>
 {{#userId}}{{^adminAccount}}<script src="/js/chat-widget.js"></script>{{/adminAccount}}{{/userId}}
 </body>
 </html>
