@@ -6,6 +6,14 @@
 .pu-subtabs button:hover { background: none; color: var(--color-text); }
 .pu-subtabs button.active, .pu-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
 .pu-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.pu-kind { display: inline-block; margin-right: 0.35rem; padding: 0.05rem 0.45rem; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: var(--color-surface); color: var(--color-muted); vertical-align: 1px; }
+.pu-kind.is-auction { background: #FFF1D6; color: #9A5B00; }
+.pu-kinds { display: flex; gap: 0.4rem; margin: 0 0 0.6rem; }
+.pu-kinds[hidden] { display: none; }
+.pu-kinds button { width: auto; padding: 0.3rem 0.8rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg); font: inherit; font-size: 0.8rem; color: var(--color-muted); cursor: pointer; }
+.pu-kinds button:hover { background: var(--color-surface); color: var(--color-text); }
+.pu-kinds button.active, .pu-kinds button.active:hover { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.pu-kinds button small { margin-left: 0.3rem; opacity: 0.7; }
 .pu-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
 .pu-list .related-item-link { cursor: pointer; }
 .pu-list .empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
@@ -35,6 +43,7 @@
     <a href="/my/auctions">경매 내역</a>
 </nav>
 
+<div class="pu-kinds" id="pu-kinds" hidden></div>
 <div class="pu-subtabs" id="pu-subtabs"></div>
 <section class="pu-panel">
     <div class="pu-list" id="pu-list"><p class="empty">구매 내역을 불러오는 중...</p></div>
@@ -87,12 +96,22 @@
     const subtabs = document.getElementById('pu-subtabs');
     let purchases = [];
     let sub = 'ALL';
+    let kind = 'ALL';   // ALL / SHOP(일반 상품) / AUCTION(경매 낙찰)
+    const KINDS = [['ALL', '전체'], ['SHOP', '상품 구매'], ['AUCTION', '경매 낙찰']];
+    const kindOf = p => p.source === 'AUCTION' ? 'AUCTION' : 'SHOP';
+    const kindTag = p => kindOf(p) === 'AUCTION' ? '<span class="pu-kind is-auction">경매 낙찰</span>' : '<span class="pu-kind">상품 구매</span>';
 
     function render() {
-        const count = key => key === 'ALL' ? purchases.length : purchases.filter(p => inTab(p, key)).length;
+        // 경매 낙찰이 하나도 없으면 구분 버튼은 숨긴다
+        const kindBox = document.getElementById('pu-kinds');
+        const kindCount = k => k === 'ALL' ? purchases.length : purchases.filter(p => kindOf(p) === k).length;
+        kindBox.hidden = kindCount('AUCTION') === 0;
+        kindBox.innerHTML = KINDS.map(([k, label]) => `<button type="button" data-kind="${k}" class="${kind === k ? 'active' : ''}">${label}<small>${kindCount(k)}</small></button>`).join('');
+        const scoped = kind === 'ALL' ? purchases : purchases.filter(p => kindOf(p) === kind);
+        const count = key => key === 'ALL' ? scoped.length : scoped.filter(p => inTab(p, key)).length;
         subtabs.innerHTML = STATES.map(([key, label]) =>
             `<button type="button" data-sub="${key}" class="${sub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
-        const rows = sub === 'ALL' ? purchases : purchases.filter(p => inTab(p, sub));
+        const rows = sub === 'ALL' ? scoped : scoped.filter(p => inTab(p, sub));
         if (rows.length === 0) {
             listEl.innerHTML = `<p class="empty">${sub === 'ALL' ? '아직 구매한 상품이 없어요.' : STATES.find(x => x[0] === sub)[1] + ' 상태인 구매가 없어요.'}</p>`;
             return;
@@ -101,9 +120,9 @@
             <div class="related-item-link" data-id="${p.purchaseId}">
                 <span class="related-item-thumb">${p.imageUrl ? `<img src="${esc(p.imageUrl)}" alt="">` : '📦'}</span>
                 <span class="related-item-text">
-                    <small>${esc(p.categoryName)}</small>
+                    <small>${kindTag(p)}${esc(p.categoryName)}</small>
                     <strong>${esc(p.itemTitle)}</strong>
-                    <small>${money(p.price)} · ${date(p.purchasedAt)} 구매</small>
+                    <small>${kindOf(p) === 'AUCTION' ? '낙찰가 ' : ''}${money(p.price)} · ${date(p.purchasedAt)} ${kindOf(p) === 'AUCTION' ? '결제' : '구매'}</small>
                 </span>
                 ${badgeOf(p)}
             </div>`).join('');
@@ -116,6 +135,10 @@
         render();
     }
 
+    document.getElementById('pu-kinds').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-kind]');
+        if (b) { kind = b.dataset.kind; render(); }
+    });
     subtabs.addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
         if (b) { sub = b.dataset.sub; render(); }
@@ -135,7 +158,8 @@
         body.innerHTML = `
             <h1>${esc(p.itemTitle)}</h1>
             <dl>
-                <dt>결제 금액</dt><dd>${money(p.price)}</dd>
+                <dt>구매 경로</dt><dd>${kindOf(p) === 'AUCTION' ? '경매 낙찰 (낙찰가 전액 = 보증금 + 잔금)' : '상품 구매'}</dd>
+                <dt>${kindOf(p) === 'AUCTION' ? '낙찰가' : '결제 금액'}</dt><dd>${money(p.price)}</dd>
                 <dt>구매일</dt><dd>${date(p.purchasedAt)}</dd>
                 <dt>배송지</dt><dd>${esc(p.deliveryAddress)}</dd>
                 <dt>배송 상태</dt><dd>${DELIVERY[p.deliveryStatus]}${p.purchaseStatus === 'CONFIRMED' ? ' · 구매 확정' : ''}</dd>
@@ -155,12 +179,12 @@
             ${canRefund ? `
             <form id="pu-refund-form" style="margin-top:0.8rem;">
                 <span class="price-input">
-                    <input id="pu-refund-amount" type="text" inputmode="numeric" value="${Number(p.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" required>
+                    <input id="pu-refund-amount" type="text" inputmode="numeric" value="${Number(p.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" ${kindOf(p) === 'AUCTION' ? 'readonly' : ''} required>
                     <span class="price-input-unit">원</span>
                 </span>
                 <textarea id="pu-refund-reason" rows="2" maxlength="500" placeholder="환불 사유 (예: 상품 하자, 구성품 누락)" required></textarea>
                 <button type="submit">환불 신청</button>
-                <p class="pu-note">환불 가능 금액 ${money(p.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.</p>
+                <p class="pu-note">환불 가능 금액 ${money(p.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.${kindOf(p) === 'AUCTION' ? '<br>경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있어요. 가게 사정이나 배송 문제로 받지 못한 경우 사유를 적어 신청해 주세요.' : ''}</p>
             </form>` : (pending ? '<p class="pu-note">처리 대기 중인 환불 요청이 있어요.</p>' : '')}
             <p id="pu-message" class="form-message"></p>`;
     }

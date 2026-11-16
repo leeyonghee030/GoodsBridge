@@ -59,6 +59,7 @@ public interface ItemRepository extends JpaRepository<Item, Long> {
         LEFT JOIN Shop s ON i.shopId = s.id
         WHERE i.shopId IS NOT NULL
           AND i.saleType <> com.goodsbridge.item.SaleType.EVENT
+          AND i.saleType <> com.goodsbridge.item.SaleType.AUCTION
           AND i.status IN (com.goodsbridge.item.ItemStatus.ON_SALE, com.goodsbridge.item.ItemStatus.SOLD)
           AND (:status IS NULL OR i.status = :status)
           AND (:categoryId IS NULL OR c.id = :categoryId)

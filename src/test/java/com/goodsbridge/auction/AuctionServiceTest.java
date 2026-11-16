@@ -106,6 +106,15 @@ class AuctionServiceTest {
     }
 
     @Test
+    void create_rejectsNormalSaleItem() {
+        // 상품 1은 가게 1의 일반 판매 상품 → 경매 전에 다른 사람이 살 수 있어서 경매 전용 상품만 올릴 수 있다
+        assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
+            request(1L, 50_000, 5_000, 10)))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("경매 전용");
+    }
+
+    @Test
     void create_rejectsInvalidStartPriceDepositAndDeadline() {
         // startPrice > 0
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,

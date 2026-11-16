@@ -24,4 +24,7 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
         and s.type = :type
         """)
     boolean existsByPaymentAndType(@Param("payment") Payment payment, @Param("type") SettlementHistoryType type);
+
+    // 경매 낙찰 상품을 전액 환불하면 가게 정산(낙찰가 전액)도 취소한다
+    void deleteByPaymentAndType(Payment payment, SettlementHistoryType type);
 }
