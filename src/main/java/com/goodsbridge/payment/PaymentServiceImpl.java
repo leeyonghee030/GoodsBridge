@@ -23,6 +23,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final PortOnePaymentService portOnePaymentService;
     private final EntityManager entityManager;
+    private final PaymentCancelFailureRepository paymentCancelFailureRepository;
 
     // 결제
     @Override
@@ -151,13 +152,26 @@ public class PaymentServiceImpl implements PaymentService {
                 .cancelPayment(paymentId, portOnePayment.getAmount().getTotal(), reason);
             if (result == null || result.getCancellation() == null
                 || !"SUCCEEDED".equals(result.getCancellation().getStatus())) {
-                log.error("자동 취소 미완료 - 수동 취소 필요 paymentId={}", paymentId);
+                log.error("자동 취소 미완료 - 재시도 대기 paymentId={}", paymentId);
+                recordCancelFailure(paymentId, reason, "취소 응답이 SUCCEEDED가 아닙니다.");   // [추가]
                 return;
             }
             log.info("서버 거절로 결제 자동 취소 완료 - paymentId={}, amount={}",
                 paymentId, portOnePayment.getAmount().getTotal());
         } catch (RuntimeException e) {
-            log.error("자동 취소 실패 - 수동 취소 필요 paymentId={}", paymentId, e);
+            log.error("자동 취소 실패 - 재시도 대기 paymentId={}", paymentId, e);
+            recordCancelFailure(paymentId, reason, e.getMessage());   // [추가]
+        }
+    }
+
+    // 자동 취소 실패를 기록
+    private void recordCancelFailure(String paymentId, String reason, String error) {
+        try {
+            if (!paymentCancelFailureRepository.existsByPaymentId(paymentId)) {
+                paymentCancelFailureRepository.save(new PaymentCancelFailure(paymentId, reason, error));
+            }
+        } catch (RuntimeException e) {
+            log.error("자동 취소 실패 기록 저장 실패 paymentId={}", paymentId, e);
         }
     }
 }
