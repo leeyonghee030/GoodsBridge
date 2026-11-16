@@ -14,6 +14,7 @@ import com.goodsbridge.payment.PaymentStatus;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.purchase.DeliveryStatus;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.settlement.SettlementHistoryRepository;
@@ -30,7 +31,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +49,7 @@ public class RefundService {
     private final AuctionRepository auctionRepository;
     private final SettlementHistoryRepository settlementHistoryRepository;
     private final ApplicationEventPublisher publisher;
+    private static final Set<DeliveryStatus> REFUNDABLE_DELIVERY_STATUSES = EnumSet.of(DeliveryStatus.PREPARING);
 
     // 환불 요청
     @Transactional
@@ -70,6 +74,13 @@ public class RefundService {
             throw new BadRequestException("이미 처리 대기 중인 환불 요청이 있습니다.");
         }
         validateNotRejectedBefore(request.getPaymentId());
+        if (payment.getPurpose() == PaymentPurpose.PURCHASE) {
+            Purchase purchase = purchaseRepository.findByPaymentId(payment.getPaymentId())
+                .orElseThrow(() -> new NotFoundException("해당 결제의 구매 내역을 찾을 수 없습니다."));
+            if (!REFUNDABLE_DELIVERY_STATUSES.contains(purchase.getDeliveryStatus())) {
+                throw new BadRequestException("배송이 시작되기 전의 구매만 환불을 요청할 수 있습니다.");
+            }
+        }
         User user = userRepository.getReferenceById(userId);
         Refund refund = Refund.builder().payment(payment).user(user).reason(request.getReason())
             .requestedAmount(request.getRequestedAmount())
