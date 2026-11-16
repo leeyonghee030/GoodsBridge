@@ -1,6 +1,10 @@
 package com.goodsbridge.chat;
 
+import com.google.genai.Client;
+import com.google.genai.types.HttpOptions;
+import com.google.genai.types.HttpRetryOptions;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -32,6 +36,24 @@ public class ChatConfig {
         - 다른 사용자의 정보나 이 플랫폼과 관계없는 요청은 정중히 거절하세요.
         - 모르는 것은 모른다고 말하세요.
         """;
+
+    /**
+     * Gemini 연결(Google GenAI SDK) 클라이언트.
+     *
+     * <p>[왜 직접 만드나] SDK의 기본 설정은 429(사용량 한도 초과)에도 여러 번 다시 시도하며 점점 길게 기다려서,
+     * 무료 한도가 다 되면 사용자가 30~40초 뒤에야 실패를 알게 된다. 재시도를 1번(= 다시 시도하지 않음)으로 줄여
+     * 한도가 다 되면 바로 실패시키고, 채팅 위젯이 곧바로 버튼 메뉴로 넘어가게 한다.
+     * 이 빈이 있으면 Spring AI의 자동 설정 클라이언트는 만들어지지 않는다.
+     */
+    @Bean
+    public Client geminiClient(@Value("${spring.ai.google.genai.api-key}") String apiKey) {
+        return Client.builder()
+            .apiKey(apiKey)
+            .httpOptions(HttpOptions.builder()
+                .retryOptions(HttpRetryOptions.builder().attempts(1).build())
+                .build())
+            .build();
+    }
 
     @Bean
     public ChatClient chatClient(ChatClient.Builder builder) {

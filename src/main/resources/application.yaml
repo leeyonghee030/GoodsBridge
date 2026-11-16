@@ -24,6 +24,14 @@ spring:
         open-in-view: false
 
     ai:
+        # AI 호출이 실패하면 오래 붙잡지 않고 빨리 실패시킨다. 기본값(최대 10번, 2초에서 시작해 5배씩 늘려 최대 3분)이면
+        # 무료 한도 초과 같은 때 사용자가 한참 기다린다. 실패하면 채팅창이 버튼 메뉴로 바로 넘어간다.
+        retry:
+            max-attempts: 2
+            backoff:
+                initial-interval: 1s
+                multiplier: 2
+                max-interval: 4s
         google:
             genai:
                 api-key: ${GEMINI_API_KEY}

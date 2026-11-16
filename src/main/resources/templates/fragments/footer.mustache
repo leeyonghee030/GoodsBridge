@@ -36,13 +36,18 @@
 </footer>
 {{#userId}}{{^adminAccount}}
 <!-- AI 도우미: 스크롤해도 오른쪽 아래에 고정. 동작은 /js/chat-widget.js -->
-<div class="chat-widget" id="chat-widget">
+<div class="chat-widget" id="chat-widget" data-user-id="{{userId}}">
     <section class="chat-panel" id="chat-panel" aria-label="AI 도우미">
         <div class="chat-head">
             <strong>GoodsBridge 도우미</strong>
             <button type="button" class="chat-close" id="chat-close" aria-label="닫기">✕</button>
         </div>
         <div class="chat-list" id="chat-list" aria-live="polite"></div>
+        <!-- 빠른 메뉴: AI 없이 같은 기능을 버튼으로 쓴다 (AI 무료 사용량이 다 되어도 사용 가능) -->
+        <div class="chat-quick" id="chat-quick">
+            <button type="button" data-quick="my-requests">내 교환 신청</button>
+            <button type="button" data-quick="cancel-request">교환 신청 취소</button>
+        </div>
         <form class="chat-form" id="chat-form">
             <input id="chat-input" type="text" maxlength="1000" placeholder="메시지를 입력하세요" autocomplete="off" required>
             <button type="submit" id="chat-send">보내기</button>

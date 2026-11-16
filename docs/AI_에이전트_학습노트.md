@@ -38,7 +38,7 @@ sequenceDiagram
 | `ActionConfirmationGuard` | 취소처럼 되돌릴 수 없는 동작의 **이중 확인**을 서버에서 강제하는 장치 |
 | `ChatLog` / `ChatRole` / `ChatLogRepository` / `ChatLogService` | 대화 기록 저장·조회 (USER, ASSISTANT, TOOL) |
 | `ChatRequest` / `ChatResponse` / `ChatLogResponse` | 요청·응답 모양 |
-| `static/js/chat-widget.js` + `fragments/footer.mustache` | **오른쪽 아래 고정 채팅 위젯**(모든 화면, 로그인한 손님·가게에게만) |
+| `static/js/chat-widget.js` + `fragments/footer.mustache` | **오른쪽 아래 고정 채팅 위젯**(모든 화면, 로그인한 손님·가게에게만). 글로 묻기(AI)와 **버튼으로 쓰기(AI 없이)** 두 방식 |
 | `ChatViewController` + `templates/chat/index.mustache` | `/test/chat` 안내 화면 (위젯을 열어 둔다) |
 
 ## 3. 꼭 알아야 할 개념
@@ -98,6 +98,26 @@ sequenceDiagram
 - **설명이 사용자에게 전달된 턴만 인정합니다.** AI 호출이 중간에 실패하면(예: 한도 초과) 확인을 버려서, 사용자가 보지 못한 설명에 "네"로 취소되지 않습니다.
 - 확인은 한 번만 쓸 수 있고 10분이 지나면 무효입니다. 서버 메모리에 보관하므로 서버가 여러 대가 되면 공용 저장소로 옮겨야 합니다.
 - 나중에 "수정" 같은 동작이 생기면 같은 장치(`markPrepared` → `completeTurn` → `consume`)를 동작 이름만 바꿔 재사용합니다.
+
+### AI 한도가 다 되어도 쓸 수 있게: 버튼 방식
+무료 키는 하루(또는 분당) 사용량이 정해져 있어서 다 쓰면 AI가 답하지 못합니다(429). 그래서 **같은 기능을 AI 없이 버튼으로** 쓸 수 있게 했습니다.
+
+- 채팅 창 아래의 **빠른 메뉴**(`내 교환 신청`, `교환 신청 취소`) 버튼은 항상 보이고, AI를 거치지 않으니 한도와 상관없이 바로 동작한다.
+- 버튼은 **새 API를 만들지 않고 기존 교환 API를 그대로 쓴다**: `GET /api/exchange-requests/me`(목록), `POST /api/exchange-requests/{id}/cancel`(취소). 권한·상태 검사는 서비스(`ExchangeService.cancelExchange`)가 똑같이 한다.
+- 취소도 AI 방식과 같은 **설명 → 확인 → 실행**이다. 취소 버튼을 누르면 "취소하면 어떻게 되는지"를 보여 주고 `취소하기 / 그만두기`를 묻는다. 확인을 누르기 전에는 아무것도 바뀌지 않는다.
+- 글로 물었는데 서버가 `503`(AI 사용 불가)을 돌려주면 위젯이 "지금은 AI 답변을 쓸 수 없어요"라고 안내하고 같은 버튼을 바로 보여 준다.
+- 버튼 방식의 조회·취소는 대화 기록(ChatLog)에 남지 않는다. (AI가 한 일만 기록한다)
+
+```mermaid
+flowchart LR
+    Q[글로 질문] --> A{AI 사용 가능?}
+    A -- 예 --> G[Gemini + 도구로 답변]
+    A -- 아니오 503 --> B[버튼 안내]
+    M[빠른 메뉴 버튼] --> R[기존 교환 API 직접 호출]
+    B --> R
+```
+
+**실패를 빨리 알리기**: Google SDK의 기본 설정은 429에도 여러 번 다시 시도해서 한도가 다 되면 사용자가 40초 가까이 기다렸다. `ChatConfig.geminiClient`에서 재시도를 1번으로 줄여, 한도 초과 시 약 1초 안에 실패하고 곧바로 버튼 안내가 뜬다. (Spring AI 자체 재시도도 `spring.ai.retry`로 줄여 두었다)
 
 ## 4. 직접 해 보기
 
