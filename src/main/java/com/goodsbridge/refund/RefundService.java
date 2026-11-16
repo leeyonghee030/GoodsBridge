@@ -170,31 +170,22 @@ public class RefundService {
         }
         // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
         // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
-        if (reconsider) {
-            refund.reapprove();
-        } else {
-            refund.approve();
-        }
+        refund.approve();
         createSettlementIfNeeded(refund, payment);
-        if (auction) {
-            refundAuctionAll(payment, refund.getReason());
-            return;
-        }
+        boolean fullRefund = refund.getRequestedAmount().intValue() == payment.getRefundableAmount();   // Integer끼리 ==로 비교하면 안 된다
+        reopenItemIfFullyRefunded(payment, fullRefund);
         paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
-
-        reopenItemIfFullyRefunded(payment);
     }
 
-    // 구매 상품을 전액 환불하면 거래를 종료하고 상품을 다시 판매 목록에 노출한다.
-    // purchase_tb.item_id가 unique이므로 기존 구매 행은 재구매 전에 제거한다.
-    private void reopenItemIfFullyRefunded(Payment payment) {
-        if (payment.getStatus() != PaymentStatus.CANCELLED || payment.getPurpose() != PaymentPurpose.PURCHASE) {
+    // 구매 상품을 전액 환불하면 거래를 종료하고 상품을 다시 판매 목록에 노출한다. 이때 구매 내역에 환불 이력을 남긴다.
+    private void reopenItemIfFullyRefunded(Payment payment, boolean fullRefund) {
+        if (!fullRefund || payment.getPurpose() != PaymentPurpose.PURCHASE) {
             return;
         }
         purchaseRepository.findByPaymentId(payment.getPaymentId()).ifPresent(purchase -> {
-            // SOLD 였던 상품만 다시 연다 (판매 종료(CLOSED)·삭제한 상품까지 되살리지 않는다)
+            // SOLD 였던 상품만 다시 연다 (판매 종료(CLOSED)한 상품까지 되살리지 않는다)
             Item item = purchase.getItem();
-            if (item.getStatus() == ItemStatus.SOLD && !item.isDeleted()) {
+            if (item.getStatus() == ItemStatus.SOLD) {
                 // 구독이 만료된 가게의 상품은 다시 팔지 않고 구독으로 판매 중지해 둔다 (재구독하면 다른 상품과 함께 복구된다)
                 if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
                     item.pauseBySubscription();
@@ -202,7 +193,7 @@ public class RefundService {
                     item.updateStatus(ItemStatus.ON_SALE);
                 }
             }
-            purchaseRepository.delete(purchase);
+            purchase.refund();   // [수정] purchaseRepository.delete(purchase) 대신
         });
     }
     private boolean isAuctionBalance(Payment payment) {
@@ -367,13 +358,10 @@ public class RefundService {
             // 가게의 하자/불량 환불은 거래 취소이므로 노쇼 정산 대상이 아니다.
             .type(RefundType.PURCHASE)
             .build());
-        // 외부 호출(PortOne 취소)은 DB 변경을 끝낸 뒤 마지막에 호출한다 (approve()와 같은 이유)
-        if (auction) {
-            refundAuctionAll(payment, shopRefundRequest.getReason());
-            return new RefundResponse.ListDto(refund);
-        }
+        // 외부 호출(PortOne 취소)은 DB 변경을 끝낸 뒤 마지막에 호출한다.
+        boolean fullRefund = shopRefundRequest.getRequestedAmount().intValue() == payment.getRefundableAmount();
+        reopenItemIfFullyRefunded(payment, fullRefund);
         paymentService.refund(payment.getPaymentId(), shopRefundRequest.getRequestedAmount(), shopRefundRequest.getReason());
-        reopenItemIfFullyRefunded(payment);
         return new RefundResponse.ListDto(refund);
     }
 

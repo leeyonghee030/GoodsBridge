@@ -14,6 +14,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         select case when count(p) > 0 then true else false end
         from Purchase p
         where p.user.id = :userId and p.item.id = :itemId
+          and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
         """)
     boolean existsByUserIdAndItemId(@Param("userId") Long userId, @Param("itemId") Long itemId);
 
@@ -22,6 +23,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         select case when count(p) > 0 then true else false end
         from Purchase p
         where p.item.id = :itemId
+          and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
         """)
     boolean existsByItemId(@Param("itemId") Long itemId);
 
