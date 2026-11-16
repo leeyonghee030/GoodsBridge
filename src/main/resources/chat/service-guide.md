@@ -10,7 +10,8 @@ GoodsBridge는 굿즈(포토카드, 앨범, 응원봉, 포스터, 피규어)를 
 - 경매: [경매](/test/auction), 내 경매: [내 경매](/my/auctions)
 - 가게 목록: [가게](/test/shop)
 - 내 구매 내역: [내 구매](/my/purchases)
-- 게시판(공지): [게시판](/test/board)
+- 게시판(문의): [게시판](/test/board)
+- 안내 화면: [소개](/about), [입점 문의](/shop-guide), [공지사항](/notice), [자주 묻는 질문](/faq)
 - 가게 사장님용: [대시보드](/shop/dashboard), [판매 상품 관리](/shop/items), [이벤트 관리](/shop/events), [경매 관리](/shop/auctions), [교환 관리](/shop/exchange)
 
 ### 로그인
