@@ -8,8 +8,31 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class NotificationResponseTest {
 
+    private String urlOf(Notification.Type type, Notification.ReferenceType referenceType, Long referenceId) {
+        Notification notification = new Notification(new User(), type, "제목", "내용", referenceType, referenceId);
+        return new NotificationResponse.NotificationDto(notification).url();
+    }
+
     @Test
-    void deliveryReferenceWithoutPathProducesNullUrlInDto() {
+    void exchangeNotificationOpensThatRequestInMyExchange() {
+        // 내 교환 내역에서 그 신청의 팝업을 바로 연다 (목록에만 도착하면 어떤 신청인지 다시 찾아야 한다)
+        assertEquals("/my/exchange?request=7", urlOf(Notification.Type.EXCHANGE_REQUEST, Notification.ReferenceType.EXCHANGE, 7L));
+    }
+
+    @Test
+    void auctionNotificationOpensThatAuctionDetail() {
+        // 낙찰 알림의 잔금 결제는 경매 상세에 있다
+        assertEquals("/test/auction/5", urlOf(Notification.Type.AUCTION_WIN, Notification.ReferenceType.AUCTION, 5L));
+    }
+
+    @Test
+    void deliveryAndPaymentNotificationsOpenMyPurchases() {
+        assertEquals("/my/purchases", urlOf(Notification.Type.DELIVERY_STARTED, Notification.ReferenceType.DELIVERY, 42L));
+        assertEquals("/my/purchases", urlOf(Notification.Type.PAYMENT_COMPLETED, Notification.ReferenceType.PAYMENT, 42L));
+    }
+
+    @Test
+    void deliveryReferenceProducesPurchasesUrlInDto() {
         Notification notification = new Notification(
             new User(),
             Notification.Type.DELIVERY_STARTED,
@@ -21,7 +44,7 @@ class NotificationResponseTest {
 
         NotificationResponse.NotificationDto dto = new NotificationResponse.NotificationDto(notification);
 
-        assertNull(dto.url());
+        assertEquals("/my/purchases", dto.url());
     }
 
     @Test

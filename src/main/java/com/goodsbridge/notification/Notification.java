@@ -102,18 +102,18 @@ public class Notification {
     }
 
     public enum ReferenceType {
-        EXCHANGE("/my/exchange"),                  // 교환 신청 목록
+        EXCHANGE("/my/exchange?request={id}"),      // 내 교환 내역에서 그 신청의 팝업을 바로 연다
         EXCHANGE_POST("/exchange/{id}"),            // 교환 게시글
         PURCHASE("/my/purchases"),                  // 구매 내역
         REFUND("/my/purchases"),                    // 환불 관련 구매 내역
         EVENT("/test/event/{id}"),                  // 이벤트 상세
-        AUCTION("/test/auction"),                   // 경매
+        AUCTION("/test/auction/{id}"),             // 경매 상세 (낙찰 알림의 잔금 결제가 여기 있다)
         SHOP_UPDATE("/update"),                     // 가게 업데이트
         SHOP_ADMIN("/test/admin/shops"),            // 관리자 가게
         SUBSCRIPTION_ADMIN("/test/admin/subscriptions"), // 관리자 구독
         BOARD("/test/board/{id}"),                  // 게시글 상세
-        DELIVERY(null),                              // 배송 알림은 이동 경로 없음
-        PAYMENT(null);                               // 결제 알림은 이동 경로 없음
+        DELIVERY("/my/purchases"),                  // 배송 알림: 구매 내역
+        PAYMENT("/my/purchases");                  // 결제 알림: 구매 내역
 
         private final String path;
 
