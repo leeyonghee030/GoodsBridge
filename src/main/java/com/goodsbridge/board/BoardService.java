@@ -83,13 +83,24 @@ public class BoardService {
     @Transactional
     public void deleteReply(Long replyId, Long loginUserId) {
         Reply reply = replyRepository.findById(replyId)
-            .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다."));
+            .orElseThrow(() ->
+                new NotFoundException("댓글을 찾을 수 없습니다."));
 
-        if (!reply.getAuthorId().equals(loginUserId)) {
-            throw new ForbiddenException("게시글 권한이 없습니다.");
+        if (!Objects.equals(reply.getAuthorId(), loginUserId)) {
+            throw new ForbiddenException("댓글을 삭제할 권한이 없습니다.");
         }
 
+        Board board = reply.getBoard();
+
         replyRepository.delete(reply);
+
+        // 양방향 연관관계 동기화
+        board.removeReply(reply);
+
+// 남은 댓글이 없으면 답변 대기 상태로 변경
+        if (replyRepository.countByBoardId(board.getId()) == 0) {
+            board.pending();
+        }
     }
 
     @Transactional

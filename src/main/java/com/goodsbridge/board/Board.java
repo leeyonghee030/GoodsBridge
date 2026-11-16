@@ -73,8 +73,16 @@ public class Board {
         this.status = BoardStatus.COMPLETED;
     }
 
+    public void pending() {
+        this.status = BoardStatus.PENDING;
+    }
+
     public void addReply(Reply reply) {
         this.replies.add(reply);
         reply.assignBoard(this);
+    }
+
+    public void removeReply(Reply reply) {
+        this.replies.remove(reply);
     }
 }
