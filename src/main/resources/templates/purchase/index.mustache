@@ -30,7 +30,7 @@
     <div class="section-title"><h2>가게 발송 관리</h2>
         <button id="reload-shop-purchases" type="button">불러오기</button>
     </div>
-    <label>가게 ID <input id="shop-id" type="number" min="1" placeholder="내 가게 ID"></label>
+    <label>가게 <select id="shop-id"></select></label>
     <label>배송 상태
         <select id="shop-status">
             <option value="PREPARING">배송 준비중</option>
@@ -40,7 +40,7 @@
         </select>
     </label>
     <p id="shop-message" class="empty"></p>
-    <div id="shop-purchase-list"><p class="empty">가게 ID를 입력하고 불러오세요.</p></div>
+    <div id="shop-purchase-list"><p class="empty">가게를 불러오는 중입니다.</p></div>
 </section>
 
 <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
@@ -168,9 +168,24 @@ const errorText = async (res, fallback) => {
             await loadPurchases();
         }
 
+        async function loadMyShops() {
+            const response = await pageFetch('/api/shops/me?size=50');
+            if (!response.ok) {
+                $('shop-purchase-list').innerHTML = '<p class="empty">가게 정보를 불러오지 못했습니다.</p>';
+                return;
+            }
+            const shops = (await response.json()).content || [];
+            $('shop-id').innerHTML = shops.map(shop => `<option value="${shop.id}">${escapeHtml(shop.name)}</option>`).join('');
+            if (!shops.length) {
+                $('shop-purchase-list').innerHTML = '<p class="empty">운영 중인 가게가 없습니다.</p>';
+                return;
+            }
+            await loadShopPurchases();
+        }
+
         async function loadShopPurchases() {
             const shopId = Number($('shop-id').value);
-            if (!shopId) return showShopMessage('가게 ID를 입력하세요.', true);
+            if (!shopId) return showShopMessage('내 가게가 없습니다.', true);
             const response = await pageFetch('/api/shops/' + shopId + '/purchases?status=' + encodeURIComponent($('shop-status').value));
             if (!response.ok) {
                 $('shop-purchase-list').innerHTML = '';
@@ -212,8 +227,10 @@ const errorText = async (res, fallback) => {
         $('reload-purchases').addEventListener('click', loadPurchases);
         $('reload-shop-purchases').addEventListener('click', loadShopPurchases);
         $('shop-status').addEventListener('change', loadShopPurchases);
+        $('shop-id').addEventListener('change', loadShopPurchases);
         loadItems().catch(error => $('item-list').innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`);
         loadPurchases();
+        loadMyShops();
     })();
 </script>
 {{> fragments/footer}}
