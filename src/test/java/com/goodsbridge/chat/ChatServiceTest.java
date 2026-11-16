@@ -166,6 +166,31 @@ class ChatServiceTest {
     }
 
     @Test
+    void chat_tellsTheUserWhenTheAiQuotaIsExhausted() {
+        // Spring AI가 SDK의 429 오류를 한 겹 감싸서 던지는 모양을 흉내 낸다
+        RuntimeException wrapped = new RuntimeException("Failed to generate content",
+            new com.google.genai.errors.ClientException(429, "RESOURCE_EXHAUSTED", "You exceeded your current quota"));
+        when(callSpec.content()).thenThrow(wrapped);
+
+        assertThatThrownBy(() -> service.chat(USER_ID, "안녕"))
+            .isInstanceOf(ServiceUnavailableException.class)
+            .hasMessage(ChatService.QUOTA_MESSAGE)
+            .hasMessageContaining("한도")
+            .hasMessageNotContaining("RESOURCE_EXHAUSTED");   // SDK의 원문은 노출하지 않는다
+    }
+
+    @Test
+    void chat_usesTheGenericMessageForOtherAiFailures() {
+        when(callSpec.content()).thenThrow(new RuntimeException("Failed to generate content",
+            new com.google.genai.errors.ClientException(400, "INVALID_ARGUMENT", "API key not valid")));
+
+        assertThatThrownBy(() -> service.chat(USER_ID, "안녕"))
+            .isInstanceOf(ServiceUnavailableException.class)
+            .hasMessage(ChatService.UNAVAILABLE_MESSAGE)
+            .hasMessageNotContaining("한도");
+    }
+
+    @Test
     void chat_usesFallbackMessageWhenAiReturnsNothing() {
         when(callSpec.content()).thenReturn("  ");
 

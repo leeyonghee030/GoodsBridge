@@ -168,10 +168,12 @@
     });
 
     // AI를 쓸 수 없을 때 안내하고, 같은 기능을 버튼으로 바로 쓰게 한다
-    function offerButtons() {
+    function offerButtons(serverMessage) {
+        const quota = (serverMessage || '').includes('한도');   // 서버가 한도 소진과 그 밖의 실패를 구분해서 안내한다
         const card = addCard();
-        card.appendChild(el('div', 'chat-card-title', '지금은 AI 답변을 쓸 수 없어요'));
-        card.appendChild(el('p', 'chat-card-text', '무료 사용량이 다 되었거나 연결이 불안정해요. 아래 버튼으로 같은 기능을 쓸 수 있어요.'));
+        card.appendChild(el('div', 'chat-card-title', quota ? 'AI 사용 한도가 소진되었어요' : '지금은 AI 답변을 쓸 수 없어요'));
+        card.appendChild(el('p', 'chat-card-text', serverMessage
+            || 'AI 응답을 가져오지 못했어요. 아래 버튼으로 같은 기능을 쓸 수 있어요.'));
         const actions = el('div', 'chat-card-actions');
         addButton(actions, '내 교환 신청 보기', 'chat-mini', showMyRequests);
         addButton(actions, '교환 신청 취소하기', 'chat-mini', showCancelable);
@@ -230,7 +232,7 @@
             if (res.ok) {
                 addMessage('ASSISTANT', res.body.reply);
             } else if (res.status === 503) {
-                offerButtons();   // AI 한도·연결 문제: 버튼으로 같은 기능을 쓰게 안내한다
+                offerButtons(res.body.message);   // AI 한도·연결 문제: 이유를 알리고 버튼으로 같은 기능을 쓰게 한다
             } else {
                 addMessage('ERROR', res.body.message || '요청을 처리하지 못했어요.');
             }

@@ -2,6 +2,7 @@ package com.goodsbridge.chat;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ServiceUnavailableException;
+import com.google.genai.errors.ApiException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -40,6 +41,10 @@ public class ChatService {
     static final String TURN_ID_KEY = "turnId";
 
     private static final int MAX_CONTENT_LENGTH = 1000;
+
+    // AI를 쓸 수 없을 때 사용자에게 보여 주는 안내. 채팅 위젯이 이 문장과 함께 같은 기능의 버튼을 보여 준다.
+    static final String QUOTA_MESSAGE = "AI 사용 한도가 모두 소진되어 지금은 AI 답변을 쓸 수 없어요. 대신 아래 버튼으로 같은 기능을 쓸 수 있어요.";
+    static final String UNAVAILABLE_MESSAGE = "AI 응답을 가져오지 못했어요. 아래 버튼으로 같은 기능을 쓰거나 잠시 후 다시 시도해 주세요.";
 
     private final ChatClient chatClient;
     private final ChatLogService chatLogService;
@@ -80,7 +85,8 @@ public class ChatService {
             // API 키 오류, 한도 초과, 네트워크 문제 등. 원인은 서버 로그에 남기고 사용자에게는 일반 안내만 한다.
             confirmationGuard.abortTurn(userId, turnId);   // 설명이 전달되지 않았으니 이 턴의 취소 확인은 버린다
             log.warn("AI 호출 실패 - userId={}", userId, e);   // 예외 전체(원인 포함)를 남겨야 키·한도·모델 문제를 구분할 수 있다
-            throw new ServiceUnavailableException("AI 응답을 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+            // 한도 소진(429)이면 그렇다고 알려 준다. 키 오류 같은 그 밖의 내부 정보는 노출하지 않는다.
+            throw new ServiceUnavailableException(isQuotaExceeded(e) ? QUOTA_MESSAGE : UNAVAILABLE_MESSAGE);
         }
         if (reply == null || reply.isBlank()) {
             confirmationGuard.abortTurn(userId, turnId);   // 사용자는 취소 내용을 설명받지 못했다
@@ -91,6 +97,17 @@ public class ChatService {
         chatLogService.save(userId, ChatRole.ASSISTANT, reply);
         confirmationGuard.completeTurn(userId, turnId);
         return new ChatResponse(reply);
+    }
+
+    // 예외의 원인 사슬 어딘가에 Gemini의 429(사용량 한도 초과)가 있는지 본다.
+    private boolean isQuotaExceeded(Throwable error) {
+        Throwable current = error;
+        for (int depth = 0; current != null && depth < 10; depth++, current = current.getCause()) {
+            if (current instanceof ApiException api && api.code() == 429) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // 대화 기록 조회: 로그인한 본인 것만 (userId로 걸러서 가져오므로 남의 대화는 나오지 않는다)
