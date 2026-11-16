@@ -11,8 +11,12 @@ public class AuctionRequest {
     private Integer startPrice;
     private LocalDateTime deadline;
     private Integer depositAmount;
+    private String description;   // 경매 설명 (선택, 500자 이하)
 
     public void validate() {
+        if (description != null && description.length() > 500) {
+            throw new BadRequestException("경매 설명은 500자 이하로 입력해주세요.");
+        }
         if (itemId == null) {
             throw new BadRequestException("상품 ID는 필수입니다.");
         }
