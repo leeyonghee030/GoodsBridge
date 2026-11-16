@@ -81,7 +81,7 @@ AI 호출은 몇 초 걸립니다. `chat()` 전체를 트랜잭션으로 묶으�
 |---|---|---|
 | 화면에는 최근 50건만 | 위젯을 열 때 불러오는 기록 | `findTop50ByUser_IdOrderByIdDesc`, `HISTORY_LIMIT` |
 | AI에게는 최근 10건만 | 문맥으로 보내는 앞선 대화 (USER·ASSISTANT) | `findTop10...` |
-| 30일 지나면 자동 삭제 | 매일 04:30에 모든 사용자의 오래된 기록을 지움 (데모 초기화 04:00와 겹치지 않게) | `ChatLogCleanupScheduler`, `RETENTION_DAYS` |
+| 하루 지나면 자동 삭제 | 대화 기록은 중요한 정보가 아니라서 하루 단위로 정리한다. 매일 04:30에 **어제까지의 대화를 모든 사용자에서 지우고 오늘 대화만 남긴다** (데모 초기화 04:00와 겹치지 않게) | `ChatLogCleanupScheduler`, `ChatLogService.deleteExpired` |
 | 새 대화 버튼 | 내 기록을 모두 지움 `DELETE /api/chat/history`. 진행 중이던 취소 확인도 함께 버림 | `ChatService.clearHistory` |
 | 답을 못 받은 질문은 저장 안 함 | 질문·도구 기록·답변을 답을 받았을 때 **한 트랜잭션으로** 저장 | `saveConversation` |
 

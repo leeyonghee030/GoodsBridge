@@ -9,6 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -91,7 +92,7 @@ class ChatLogServiceTest {
     }
 
     @Test
-    void deleteExpired_deletesLogsOlderThanThirtyDays() {
+    void deleteExpired_deletesEverythingBeforeTodayAndKeepsToday() {
         when(chatLogRepository.deleteOlderThan(org.mockito.ArgumentMatchers.any())).thenReturn(3);
 
         int deleted = service.deleteExpired();
@@ -99,9 +100,7 @@ class ChatLogServiceTest {
         assertThat(deleted).isEqualTo(3);
         ArgumentCaptor<LocalDateTime> cutoff = ArgumentCaptor.forClass(LocalDateTime.class);
         verify(chatLogRepository).deleteOlderThan(cutoff.capture());
-        // 기준 시각은 지금부터 30일 전 (실행 시간 차이를 감안해 1분 오차를 둔다)
-        assertThat(cutoff.getValue()).isBetween(
-            LocalDateTime.now().minusDays(30).minusMinutes(1), LocalDateTime.now().minusDays(30).plusMinutes(1));
-        assertThat(ChatLogService.RETENTION_DAYS).isEqualTo(30);
+        // 기준 시각은 오늘 0시: 어제까지의 대화는 지우고 오늘 대화는 남긴다
+        assertThat(cutoff.getValue()).isEqualTo(LocalDate.now().atStartOfDay());
     }
 }

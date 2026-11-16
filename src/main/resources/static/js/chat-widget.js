@@ -219,7 +219,7 @@
             if (res.ok) res.body.forEach(log => addMessage(log.role, log.content));
         } catch (e) { /* 기록을 못 불러와도 대화는 할 수 있다 */ }
         if (!listEl.children.length) {
-            addMessage('ASSISTANT', '안녕하세요! 글로 물어보시거나 아래 빠른 메뉴 버튼을 눌러 교환 신청을 확인·취소할 수 있어요.');
+            addMessage('ASSISTANT', '안녕하세요! 글로 물어보시거나 아래 빠른 메뉴 버튼을 눌러 교환 신청을 확인·취소할 수 있어요. 대화 기록은 하루가 지나면 지워져요.');
         }
     }
 

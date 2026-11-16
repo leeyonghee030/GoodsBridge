@@ -6,7 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +18,8 @@ import java.util.List;
  * 대화 기록은 오래 보관하지 않는다.
  * <ul>
  *   <li>화면에는 최근 {@value #HISTORY_LIMIT}건만 보여 준다.</li>
- *   <li>{@value #RETENTION_DAYS}일이 지난 기록은 매일 새벽에 지운다 ({@link ChatLogCleanupScheduler}).</li>
+ *   <li>대화 기록은 중요한 정보가 아니므로 하루 단위로 정리한다. 매일 새벽에 어제까지의 대화를 지우고 오늘 대화만 남긴다
+ *       ({@link ChatLogCleanupScheduler}).</li>
  *   <li>사용자가 "새 대화"로 직접 지울 수 있다.</li>
  *   <li>AI에게 답을 못 받은 질문은 저장하지 않는다 (질문·도구 기록·답변을 답을 받았을 때 한꺼번에 저장).</li>
  * </ul>
@@ -28,7 +29,6 @@ import java.util.List;
 public class ChatLogService {
 
     static final int HISTORY_LIMIT = 50;     // 화면에 보여 주는 최근 대화 수 (ChatLogRepository.findTop50...와 같아야 한다)
-    static final int RETENTION_DAYS = 30;    // 이 기간이 지난 기록은 지운다
 
     private final ChatLogRepository chatLogRepository;
     private final UserRepository userRepository;
@@ -71,10 +71,10 @@ public class ChatLogService {
         return chatLogRepository.deleteAllByUserId(userId);
     }
 
-    // 보관 기간이 지난 대화를 모든 사용자에서 지운다. 지운 개수를 돌려준다.
+    // 오늘 0시 이전에 만든 대화를 모든 사용자에서 지운다 (어제까지의 대화). 지운 개수를 돌려준다.
     @Transactional
     public int deleteExpired() {
-        return chatLogRepository.deleteOlderThan(LocalDateTime.now().minusDays(RETENTION_DAYS));
+        return chatLogRepository.deleteOlderThan(LocalDate.now().atStartOfDay());
     }
 
     private ChatLog log(User user, ChatRole role, String content) {
