@@ -59,6 +59,7 @@ public class ChatService {
     private final ExchangeAgentTools exchangeAgentTools;
     private final ActionConfirmationGuard confirmationGuard;
     private final ShopRepository shopRepository;
+    private final ChatRateLimiter rateLimiter;
 
     public ChatResponse chat(Long userId, String content) {
         // 가게 계정은 AI를 호출하지 않는다 (쓸 수 있는 기능이 없고, 무료 사용량도 아낀다)
@@ -73,6 +74,17 @@ public class ChatService {
         }
         if (message.length() > MAX_CONTENT_LENGTH) {
             throw new BadRequestException("메시지는 " + MAX_CONTENT_LENGTH + "자 이하로 입력해 주세요.");
+        }
+
+        // (1-2) 요청이 너무 잦으면 막는다 (무료 AI 한도 보호). 막은 요청도 횟수에 센다.
+        rateLimiter.check(userId);
+
+        // (1-3) 서비스와 관계없거나 위험한 질문은 AI를 부르지 않고 정해 둔 문장으로 바로 답한다 (토큰 절약 + 프롬프트 주입 방어).
+        //       막은 질문은 저장하지 않는다. 저장하면 다음 대화에서 AI에게 다시 전달되기 때문이다.
+        ChatInputFilter.Verdict verdict = ChatInputFilter.check(message);
+        if (verdict != ChatInputFilter.Verdict.ALLOWED) {
+            log.info("AI 호출 전에 차단 - userId={}, 종류={}", userId, verdict);
+            return new ChatResponse(ChatInputFilter.REFUSAL_MESSAGE);
         }
 
         // (2) 앞선 대화를 먼저 읽어 둔다 (방금 보낸 메시지가 중복으로 들어가지 않게 저장보다 먼저)
