@@ -13,7 +13,9 @@ import java.time.LocalDateTime;
 @Entity
 @NoArgsConstructor
 @Getter
-@Table(name = "settlement_history_tb", uniqueConstraints = @UniqueConstraint(name = "uk_settlement_payment_type", columnNames = {"payment_id", "type"}))
+@Table(name = "settlement_history_tb",
+    uniqueConstraints = @UniqueConstraint(name = "uk_settlement_payment_type", columnNames = {"payment_id", "type"}),
+    indexes = @Index(name = "idx_settlement_shop_created", columnList = "shop_id, created_at"))
 public class SettlementHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -29,7 +31,8 @@ public class SettlementHistory {
 
     private Integer amount; // 가게가 받은 총액 (수수료 차감 전)
 
-    // 플랫폼이 가져가는 수수료 (기존 행은 null -> 0 으로 취급)
+    // 처음에는 플랫폼이 수수료를 가져가기로 했지만 구독료만 가져가기로 변경했다.
+    // 추후 수수료를 가져가게 하고 싶은 경우 사용한다.
     @Column(name = "platform_fee")
     private Integer platformFee;
 

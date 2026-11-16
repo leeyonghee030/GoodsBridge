@@ -193,7 +193,7 @@ public class RefundService {
                     item.updateStatus(ItemStatus.ON_SALE);
                 }
             }
-            purchase.refund();   // [수정] purchaseRepository.delete(purchase) 대신
+            purchase.refund();
         });
     }
     private boolean isAuctionBalance(Payment payment) {

@@ -1,21 +1,69 @@
 package com.goodsbridge.settlement;
 
+import com.goodsbridge.payment.Payment;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import com.goodsbridge.payment.Payment;
 
 public interface SettlementHistoryRepository extends JpaRepository<SettlementHistory, Long> {
 
-    @Query("""
+    // 가게 정산 목록
+    @Query(value = """
         select s
         from SettlementHistory s
+        join fetch s.payment
         where s.shop.id = :shopId
-        order by s.id desc
+          and (:type is null or s.type = :type)
+          and s.createdAt >= :fromAt
+          and s.createdAt < :toAt
+        """,
+        countQuery = """
+        select count(s)
+        from SettlementHistory s
+        where s.shop.id = :shopId
+          and (:type is null or s.type = :type)
+          and s.createdAt >= :fromAt
+          and s.createdAt < :toAt
         """)
-    List<SettlementHistory> findByAllShopId(@Param("shopId") Long shopId);
+    Page<SettlementHistory> findPageByShop(@Param("shopId") Long shopId,
+                                           @Param("type") SettlementHistoryType type,
+                                           @Param("fromAt") LocalDateTime fromAt,
+                                           @Param("toAt") LocalDateTime toAt,
+                                           Pageable pageable);
+
+    // 유형별 건수와 합계
+    @Query("""
+        select s.type, count(s), coalesce(sum(s.amount), 0)
+        from SettlementHistory s
+        where s.shop.id = :shopId
+          and (:type is null or s.type = :type)
+          and s.createdAt >= :fromAt
+          and s.createdAt < :toAt
+        group by s.type
+        """)
+    List<Object[]> summarizeByType(@Param("shopId") Long shopId,
+                                   @Param("type") SettlementHistoryType type,
+                                   @Param("fromAt") LocalDateTime fromAt,
+                                   @Param("toAt") LocalDateTime toAt);
+
+    // 가게가 낸 구독료
+    @Query("""
+        select coalesce(sum(p.amount - p.refundedAmount), 0)
+        from Payment p, ShopSubscription ss
+        where ss.paymentId = p.paymentId
+          and ss.shopId = :shopId
+          and p.purpose = com.goodsbridge.payment.PaymentPurpose.SHOP_SUBSCRIPTION
+          and p.createdAt >= :fromAt
+          and p.createdAt < :toAt
+        """)
+    long sumSubscriptionExpense(@Param("shopId") Long shopId,
+                                @Param("fromAt") LocalDateTime fromAt,
+                                @Param("toAt") LocalDateTime toAt);
 
     @Query("""
         select case when count(s) > 0 then true else false end
@@ -24,7 +72,4 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
         and s.type = :type
         """)
     boolean existsByPaymentAndType(@Param("payment") Payment payment, @Param("type") SettlementHistoryType type);
-
-    // 경매 낙찰 상품을 전액 환불하면 가게 정산(낙찰가 전액)도 취소한다
-    void deleteByPaymentAndType(Payment payment, SettlementHistoryType type);
 }
