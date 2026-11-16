@@ -128,7 +128,8 @@ public interface AdminRepository extends Repository<Payment, Long> {
               com.goodsbridge.settlement.SettlementHistoryType.EXCHANGE_FEE,
               com.goodsbridge.settlement.SettlementHistoryType.NO_SHOW_FEE,
               com.goodsbridge.settlement.SettlementHistoryType.AUCTION_SALE,
-              com.goodsbridge.settlement.SettlementHistoryType.EVENT_FEE
+              com.goodsbridge.settlement.SettlementHistoryType.EVENT_FEE,
+              com.goodsbridge.settlement.SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT
           )
         """)
     long sumShopRevenue(@Param("startAt") LocalDateTime startAt, @Param("endAt") LocalDateTime endAt);

@@ -54,11 +54,10 @@ public class RefundService {
         // 환불 가능 금액 확인과 대기 요청 중복 확인을 하나의 결제 행 잠금 안에서 처리한다.
         Payment payment = paymentRepository.findByPaymentIdLock(request.getPaymentId())
             .orElseThrow(() -> new NotFoundException("결제 내역을 찾을 수 없습니다."));
-        rejectAuctionPayment(payment);
+        validateNotAuctionPayment(payment);
         if (!payment.isOwner(userId)) {
             throw new ForbiddenException("본인의 결제만 환불 요청할 수 있습니다.");
         }
-        validateNotAuctionPayment(payment);
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
         }
@@ -169,7 +168,6 @@ public class RefundService {
         } else if (refund.getRequestedAmount() > payment.getRefundableAmount()) {
             throw new BadRequestException("환불 가능 금액을 초과했습니다.");
         }
-        rejectAuctionPayment(payment);
         // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
         // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
         if (reconsider) {
@@ -207,14 +205,6 @@ public class RefundService {
             purchaseRepository.delete(purchase);
         });
     }
-
-    // 경매 보증금 결제는 단독으로 환불할 수 없다. 낙찰 상품을 전액 환불할 때(잔금 결제 기준) 함께 환불된다.
-    private void rejectAuctionPayment(Payment payment) {
-        if (payment.getPurpose() == PaymentPurpose.AUCTION_DEPOSIT) {
-            throw new BadRequestException("경매 보증금은 낙찰 상품을 전액 환불할 때 함께 환불돼요.");
-        }
-    }
-
     private boolean isAuctionBalance(Payment payment) {
         return payment.getPurpose() == PaymentPurpose.AUCTION_BALANCE;
     }
