@@ -78,4 +78,9 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
     Optional<Long> findShopIdById(
         @Param("subscriptionId") Long subscriptionId
     );
+
+    // 가장 최근의 삭제되지 않은 구독 이력 조회
+    Optional<ShopSubscription> findFirstByShopIdAndDeletedAtIsNullOrderByIdDesc(
+        Long shopId
+    );
 }

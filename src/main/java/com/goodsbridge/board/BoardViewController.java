@@ -19,13 +19,26 @@ public class BoardViewController {
     private final BoardService boardService;
 
     @GetMapping("/test/board")
-    public String index(@RequestParam(required = false) String keyword, Model model) {
-        Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "id"));
-        Page<BoardResponseDto> page = boardService.getBoards(keyword, pageable);
+    public String index(
+        @RequestParam(required = false) String keyword,
+        Model model
+    ) {
+        Pageable pageable = PageRequest.of(
+            0,
+            10,
+            Sort.by(Sort.Direction.DESC, "id")
+        );
+
+        Long userId = SecurityUtil.getCurrentUserIdOrNull();
+
+        Page<BoardResponseDto> page =
+            boardService.getBoards(keyword, pageable, userId);
+
         model.addAttribute("boards", page.getContent());
         model.addAttribute("totalPages", page.getTotalPages());
         model.addAttribute("keyword", keyword == null ? "" : keyword);
-        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        model.addAttribute("userId", userId);
+
         return "board/index";
     }
 

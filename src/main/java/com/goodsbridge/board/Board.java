@@ -2,6 +2,8 @@ package com.goodsbridge.board;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -22,9 +24,13 @@ public class Board {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "제목은 필수입니다.")
+    @Size(max = 100, message = "제목은 100자 이내로 입력해주세요.")
     @Column(nullable = false, length = 100)
     private String title;
 
+    @NotBlank(message = "게시글 내용은 필수입니다.")
+    @Size(max = 5000, message = "게시글 내용은 5000자 이내로 입력해주세요.")
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
@@ -47,7 +53,7 @@ public class Board {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private BoardStatus status; // 게시판 상태 (PENDING, COMPLETED)
+    private BoardStatus status; // 상품 문의 및 고객센터 답변 상태
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
@@ -62,6 +68,10 @@ public class Board {
         BoardType boardType,
         Boolean isSecret
     ) {
+        // 필수 입력값 검증
+        validateRequiredFields(title, content, authorId);
+
+        // 게시판 유형과 상품 ID 조합 검증
         validateBoardTypeAndItemId(boardType, itemId);
 
         this.title = title;
@@ -69,7 +79,13 @@ public class Board {
         this.authorId = authorId;
         this.itemId = itemId;
         this.boardType = boardType;
-        this.isSecret = isSecret != null ? isSecret : false;
+        // 상품 리뷰는 항상 공개 게시글
+        // 상품 리뷰와 판매 게시글은 항상 공개 게시글
+        this.isSecret =
+            boardType == BoardType.PRODUCT_REVIEW
+                || boardType == BoardType.MARKET
+                ? false
+                : (isSecret != null ? isSecret : false);
         this.status = BoardStatus.PENDING;
     }
 
@@ -79,8 +95,16 @@ public class Board {
         String content,
         Boolean isSecret
     ) {
+        validateRequiredFields(title, content, this.authorId);
+
         this.title = title;
         this.content = content;
+
+        if (this.boardType == BoardType.PRODUCT_REVIEW
+            || this.boardType == BoardType.MARKET) {
+            this.isSecret = false;
+            return;
+        }
 
         if (isSecret != null) {
             this.isSecret = isSecret;
@@ -124,6 +148,14 @@ public class Board {
                 }
             }
 
+            case PRODUCT_REVIEW -> {
+                if (itemId == null) {
+                    throw new BadRequestException(
+                        "상품 리뷰 게시글은 연결할 상품 ID(itemId)가 필수입니다."
+                    );
+                }
+            }
+
             case MARKET -> {
                 if (itemId == null) {
                     throw new BadRequestException(
@@ -132,10 +164,10 @@ public class Board {
                 }
             }
 
-            case ADMIN_INQUIRY -> {
+            case CUSTOMER_SERVICE -> {
                 if (itemId != null) {
                     throw new BadRequestException(
-                        "관리자 문의 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
+                        "고객센터 문의 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
                     );
                 }
             }
@@ -147,6 +179,32 @@ public class Board {
                     );
                 }
             }
+        }
+    }
+
+    private void validateRequiredFields(
+        String title,
+        String content,
+        Long authorId
+    ) {
+        if (title == null || title.isBlank()) {
+            throw new BadRequestException("제목은 필수 입력값입니다.");
+        }
+
+        if (title.length() > 100) {
+            throw new BadRequestException("제목은 100자 이내로 입력해주세요.");
+        }
+
+        if (content == null || content.isBlank()) {
+            throw new BadRequestException("게시글 내용은 필수 입력값입니다.");
+        }
+
+        if (content.length() > 5000) {
+            throw new BadRequestException("게시글 내용은 5000자 이내로 입력해주세요.");
+        }
+
+        if (authorId == null) {
+            throw new BadRequestException("작성자 ID는 필수 입력값입니다.");
         }
     }
 }
