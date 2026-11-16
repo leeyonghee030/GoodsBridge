@@ -41,6 +41,8 @@ class ChatServiceTest {
     private ChatLogService chatLogService;
     @Mock
     private ExchangeAgentTools exchangeAgentTools;
+    @Mock
+    private ActionConfirmationGuard confirmationGuard;
 
     private ChatClient.ChatClientRequestSpec requestSpec;
     private ChatClient.CallResponseSpec callSpec;
@@ -53,7 +55,7 @@ class ChatServiceTest {
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
         callSpec = mock(ChatClient.CallResponseSpec.class);
         lenient(chatClient, requestSpec, callSpec);
-        service = new ChatService(chatClient, chatLogService, exchangeAgentTools);
+        service = new ChatService(chatClient, chatLogService, exchangeAgentTools, confirmationGuard);
     }
 
     private void lenient(ChatClient client, ChatClient.ChatClientRequestSpec spec, ChatClient.CallResponseSpec call) {
@@ -105,6 +107,8 @@ class ChatServiceTest {
         ArgumentCaptor<Map<String, Object>> captor = ArgumentCaptor.forClass(Map.class);
         verify(requestSpec).toolContext(captor.capture());
         assertThat(captor.getValue()).containsEntry("userId", USER_ID);
+        // 요청마다 다른 turnId가 들어간다 (취소 확인과 실행이 같은 턴인지 가리는 데 쓴다)
+        assertThat(captor.getValue().get("turnId")).isInstanceOf(String.class);
         verify(requestSpec).user("내 교환 보여줘");
     }
 
@@ -138,12 +142,38 @@ class ChatServiceTest {
     }
 
     @Test
+    void chat_completesTheTurnOnlyAfterTheReplyIsSaved() {
+        when(callSpec.content()).thenReturn("취소하면 보증금이 환불돼요. 정말 취소할까요?");
+
+        service.chat(USER_ID, "5번 취소해줘");
+
+        // 설명(답변)이 저장·전달된 뒤에야 이 턴의 취소 확인이 인정된다
+        InOrder order = inOrder(chatLogService, confirmationGuard);
+        order.verify(chatLogService).save(eq(USER_ID), eq(ChatRole.ASSISTANT), any());
+        order.verify(confirmationGuard).completeTurn(eq(USER_ID), any());
+        verify(confirmationGuard, never()).abortTurn(anyLong(), any());
+    }
+
+    @Test
+    void chat_discardsTheTurnsCancelConfirmationWhenAiFails() {
+        when(callSpec.content()).thenThrow(new IllegalStateException("quota"));
+
+        assertThatThrownBy(() -> service.chat(USER_ID, "5번 취소해줘"))
+            .isInstanceOf(ServiceUnavailableException.class);
+
+        verify(confirmationGuard).abortTurn(eq(USER_ID), any());
+        verify(confirmationGuard, never()).completeTurn(anyLong(), any());
+    }
+
+    @Test
     void chat_usesFallbackMessageWhenAiReturnsNothing() {
         when(callSpec.content()).thenReturn("  ");
 
         ChatResponse response = service.chat(USER_ID, "안녕");
 
         assertThat(response.getReply()).contains("답변을 만들지 못했어요");
+        // 사용자는 취소 내용을 설명받지 못했으니 확인을 인정하지 않는다
+        verify(confirmationGuard).abortTurn(eq(USER_ID), any());
     }
 
     @Test

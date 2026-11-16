@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * AI 에이전트 대화의 핵심 흐름.
@@ -35,12 +36,15 @@ public class ChatService {
 
     /** 도구(@Tool)에 로그인 사용자 id를 넘길 때 쓰는 키. ExchangeAgentTools가 같은 키로 꺼낸다. */
     static final String USER_ID_KEY = "userId";
+    /** 대화 한 번(요청 하나)의 식별자를 도구에 넘길 때 쓰는 키. 취소 확인과 실행이 같은 턴인지 가리는 데 쓴다. */
+    static final String TURN_ID_KEY = "turnId";
 
     private static final int MAX_CONTENT_LENGTH = 1000;
 
     private final ChatClient chatClient;
     private final ChatLogService chatLogService;
     private final ExchangeAgentTools exchangeAgentTools;
+    private final ActionConfirmationGuard confirmationGuard;
 
     public ChatResponse chat(Long userId, String content) {
         // (1) 내용 검사: 비어 있으면 안 되고 너무 길면 거절한다 (AI 호출 비용 보호)
@@ -61,26 +65,31 @@ public class ChatService {
         chatLogService.save(userId, ChatRole.USER, message);
 
         // (4) Gemini 호출
+        String turnId = UUID.randomUUID().toString();   // 이번 요청(대화 한 턴)의 식별자 (이중 확인용)
         String reply;
         try {
             reply = chatClient.prompt()
                 .messages(history)                                  // 앞선 대화
                 .user(message)                                      // 이번 질문
                 .tools(exchangeAgentTools)                          // AI가 쓸 수 있는 도구
-                .toolContext(Map.of(USER_ID_KEY, userId))           // 도구에 로그인 사용자 id 전달 (AI가 바꿀 수 없다)
+                .toolContext(Map.of(USER_ID_KEY, userId,            // 도구에 로그인 사용자 id 전달 (AI가 바꿀 수 없다)
+                    TURN_ID_KEY, turnId))                           // 취소 확인과 실행이 같은 턴인지 가리는 데 쓴다
                 .call()
                 .content();
         } catch (RuntimeException e) {
             // API 키 오류, 한도 초과, 네트워크 문제 등. 원인은 서버 로그에 남기고 사용자에게는 일반 안내만 한다.
+            confirmationGuard.abortTurn(userId, turnId);   // 설명이 전달되지 않았으니 이 턴의 취소 확인은 버린다
             log.warn("AI 호출 실패 - userId={}", userId, e);   // 예외 전체(원인 포함)를 남겨야 키·한도·모델 문제를 구분할 수 있다
             throw new ServiceUnavailableException("AI 응답을 가져오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
         if (reply == null || reply.isBlank()) {
+            confirmationGuard.abortTurn(userId, turnId);   // 사용자는 취소 내용을 설명받지 못했다
             reply = "죄송해요, 답변을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?";
         }
 
-        // (5) AI 답변 저장
+        // (5) AI 답변 저장. 답변이 사용자에게 전달되는 시점이므로 이 턴의 취소 확인을 인정한다.
         chatLogService.save(userId, ChatRole.ASSISTANT, reply);
+        confirmationGuard.completeTurn(userId, turnId);
         return new ChatResponse(reply);
     }
 
