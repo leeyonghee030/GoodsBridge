@@ -137,7 +137,7 @@ public class DemoDataService {
         // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
         demoSampleDataService.seed();
         spreadAccountDates();
-        seedNotifications(userA, userB);
+        seedNotifications(userA, userB, shopOwner, shop);
     }
 
     /**
@@ -145,7 +145,7 @@ public class DemoDataService {
      * 알림을 눌렀을 때 알맞은 화면으로 이동하는지 바로 볼 수 있다. 초기화할 때마다 지우고 다시 만든다.
      * 가장 오래된 알림 하나는 읽음으로 두어 읽음/안 읽음이 함께 보이게 한다.
      */
-    private void seedNotifications(User userA, User userB) {
+    private void seedNotifications(User userA, User userB, User shopOwner, Shop shop) {
         List<Notification> made = new ArrayList<>();
         Long a = userA.getId();
         Long b = userB.getId();
@@ -195,6 +195,14 @@ public class DemoDataService {
         if (refundRejected != null) {
             made.add(notification(userB, Notification.Type.REFUND_REJECTED, "[환불거절]", "환불 요청이 거절되었습니다",
                 Notification.ReferenceType.REFUND, refundRejected));
+        }
+
+        // 가게 사장님: 교환 예약 알림 (실제로 가게가 받는 알림은 이것뿐이다. 경매 입찰 알림은 아직 발송되지 않는다)
+        List<Long> booked = jdbcTemplate.queryForList(
+            "select id from exchange_request_tb where shop_id = ? and status = 'CONFIRMED' order by id desc limit 2", Long.class, shop.getId());
+        for (Long requestId : booked) {
+            made.add(notification(shopOwner, Notification.Type.EXCHANGE_BOOKED, "[교환예약]", "(테스트) 교환 예약 일정이 생겼습니다. 방문하면 출석을 확인해 주세요.",
+                Notification.ReferenceType.SHOP_EXCHANGE, requestId));
         }
 
         // 만든 순서대로 몇 분씩 간격을 두고 과거로 흩어 놓고, 가장 오래된 알림은 읽음으로 둔다
