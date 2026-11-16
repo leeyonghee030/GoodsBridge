@@ -140,12 +140,14 @@ AI 호출은 무료 토큰을 쓰고, "이전 지시 무시" 같은 **프롬프�
 | 도구 | 하는 일 | 서비스 호출 |
 |---|---|---|
 | `searchShops(name, region)` | 가게 이름·지역 검색 (최대 5곳) | `ShopService.findAll` |
-| `searchItems(keyword)` | 판매 중인 상품 이름 검색 (최대 5건) | `ItemService.findAll` |
+| `searchItems(keyword)` | 판매 중인 상품 이름 검색 (최대 5건) | `ItemService.findShopItems` (상품 화면과 같은 조회) |
 | `getMyEvents()` | 내 이벤트 참여 현황 (최대 5건) | `EventService.getEventParticipationList` |
 | `getMyAuctions()` | 내 입찰·낙찰·잔금 현황 (최대 5건) | `BidService.participateAuction` |
 - 모두 **읽기만** 한다. 그래서 취소 도구와 달리 이중 확인이 필요 없다.
 - 결과마다 화면 링크(`/test/shop/3`, `/test/auction/7` 등)가 들어 있고, 시스템 프롬프트가 "결과의 link를 답변에 붙이라"고 시킨다.
 - `getMyEvents`, `getMyAuctions`의 사용자 id는 `ToolContext`로 서버가 넣는다. AI에게 보이는 입력에는 없다(테스트로 확인).
+- **상품 검색은 상품 화면과 같은 조회를 쓴다.** 더 넓은 `findAll`을 쓰면 사용자의 교환 전용 상품, 경매·이벤트 상품까지 "판매 중인 상품"으로 나온다. 판매 중 조건도 쿼리에서 걸어서 판매 완료 상품에 밀려 결과가 빠지는 일이 없다.
+- **경매 잔금**: 낙찰자가 잔금을 안 냈어도 기한이 지났으면 `balanceOverdue`로 알리고 결제하라고 안내하지 않는다(기한 후에는 결제할 수 없다). 취소·유찰된 경매는 `iAmTopBidder`가 항상 false다.
 - 토큰을 아끼려고 항목 수를 5건으로 자르고 AI가 답하는 데 필요한 값만 담는다. 판매 완료·닫힌 상품은 구매할 수 없어 검색 결과에서 뺀다.
 - 낙찰했는데 잔금을 안 냈으면 `needsBalancePayment=true`와 기한을 함께 알려 준다.
 

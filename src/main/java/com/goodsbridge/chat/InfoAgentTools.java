@@ -62,8 +62,8 @@ public class InfoAgentTools {
     }
 
     public record AuctionInfo(Long auctionId, String title, String shopName, String status, Integer currentPrice,
-                              boolean iAmTopBidder, String deadline, boolean needsBalancePayment, String balanceDueAt,
-                              String link) {
+                              boolean iAmTopBidder, String deadline, boolean needsBalancePayment, boolean balanceOverdue,
+                              String balanceDueAt, String link) {
     }
 
     public record MyAuctionsResult(long totalCount, List<AuctionInfo> auctions, String allLink) {
@@ -73,7 +73,7 @@ public class InfoAgentTools {
         + "이름과 지역 둘 다 생략하면 전체 가게 중 일부를 돌려준다. 결과의 link를 답변에 붙여 준다.")
     public ShopSearchResult searchShops(
         @ToolParam(required = false, description = "가게 이름에 들어 있는 글자. 예: 데모") String name,
-        @ToolParam(required = false, description = "지역. 예: 서울, 부산") String region,
+        @ToolParam(required = false, description = "지역(시·도 이름 그대로 일치해야 한다). 예: 서울, 부산") String region,
         ToolContext toolContext) {
         var page = shopService.findAll(blankToNull(name), blankToNull(region), PageRequest.of(0, MAX_LIST));
         List<ShopInfo> shops = page.getContent().stream().map(this::toShopInfo).toList();
@@ -86,11 +86,10 @@ public class InfoAgentTools {
     public ItemSearchResult searchItems(
         @ToolParam(description = "상품 이름에 들어 있는 검색어. 예: 포토카드, 응원봉") String keyword,
         ToolContext toolContext) {
-        // 판매 중인 것만 보여 주기 위해 넉넉히 가져와서 거른다 (판매 완료·닫힌 상품은 구매할 수 없어 안내하지 않는다)
-        List<ItemInfo> items = itemService.findAll(null, null, null, keyword, PageRequest.of(0, MAX_LIST * 3))
+        // 상품 화면(/test/item)과 같은 조회를 쓴다: 가게가 파는 일반 상품만 (사용자의 교환 전용 상품, 경매·이벤트 상품은 제외).
+        // 판매 중인 것만 조건으로 걸어서 판매 완료·닫힌 상품에 밀려 결과가 빠지는 일이 없게 한다.
+        List<ItemInfo> items = itemService.findShopItems(null, null, null, keyword, ItemStatus.ON_SALE, PageRequest.of(0, MAX_LIST))
             .getContent().stream()
-            .filter(i -> i.getStatus() == ItemStatus.ON_SALE)
-            .limit(MAX_LIST)
             .map(this::toItemInfo)
             .toList();
         note(toolContext, "상품 검색 '" + abbreviate(keyword) + "': " + items.size() + "건");
@@ -110,7 +109,7 @@ public class InfoAgentTools {
     }
 
     @Tool(description = "로그인한 사용자가 입찰한 경매 현황을 최대 5건 조회한다. 사용자가 내 경매, 입찰 현황, 낙찰 여부, 잔금 결제를 물을 때 사용한다. "
-        + "needsBalancePayment가 true면 잔금을 결제해야 한다고 알려 준다.")
+        + "needsBalancePayment가 true면 balanceDueAt까지 잔금을 결제해야 한다고 알려 주고, balanceOverdue가 true면 결제 기한이 지났다고 알려 준다.")
     public MyAuctionsResult getMyAuctions(ToolContext toolContext) {
         Long userId = userId(toolContext);
         var page = bidService.participateAuction(userId, PageRequest.of(0, MAX_LIST));
@@ -135,10 +134,15 @@ public class InfoAgentTools {
     }
 
     private AuctionInfo toAuctionInfo(AuctionResponse a, Long userId) {
-        boolean top = userId.equals(a.getCurrentWinnerUserId());
-        boolean needsBalance = top && a.getStatus() == Status.ENDED_SUCCESS && !a.isBalancePaid();
+        // 최고 입찰자(진행 중) 또는 낙찰자(낙찰)일 때만 "내가 앞서 있다"고 본다. 취소·유찰된 경매에 남은 입찰자 정보는 의미가 없다.
+        boolean top = userId.equals(a.getCurrentWinnerUserId())
+            && (a.getStatus() == Status.ACTIVE || a.getStatus() == Status.ENDED_SUCCESS);
+        boolean unpaidWin = top && a.getStatus() == Status.ENDED_SUCCESS && !a.isBalancePaid();
+        // 잔금 기한이 지났으면 더는 결제할 수 없다 (결제하라고 안내하면 안 된다)
+        boolean overdue = unpaidWin && a.getBalanceDueAt() != null && LocalDateTime.now().isAfter(a.getBalanceDueAt());
+        boolean needsBalance = unpaidWin && !overdue;
         return new AuctionInfo(a.getId(), a.getItemTitle(), a.getShopName(), statusLabel(a.getStatus()), a.getCurrentPrice(),
-            top, format(a.getDeadline()), needsBalance, needsBalance ? format(a.getBalanceDueAt()) : null,
+            top, format(a.getDeadline()), needsBalance, overdue, unpaidWin ? format(a.getBalanceDueAt()) : null,
             "/test/auction/" + a.getId());
     }
 

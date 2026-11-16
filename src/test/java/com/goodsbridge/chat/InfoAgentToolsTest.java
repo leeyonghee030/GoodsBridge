@@ -96,22 +96,21 @@ class InfoAgentToolsTest {
     }
 
     @Test
-    void searchItems_showsOnlyOnSaleItemsUpToFiveWithLinks() {
+    void searchItems_usesTheSameShopOnlyOnSaleQueryAsTheProductPage() {
         List<ItemResponse> found = new ArrayList<>();
-        found.add(item(1L, "판매 완료 상품", ItemStatus.SOLD));
-        for (long id = 2; id <= 8; id++) {
+        for (long id = 2; id <= 4; id++) {
             found.add(item(id, "포토카드 " + id, ItemStatus.ON_SALE));
         }
-        when(itemService.findAll(eq(null), eq(null), eq(null), eq("포토카드"), any(Pageable.class)))
+        when(itemService.findShopItems(eq(null), eq(null), eq(null), eq("포토카드"), eq(ItemStatus.ON_SALE), any(Pageable.class)))
             .thenReturn(new PageImpl<>(found));
 
         InfoAgentTools.ItemSearchResult result = tools.searchItems("포토카드", context);
 
-        // 판매 완료는 빼고, 최대 5건만 돌려준다 (토큰 절약)
-        assertThat(result.items()).hasSize(5);
-        assertThat(result.items()).extracting(InfoAgentTools.ItemInfo::itemId).containsExactly(2L, 3L, 4L, 5L, 6L);
+        // 상품 화면과 같은 조회(가게 상품만, 판매 중만)를 쓴다. 사용자의 교환 전용·경매·이벤트 상품이 섞이지 않는다.
+        assertThat(result.items()).extracting(InfoAgentTools.ItemInfo::itemId).containsExactly(2L, 3L, 4L);
         assertThat(result.items().get(0).link()).isEqualTo("/test/item/2");
-        assertThat(notes).containsExactly("상품 검색 '포토카드': 5건");
+        assertThat(notes).containsExactly("상품 검색 '포토카드': 3건");
+        verify(itemService, org.mockito.Mockito.never()).findAll(any(), any(), any(), any(), any(Pageable.class));
     }
 
     @Test
@@ -133,44 +132,47 @@ class InfoAgentToolsTest {
         verify(eventService).getEventParticipationList(USER_ID);   // 사용자 id는 서버가 넣은 값만 쓴다
     }
 
-    private AuctionResponse auction(long id, Status status, Long winnerId, boolean balancePaid) {
+    private AuctionResponse auction(long id, Status status, Long winnerId, boolean balancePaid, LocalDateTime balanceDueAt) {
         AuctionResponse a = mock(AuctionResponse.class);
         when(a.getId()).thenReturn(id);
         when(a.getStatus()).thenReturn(status);
         when(a.getCurrentWinnerUserId()).thenReturn(winnerId);
         when(a.isBalancePaid()).thenReturn(balancePaid);
-        lenientAuction(a);
+        when(a.getBalanceDueAt()).thenReturn(balanceDueAt);
+        when(a.getItemTitle()).thenReturn("경매 상품");
+        when(a.getShopName()).thenReturn("데모 굿즈샵");
+        when(a.getCurrentPrice()).thenReturn(30000);
+        when(a.getDeadline()).thenReturn(LocalDateTime.now().minusDays(1));
         return a;
     }
 
-    private void lenientAuction(AuctionResponse a) {
-        org.mockito.Mockito.lenient().when(a.getItemTitle()).thenReturn("경매 상품");
-        org.mockito.Mockito.lenient().when(a.getShopName()).thenReturn("데모 굿즈샵");
-        org.mockito.Mockito.lenient().when(a.getCurrentPrice()).thenReturn(30000);
-        org.mockito.Mockito.lenient().when(a.getDeadline()).thenReturn(LocalDateTime.of(2026, 11, 20, 18, 0));
-        org.mockito.Mockito.lenient().when(a.getBalanceDueAt()).thenReturn(LocalDateTime.of(2026, 11, 21, 18, 0));
-    }
-
     @Test
-    void getMyAuctions_flagsABalancePaymentOnlyForMyUnpaidWin() {
+    void getMyAuctions_flagsABalancePaymentOnlyForMyUnpaidWinBeforeTheDeadline() {
+        LocalDateTime future = LocalDateTime.now().plusDays(1).withSecond(0).withNano(0);
         List<AuctionResponse> mine = List.of(
-            auction(1L, Status.ENDED_SUCCESS, USER_ID, false),   // 내가 낙찰, 잔금 아직
-            auction(2L, Status.ENDED_SUCCESS, USER_ID, true),    // 내가 낙찰, 잔금 완료
-            auction(3L, Status.ENDED_SUCCESS, 99L, false),       // 남이 낙찰
-            auction(4L, Status.ACTIVE, USER_ID, false));         // 진행 중, 내가 최고 입찰
+            auction(1L, Status.ENDED_SUCCESS, USER_ID, false, future),                              // 내가 낙찰, 잔금 아직
+            auction(2L, Status.ENDED_SUCCESS, USER_ID, true, future),                               // 내가 낙찰, 잔금 완료
+            auction(3L, Status.ENDED_SUCCESS, 99L, false, future),                                 // 남이 낙찰
+            auction(4L, Status.ACTIVE, USER_ID, false, null),                                       // 진행 중, 내가 최고 입찰
+            auction(5L, Status.ENDED_SUCCESS, USER_ID, false, LocalDateTime.now().minusHours(1)),   // 내가 낙찰했지만 기한이 지남
+            auction(6L, Status.CANCELLED, USER_ID, false, null));                                   // 취소된 경매에 남은 입찰자 정보
         when(bidService.participateAuction(eq(USER_ID), any(Pageable.class))).thenReturn(new PageImpl<>(mine));
 
-        InfoAgentTools.MyAuctionsResult result = tools.getMyAuctions(context);
+        List<InfoAgentTools.AuctionInfo> result = tools.getMyAuctions(context).auctions();
 
-        assertThat(result.auctions()).extracting(InfoAgentTools.AuctionInfo::needsBalancePayment)
-            .containsExactly(true, false, false, false);
-        assertThat(result.auctions().get(0).balanceDueAt()).isEqualTo("2026-11-21 18:00");
-        assertThat(result.auctions().get(1).balanceDueAt()).isNull();
-        assertThat(result.auctions()).extracting(InfoAgentTools.AuctionInfo::iAmTopBidder)
-            .containsExactly(true, true, false, true);
-        assertThat(result.auctions().get(0).status()).isEqualTo("낙찰");
-        assertThat(result.auctions().get(3).status()).isEqualTo("경매 중");
-        assertThat(result.auctions().get(0).link()).isEqualTo("/test/auction/1");
+        assertThat(result).extracting(InfoAgentTools.AuctionInfo::needsBalancePayment)
+            .containsExactly(true, false, false, false, false, false);
+        // 기한이 지난 낙찰은 결제하라고 안내하지 않고 "기한 지남"으로 알린다
+        assertThat(result).extracting(InfoAgentTools.AuctionInfo::balanceOverdue)
+            .containsExactly(false, false, false, false, true, false);
+        assertThat(result.get(0).balanceDueAt()).isEqualTo(future.toString().replace('T', ' ').substring(0, 16));
+        assertThat(result.get(1).balanceDueAt()).isNull();
+        // 취소된 경매는 내가 마지막 입찰자였어도 "앞서 있다"고 하지 않는다
+        assertThat(result).extracting(InfoAgentTools.AuctionInfo::iAmTopBidder)
+            .containsExactly(true, true, false, true, true, false);
+        assertThat(result.get(0).status()).isEqualTo("낙찰");
+        assertThat(result.get(3).status()).isEqualTo("경매 중");
+        assertThat(result.get(0).link()).isEqualTo("/test/auction/1");
     }
 
     @Test
