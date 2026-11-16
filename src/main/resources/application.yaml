@@ -37,7 +37,8 @@ spring:
                 api-key: ${GEMINI_API_KEY}
                 chat:
                     # 모델은 .env의 GEMINI_MODEL로 바꿀 수 있다. 구형 모델은 새 키에서 막히기도 한다(gemini-2.5-flash는 404).
-                    model: ${GEMINI_MODEL:gemini-3.5-flash}
+                    # 기본은 빠른 lite 모델이다. gemini-3.5-flash는 사용자가 몰리는 시간에 한 줄 답변도 20~30초 걸렸다(lite는 1~3초).
+                    model: ${GEMINI_MODEL:gemini-3.1-flash-lite}
                     # 응답 속도: 사고(thinking)를 줄이면 훨씬 빨라진다. 도구를 고르는 정도의 질문에는 LOW로 충분하다.
                     # 모델이 이 옵션을 지원하지 않아 오류가 나면 GEMINI_THINKING_LEVEL=THINKING_LEVEL_UNSPECIFIED 로 끈다.
                     thinking-level: ${GEMINI_THINKING_LEVEL:LOW}
