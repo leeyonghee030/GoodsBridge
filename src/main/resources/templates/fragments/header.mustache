@@ -117,7 +117,8 @@
     </div>
     <a href="/test/board">BOARD</a>
     {{#userId}}
-    <a href="/update" id="nav-mypage">MY PAGE</a>
+    {{#adminAccount}}<a href="/test/admin" id="nav-mypage">ADMIN</a>{{/adminAccount}}
+    {{^adminAccount}}<a href="/update" id="nav-mypage">MY PAGE</a>{{/adminAccount}}
     <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
     <!-- 알림 (#34): 로그인한 사용자만, LOGOUT 오른쪽. 동작은 /js/notifications.js -->
     <div class="notification-area">
@@ -261,9 +262,6 @@ fetch('/demo/status', { credentials: 'same-origin' })
         const toggle = bar.querySelector('.demo-toggle');
         const menu = bar.querySelector('.demo-menu');
         bar.hidden = false;
-        // 관리자 계정이면 마이페이지 자리가 입점/구독 관리로 연결된다
-        const adminNav = document.getElementById('nav-mypage');
-        if (data.current === 'admin' && adminNav) { adminNav.href = '/test/admin/shops'; adminNav.textContent = 'ADMIN'; }
         // 지금 선택된 계정 표시 (토글 라벨 + 메뉴 강조)
         const names = { 'user-a': 'A', 'user-b': 'B', 'shop': '가게', 'shop-b': '가게B', 'admin': '관리자' };
         if (names[data.current]) {

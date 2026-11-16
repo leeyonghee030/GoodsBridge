@@ -177,6 +177,7 @@
     const portoneChannelKey = '{{portoneChannelKey}}';
     const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
     const shopAccount = {{shopAccount}}; // 가게 계정은 어떤 이벤트에도 참가할 수 없다 (서버에서도 거절)
+    const adminAccount = {{adminAccount}}; // 관리자 계정도 참가할 수 없다 (서버에서도 거절)
     const ownEvent = {{ownEvent}}; // 내 가게 이벤트면 참가 버튼을 막는다 (서버에서도 거절)
     // TODO(데모 종료 후 제거): 데모 모드면 결제창 없이 참가 (데모 바의 결제 O/X 토글을 따른다)
     const skipPayment = () => '{{skipPayment}}' === 'true' && window.gbPaySkip && window.gbPaySkip();
@@ -233,8 +234,9 @@
         const joined = mine.length > 0;
         $('ev-mylink').hidden = !joined;
         const more = Math.min(canBuyMore(), remaining());
-        actionBtn.disabled = shopAccount || ownEvent || !(isOpen() && !isFull()) || (joined && more === 0);
-        actionBtn.textContent = shopAccount ? '가게 계정은 참가할 수 없어요'
+        actionBtn.disabled = shopAccount || adminAccount || ownEvent || !(isOpen() && !isFull()) || (joined && more === 0);
+        actionBtn.textContent = adminAccount ? '관리자 계정은 참가할 수 없어요'
+            : shopAccount ? '가게 계정은 참가할 수 없어요'
             : ownEvent ? '내 가게 이벤트라 참가할 수 없어요'
             : !(isOpen() && !isFull()) ? statusLabel()
             : joined ? (more === 0 ? '최대 수량까지 구매했어요' : `추가 구매 (${more}개 더 가능)`)

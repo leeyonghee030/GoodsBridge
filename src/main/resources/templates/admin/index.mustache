@@ -2,181 +2,70 @@
 
 
 <style>
-    .forbidden {
-        max-width: 420px;
-        margin: 4rem auto;
-        padding: 2rem;
-        text-align: center;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        background: #fff;
-    }
-
-    .forbidden p {
-        color: #666;
-        margin-bottom: 1.5rem;
-    }
-
-    .forbidden a {
-        display: inline-block;
-        padding: .6rem 1.1rem;
-        color: #fff;
-        background: #222;
-        border-radius: 8px;
-        text-decoration: none;
-    }
-
-    .dashboard {
-        display: grid;
-        gap: 1.5rem;
-    }
-
-    .dashboard-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        flex-wrap: wrap;
-    }
-
-    .dashboard-filter {
-        display: flex;
-        gap: .5rem;
-    }
-
-    .dashboard-filter input,
-    .dashboard-filter button {
-        padding: .6rem .8rem;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-    }
-
-    .dashboard-filter button {
-        cursor: pointer;
-        background: #222;
-        color: #fff;
-    }
-
-    .dashboard-section {
-        padding: 1.5rem;
-        border: 1px solid #e8e8e8;
-        border-radius: 12px;
-        background: #fff;
-    }
-
-    .dashboard-section h2 {
-        margin: 0 0 .25rem;
-    }
-
-    .dashboard-message {
-        color: #777;
-    }
-
-    .dashboard-error {
-        color: #c62828;
-    }
-
-    /* 카드: 왼쪽 색 띠 + 아이콘 + 라벨/값 */
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
-    }
-
-    .kpi {
-        display: flex;
-        align-items: center;
-        gap: .9rem;
-        padding: 1rem;
-        border: 1px solid #e8e8e8;
-        border-left: 4px solid var(--color);
-        border-radius: 10px;
-        background: #fff;
-    }
-
-    .kpi-icon {
-        flex: none;
-        width: 44px;
-        height: 44px;
-        display: grid;
-        place-items: center;
-        font-size: 1.3rem;
-        border-radius: 10px;
-        background: #f3f4f6;
-    }
-
-    .kpi small {
-        display: block;
-        color: #777;
-        margin-bottom: .25rem;
-    }
-
-    .kpi strong {
-        font-size: 1.35rem;
-    }
-
-    /* 그래프 3개를 한 줄에 나란히. 높이는 고정해서 세로로 커지지 않게 한다. */
-    .chart-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 1rem;
-        margin-top: 1rem;
-    }
-
-    .chart-box {
-        position: relative;
-        height: 260px;
-    }
-
-    .chart-box h3 {
-        margin: 0 0 .5rem;
-        font-size: 1rem;
-    }
-
-    .chart-canvas {
-        position: relative;
-        height: 220px;
-    }
+.dash { display: grid; gap: 1.25rem; }
+.dash-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; }
+.dash-head h1 { margin: 0; font-size: 1.15rem; }
+.dash-head p { margin: 0.2rem 0 0; font-size: 0.84rem; color: var(--color-muted); }
+.dash-filter { display: flex; gap: 0.4rem; margin: 0; }
+.dash-filter input { width: auto; padding: 0.4rem 0.7rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.86rem; background: #fff; }
+.dash-filter button { width: auto; margin: 0; padding: 0.4rem 0.9rem; border-radius: 8px; font-size: 0.86rem; }
+.dash-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 1.1rem 1.25rem; }
+.dash-panel h2 { margin: 0 0 0.2rem; font-size: 1rem; }
+.dash-note { margin: 0; font-size: 0.8rem; color: var(--color-muted); }
+.dash-error { color: #C0392B; }
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.9rem; }
+.kpi { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 0.9rem; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.kpi-icon { flex: none; width: 38px; height: 38px; display: grid; place-items: center; font-size: 1.1rem; border-radius: 10px; background: #fff; }
+.kpi small { display: block; margin-bottom: 0.15rem; font-size: 0.78rem; color: var(--color-muted); }
+.kpi strong { font-size: 1.15rem; }
+.kpi.is-alert { border-color: #F0C4BE; background: #FDECEA; }
+.kpi.is-alert strong { color: #C0392B; }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-top: 0.9rem; }
+.chart-box h3 { margin: 0 0 0.4rem; font-size: 0.9rem; }
+.chart-canvas { position: relative; height: 220px; }
 </style>
 
 {{^isAdmin}}
-    <div class="forbidden">
-        <h1>접근 권한이 없습니다.</h1>
-        <p>관리자만 이용할 수 있는 페이지입니다.</p>
-        <a href="/">홈으로 돌아가기</a>
-    </div>
+<div class="container my-card">
+    <p class="as-empty" style="padding:3rem 0;text-align:center;color:var(--color-muted)">관리자만 이용할 수 있는 페이지입니다. <a href="/">홈으로 돌아가기</a></p>
+</div>
 {{/isAdmin}}
 
 {{#isAdmin}}
-    <div class="dashboard">
-        <div class="dashboard-header">
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/test/admin" class="active">대시보드</a>
+    <a href="/test/admin/shops">입점 관리</a>
+    <a href="/test/admin/subscriptions">구독 관리</a>
+</nav>
+    <div class="dash">
+        <div class="dash-head">
             <div>
                 <h1>관리자 대시보드</h1>
                 <p id="selected-month">통계를 불러오는 중입니다.</p>
             </div>
 
-            <form id="dashboard-form" class="dashboard-filter">
+            <form id="dashboard-form" class="dash-filter">
                 <input id="month" type="month" required>
                 <button type="submit">조회</button>
             </form>
         </div>
 
-        <p id="dashboard-message" class="dashboard-message">통계를 불러오는 중입니다.</p>
+        <p id="dashboard-message" class="dash-note">통계를 불러오는 중입니다.</p>
 
-        <section class="dashboard-section">
+        <section class="dash-panel">
             <h2>처리 대기 현황</h2>
-            <p class="dashboard-message">월과 무관한 현재 값입니다. 빨간색은 처리가 필요한 항목입니다.</p>
+            <p class="dash-note">월과 무관한 현재 값입니다. 빨간색은 처리가 필요한 항목입니다.</p>
             <div id="pending-cards" class="kpi-grid"></div>
         </section>
 
-        <section class="dashboard-section">
+        <section class="dash-panel">
             <h2>월 운영 지표</h2>
-            <p class="dashboard-message">플랫폼 매출은 가게 구독료, 가게 매출은 일반 판매 대금·교환 수수료·노쇼 몰수금·경매 낙찰가·이벤트 참가비입니다.</p>
+            <p class="dash-note">플랫폼 매출은 가게 구독료, 가게 매출은 일반 판매 대금·교환 수수료·노쇼 몰수금·경매 낙찰가·이벤트 참가비입니다.</p>
             <div id="month-cards" class="kpi-grid"></div>
         </section>
 
-        <section class="dashboard-section">
+        <section class="dash-panel">
             <h2>최근 6개월 추이</h2>
             <div class="chart-grid">
                 <div class="chart-box">
@@ -194,6 +83,7 @@
             </div>
         </section>
     </div>
+</div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
 
@@ -220,7 +110,7 @@
 
             async function loadDashboard(month) {
                 message.textContent = '통계를 불러오는 중입니다.';
-                message.className = 'dashboard-message';
+                message.className = 'dash-note';
 
                 try {
                     const response = await fetch(
@@ -230,7 +120,7 @@
 
                     if (!response.ok) {
                         message.textContent = errorMessage[response.status] || '대시보드 통계를 불러오지 못했습니다.';
-                        message.className = 'dashboard-error';
+                        message.className = 'dash-note dash-error';
                         return;
                     }
 
@@ -242,15 +132,14 @@
                     renderCharts(data.months);
                 } catch (error) {
                     message.textContent = '서버와 통신하지 못했습니다.';
-                    message.className = 'dashboard-error';
+                    message.className = 'dash-note dash-error';
                 }
             }
 
             // 카드 하나를 만든다. 값은 textContent로 넣어서 HTML이 섞이지 않게 한다.
-            function addCard(container, icon, title, value, color) {
+            function addCard(container, icon, title, value, alert) {
                 const card = document.createElement('div');
-                card.className = 'kpi';
-                card.style.setProperty('--color', color);
+                card.className = 'kpi' + (alert ? ' is-alert' : '');
 
                 const iconBox = document.createElement('div');
                 iconBox.className = 'kpi-icon';
@@ -273,21 +162,21 @@
                 pending.replaceChildren();
                 monthly.replaceChildren();
 
-                // count에는 값, 뒤는 색깔
-                addCard(pending, '💸', '환불 승인 대기', count(data.pendingRefundCount), '#dc2626');
-                addCard(pending, '📦', '발송 대기', count(data.pendingShipmentCount), '#f59e0b');
-                addCard(pending, '🔨', '진행 중 경매', count(data.activeAuctionCount), '#0ea5e9');
-                addCard(pending, '🏁', '종료된 경매', count(data.endedAuctionCount), '#6b7280');
-                addCard(pending, '⏳', '잔금 미납 낙찰', count(data.unpaidBalanceCount), '#16a34a' );
+                // 마지막 인자가 true면 처리가 필요한 항목으로 빨갛게 표시한다
+                addCard(pending, '💸', '환불 승인 대기', count(data.pendingRefundCount), data.pendingRefundCount > 0);
+                addCard(pending, '📦', '발송 대기', count(data.pendingShipmentCount), data.pendingShipmentCount > 0);
+                addCard(pending, '🔨', '진행 중 경매', count(data.activeAuctionCount), false);
+                addCard(pending, '🏁', '종료된 경매', count(data.endedAuctionCount), false);
+                addCard(pending, '⏳', '잔금 미납 낙찰', count(data.unpaidBalanceCount), data.unpaidBalanceCount > 0);
 
                 // 마지막 원소가 조회한 달이다.
                 const m = data.months[data.months.length - 1];
-                addCard(monthly, '👤', '월 가입자 수', person(m.signupCount), '#f59e0b');
-                addCard(monthly, '🧾', '월 거래 건수', count(m.paymentCount), '#16a34a');
-                addCard(monthly, '🏦', '월 정산 금액', won(m.settlementAmount), '#0ea5e9');
-                addCard(monthly, '↩️', '월 환불 금액', won(m.refundedAmount), '#dc2626');
-                addCard(monthly, '🏢', '플랫폼 월 매출', won(m.platformRevenue), '#7c3aed');
-                addCard(monthly, '🏪', '가게 월 매출', won(m.shopRevenue), '#db2777');
+                addCard(monthly, '👤', '월 가입자 수', person(m.signupCount), false);
+                addCard(monthly, '🧾', '월 거래 건수', count(m.paymentCount), false);
+                addCard(monthly, '🏦', '월 정산 금액', won(m.settlementAmount), false);
+                addCard(monthly, '↩️', '월 환불 금액', won(m.refundedAmount), false);
+                addCard(monthly, '🏢', '플랫폼 월 매출', won(m.platformRevenue), false);
+                addCard(monthly, '🏪', '가게 월 매출', won(m.shopRevenue), false);
             }
 
             // 가로 막대 그래프 하나를 그린다. format은 값 뒤에 단위를 붙이는 함수다.

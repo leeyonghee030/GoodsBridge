@@ -132,6 +132,10 @@ public class ExchangeService {
         if (isShopOwner(userId)) {
             throw new ForbiddenException("가게 계정은 교환에 참여할 수 없습니다.");
         }
+        // 관리자 계정은 관리만 하고 교환에 참여하지 않는다
+        if (userRepository.existsByIdAndRole(userId, Role.ADMIN)) {
+            throw new ForbiddenException("관리자 계정은 교환에 참여할 수 없습니다.");
+        }
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
         Shop shop = shopRepository.findById(request.getShopId())
@@ -290,6 +294,9 @@ public class ExchangeService {
         // 가게 계정은 교환을 신청할 수 없다
         if (isShopOwner(userId)) {
             throw new ForbiddenException("가게 계정은 교환에 참여할 수 없습니다.");
+        }
+        if (userRepository.existsByIdAndRole(userId, Role.ADMIN)) {
+            throw new ForbiddenException("관리자 계정은 교환에 참여할 수 없습니다.");
         }
         Item item = itemRepository.findById(itemBId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));

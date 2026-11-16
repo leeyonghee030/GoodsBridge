@@ -166,8 +166,8 @@ const errorText = async (res, fallback) => {
         return;
     }
     // 가게 계정은 어떤 상품도 살 수 없다
-    if ({{shopAccount}}) {
-        buyButton.textContent = '가게 계정은 구매할 수 없어요';
+    if ({{shopAccount}} || {{adminAccount}}) {
+        buyButton.textContent = {{adminAccount}} ? '관리자 계정은 구매할 수 없어요' : '가게 계정은 구매할 수 없어요';
         buyButton.disabled = true;
         return;
     }
