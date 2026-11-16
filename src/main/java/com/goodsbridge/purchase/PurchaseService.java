@@ -158,7 +158,7 @@ public class PurchaseService {
     @Transactional
     public void shipping(Long purchaseId, Long userId, PurchaseRequest.ShippingDto shippingDto) {
         // 구매 내역 조회
-        Purchase purchase = purchaseRepository.findById(purchaseId)
+        Purchase purchase = purchaseRepository.findByIdLock(purchaseId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구매 내역입니다."));
 
         // 사용자가 구매한 상품인지 확인

@@ -1,6 +1,8 @@
 package com.goodsbridge.purchase;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -52,4 +54,9 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         where p.paymentId = :paymentId
         """)
     Optional<Purchase> findByPaymentId(@Param("paymentId") String paymentId);
+
+    // 배송 상태 변경용 잠금 조회
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Purchase p where p.id = :id")
+    Optional<Purchase> findByIdLock(@Param("id") Long id);
 }
