@@ -8,18 +8,25 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
 public class SettlementViewController {
     private final SettlementHistoryService settlementHistoryService;
+
+    // 가게 매출(정산) 화면
+    @GetMapping("/test/settlement")
+    public String index(Model model) {
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "settlement/index";
+    }
 
     // 가게 정산 내역 조회 (type, from, to 는 선택 조건, 페이지 단위)
     @GetMapping("/api/shops/{id}/settlements")
