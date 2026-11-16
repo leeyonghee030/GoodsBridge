@@ -130,6 +130,30 @@ public class DemoDataService {
         seedSubscriptionPayments();
         // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
         demoSampleDataService.seed();
+        spreadAccountDates();
+    }
+
+    // 시연 계정과 시연 가게의 가입일·입점일을 과거로 흩어 놓는다 (샘플 데이터와 같은 이유: 대시보드 차트가 DB마다 같은 모양이 되게)
+    private void spreadAccountDates() {
+        Object[][] accounts = {
+            { ADMIN_EMAIL, 165 }, { SHOP_EMAIL, 150 }, { USER_A_EMAIL, 130 }, { USER_B_EMAIL, 110 }, { SHOP_B_EMAIL, 70 },
+        };
+        for (Object[] a : accounts) {
+            jdbcTemplate.update("update user_tb set created_at = ? where email = ?", daysAgoAt10((int) a[1]), a[0]);
+        }
+        for (int n = 1; n <= 6; n++) {
+            jdbcTemplate.update("update user_tb set created_at = ? where email = ?", daysAgoAt10(100 - n * 10),
+                "demo-branch-" + n + "@goodsbridge.demo");
+        }
+        // 데모 굿즈샵과 B는 새 DB에서는 승인 시각이 '지금'으로 찍히므로 고정된 과거로 맞춘다
+        jdbcTemplate.update("update shop_tb set approved_at = ?, created_at = ? where owner_user_id = (select id from user_tb where email = ?) and status = 'APPROVED' and deleted = 0",
+            daysAgoAt10(95), daysAgoAt10(96), SHOP_EMAIL);
+        jdbcTemplate.update("update shop_tb set approved_at = ?, created_at = ? where owner_user_id = (select id from user_tb where email = ?) and status = 'APPROVED' and deleted = 0",
+            daysAgoAt10(45), daysAgoAt10(46), SHOP_B_EMAIL);
+    }
+
+    private Timestamp daysAgoAt10(int days) {
+        return Timestamp.valueOf(LocalDate.now().minusDays(days).atTime(10, 0));
     }
 
     private User findOrCreateUser(String email, String nickname) {
