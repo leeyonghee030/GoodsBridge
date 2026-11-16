@@ -24,8 +24,9 @@
 .as-badge.is-warn { background: #FDECEA; color: #C0392B; }
 .as-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin: 0 0 0.8rem; }
 .as-toolbar .as-subtabs { margin: 0; }
-.as-search { margin: 0; margin-left: auto; }
-.as-search input { width: 13rem; max-width: 100%; padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.86rem; background: #fff; }
+.as-filters { margin: 0 0 0 auto; flex-wrap: nowrap; }   /* 달력·검색 입력은 대시보드 월 선택(.dash-filter)과 같은 모양 */
+.as-filters input { min-width: 0; }
+.as-filters #as-search { width: 11rem; }
 .as-empty { padding: 4rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
 </style>
 
@@ -34,10 +35,12 @@
     <a href="/test/admin">대시보드</a>
     <a href="/test/admin/shops" class="{{^subscriptionsMode}}active{{/subscriptionsMode}}">입점 관리</a>
     <a href="/test/admin/subscriptions" class="{{#subscriptionsMode}}active{{/subscriptionsMode}}">구독 관리</a>
+    <a href="/test/admin/subscription-payments">구독 결제 내역</a>
 </nav>
 <div class="as-toolbar">
     <div class="as-subtabs" id="as-tabs"></div>
-    <div class="as-search" id="as-search-wrap">
+    <div class="dash-filter as-filters">
+        <input id="as-month" type="month" aria-label="입점 월">
         <input id="as-search" type="text" placeholder="가게 이름 검색" autocomplete="off">
     </div>
 </div>
@@ -68,13 +71,17 @@
     let allSubs = [];
     let keyword = '';
     const searchEl = document.getElementById('as-search');
+    // 입점 월(달력). 고르면 그 달에 입점(승인)한 가게만 보여준다. 입점 신청·거절 탭은 신청일 기준이다.
+    const monthEl = document.getElementById('as-month');
+    if (SUBSCRIPTIONS_MODE) monthEl.hidden = true;   // 구독 관리에는 월 선택이 없다
     let rows = [];
     let shopNames = {};
 
     const say = (text, error) => { messageEl.textContent = text || ''; messageEl.className = 'form-message' + (error ? ' error' : ''); };
 
     async function searchShops(status) {
-        const res = await pageFetch('/api/admin/shops/search?size=200&status=' + status);
+        const monthQuery = !SUBSCRIPTIONS_MODE && monthEl.value ? '&month=' + encodeURIComponent(monthEl.value) : '';
+        const res = await pageFetch('/api/admin/shops/search?size=200&status=' + status + monthQuery);
         if (!res.ok) throw new Error(await errorText(res, '가게 목록을 불러오지 못했어요.'));
         return (await res.json()).content || [];
     }
@@ -93,7 +100,7 @@
                 <span class="as-row-main">
                     <strong>${esc(s.name)}</strong>
                     <small>${esc(s.region)} · ${esc(s.address)}</small>
-                    <small>신청 ${date(s.createdAt)} · 신청자 #${s.ownerUserId}</small>
+                    <small>${s.status === 'APPROVED' ? `입점 ${date(s.approvedAt || s.createdAt)} · ` : ''}신청 ${date(s.createdAt)} · 신청자 #${s.ownerUserId}</small>
                 </span>
                 ${s.status === 'PENDING' ? `<span class="as-actions">
                     <button type="button" data-approve="${s.id}">승인</button>
@@ -166,6 +173,9 @@
         const t = ev.target.closest('[data-tab]');
         if (t) { tab = t.dataset.tab; say(''); load(); return; }
     });
+
+    // 달력으로 월을 고르거나 지우면(달력의 '지우기') 목록과 탭 숫자를 다시 불러온다. 비우면 전체 기간이다.
+    monthEl.addEventListener('change', () => { refreshCounts(); load(); });
 
     // 가게 이름 검색: 한 글자 입력할 때마다 바로 걸러서 보여준다
     searchEl.addEventListener('input', () => { keyword = searchEl.value; SUBSCRIPTIONS_MODE ? renderSubscriptions() : renderShops(); });

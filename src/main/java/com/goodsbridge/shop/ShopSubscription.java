@@ -69,6 +69,12 @@ public class ShopSubscription {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    /**
+     * 구독이 끝난(취소·만료) 시각. 구독 이탈을 월별로 세는 데 쓴다.
+     * 이 컬럼이 생기기 전에 끝난 구독은 null이라 endDate로 대신 본다.
+     */
+    private LocalDateTime endedAt;
+
     @Builder
     public ShopSubscription(
         Long id,
@@ -122,6 +128,7 @@ public class ShopSubscription {
         }
 
         this.status = ShopSubscriptionStatus.ACTIVE;
+        this.endedAt = null;
     }
 
     /**
@@ -164,6 +171,7 @@ public class ShopSubscription {
      */
     public void cancel() {
         this.status = ShopSubscriptionStatus.CANCELLED;
+        this.endedAt = LocalDateTime.now();
     }
 
     /**
@@ -171,5 +179,6 @@ public class ShopSubscription {
      */
     public void expire() {
         this.status = ShopSubscriptionStatus.EXPIRED;
+        this.endedAt = LocalDateTime.now();
     }
 }
