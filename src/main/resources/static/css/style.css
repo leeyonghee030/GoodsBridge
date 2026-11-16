@@ -2227,3 +2227,8 @@ form.chat-form button { width: auto; margin: 0; padding: 0.5rem 0.9rem; border-r
 .chat-widget button.chat-mini.is-danger[type="button"] { background: var(--color-dark); color: #fff; }
 .chat-widget button.chat-mini.is-danger[type="button"]:hover { background: var(--color-dark-hover); }
 .chat-widget button.chat-mini[type="button"]:disabled { opacity: 0.4; cursor: default; }
+
+/* 가게 계정: 아직 쓸 수 있는 AI 기능이 없어서 안내만 보여준다 (입력창·빠른 메뉴 숨김) */
+.chat-widget.is-shop .chat-quick, .chat-widget.is-shop .chat-form { display: none; }
+.chat-widget a.chat-link { display: inline-block; padding: 0.3rem 0.8rem; border: 1px solid var(--color-text); border-radius: 999px; font-size: 0.76rem; font-weight: 500; text-decoration: none; color: var(--color-text); }
+.chat-widget a.chat-link:hover { background: var(--color-surface); }

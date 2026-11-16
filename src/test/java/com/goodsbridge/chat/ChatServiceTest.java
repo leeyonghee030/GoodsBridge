@@ -1,6 +1,8 @@
 package com.goodsbridge.chat;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.ForbiddenException;
+import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge._core.exception.ServiceUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,8 @@ class ChatServiceTest {
     private ExchangeAgentTools exchangeAgentTools;
     @Mock
     private ActionConfirmationGuard confirmationGuard;
+    @Mock
+    private ShopRepository shopRepository;
 
     private ChatClient.ChatClientRequestSpec requestSpec;
     private ChatClient.CallResponseSpec callSpec;
@@ -55,12 +59,25 @@ class ChatServiceTest {
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
         callSpec = mock(ChatClient.CallResponseSpec.class);
         lenient(chatClient, requestSpec, callSpec);
-        service = new ChatService(chatClient, chatLogService, exchangeAgentTools, confirmationGuard);
+        service = new ChatService(chatClient, chatLogService, exchangeAgentTools, confirmationGuard, shopRepository);
     }
 
     private void lenient(ChatClient client, ChatClient.ChatClientRequestSpec spec, ChatClient.CallResponseSpec call) {
         org.mockito.Mockito.lenient().when(client.prompt()).thenReturn(spec);
         org.mockito.Mockito.lenient().when(spec.call()).thenReturn(call);
+    }
+
+    @Test
+    void chat_shopOwnersGetAnUpdateNoticeWithoutCallingAiOrSaving() {
+        when(shopRepository.existsByOwnerUserIdAndDeletedFalse(USER_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.chat(USER_ID, "안녕"))
+            .isInstanceOf(ForbiddenException.class)
+            .hasMessage(ChatService.SHOP_NOT_READY_MESSAGE)
+            .hasMessageContaining("업데이트");
+
+        // 가게 계정은 AI를 부르지 않으므로 사용량을 쓰지 않고 대화 기록도 남기지 않는다
+        verifyNoInteractions(chatClient, chatLogService);
     }
 
     @Test

@@ -183,9 +183,37 @@
 
     // ===================== 글로 묻기 (AI) =====================
 
+    // 가게 계정인지 확인한다 (헤더가 쓰는 것과 같은 API: 내 가게가 있으면 가게 사장님)
+    async function isShopAccount() {
+        try {
+            const res = await api('/api/shops/me');
+            return res.ok && Array.isArray(res.body.content) && res.body.content.length > 0;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // 지금의 AI 기능(교환 조회·취소)은 손님용이라 가게 계정에는 쓸 수 있는 기능이 없다. 가게용은 업데이트 후 제공한다.
+    function showShopNotice() {
+        root.classList.add('is-shop');   // 입력창과 빠른 메뉴를 숨긴다
+        const card = addCard();
+        card.appendChild(el('div', 'chat-card-title', '가게용 AI 도우미는 준비 중이에요'));
+        card.appendChild(el('p', 'chat-card-text', '가게 계정에서 쓸 수 있는 AI 도우미는 업데이트 후 사용할 수 있어요. 조금만 기다려 주세요.'));
+        card.appendChild(el('p', 'chat-card-text', '그동안 환불 승인·발송·경매·이벤트·교환은 가게 대시보드와 각 관리 화면에서 처리해 주세요.'));
+        const actions = el('div', 'chat-card-actions');
+        const link = el('a', 'chat-link', '가게 대시보드로 가기');
+        link.href = '/shop/dashboard';
+        actions.appendChild(link);
+        card.appendChild(actions);
+    }
+
     // 처음 열 때 한 번만 지난 대화(본인 것)를 불러온다
     async function loadHistory() {
         historyLoaded = true;
+        if (await isShopAccount()) {
+            showShopNotice();
+            return;
+        }
         try {
             const res = await api('/api/chat/history');
             if (res.ok) res.body.forEach(log => addMessage(log.role, log.content));

@@ -1,8 +1,10 @@
 package com.goodsbridge.chat;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.ServiceUnavailableException;
 import com.google.genai.errors.ApiException;
+import com.goodsbridge.shop.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -42,6 +44,9 @@ public class ChatService {
 
     private static final int MAX_CONTENT_LENGTH = 1000;
 
+    // 지금의 AI 도구(교환 조회·취소)는 손님용이라 가게 계정에는 쓸 수 있는 기능이 없다. 가게용은 업데이트 후 제공한다.
+    static final String SHOP_NOT_READY_MESSAGE = "가게용 AI 도우미는 업데이트 후 사용할 수 있어요. 조금만 기다려 주세요.";
+
     // AI를 쓸 수 없을 때 사용자에게 보여 주는 안내. 채팅 위젯이 이 문장과 함께 같은 기능의 버튼을 보여 준다.
     static final String QUOTA_MESSAGE = "AI 사용 한도가 모두 소진되어 지금은 AI 답변을 쓸 수 없어요. 대신 아래 버튼으로 같은 기능을 쓸 수 있어요.";
     static final String UNAVAILABLE_MESSAGE = "AI 응답을 가져오지 못했어요. 아래 버튼으로 같은 기능을 쓰거나 잠시 후 다시 시도해 주세요.";
@@ -50,8 +55,14 @@ public class ChatService {
     private final ChatLogService chatLogService;
     private final ExchangeAgentTools exchangeAgentTools;
     private final ActionConfirmationGuard confirmationGuard;
+    private final ShopRepository shopRepository;
 
     public ChatResponse chat(Long userId, String content) {
+        // 가게 계정은 AI를 호출하지 않는다 (쓸 수 있는 기능이 없고, 무료 사용량도 아낀다)
+        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
+            throw new ForbiddenException(SHOP_NOT_READY_MESSAGE);
+        }
+
         // (1) 내용 검사: 비어 있으면 안 되고 너무 길면 거절한다 (AI 호출 비용 보호)
         String message = content == null ? "" : content.trim();
         if (message.isEmpty()) {
