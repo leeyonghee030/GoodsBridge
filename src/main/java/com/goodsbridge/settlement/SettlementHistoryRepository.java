@@ -1,6 +1,7 @@
 package com.goodsbridge.settlement;
 
 import com.goodsbridge.payment.Payment;
+import com.goodsbridge.shop.ShopSubscriptionPayment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Modifying;
@@ -79,9 +80,9 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
     // 가게가 낸 구독료
     @Query("""
         select coalesce(sum(p.amount - p.refundedAmount), 0)
-        from Payment p, ShopSubscription ss
-        where ss.paymentId = p.paymentId
-          and ss.shopId = :shopId
+        from Payment p, ShopSubscriptionPayment ssp
+        where ssp.paymentId = p.paymentId
+          and ssp.shopId = :shopId
           and p.purpose = com.goodsbridge.payment.PaymentPurpose.SHOP_SUBSCRIPTION
           and p.createdAt >= :fromAt
           and p.createdAt < :toAt

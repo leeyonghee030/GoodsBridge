@@ -23,8 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -39,12 +41,51 @@ class ShopSubscriptionCancelAndExpiryTest {
     private static final Long SHOP_ID = 5L;
 
     @Mock ShopSubscriptionRepository subscriptionRepository;
+    @Mock ShopSubscriptionPaymentRepository subscriptionPaymentRepository;
     @Mock ShopRepository shopRepository;
     @Mock ApplicationEventPublisher eventPublisher;
     @Mock UserRepository userRepository;
     @Mock PaymentService paymentService;
     @Mock ShopSubscriptionBatchService batchService;
     @InjectMocks ShopSubscriptionService service;
+
+    @Test
+    void create_onRenewal_keepsBothSubscriptionPaymentHistoryRows() {
+        Shop shop = mock(Shop.class);
+        User user = mock(User.class);
+        ShopSubscription active = subscription(ShopSubscriptionStatus.ACTIVE, LocalDate.now().plusDays(30));
+        when(shopRepository.findByIdWithLock(SHOP_ID)).thenReturn(java.util.Optional.of(shop));
+        when(shop.isDeleted()).thenReturn(false);
+        when(shop.getStatus()).thenReturn(ShopStatus.APPROVED);
+        when(shop.isOwner(ADMIN_ID)).thenReturn(true);
+        when(subscriptionRepository.existsByPaymentId(any())).thenReturn(false);
+        when(subscriptionPaymentRepository.existsByPaymentId(anyString())).thenReturn(false, false, false, true);
+        when(userRepository.findById(ADMIN_ID)).thenReturn(java.util.Optional.of(user));
+        when(subscriptionRepository.findActiveByShopIdWithLock(eq(SHOP_ID), eq(ShopSubscriptionStatus.ACTIVE), any()))
+            .thenReturn(java.util.List.of(active));
+        when(subscriptionRepository.saveAndFlush(active)).thenReturn(active);
+
+        ShopSubscriptionRequest first = request("pay-first", 30_000);
+        ShopSubscriptionRequest renewal = request("pay-renewal", 30_000);
+
+        service.create(ADMIN_ID, SHOP_ID, first);
+        service.create(ADMIN_ID, SHOP_ID, renewal);
+
+        ArgumentCaptor<ShopSubscriptionPayment> history = ArgumentCaptor.forClass(ShopSubscriptionPayment.class);
+        verify(subscriptionPaymentRepository, times(3)).save(history.capture());
+        assertEquals(java.util.Set.of("pay-1", "pay-first", "pay-renewal"),
+            history.getAllValues().stream()
+                .map(ShopSubscriptionPayment::getPaymentId)
+                .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    private static ShopSubscriptionRequest request(String paymentId, int amount) {
+        ShopSubscriptionRequest request = new ShopSubscriptionRequest();
+        request.setPaymentId(paymentId);
+        request.setDays(30);
+        request.setAmount(amount);
+        return request;
+    }
 
     // ===== 관리자 구독 취소 =====
 

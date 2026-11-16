@@ -241,7 +241,7 @@ class SettlementHistoryServiceTest {
     }
 
     @Test
-    void summarizeByShop_subtractsSubscriptionExpenseOnlyForAllTypes() {
+    void summarizeByShop_subtractsAllSubscriptionPaymentsForAllTypes() {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(1L)).thenReturn(true);
         when(shopRepository.findById(1L)).thenReturn(Optional.of(shop));
