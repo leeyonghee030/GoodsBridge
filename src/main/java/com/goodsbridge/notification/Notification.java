@@ -103,6 +103,7 @@ public class Notification {
 
     public enum ReferenceType {
         EXCHANGE("/my/exchange?request={id}"),      // 내 교환 내역에서 그 신청의 팝업을 바로 연다
+        SHOP_EXCHANGE("/shop/exchange?request={id}"), // 가게 사장님의 교환 관리 (그 신청의 팝업을 연다)
         EXCHANGE_POST("/exchange/{id}"),            // 교환 게시글
         PURCHASE("/my/purchases"),                  // 구매 내역
         REFUND("/my/purchases"),                    // 환불 관련 구매 내역

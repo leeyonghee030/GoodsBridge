@@ -20,6 +20,12 @@ class NotificationResponseTest {
     }
 
     @Test
+    void shopOwnerExchangeNotificationOpensTheShopExchangePage() {
+        // 가게 사장님은 /my/exchange가 아니라 가게 교환 관리 화면에서 신청을 본다
+        assertEquals("/shop/exchange?request=9", urlOf(Notification.Type.EXCHANGE_BOOKED, Notification.ReferenceType.SHOP_EXCHANGE, 9L));
+    }
+
+    @Test
     void auctionNotificationOpensThatAuctionDetail() {
         // 낙찰 알림의 잔금 결제는 경매 상세에 있다
         assertEquals("/test/auction/5", urlOf(Notification.Type.AUCTION_WIN, Notification.ReferenceType.AUCTION, 5L));

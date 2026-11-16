@@ -439,7 +439,12 @@
         counts = { waiting: data.waitingCount, done: data.doneCount };
         render();
     }
-    load();
+    // 알림에서 /shop/exchange?request={신청ID}로 들어오면 그 교환 팝업을 바로 연다 (목록에 있을 때)
+    load().then(() => {
+        const id = Number(new URLSearchParams(location.search).get('request'));
+        current = id ? list.find(x => x.id === id) : null;
+        if (current) { modal.hidden = false; renderModal(); }
+    });
     loadSummary();
     setInterval(loadSummary, 60000);   // 자동 정산(수수료) 반영
 })();
