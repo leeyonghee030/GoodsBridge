@@ -2245,7 +2245,7 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .chat-widget button.chat-chip[type="button"]:hover:not(:disabled) { background: var(--color-surface); }
 .chat-widget button.chat-chip.is-active[type="button"] { background: var(--color-dark); color: #fff; border-color: var(--color-dark); opacity: 1; }
 .chat-card-more { margin: 0.5rem 0 0; font-size: 0.74rem; color: var(--color-muted); }
-.chat-msg a { color: #2563eb; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-.chat-msg a:hover { color: #1d4ed8; }
-.chat-msg.is-user a { color: #bfdbfe; }
+.chat-msg a { display: inline-block; margin: 0.15rem 0.1rem; padding: 0.15rem 0.7rem; border: 1px solid var(--color-text); border-radius: 999px; background: #fff; color: var(--color-text); font-size: 0.8rem; font-weight: 600; line-height: 1.5; text-decoration: none; }
+.chat-msg a:hover { background: var(--color-dark); color: #fff; }
+.chat-msg.is-user a { background: transparent; border-color: #fff; color: #fff; }
 .chat-widget a.chat-link { text-decoration: none; }
