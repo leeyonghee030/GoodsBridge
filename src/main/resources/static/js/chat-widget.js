@@ -274,6 +274,17 @@
         }
     });
 
+    // 새 대화: 내 대화 기록을 모두 지운다 (환불·취소 같은 교환 내역은 그대로 남는다)
+    document.getElementById('chat-reset').addEventListener('click', async () => {
+        const message = '대화 기록을 모두 지울까요?\n환불·취소 같은 교환 내역은 그대로 남아요.';
+        const agreed = typeof gbConfirm === 'function' ? await gbConfirm(message) : window.confirm(message);
+        if (!agreed) return;
+        const res = await fetch('/api/chat/history', { method: 'DELETE', credentials: 'same-origin' });
+        if (!res.ok) { addMessage('ERROR', '대화를 지우지 못했어요.'); return; }
+        listEl.replaceChildren();
+        addMessage('ASSISTANT', '대화를 모두 지웠어요. 새로 시작해 볼까요?');
+    });
+
     // 다른 화면(/test/chat 등)에서 위젯을 열 수 있게 노출한다
     window.GBChat = { open: open, close: close };
 

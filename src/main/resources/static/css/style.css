@@ -2232,3 +2232,9 @@ form.chat-form button { width: auto; margin: 0; padding: 0.5rem 0.9rem; border-r
 .chat-widget.is-shop .chat-quick, .chat-widget.is-shop .chat-form { display: none; }
 .chat-widget a.chat-link { display: inline-block; padding: 0.3rem 0.8rem; border: 1px solid var(--color-text); border-radius: 999px; font-size: 0.76rem; font-weight: 500; text-decoration: none; color: var(--color-text); }
 .chat-widget a.chat-link:hover { background: var(--color-surface); }
+
+/* 새 대화 버튼 */
+.chat-head-actions { display: flex; align-items: center; gap: 0.2rem; }
+button.chat-reset[type="button"] { width: auto; margin: 0; padding: 0.2rem 0.55rem; background: none; border: 1px solid var(--color-border); border-radius: 999px; color: var(--color-muted); font-size: 0.72rem; font-weight: 500; }
+button.chat-reset[type="button"]:hover { background: var(--color-surface); color: var(--color-text); }
+.chat-widget.is-shop .chat-reset { display: none; }
