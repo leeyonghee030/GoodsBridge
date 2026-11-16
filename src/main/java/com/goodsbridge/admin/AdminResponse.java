@@ -29,5 +29,6 @@ public class AdminResponse {
         private long settlementAmount;  // 월 정산 금액
         private long platformRevenue;   // 플랫폼 월 매출 (구독료)
         private long shopRevenue;       // 가게 월 매출
+        private long shopNetRevenue;    // 가게 월 순매출
     }
 }

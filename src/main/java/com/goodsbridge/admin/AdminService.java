@@ -41,14 +41,18 @@ public class AdminService {
         LocalDateTime startAt = month.atDay(1).atStartOfDay();
         LocalDateTime endAt = month.plusMonths(1).atDay(1).atStartOfDay();
 
+        long platformRevenue = adminRepository.sumPlatformRevenue(startAt, endAt);
+        long shopRevenue = adminRepository.sumShopRevenue(startAt, endAt);
+
         return new AdminResponse.MonthlyDto(
-          month.toString(),
+            month.toString(),
             adminRepository.countSignups(Timestamp.valueOf(startAt), Timestamp.valueOf(endAt)),
             adminRepository.countPayments(startAt, endAt),
             adminRepository.sumRefundedAmount(startAt, endAt),
             adminRepository.sumSettlementAmount(startAt, endAt),
-            adminRepository.sumPlatformRevenue(startAt, endAt),
-            adminRepository.sumShopRevenue(startAt, endAt)
+            platformRevenue,
+            shopRevenue,
+            shopRevenue - platformRevenue
         );
     }
 
