@@ -124,6 +124,9 @@ public class DemoDataService {
         // 이전 시연(또는 테스트)에서 쌓인 데모 가게의 수수료 기록도 초기화해서 수익 요약이 시드 데이터와 맞게 한다
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shop.getId());
         deleteDemoData(List.of(userA.getId(), userB.getId(), shopOwner.getId()));
+        // 지난 시연에서 쌓인 알림도 지운다. 남겨 두면 이미 사라진 신청·구매를 가리키는 알림이 계속 남는다.
+        jdbcTemplate.update("delete from notifications_tb where receiver_id in (?, ?, ?, ?, ?)",
+            userA.getId(), userB.getId(), shopOwner.getId(), shopOwnerB.getId(), admin.getId());
         deleteDemoPayments();
         seed(userA, userB, shopOwner, shop);
         seedBranches();
