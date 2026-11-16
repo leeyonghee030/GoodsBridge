@@ -203,10 +203,40 @@
         scrollDown();
     }
 
+    // 서비스 요약 버튼: AI 없이 정해진 안내를 바로 보여 준다 (내용은 resources/chat/service-guide.md와 맞춘다)
+    const GUIDES = {
+        'guide-exchange': ['교환 방법', [
+            '교환은 이렇게 진행돼요.',
+            '1. **교환 글 쓰기**: 내 굿즈와 교환 장소(가게)를 정해 글을 올려요.',
+            '2. **제안**: 다른 사용자가 자기 상품으로 교환을 제안해요.',
+            '3. **확정**: 글쓴이가 수락하면 확정되고, 양쪽이 보증금을 결제해요.',
+            '4. **방문·정산**: 기한 안에 가게를 방문하면 사장님이 출석을 확인해요.',
+            '[교환 글 쓰기](/exchange/new) · [교환 게시글 보기](/exchange)'].join('\n')],
+        'guide-deposit': ['보증금·정산', [
+            '보증금은 **내 상품 가격의 20% (최소 2,000원)** 예요.',
+            '- 둘 다 방문: 각자 보증금의 75%를 돌려받아요.',
+            '- 둘 다 노쇼: 각자 보증금의 50%를 돌려받아요.',
+            '- 한쪽만 노쇼: 방문한 사람은 전액 환불, 노쇼한 사람은 돌려받지 못해요.',
+            '[내 교환 내역](/my/exchange)'].join('\n')],
+        'guide-more': ['경매·이벤트', [
+            '**경매**: 가게가 열어요. 첫 입찰 때 보증금을 한 번 내고, 마감 후 최고 입찰자가 낙찰되면 정해진 시간 안에 잔금을 결제해요. 낙찰되지 못하면 보증금이 환불돼요.',
+            '**이벤트**: 가게가 여는 선착순 이벤트예요. 참가비를 결제하면 번호표가 나와요.',
+            '[경매](/test/auction) · [이벤트](/test/event)'].join('\n')],
+        'guide-browse': ['상품·가게 보기', [
+            '둘러볼 곳을 골라 주세요.',
+            '[상품](/test/item) · [가게](/test/shop) · [교환](/exchange) · [경매](/test/auction) · [이벤트](/test/event)'].join('\n')]
+    };
+    function showGuide(key) {
+        addMessage('USER', GUIDES[key][0]);
+        addMessage('ASSISTANT', GUIDES[key][1]);
+    }
+
     const quickActions = { 'my-requests': () => showMyRequests(), 'cancel-request': () => showCancelable() };
     document.getElementById('chat-quick').addEventListener('click', ev => {
         const button = ev.target.closest('[data-quick]');
-        if (button) quickActions[button.dataset.quick]();
+        if (!button) return;
+        const key = button.dataset.quick;
+        if (GUIDES[key]) showGuide(key); else quickActions[key]();
     });
 
     // AI를 쓸 수 없을 때 안내하고, 같은 기능을 버튼으로 바로 쓰게 한다
@@ -261,7 +291,7 @@
             if (res.ok) res.body.forEach(log => addMessage(log.role, log.content));
         } catch (e) { /* 기록을 못 불러와도 대화는 할 수 있다 */ }
         if (!listEl.children.length) {
-            addMessage('ASSISTANT', '안녕하세요! 글로 물어보시거나 아래 빠른 메뉴 버튼을 눌러 교환 신청을 확인·취소할 수 있어요. 대화 기록은 하루가 지나면 지워져요.');
+            addMessage('ASSISTANT', '안녕하세요! 글로 물어보시거나 아래 빠른 메뉴 버튼을 눌러 교환 신청 확인·취소와 서비스 안내를 볼 수 있어요. 대화 기록은 하루가 지나면 지워져요.');
         }
     }
 
