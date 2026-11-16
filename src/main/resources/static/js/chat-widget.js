@@ -13,6 +13,7 @@
     const toggle = document.getElementById('chat-toggle');
     const listEl = document.getElementById('chat-list');
     const form = document.getElementById('chat-form');
+    const usageEl = document.getElementById('chat-usage');
     const input = document.getElementById('chat-input');
     const sendBtn = document.getElementById('chat-send');
     const myUserId = Number(root.dataset.userId);
@@ -291,6 +292,18 @@
         card.appendChild(actions);
     }
 
+    // 오늘 남은 AI 질문 횟수를 입력창 위에 작게 보여 준다 (빠른 메뉴 버튼은 AI를 쓰지 않아 횟수와 상관없다)
+    async function refreshUsage() {
+        try {
+            const res = await api('/api/chat/usage');
+            if (!res.ok) return;
+            usageEl.hidden = false;
+            usageEl.textContent = res.body.remaining > 0
+                ? '오늘 AI 질문 ' + res.body.remaining + '/' + res.body.limit + '번 남았어요 · 버튼은 계속 쓸 수 있어요'
+                : '오늘 AI 질문을 모두 썼어요 · 버튼은 계속 쓸 수 있어요';
+        } catch (e) { /* 표시만 못 할 뿐이다 */ }
+    }
+
     // 처음 열 때 한 번만 지난 대화(본인 것)를 불러온다
     async function loadHistory() {
         historyLoaded = true;
@@ -298,6 +311,7 @@
             showShopNotice();
             return;
         }
+        refreshUsage();
         try {
             const res = await api('/api/chat/history');
             if (res.ok) res.body.forEach(log => addMessage(log.role, log.content));
@@ -354,6 +368,7 @@
         } finally {
             sending = false;
             sendBtn.disabled = false;
+            refreshUsage();
             input.focus();
         }
     });

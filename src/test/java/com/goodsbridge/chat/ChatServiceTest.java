@@ -51,6 +51,7 @@ class ChatServiceTest {
     private ChatClient.ChatClientRequestSpec requestSpec;
     private ChatClient.CallResponseSpec callSpec;
     private ChatService service;
+    private ChatDailyLimiter dailyLimiter;
 
     @BeforeEach
     void setUp() {
@@ -59,7 +60,9 @@ class ChatServiceTest {
         requestSpec = mock(ChatClient.ChatClientRequestSpec.class, RETURNS_SELF);
         callSpec = mock(ChatClient.CallResponseSpec.class);
         lenient(chatClient, requestSpec, callSpec);
-        service = new ChatService(chatClient, chatLogService, exchangeAgentTools, confirmationGuard, shopRepository, new ChatRateLimiter());
+        dailyLimiter = new ChatDailyLimiter(100);   // 대부분의 테스트는 한도와 상관없으므로 넉넉하게
+        service = new ChatService(chatClient, chatLogService, exchangeAgentTools, confirmationGuard,
+            shopRepository, mock(InfoAgentTools.class), dailyLimiter);
     }
 
     private void lenient(ChatClient client, ChatClient.ChatClientRequestSpec spec, ChatClient.CallResponseSpec call) {
@@ -102,14 +105,38 @@ class ChatServiceTest {
     }
 
     @Test
-    void chat_stopsTooFrequentRequestsBeforeAnythingElse() {
-        for (int i = 0; i < ChatRateLimiter.MAX_PER_MINUTE; i++) {
-            service.chat(USER_ID, "파이썬 코드 짜줘");   // 막힌 요청도 횟수에 센다
-        }
+    void chat_stopsAfterTheDailyAiLimitButBlockedQuestionsDoNotCount() {
+        ChatDailyLimiter limited = new ChatDailyLimiter(2);
+        ChatService limitedService = new ChatService(chatClient, chatLogService, exchangeAgentTools,
+            confirmationGuard, shopRepository, mock(InfoAgentTools.class), limited);
+        when(callSpec.content()).thenReturn("답변");
 
-        assertThatThrownBy(() -> service.chat(USER_ID, "내 교환 신청 알려줘"))
-            .isInstanceOf(BadRequestException.class);
-        verifyNoInteractions(chatClient, chatLogService);
+        for (int i = 0; i < 5; i++) {
+            limitedService.chat(USER_ID, "파이썬 코드 짜줘");   // 필터가 막은 요청은 AI를 쓰지 않으니 세지 않는다
+        }
+        assertThat(limited.remaining(USER_ID)).isEqualTo(2);
+
+        limitedService.chat(USER_ID, "안녕");
+        limitedService.chat(USER_ID, "교환 어떻게 해?");
+
+        // 하루 한도(2번)를 넘으면 AI를 부르지 않고 한도 안내를 한다
+        assertThatThrownBy(() -> limitedService.chat(USER_ID, "경매는 뭐야?"))
+            .isInstanceOf(ServiceUnavailableException.class)
+            .hasMessageContaining("한도");
+        verify(callSpec, org.mockito.Mockito.times(2)).content();
+    }
+
+    @Test
+    void chat_giveBackTheCountWhenTheAiFails() {
+        ChatDailyLimiter limited = new ChatDailyLimiter(1);
+        ChatService limitedService = new ChatService(chatClient, chatLogService, exchangeAgentTools,
+            confirmationGuard, shopRepository, mock(InfoAgentTools.class), limited);
+        when(callSpec.content()).thenThrow(new IllegalStateException("boom"));
+
+        assertThatThrownBy(() -> limitedService.chat(USER_ID, "안녕")).isInstanceOf(ServiceUnavailableException.class);
+
+        // 답을 못 받은 것은 사용자 잘못이 아니므로 오늘 횟수를 쓴 것으로 치지 않는다
+        assertThat(limited.remaining(USER_ID)).isEqualTo(1);
     }
 
     @Test

@@ -79,6 +79,9 @@ portone:
 app:
     # 입점 신청 시 입력해야 하는 체인점 코드 (본사가 각 지점에 알려준다)
     chain-code: ${CHAIN_CODE:GB-CHAIN-2026}
+    chat:
+        # 사용자 한 명이 하루에 AI에게 물을 수 있는 횟수 (무료 한도 보호). 빠른 메뉴 버튼은 AI를 쓰지 않으므로 제한이 없다.
+        daily-limit: ${CHAT_DAILY_LIMIT:3}
     demo:
         enabled: ${APP_DEMO_ENABLED:false}
     notifications:

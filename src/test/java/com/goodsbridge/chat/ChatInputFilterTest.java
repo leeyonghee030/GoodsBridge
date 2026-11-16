@@ -1,6 +1,6 @@
 package com.goodsbridge.chat;
 
-import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.ServiceUnavailableException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -49,13 +49,25 @@ class ChatInputFilterTest {
     }
 
     @Test
-    void rateLimiter_blocksTheEleventhRequestInAMinuteButNotOtherUsers() {
-        ChatRateLimiter limiter = new ChatRateLimiter();
-        for (int i = 0; i < ChatRateLimiter.MAX_PER_MINUTE; i++) {
-            limiter.check(1L);
+    void dailyLimiter_allowsThreeQuestionsPerUserThenStops() {
+        ChatDailyLimiter limiter = new ChatDailyLimiter(3);
+        for (int i = 0; i < 3; i++) {
+            limiter.reserve(1L);
         }
 
-        assertThatThrownBy(() -> limiter.check(1L)).isInstanceOf(BadRequestException.class);
-        limiter.check(2L);   // 다른 사용자는 영향이 없다
+        assertThat(limiter.remaining(1L)).isZero();
+        assertThatThrownBy(() -> limiter.reserve(1L)).isInstanceOf(ServiceUnavailableException.class);
+        limiter.reserve(2L);   // 다른 사용자는 영향이 없다
+        assertThat(limiter.remaining(2L)).isEqualTo(2);
+    }
+
+    @Test
+    void dailyLimiter_releaseGivesBackOneButNeverBelowZero() {
+        ChatDailyLimiter limiter = new ChatDailyLimiter(3);
+        limiter.reserve(1L);
+        limiter.release(1L);
+        limiter.release(1L);   // 센 적 없는데 또 돌려줘도 한도보다 많아지지 않는다
+
+        assertThat(limiter.remaining(1L)).isEqualTo(3);
     }
 }

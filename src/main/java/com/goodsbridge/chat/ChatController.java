@@ -30,6 +30,12 @@ public class ChatController {
         return chatService.chat(SecurityUtil.getCurrentUserId(), request.getContent());
     }
 
+    // 오늘 남은 AI 질문 횟수
+    @GetMapping("/usage")
+    public ChatUsageResponse usage() {
+        return chatService.usage(SecurityUtil.getCurrentUserId());
+    }
+
     // 대화 기록 (본인 것 중 최근 50건)
     @GetMapping("/history")
     public List<ChatLogResponse> history() {

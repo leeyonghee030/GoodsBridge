@@ -59,7 +59,8 @@ public class ChatService {
     private final ExchangeAgentTools exchangeAgentTools;
     private final ActionConfirmationGuard confirmationGuard;
     private final ShopRepository shopRepository;
-    private final ChatRateLimiter rateLimiter;
+    private final InfoAgentTools infoAgentTools;
+    private final ChatDailyLimiter dailyLimiter;
 
     public ChatResponse chat(Long userId, String content) {
         // 가게 계정은 AI를 호출하지 않는다 (쓸 수 있는 기능이 없고, 무료 사용량도 아낀다)
@@ -76,9 +77,6 @@ public class ChatService {
             throw new BadRequestException("메시지는 " + MAX_CONTENT_LENGTH + "자 이하로 입력해 주세요.");
         }
 
-        // (1-2) 요청이 너무 잦으면 막는다 (무료 AI 한도 보호). 막은 요청도 횟수에 센다.
-        rateLimiter.check(userId);
-
         // (1-3) 서비스와 관계없거나 위험한 질문은 AI를 부르지 않고 정해 둔 문장으로 바로 답한다 (토큰 절약 + 프롬프트 주입 방어).
         //       막은 질문은 저장하지 않는다. 저장하면 다음 대화에서 AI에게 다시 전달되기 때문이다.
         ChatInputFilter.Verdict verdict = ChatInputFilter.check(message);
@@ -92,6 +90,10 @@ public class ChatService {
             .map(this::toMessage)
             .toList();
 
+        // (2-2) 하루 AI 질문 횟수 제한 (무료 AI 한도 보호). 필터가 막은 요청은 AI를 쓰지 않으므로 세지 않는다.
+        //       호출 실패·빈 답이면 아래에서 돌려준다.
+        dailyLimiter.reserve(userId);
+
         // (3) Gemini 호출. 질문은 아직 저장하지 않는다 (답을 못 받으면 질문도 남기지 않는다).
         String turnId = UUID.randomUUID().toString();   // 이번 요청(대화 한 턴)의 식별자 (이중 확인용)
         List<String> toolNotes = new CopyOnWriteArrayList<>();   // AI가 이번 턴에 실행한 도구 기록. 도구가 적고, 답을 받으면 함께 저장한다.
@@ -100,7 +102,7 @@ public class ChatService {
             reply = chatClient.prompt()
                 .messages(history)                                  // 앞선 대화
                 .user(message)                                      // 이번 질문
-                .tools(exchangeAgentTools)                          // AI가 쓸 수 있는 도구
+                .tools(exchangeAgentTools, infoAgentTools)          // AI가 쓸 수 있는 도구
                 .toolContext(Map.of(USER_ID_KEY, userId,            // 도구에 로그인 사용자 id 전달 (AI가 바꿀 수 없다)
                     TURN_ID_KEY, turnId,                            // 취소 확인과 실행이 같은 턴인지 가리는 데 쓴다
                     TOOL_NOTES_KEY, toolNotes))                     // 도구 실행 기록을 모으는 목록
@@ -109,12 +111,14 @@ public class ChatService {
         } catch (RuntimeException e) {
             // API 키 오류, 한도 초과, 네트워크 문제 등. 원인은 서버 로그에 남기고 사용자에게는 일반 안내만 한다.
             confirmationGuard.abortTurn(userId, turnId);   // 설명이 전달되지 않았으니 이 턴의 취소 확인은 버린다
+            dailyLimiter.release(userId);                   // 답을 못 받았으니 오늘 횟수는 쓴 것으로 치지 않는다
             log.warn("AI 호출 실패 - userId={}", userId, e);   // 예외 전체(원인 포함)를 남겨야 키·한도·모델 문제를 구분할 수 있다
             // 한도 소진(429)이면 그렇다고 알려 준다. 키 오류 같은 그 밖의 내부 정보는 노출하지 않는다.
             throw new ServiceUnavailableException(isQuotaExceeded(e) ? QUOTA_MESSAGE : UNAVAILABLE_MESSAGE);
         }
         if (reply == null || reply.isBlank()) {
             confirmationGuard.abortTurn(userId, turnId);   // 사용자는 취소 내용을 설명받지 못했다
+            dailyLimiter.release(userId);
             // 답을 받지 못한 것이므로 질문은 저장하지 않는다
             return new ChatResponse("죄송해요, 답변을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?");
         }
@@ -135,6 +139,11 @@ public class ChatService {
             }
         }
         return false;
+    }
+
+    // 오늘 남은 AI 질문 횟수 (채팅창에 보여 준다)
+    public ChatUsageResponse usage(Long userId) {
+        return new ChatUsageResponse(dailyLimiter.limit(), dailyLimiter.remaining(userId));
     }
 
     // 대화 기록 조회: 로그인한 본인 것만 (userId로 걸러서 가져오므로 남의 대화는 나오지 않는다)
