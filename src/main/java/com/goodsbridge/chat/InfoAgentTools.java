@@ -99,7 +99,7 @@ public class InfoAgentTools {
         return new ItemSearchResult(items.size(), items, "/test/item");
     }
 
-    @Tool(description = "로그인한 사용자의 이벤트 참여 현황을 요약해서 조회한다(상태별 건수와 최근 3건). 사용자가 내 이벤트, 이벤트 참여 현황, "
+    @Tool(description = "로그인한 사용자의 이벤트 참여 현황을 요약해서 조회한다(상태별 건수와 최근에 참여한 3건. recent는 참여 신청 시각의 최신순이다). 사용자가 내 이벤트, 이벤트 참여 현황, "
         + "내 번호표를 물을 때 사용한다. 자세한 내용은 allLink 화면에서 보도록 안내한다.")
     public MyEventsResult getMyEvents(ToolContext toolContext) {
         Long userId = userId(toolContext);
@@ -114,7 +114,7 @@ public class InfoAgentTools {
         return new MyEventsResult(all.size(), counts, recent, "/my/events");
     }
 
-    @Tool(description = "로그인한 사용자의 경매 입찰 현황을 요약해서 조회한다(상태별 건수, 잔금 결제가 필요한 건수, 최근 3건). 사용자가 내 경매, "
+    @Tool(description = "로그인한 사용자의 경매 입찰 현황을 요약해서 조회한다(상태별 건수, 잔금 결제가 필요한 건수, 최근에 입찰한 3건. recent는 마지막 입찰 시각의 최신순이다). 사용자가 내 경매, "
         + "입찰 현황, 낙찰 여부, 잔금 결제를 물을 때 사용한다. needsBalancePaymentCount가 0보다 크면 잔금을 결제해야 한다고 먼저 알려 주고, "
         + "recent의 balanceOverdue가 true면 결제 기한이 지났다고 알린다. 자세한 내용은 allLink 화면에서 보도록 안내한다.")
     public MyAuctionsResult getMyAuctions(ToolContext toolContext) {

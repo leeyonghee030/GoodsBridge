@@ -322,18 +322,28 @@
         } catch (e) { /* 표시만 못 할 뿐이다 */ }
     }
 
-    // 처음 열었을 때와 새 대화 뒤에 보여 주는 사용법 소개
+    // 처음 열었을 때와 새 대화 뒤에 보여 주는 사용법 소개. 제목 + 두 묶음("물어보세요", "알아두세요")으로 나눠 한눈에 읽히게 한다.
     function showIntro(prefix) {
         const times = dailyLimit ? '하루 ' + dailyLimit + '번' : '하루 정해진 횟수';
-        addMessage('ASSISTANT', (prefix ? prefix + '\n\n' : '') + [
-            '안녕하세요! GoodsBridge 도우미예요.',
-            '',
-            '**이렇게 쓰세요**',
-            '• 글로 물어보세요: 교환·경매·이벤트 사용법, 가게·상품 찾기, 내 교환·이벤트·경매 현황',
-            '• 교환 신청 취소처럼 중요한 일은 설명해 드린 뒤 한 번 더 확인해요',
-            '• 글 질문은 ' + times + '까지예요. 아래 버튼은 횟수 제한 없이 계속 쓸 수 있어요',
-            '• 대화 기록은 하루가 지나면 지워져요'
-        ].join('\n'));
+        const card = addCard();
+        if (prefix) card.appendChild(el('p', 'chat-intro-prefix', prefix));
+        card.appendChild(el('div', 'chat-card-title', '안녕하세요! GoodsBridge 도우미예요'));
+        const section = (label, items) => {
+            card.appendChild(el('div', 'chat-intro-label', label));
+            const list = el('ul', 'chat-intro-list');
+            items.forEach(text => list.appendChild(el('li', null, text)));
+            card.appendChild(list);
+        };
+        section('이런 걸 물어보세요', [
+            '교환·경매·이벤트 사용법',
+            '가게·상품 찾기',
+            '내 교환·이벤트·경매 현황'
+        ]);
+        section('알아두세요', [
+            '글 질문은 ' + times + '까지, 아래 버튼은 계속 쓸 수 있어요',
+            '교환 취소 같은 중요한 일은 한 번 더 확인해요',
+            '대화 기록은 하루 뒤 지워져요'
+        ]);
     }
 
     // 처음 열 때 한 번만 지난 대화(본인 것)를 불러온다
