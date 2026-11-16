@@ -29,6 +29,13 @@ public class AdminViewController {
         return adminService.getDashboard(month);
     }
 
+    // 월별 구독 결제 내역 API (month 생략 시 이번 달)
+    @ResponseBody
+    @GetMapping("/api/admin/subscription-payments")
+    public AdminSubscriptionPaymentResponse subscriptionPayments(@RequestParam(required = false) String month) {
+        return adminService.getSubscriptionPayments(month);
+    }
+
     // 로그인 상태이면서 ROLE_ADMIN 권한이 있는지 확인한다. (화면 분기용이라 예외는 던지지 않는다)
     private boolean isAdmin(Authentication authentication) {
         return authentication != null && authentication.getAuthorities().stream()
