@@ -32,21 +32,21 @@ public class BoardController {
 
     // 게시글 목록 조회 (페이징 및 검색 지원)
     // 요청 예시: GET /api/boards?page=0&size=10&sort=id,desc&keyword=공지
+
+
     @GetMapping("/boards")
     public ResponseEntity<Page<BoardResponseDto>> getBoards(
         @RequestParam(required = false) String keyword,
-        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
-    ) {
-        Page<BoardResponseDto> response = boardService.getBoards(keyword, pageable);
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/boards/{id}")
-    public ResponseEntity<BoardResponseDto> getBoard(
-        @PathVariable Long id,
+        @PageableDefault(
+            size = 10,
+            sort = "id",
+            direction = Sort.Direction.DESC
+        ) Pageable pageable,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        BoardResponseDto response = boardService.getBoard(id, loginUserId);
+        Page<BoardResponseDto> response =
+            boardService.getBoards(keyword, pageable, loginUserId);
+
         return ResponseEntity.ok(response);
     }
 
@@ -56,7 +56,12 @@ public class BoardController {
         @RequestBody @Valid ReplyRequestDto requestDto,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        Long replyId = boardService.createReply(id, requestDto, loginUserId);
+        Long replyId = boardService.createReply(
+            id,
+            requestDto,
+            loginUserId
+        );
+
         return ResponseEntity.status(HttpStatus.CREATED).body(replyId);
     }
 

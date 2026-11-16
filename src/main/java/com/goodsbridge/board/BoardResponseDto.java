@@ -3,6 +3,7 @@ package com.goodsbridge.board;
 import lombok.*;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Getter
@@ -36,4 +37,36 @@ public class BoardResponseDto {
         );
     }
 
+    public static BoardResponseDto fromForList(
+        Board board,
+        Long loginUserId
+    ) {
+        // 비밀글이고 작성자가 아닌 경우
+        if (Boolean.TRUE.equals(board.getIsSecret())
+            && !Objects.equals(board.getAuthorId(), loginUserId)) {
+
+            return new BoardResponseDto(
+                board.getId(),
+                "비밀글입니다.",
+                null,
+                null,
+                null,
+                true,
+                null,
+                List.of()
+            );
+        }
+
+        // 목록에서는 댓글을 조회하지 않는다.
+        return new BoardResponseDto(
+            board.getId(),
+            board.getTitle(),
+            board.getContent(),
+            board.getAuthorId(),
+            board.getItemId(),
+            board.getIsSecret(),
+            board.getStatus(),
+            List.of()
+        );
+    }
 }

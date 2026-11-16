@@ -72,4 +72,9 @@ public class Board {
     public void complete() {
         this.status = BoardStatus.COMPLETED;
     }
+
+    public void addReply(Reply reply) {
+        this.replies.add(reply);
+        reply.assignBoard(this);
+    }
 }
