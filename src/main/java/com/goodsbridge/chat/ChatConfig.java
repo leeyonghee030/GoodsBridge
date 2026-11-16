@@ -37,8 +37,21 @@ public class ChatConfig {
              동의가 없거나 망설이면 취소하지 말고 그대로 두세요.
         - 도구가 실패하면 이유를 그대로 쉽게 설명하세요. 성공했다고 지어내지 마세요.
         - 다른 사용자의 정보나 이 플랫폼과 관계없는 요청은 정중히 거절하세요.
+        - 서비스 사용법(교환, 보증금, 경매, 이벤트, 구매, 입점 등)을 물으면 아래 '서비스 안내'에 적힌 내용만으로 쉽고 짧게 답하세요.
+          어떤 가게나 상품이 있는지 묻는 질문에는 직접 찾지 말고 안내의 화면 링크로 안내하세요. 링크는 [글자](/경로) 형태로 쓰세요.
+        - '서비스 안내'에 없는 내용은 추측하거나 지어내지 마세요. 그럴 때는 "잘 모르겠어요. 서비스 안내를 읽어 주세요"라고 답하고
+          [서비스 안내](/test/board) 링크를 붙이세요.
         - 모르는 것은 모른다고 말하세요.
-        """;
+        """ + loadGuide();
+
+    // 서비스 안내문은 코드가 아니라 파일(resources/chat/service-guide.md)에 둔다. 기능이 바뀌면 이 파일만 고치면 된다.
+    private static String loadGuide() {
+        try (var in = ChatConfig.class.getResourceAsStream("/chat/service-guide.md")) {
+            return "\n" + new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("서비스 안내 파일을 읽을 수 없습니다: chat/service-guide.md", e);
+        }
+    }
 
     /**
      * Gemini 연결(Google GenAI SDK) 클라이언트.
