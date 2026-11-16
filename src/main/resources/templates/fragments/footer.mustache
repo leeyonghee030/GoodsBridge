@@ -34,7 +34,27 @@
         <span>© 2026 GoodsBridge</span>
     </div>
 </footer>
+{{#userId}}{{^adminAccount}}
+<!-- AI 도우미: 스크롤해도 오른쪽 아래에 고정. 동작은 /js/chat-widget.js -->
+<div class="chat-widget" id="chat-widget">
+    <section class="chat-panel" id="chat-panel" aria-label="AI 도우미">
+        <div class="chat-head">
+            <strong>GoodsBridge 도우미</strong>
+            <button type="button" class="chat-close" id="chat-close" aria-label="닫기">✕</button>
+        </div>
+        <div class="chat-list" id="chat-list" aria-live="polite"></div>
+        <form class="chat-form" id="chat-form">
+            <input id="chat-input" type="text" maxlength="1000" placeholder="메시지를 입력하세요" autocomplete="off" required>
+            <button type="submit" id="chat-send">보내기</button>
+        </form>
+    </section>
+    <button type="button" class="chat-toggle" id="chat-toggle" aria-label="AI 도우미 열기" aria-expanded="false" aria-controls="chat-panel">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </button>
+</div>
+{{/adminAccount}}{{/userId}}
 <script src="/js/api.js"></script>
 <script src="/js/notifications.js"></script>
+{{#userId}}{{^adminAccount}}<script src="/js/chat-widget.js"></script>{{/adminAccount}}{{/userId}}
 </body>
 </html>
