@@ -2238,3 +2238,12 @@ form.chat-form button { width: auto; margin: 0; padding: 0.5rem 0.9rem; border-r
 button.chat-reset[type="button"] { width: auto; margin: 0; padding: 0.2rem 0.55rem; background: none; border: 1px solid var(--color-border); border-radius: 999px; color: var(--color-muted); font-size: 0.72rem; font-weight: 500; }
 button.chat-reset[type="button"]:hover { background: var(--color-surface); color: var(--color-text); }
 .chat-widget.is-shop .chat-reset { display: none; }
+
+/* 교환 신청 분류 버튼과 AI 답변 속 링크 */
+.chat-card-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.5rem; }
+.chat-widget button.chat-chip[type="button"] { width: auto; margin: 0; padding: 0.2rem 0.6rem; background: #fff; color: var(--color-text); border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.72rem; font-weight: 500; }
+.chat-widget button.chat-chip[type="button"]:hover:not(:disabled) { background: var(--color-surface); }
+.chat-widget button.chat-chip.is-active[type="button"] { background: var(--color-dark); color: #fff; border-color: var(--color-dark); opacity: 1; }
+.chat-card-more { margin: 0.5rem 0 0; font-size: 0.74rem; color: var(--color-muted); }
+.chat-msg a { color: inherit; text-decoration: underline; }
+.chat-widget a.chat-link { text-decoration: none; }

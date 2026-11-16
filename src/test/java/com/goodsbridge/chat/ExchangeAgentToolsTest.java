@@ -67,32 +67,101 @@ class ExchangeAgentToolsTest {
         return request(id, USER_ID, LocalDateTime.now(), ExchangeRequestStatus.PENDING, 5000);
     }
 
-    // ===== 조회 도구: 바로 답한다 =====
+    // ===== 조회 도구: 바로 답한다 (기본은 대기 중, 분류별 건수 요약, 전체 내역 링크) =====
 
-    @Test
-    void getMyExchangeRequests_returnsLatestFirstAndMarksMyRole() {
-        LocalDateTime now = LocalDateTime.now();
-        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of(
-            request(1L, USER_ID, now.minusDays(2), ExchangeRequestStatus.PENDING, 5000),   // 내가 신청한 것
-            request(2L, 99L, now, ExchangeRequestStatus.PENDING, 5000)));                  // 내 게시글에 들어온 신청
-
-        List<ExchangeAgentTools.ExchangeInfo> result = tools.getMyExchangeRequests(turn("t1"));
-
-        assertThat(result).extracting(ExchangeAgentTools.ExchangeInfo::requestId).containsExactly(2L, 1L);
-        assertThat(result.get(0).myRole()).isEqualTo("게시글 주인");
-        assertThat(result.get(1).myRole()).isEqualTo("신청자");
-        assertThat(notes).containsExactly("교환 신청 조회: 2건");
+    private ExchangeRequestResponse requestWithStatus(Long id, ExchangeRequestStatus status, LocalDateTime createdAt) {
+        return request(id, USER_ID, createdAt, status, 5000);
     }
 
     @Test
-    void getMyExchangeRequests_limitsToTenRequests() {
+    void getMyExchangeRequests_showsOnlyPendingByDefaultNewestFirstAndMarksMyRole() {
+        LocalDateTime now = LocalDateTime.now();
+        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of(
+            request(1L, USER_ID, now.minusDays(2), ExchangeRequestStatus.PENDING, 5000),   // 내가 신청한 것
+            request(2L, 99L, now, ExchangeRequestStatus.PENDING, 5000),                    // 내 게시글에 들어온 신청
+            requestWithStatus(3L, ExchangeRequestStatus.CONFIRMED, now),
+            requestWithStatus(4L, ExchangeRequestStatus.CANCELLED, now)));
+
+        ExchangeAgentTools.ExchangeList result = tools.getMyExchangeRequests(null, turn("t1"));
+
+        assertThat(result.category()).isEqualTo("PENDING");
+        // 처리할 일이 있는 '대기 중'만 보여 준다 (확정·취소는 빠진다)
+        assertThat(result.requests()).extracting(ExchangeAgentTools.ExchangeInfo::requestId).containsExactly(2L, 1L);
+        assertThat(result.requests().get(0).myRole()).isEqualTo("게시글 주인");
+        assertThat(result.requests().get(1).myRole()).isEqualTo("신청자");
+        assertThat(result.requests().get(0).status()).isEqualTo("대기 중");   // 사용자가 읽는 이름
+        assertThat(notes).containsExactly("교환 신청 조회: 대기 중 2건");
+    }
+
+    @Test
+    void getMyExchangeRequests_summarizesCountsPerCategoryAndLinksToTheFullHistory() {
+        LocalDateTime now = LocalDateTime.now();
+        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of(
+            requestWithStatus(1L, ExchangeRequestStatus.PENDING, now),
+            requestWithStatus(2L, ExchangeRequestStatus.CONFIRMED, now),
+            requestWithStatus(3L, ExchangeRequestStatus.CONFIRMED, now),
+            requestWithStatus(4L, ExchangeRequestStatus.COMPLETED, now),
+            requestWithStatus(5L, ExchangeRequestStatus.CANCELLED, now),
+            requestWithStatus(6L, ExchangeRequestStatus.REJECTED, now),
+            requestWithStatus(7L, ExchangeRequestStatus.PROPOSAL_EXPIRED, now),
+            requestWithStatus(8L, ExchangeRequestStatus.EXPIRED_BOTH, now)));
+
+        ExchangeAgentTools.ExchangeList result = tools.getMyExchangeRequests(null, turn("t1"));
+
+        // 분류별 건수: 8가지 상태를 사용자가 알아보기 쉬운 4가지로 묶는다
+        assertThat(result.countsByCategory()).containsExactly(
+            java.util.Map.entry("대기 중", 1L), java.util.Map.entry("확정", 2L),
+            java.util.Map.entry("완료", 1L), java.util.Map.entry("취소·거절·만료", 4L));
+        assertThat(result.totalCount()).isEqualTo(8);
+        // 보여 주지 않은 상태는 전체 내역 화면으로 안내한다
+        assertThat(result.allHistoryLink()).isEqualTo("/my/exchange");
+    }
+
+    @Test
+    void getMyExchangeRequests_showsAnotherCategoryWhenAsked() {
+        LocalDateTime now = LocalDateTime.now();
+        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of(
+            requestWithStatus(1L, ExchangeRequestStatus.PENDING, now),
+            requestWithStatus(2L, ExchangeRequestStatus.CONFIRMED, now),
+            requestWithStatus(3L, ExchangeRequestStatus.EXPIRED_PARTIAL, now),
+            requestWithStatus(4L, ExchangeRequestStatus.CANCELLED, now.minusDays(1))));
+
+        assertThat(tools.getMyExchangeRequests("CONFIRMED", turn("t1")).requests())
+            .extracting(ExchangeAgentTools.ExchangeInfo::requestId).containsExactly(2L);
+        // 취소·거절·만료는 한 분류로 묶여서 나온다
+        assertThat(tools.getMyExchangeRequests("closed", turn("t2")).requests())
+            .extracting(ExchangeAgentTools.ExchangeInfo::requestId).containsExactly(3L, 4L);
+    }
+
+    @Test
+    void getMyExchangeRequests_fallsBackToPendingForUnknownCategory() {
+        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of(
+            requestWithStatus(1L, ExchangeRequestStatus.PENDING, LocalDateTime.now())));
+
+        assertThat(tools.getMyExchangeRequests("뭔가 이상한 값", turn("t1")).category()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void getMyExchangeRequests_limitsToTenAndSaysThereIsMore() {
         List<ExchangeRequestResponse> many = new ArrayList<>();
         for (long i = 1; i <= 15; i++) {
             many.add(request(i, USER_ID, LocalDateTime.now().minusMinutes(i), ExchangeRequestStatus.PENDING, 5000));
         }
         when(exchangeService.getMyExchange(USER_ID)).thenReturn(many);
 
-        assertThat(tools.getMyExchangeRequests(turn("t1"))).hasSize(10);
+        ExchangeAgentTools.ExchangeList result = tools.getMyExchangeRequests(null, turn("t1"));
+
+        assertThat(result.requests()).hasSize(10);
+        assertThat(result.categoryCount()).isEqualTo(15);
+        assertThat(result.hasMore()).isTrue();
+    }
+
+    @Test
+    void getMyExchangeRequests_hasNoMoreWhenEverythingFits() {
+        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of(
+            requestWithStatus(1L, ExchangeRequestStatus.PENDING, LocalDateTime.now())));
+
+        assertThat(tools.getMyExchangeRequests(null, turn("t1")).hasMore()).isFalse();
     }
 
     // ===== 1단계: 확인 도구 =====
@@ -241,7 +310,7 @@ class ExchangeAgentToolsTest {
         ToolContext withoutNotes = new ToolContext(Map.of("userId", USER_ID, "turnId", "t1"));
 
         // 기록 목록이 없으면 기록만 건너뛰고 도구는 정상 동작한다
-        assertThat(tools.getMyExchangeRequests(withoutNotes)).isEmpty();
+        assertThat(tools.getMyExchangeRequests(null, withoutNotes).requests()).isEmpty();
     }
 
     @Test
@@ -266,6 +335,18 @@ class ExchangeAgentToolsTest {
         // AI에게 보이는 입력은 신청 번호뿐이다. 로그인 사용자·대화 식별자(ToolContext)는 AI가 볼 수도 바꿀 수도 없다.
         assertThat(cancel.getToolDefinition().inputSchema()).contains("exchangeRequestId")
             .doesNotContain("userId").doesNotContain("turnId");
+    }
+
+    @Test
+    void springAi_theListToolTakesAnOptionalCategoryTheModelCanChoose() {
+        org.springframework.ai.tool.ToolCallback list = java.util.Arrays.stream(org.springframework.ai.support.ToolCallbacks.from(tools))
+            .filter(c -> c.getToolDefinition().name().equals("getMyExchangeRequests")).findFirst().orElseThrow();
+
+        String schema = list.getToolDefinition().inputSchema();
+
+        // AI가 상태를 고를 수 있는 category가 보이고, 생략해도 되는 값이며, 로그인 사용자 정보는 보이지 않는다
+        assertThat(schema).contains("category").doesNotContain("userId").doesNotContain("turnId");
+        assertThat(schema).doesNotContain("\"required\":[\"category\"");
     }
 
     @Test

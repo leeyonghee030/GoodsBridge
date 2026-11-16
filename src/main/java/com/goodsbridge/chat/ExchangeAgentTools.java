@@ -11,7 +11,11 @@ import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * AI가 호출할 수 있는 "도구(Tool)" 모음 - 교환 편.
@@ -33,9 +37,48 @@ public class ExchangeAgentTools {
 
     static final String ACTION_CANCEL = "cancelExchange";   // ActionConfirmationGuard에서 동작을 구분하는 이름
     private static final int MAX_LIST = 10;     // AI에게 한 번에 넘기는 신청 수 (너무 길면 답이 느려지고 비용이 든다)
+    static final String ALL_HISTORY_LINK = "/my/exchange";   // 전체 교환 내역 화면 (마이페이지 > 교환 내역)
 
     private final ExchangeService exchangeService;
     private final ActionConfirmationGuard confirmationGuard;
+
+    /**
+     * 교환 신청을 처리 상태별로 묶은 분류. 상태가 8가지나 되어 한꺼번에 보여 주면 정작 처리할 건이 묻히므로
+     * 사용자가 알아보기 쉬운 4가지로 묶는다. 기본으로 보여 주는 것은 처리할 일이 있는 '대기 중'이다.
+     */
+    public enum Category {
+        PENDING("대기 중", EnumSet.of(ExchangeRequestStatus.PENDING)),
+        CONFIRMED("확정", EnumSet.of(ExchangeRequestStatus.CONFIRMED)),
+        DONE("완료", EnumSet.of(ExchangeRequestStatus.COMPLETED)),
+        CLOSED("취소·거절·만료", EnumSet.of(ExchangeRequestStatus.CANCELLED, ExchangeRequestStatus.REJECTED,
+            ExchangeRequestStatus.PROPOSAL_EXPIRED, ExchangeRequestStatus.EXPIRED_PARTIAL, ExchangeRequestStatus.EXPIRED_BOTH));
+
+        final String label;
+        final Set<ExchangeRequestStatus> statuses;
+
+        Category(String label, Set<ExchangeRequestStatus> statuses) {
+            this.label = label;
+            this.statuses = statuses;
+        }
+
+        // AI가 넘긴 문자열을 분류로 바꾼다. 비었거나 모르는 값이면 기본인 '대기 중'
+        static Category from(String value) {
+            if (value != null) {
+                for (Category category : values()) {
+                    if (category.name().equalsIgnoreCase(value.trim())) {
+                        return category;
+                    }
+                }
+            }
+            return PENDING;
+        }
+    }
+
+    /** AI가 돌려받는 교환 신청 목록: 고른 분류의 신청들과, 분류별 건수 요약, 전체 내역 링크. */
+    public record ExchangeList(String category, String categoryLabel, Map<String, Long> countsByCategory,
+                               int totalCount, int categoryCount, List<ExchangeInfo> requests,
+                               boolean hasMore, String allHistoryLink) {
+    }
 
     /** AI가 돌려받는 교환 신청 요약. 화면용 응답 전체 대신 AI가 답하는 데 필요한 것만 담는다. */
     public record ExchangeInfo(Long requestId, String status, String myRole, String postTitle,
@@ -49,17 +92,32 @@ public class ExchangeAgentTools {
     }
 
     // [조회 도구] 읽기만 한다. 바로 답해도 된다.
-    @Tool(description = "로그인한 사용자와 관련된 교환 신청 목록을 최근 순으로 최대 10건 조회한다. "
-        + "사용자가 내 교환, 교환 신청 현황, 교환 진행 상태를 물을 때 사용한다.")
-    public List<ExchangeInfo> getMyExchangeRequests(ToolContext toolContext) {
+    @Tool(description = "로그인한 사용자와 관련된 교환 신청을 조회한다. 기본은 처리할 일이 있는 '대기 중' 신청만 최근 순으로 최대 10건 돌려주고, "
+        + "상태별 건수 요약(countsByCategory)과 전체 내역 링크(allHistoryLink)를 함께 준다. 사용자가 확정·완료·취소 같은 다른 상태를 "
+        + "보고 싶어 하면 category를 바꿔 다시 호출한다. 사용자가 내 교환, 교환 신청 현황, 교환 진행 상태를 물을 때 사용한다.")
+    public ExchangeList getMyExchangeRequests(
+        @ToolParam(required = false, description = "보고 싶은 상태. PENDING(대기 중, 기본값), CONFIRMED(확정), DONE(완료), "
+            + "CLOSED(취소·거절·만료) 중 하나. 생략하면 대기 중") String category,
+        ToolContext toolContext) {
         Long userId = userId(toolContext);
-        List<ExchangeInfo> result = exchangeService.getMyExchange(userId).stream()
+        Category selected = Category.from(category);
+        List<ExchangeRequestResponse> all = exchangeService.getMyExchange(userId);
+
+        // 분류별 건수 (한눈에 보는 요약)
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (Category c : Category.values()) {
+            counts.put(c.label, all.stream().filter(r -> c.statuses.contains(r.getStatus())).count());
+        }
+
+        List<ExchangeRequestResponse> inCategory = all.stream()
+            .filter(r -> selected.statuses.contains(r.getStatus()))
             .sorted(Comparator.comparing(ExchangeRequestResponse::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-            .limit(MAX_LIST)
-            .map(r -> toInfo(r, userId))
             .toList();
-        note(toolContext, "교환 신청 조회: " + result.size() + "건");
-        return result;
+        List<ExchangeInfo> shown = inCategory.stream().limit(MAX_LIST).map(r -> toInfo(r, userId)).toList();
+
+        note(toolContext, "교환 신청 조회: " + selected.label + " " + inCategory.size() + "건");
+        return new ExchangeList(selected.name(), selected.label, counts, all.size(), inCategory.size(), shown,
+            inCategory.size() > shown.size(), ALL_HISTORY_LINK);
     }
 
     // [1단계: 확인 도구] 취소해도 되는지 점검하고, 취소하면 어떻게 되는지 알려 준다. DB는 바꾸지 않는다.
@@ -131,7 +189,7 @@ public class ExchangeAgentTools {
         boolean proposer = userId.equals(r.getProposerUserId());
         return new ExchangeInfo(
             r.getId(),
-            String.valueOf(r.getStatus()),
+            r.getStatus() == null ? null : r.getStatus().getDisplayName(),   // '대기 중'처럼 사용자가 읽는 이름
             proposer ? "신청자" : "게시글 주인",
             r.getExchangeItemTitle(),
             r.getItemTitle(),

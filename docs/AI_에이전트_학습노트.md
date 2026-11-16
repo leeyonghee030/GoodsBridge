@@ -89,6 +89,21 @@ AI 호출은 몇 초 걸립니다. `chat()` 전체를 트랜잭션으로 묶으�
 - 한 번에 저장(`saveAll`)하므로 id(시간) 순서가 보장되고, 중간에 실패하면 일부만 남는 일이 없다.
 - 삭제 쿼리(`deleteAllByUserId`, `deleteOlderThan`)는 목(mock) 단위 테스트로는 JPQL이 맞는지 알 수 없어서 `ChatLogRepositoryIntegrationTest`로 실제 DB(H2)에서 검증한다.
 
+### 교환 목록 조회: 대기 중만 먼저, 나머지는 분류와 링크로
+교환 신청은 상태가 8가지(대기 중, 확정, 완료, 취소, 거절, 제안 만료, 부분 만료, 양쪽 만료)라서, 최근 10건을 그대로 보여 주면 **처리할 일(대기 중)이 다른 상태에 묻힌다.** 그래서 사용자가 알아보기 쉬운 4가지로 묶는다.
+
+| 분류(`Category`) | 묶인 상태 |
+|---|---|
+| `PENDING` 대기 중 (**기본**) | PENDING |
+| `CONFIRMED` 확정 | CONFIRMED |
+| `DONE` 완료 | COMPLETED |
+| `CLOSED` 취소·거절·만료 | CANCELLED, REJECTED, PROPOSAL_EXPIRED, EXPIRED_PARTIAL, EXPIRED_BOTH |
+
+- **AI**: `getMyExchangeRequests(category)`는 기본으로 대기 중만(최대 10건) 돌려주고, **분류별 건수 요약**(`countsByCategory`)과 전체 내역 링크(`/my/exchange`)를 함께 준다. 사용자가 "확정된 것도 보여줘"라고 하면 AI가 `category`를 바꿔 다시 조회한다. `category`는 생략할 수 있는 값(`required = false`)이고, 모르는 값이 오면 대기 중으로 본다.
+- **버튼**: `내 교환 신청`을 누르면 대기 중만 보이고, 위쪽의 분류 버튼(`대기 중 7`, `확정 4`, ...)을 누르면 그 상태의 신청을 보여 준다. 취소 버튼은 **대기 중**에만 붙는다. 맨 아래에 `전체 교환 내역 보기` 링크가 있다.
+- **링크 렌더링**: AI 답변의 `[글자](/경로)`는 위젯이 실제 링크로 바꿔 준다. 보안상 `/`로 시작하는 이 사이트 안의 경로만 허용하고(`//`로 시작하는 바깥 주소는 거절), 내용은 모두 `textContent`로 넣는다.
+- 상태는 `대기 중`처럼 사용자가 읽는 이름(`ExchangeRequestStatus.getDisplayName`)으로 넘겨서, AI가 영어 상수를 번역하다 틀리는 일이 없게 했다.
+
 ### 이중 확인: 조회는 바로, 취소는 두 번 묻는다
 조회처럼 읽기만 하는 일은 AI가 바로 도구를 불러 답합니다. **취소처럼 되돌릴 수 없는 일은 이렇게 두 단계**입니다.
 

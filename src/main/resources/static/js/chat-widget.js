@@ -33,11 +33,16 @@
         return node;
     }
 
-    // AI 답변의 **굵게** 표시만 살려서 보여준다.
+    // AI 답변의 **굵게**와 [글자](/사이트경로) 링크만 살려서 보여준다. 링크는 이 사이트 안의 경로(/로 시작)만 허용한다.
     function fillText(node, text) {
-        text.split(/(\*\*[^*]+\*\*)/g).forEach(part => {
+        text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(\/[^)\s]*\))/g).forEach(part => {
+            const link = /^\[([^\]]+)\]\((\/[^)\s]*)\)$/.exec(part);
             if (/^\*\*[^*]+\*\*$/.test(part)) {
                 node.appendChild(el('strong', null, part.slice(2, -2)));
+            } else if (link && !link[2].startsWith('//')) {
+                const a = el('a', null, link[1]);
+                a.href = link[2];
+                node.appendChild(a);
             } else if (part) {
                 node.appendChild(document.createTextNode(part));
             }
@@ -80,11 +85,22 @@
 
     // ===================== 버튼 방식 (AI 없이) =====================
 
+    // 교환 신청 전체를 최근 순으로 가져온다. 분류와 개수 제한은 보여 줄 때 정한다.
     async function loadMyRequests() {
         const res = await api('/api/exchange-requests/me');
         if (!res.ok) throw new Error(res.body.message || '교환 신청을 불러오지 못했어요.');
-        return res.body.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))).slice(0, 10);
+        return res.body.slice().sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
     }
+
+    // 처리 상태를 사용자가 알아보기 쉬운 4가지로 묶는다 (기본은 처리할 일이 있는 '대기 중')
+    const CATEGORIES = [
+        { key: 'PENDING', label: '대기 중', statuses: ['PENDING'] },
+        { key: 'CONFIRMED', label: '확정', statuses: ['CONFIRMED'] },
+        { key: 'DONE', label: '완료', statuses: ['COMPLETED'] },
+        { key: 'CLOSED', label: '취소·거절·만료', statuses: ['CANCELLED', 'REJECTED', 'PROPOSAL_EXPIRED', 'EXPIRED_PARTIAL', 'EXPIRED_BOTH'] }
+    ];
+    const MAX_ROWS = 10;
+    const ALL_HISTORY = '/my/exchange';   // 전체 교환 내역 화면
 
     const isMyPending = r => r.proposerUserId === myUserId && r.status === 'PENDING';
 
@@ -102,15 +118,41 @@
         parent.appendChild(row);
     }
 
-    // [내 교환 신청 보기] 읽기만 한다
-    async function showMyRequests() {
-        addMessage('USER', '내 교환 신청 보기');
+    // [내 교환 신청 보기] 읽기만 한다. 기본은 '대기 중'만 보여 주고, 분류 버튼으로 다른 상태를 볼 수 있다.
+    async function showMyRequests(categoryKey = 'PENDING', userBubble = '내 교환 신청 보기') {
+        addMessage('USER', userBubble);
         try {
-            const list = await loadMyRequests();
-            if (!list.length) { addMessage('ASSISTANT', '교환 신청이 아직 없어요.'); return; }
+            const all = await loadMyRequests();
+            if (!all.length) { addMessage('ASSISTANT', '교환 신청이 아직 없어요.'); return; }
+            const selected = CATEGORIES.find(c => c.key === categoryKey) || CATEGORIES[0];
+            const inCategory = all.filter(r => selected.statuses.includes(r.status));
+
             const card = addCard();
-            card.appendChild(el('div', 'chat-card-title', '최근 교환 신청 ' + list.length + '건'));
-            list.forEach(r => requestRow(card, r, true));
+            card.appendChild(el('div', 'chat-card-title', '교환 신청 · ' + selected.label + ' ' + inCategory.length + '건'));
+
+            // 분류별 건수 버튼: 누르면 그 상태의 신청을 보여 준다
+            const chips = el('div', 'chat-card-chips');
+            CATEGORIES.forEach(c => {
+                const count = all.filter(r => c.statuses.includes(r.status)).length;
+                const chip = addButton(chips, c.label + ' ' + count, 'chat-chip' + (c.key === selected.key ? ' is-active' : ''),
+                    () => showMyRequests(c.key, c.label + ' 보기'));
+                if (c.key === selected.key) chip.disabled = true;   // 지금 보고 있는 분류
+            });
+            card.appendChild(chips);
+
+            if (!inCategory.length) {
+                card.appendChild(el('p', 'chat-card-text', selected.label + ' 신청이 없어요.'));
+            }
+            inCategory.slice(0, MAX_ROWS).forEach(r => requestRow(card, r, selected.key === 'PENDING'));
+            if (inCategory.length > MAX_ROWS) {
+                card.appendChild(el('p', 'chat-card-more', '최근 ' + MAX_ROWS + '건만 보여요. 나머지는 전체 내역에서 확인해 주세요.'));
+            }
+
+            const actions = el('div', 'chat-card-actions');
+            const link = el('a', 'chat-link', '전체 교환 내역 보기');
+            link.href = ALL_HISTORY;
+            actions.appendChild(link);
+            card.appendChild(actions);
             scrollDown();
         } catch (e) {
             addMessage('ERROR', e.message);
@@ -161,7 +203,7 @@
         scrollDown();
     }
 
-    const quickActions = { 'my-requests': showMyRequests, 'cancel-request': showCancelable };
+    const quickActions = { 'my-requests': () => showMyRequests(), 'cancel-request': () => showCancelable() };
     document.getElementById('chat-quick').addEventListener('click', ev => {
         const button = ev.target.closest('[data-quick]');
         if (button) quickActions[button.dataset.quick]();
@@ -175,8 +217,8 @@
         card.appendChild(el('p', 'chat-card-text', serverMessage
             || 'AI 응답을 가져오지 못했어요. 아래 버튼으로 같은 기능을 쓸 수 있어요.'));
         const actions = el('div', 'chat-card-actions');
-        addButton(actions, '내 교환 신청 보기', 'chat-mini', showMyRequests);
-        addButton(actions, '교환 신청 취소하기', 'chat-mini', showCancelable);
+        addButton(actions, '내 교환 신청 보기', 'chat-mini', () => showMyRequests());
+        addButton(actions, '교환 신청 취소하기', 'chat-mini', () => showCancelable());
         card.appendChild(actions);
         scrollDown();
     }
