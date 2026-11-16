@@ -53,6 +53,11 @@
         listEl.scrollTop = listEl.scrollHeight;
     }
 
+    // 긴 목록 카드는 맨 위부터 보이게 한다 (맨 아래로 내리면 첫 항목이 가려진다). 카드가 짧으면 자연스럽게 맨 아래에 맞춰진다.
+    function scrollToCard(card) {
+        listEl.scrollTop += card.getBoundingClientRect().top - listEl.getBoundingClientRect().top - 8;
+    }
+
     // role: USER / ASSISTANT / TOOL / ERROR
     function addMessage(role, text) {
         const node = el('div', 'chat-msg is-' + role.toLowerCase());
@@ -153,7 +158,7 @@
             link.href = ALL_HISTORY;
             actions.appendChild(link);
             card.appendChild(actions);
-            scrollDown();
+            scrollToCard(card);
         } catch (e) {
             addMessage('ERROR', e.message);
         }
@@ -168,7 +173,7 @@
             const card = addCard();
             card.appendChild(el('div', 'chat-card-title', '취소할 신청을 골라 주세요'));
             list.forEach(r => requestRow(card, r, true));
-            scrollDown();
+            scrollToCard(card);
         } catch (e) {
             addMessage('ERROR', e.message);
         }
@@ -200,7 +205,7 @@
             addMessage('ASSISTANT', '취소하지 않고 그대로 두었어요.');
         });
         card.appendChild(actions);
-        scrollDown();
+        scrollToCard(card);
     }
 
     // 서비스 요약 버튼: AI 없이 정해진 안내를 바로 보여 준다 (내용은 resources/chat/service-guide.md와 맞춘다)
@@ -250,7 +255,7 @@
         addButton(actions, '내 교환 신청 보기', 'chat-mini', () => showMyRequests());
         addButton(actions, '교환 신청 취소하기', 'chat-mini', () => showCancelable());
         card.appendChild(actions);
-        scrollDown();
+        scrollToCard(card);
     }
 
     // ===================== 글로 묻기 (AI) =====================
