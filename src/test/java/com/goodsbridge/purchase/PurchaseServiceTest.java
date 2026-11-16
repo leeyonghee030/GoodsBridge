@@ -94,7 +94,7 @@ class PurchaseServiceTest {
         Purchase purchase = Purchase.builder()
             .item(item).user(mock(User.class)).paymentId("payment-1")
             .deliveryAddress("Seoul").build();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         PurchaseRequest.ShippingDto dto = new PurchaseRequest.ShippingDto();
         dto.setTrackingNumber("TRACK-1");
@@ -435,7 +435,7 @@ class PurchaseServiceTest {
         when(item.getSellerUserId()).thenReturn(sellerUserId);
         Purchase purchase = Purchase.builder().item(item).user(mock(User.class)).paymentId("payment-1")
             .deliveryAddress("Seoul").build();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
         return purchase;
     }
 

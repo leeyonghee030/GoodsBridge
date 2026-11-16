@@ -65,17 +65,6 @@ public class Payment {
         return this.status == PaymentStatus.PAID;
     }
 
-    // 검증 통과 후 결제 완료로 변경 처리
-    public void markPaid(String pgTxId) {
-        this.status = PaymentStatus.PAID;
-        this.pgTxId = pgTxId;
-    }
-
-    // 취소 처리
-    public void markCancelled(){
-        this.status = PaymentStatus.CANCELLED;
-    }
-
     public Integer getRefundableAmount() {
         return Math.max(0, amount - refundedAmount);
     }

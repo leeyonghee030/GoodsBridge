@@ -56,6 +56,9 @@ public class AuctionService {
     // 경매 개설
     @Transactional
     public AuctionResponse create(Long userId, Long shopId, AuctionRequest request) {
+        if (request == null) {
+            throw new BadRequestException("경매 등록 요청 값이 필요합니다.");
+        }
         request.validate(); // 유효성 검사
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
@@ -151,6 +154,9 @@ public class AuctionService {
     // 경매 수정: 가게 주인만, 입찰이 하나도 없을 때만 (시작가 · 마감 시간 · 보증금)
     @Transactional
     public AuctionResponse update(Long userId, Long auctionId, AuctionUpdateRequest request) {
+        if (request == null) {
+            throw new BadRequestException("경매 수정 요청 값이 필요합니다.");
+        }
         request.validate();
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -179,7 +185,7 @@ public class AuctionService {
         return new AuctionReceiptResponse(auction, bidCount, purchase);
     }
 
-    // 가게의 경매 정산 내역: 낙찰 정산(AUCTION_SALE) + 낙찰자 미결제로 받은 보증금(NO_SHOW_FEE 중 경매 건)
+    // 가게의 경매 정산 내역: 낙찰 정산 + 낙찰자 미결제로 받은 보증금
     @Transactional(readOnly = true)
     public java.util.List<AuctionSettlementResponse> getShopSettlements(Long userId, Long shopId) {
         Shop shop = shopRepository.findById(shopId)
@@ -188,14 +194,14 @@ public class AuctionService {
             throw new ForbiddenException("본인 가게의 정산 내역만 조회할 수 있습니다.");
         }
         java.util.List<AuctionSettlementResponse> result = new java.util.ArrayList<>();
-        for (SettlementHistory history : settlementHistoryRepository.findByAllShopId(shopId)) {
+        for (SettlementHistory history : settlementHistoryRepository.findAuctionSettlementsByShop(shopId)) {
             String paymentId = history.getPayment().getPaymentId();
             if (history.getType() == SettlementHistoryType.AUCTION_SALE) {
                 auctionRepository.findByBalancePaymentId(paymentId).ifPresent(a ->
                     result.add(new AuctionSettlementResponse(a, "AUCTION_SALE", history.getAmount(), history.getCreatedAt())));
-            } else if (history.getType() == SettlementHistoryType.NO_SHOW_FEE) {
+            } else if (history.getType() == SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT) {
                 auctionRepository.findByWinningPaymentId(paymentId).ifPresent(a ->
-                    result.add(new AuctionSettlementResponse(a, "NO_SHOW_FEE", history.getAmount(), history.getCreatedAt())));
+                    result.add(new AuctionSettlementResponse(a, "AUCTION_DEPOSIT_FORFEIT", history.getAmount(), history.getCreatedAt())));
             }
         }
         return result;
@@ -298,12 +304,23 @@ public class AuctionService {
         closeInternal(auction);
     }
 
-    // 낙찰자 잔금 결제
+    // 낙찰자 잔금 결제 (서버가 거절하면 이미 승인된 잔금 PortOne 결제를 자동 취소한다)
     @Transactional
     public AuctionResponse payBalance(Long userId, Long auctionId, BalancePayRequest request) {
         if (request == null || request.getPaymentId() == null || request.getPaymentId().isBlank()) {
             throw new BadRequestException("잔금 결제 ID가 필요합니다.");
         }
+        try {
+            return doPayBalance(userId, auctionId, request);
+        } catch (RuntimeException e) {
+            // 취소 실패는 로그만 남기고 원래 예외를 그대로 던진다 (이미 기록된 결제는 취소되지 않는다)
+            paymentService.cancelUnrecorded(request.getPaymentId(), "잔금 결제 처리 실패로 인한 자동 취소");
+            throw e;
+        }
+    }
+
+    // 잔금 결제 본 처리
+    private AuctionResponse doPayBalance(Long userId, Long auctionId, BalancePayRequest request) {
         // 마감/미납 처리 스케줄러와 겹치지 않도록 경매 행을 잠근다
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -343,11 +360,10 @@ public class AuctionService {
         // 가게 정산: 실제로 잔금 결제가 완료된 시점에 보증금 + 잔금인 낙찰가 전액을 기록한다.
         Payment payment = paymentRepository.findByPaymentId(balancePaymentId)
             .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
-        int auctionSettlementAmount = auction.getAuctionSettlementAmount();
         settlementHistoryService.calculate(
             auction.getShop(),
             payment,
-            auctionSettlementAmount,
+            auction.getAuctionSettlementAmount(),
             SettlementHistoryType.AUCTION_SALE
         );
         return new AuctionResponse(auction);
@@ -416,7 +432,7 @@ public class AuctionService {
                 auction.getShop(),
                 deposit,
                 auction.getDepositAmount(),
-                SettlementHistoryType.NO_SHOW_FEE
+                SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT
             );
         }
     }

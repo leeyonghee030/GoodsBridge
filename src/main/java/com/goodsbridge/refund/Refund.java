@@ -76,17 +76,8 @@ public class Refund {
         if (status == Status.APPROVED) {
             throw new BadRequestException("이미 승인된 환불 요청입니다.");
         }
-        if (status != Status.REQUESTED) {
-            throw new BadRequestException("처리 대기 중인 환불만 승인할 수 있습니다.");
-        }
-        this.status = Status.APPROVED;
-        this.updatedAt = new Timestamp(System.currentTimeMillis());
-    }
-
-    // 가게가 거절했던 환불을 다시 검토해 승인한다 (실수로 거절한 경우)
-    public void reapprove() {
-        if (status != Status.REJECTED) {
-            throw new BadRequestException("거절된 환불만 다시 승인할 수 있습니다.");
+        if (status != Status.REQUESTED && status != Status.REJECTED) {
+            throw new BadRequestException("처리 대기 중이거나 거절된 환불만 승인할 수 있습니다.");
         }
         this.rejectReason = null;
         this.status = Status.APPROVED;

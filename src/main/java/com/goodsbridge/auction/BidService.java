@@ -30,12 +30,26 @@ public class BidService {
     private final PaymentService paymentService;
     private final ShopRepository shopRepository;
 
-    // 입찰 여부 판단
+    // 입찰 (서버가 거절하면 이미 승인된 보증금 PortOne 결제를 자동 취소한다)
     @Transactional
     public BidResponse placeBid(Long auctionId, Long userId, BidRequest request) {
         if (request == null) {
             throw new BadRequestException("입찰 요청이 필요합니다.");
         }
+        try {
+            return doPlaceBid(auctionId, userId, request);
+        } catch (RuntimeException e) {
+            // 어떤 사유로 거절되든 서버에 기록되지 않은 결제는 취소한다 (이미 기록된 결제는 취소되지 않는다)
+            String paymentId = request.getPaymentId();
+            if (paymentId != null && !paymentId.isBlank()) {
+                paymentService.cancelUnrecorded(paymentId, "입찰 처리 실패로 인한 자동 취소");
+            }
+            throw e;
+        }
+    }
+
+    // 입찰 본 처리
+    private BidResponse doPlaceBid(Long auctionId, Long userId, BidRequest request) {
         // 1. 비관적 락으로 경매 조회 (동시성 제어 지점)
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -59,6 +73,11 @@ public class BidService {
         if (auction.getStatus() != Status.ACTIVE
             || !LocalDateTime.now().isBefore(auction.getDeadline())) {
             throw new BadRequestException("진행 중이며 마감되지 않은 경매만 입찰할 수 있습니다.");
+        }
+
+        if (auction.getCurrentWinner() != null
+            && auction.getCurrentWinner().getId().equals(userId)) {
+            throw new BadRequestException("현재 최고 입찰자는 다시 입찰할 수 없습니다.");
         }
 
         // 4. 현재가 검증: 아직 입찰이 없으면(현재가 = 시작가) 시작가 이상, 이미 입찰이 있으면 현재가보다 높아야 한다

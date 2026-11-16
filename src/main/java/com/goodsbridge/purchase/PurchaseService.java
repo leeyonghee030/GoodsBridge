@@ -46,6 +46,7 @@ public class PurchaseService {
     private final SettlementHistoryService settlementHistoryService;
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher publisher;
+
     // 구매 (서버가 거절하면 이미 승인된 PortOne 결제를 자동 취소한다)
     @Transactional
     public PurchaseResponse.DetailDto purchase(Long itemId, Long userId, PurchaseRequest.CreateDto createDto) {
@@ -164,6 +165,9 @@ public class PurchaseService {
     // 배송
     @Transactional
     public void shipping(Long purchaseId, Long userId, PurchaseRequest.ShippingDto shippingDto) {
+        if (shippingDto == null) {
+            throw new BadRequestException("배송 요청 값이 필요합니다.");
+        }
         // 구매 내역 조회
         Purchase purchase = purchaseRepository.findByIdLock(purchaseId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구매 내역입니다."));

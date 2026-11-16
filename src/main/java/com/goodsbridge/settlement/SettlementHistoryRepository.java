@@ -3,6 +3,7 @@ package com.goodsbridge.settlement;
 import com.goodsbridge.payment.Payment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,6 +36,30 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
                                            @Param("fromAt") LocalDateTime fromAt,
                                            @Param("toAt") LocalDateTime toAt,
                                            Pageable pageable);
+
+    // 경매 관리 화면용 정산 목록. 기존 화면 계약이 List이므로 경매 유형만 조회한다.
+    @Query("""
+        select s
+        from SettlementHistory s
+        join fetch s.payment
+        where s.shop.id = :shopId
+          and s.type in (
+              com.goodsbridge.settlement.SettlementHistoryType.AUCTION_SALE,
+              com.goodsbridge.settlement.SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT
+          )
+        order by s.id desc
+        """)
+    List<SettlementHistory> findAuctionSettlementsByShop(@Param("shopId") Long shopId);
+
+    // 결제, 정산 삭제
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        delete from SettlementHistory s
+        where s.payment = :payment
+          and s.type = :type
+        """)
+    void deleteByPaymentAndType(@Param("payment") Payment payment,
+                               @Param("type") SettlementHistoryType type);
 
     // 유형별 건수와 합계
     @Query("""

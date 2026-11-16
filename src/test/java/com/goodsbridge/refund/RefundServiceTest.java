@@ -13,6 +13,7 @@ import com.goodsbridge.shop.ShopSubscriptionService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.purchase.PurchaseStatus;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import com.goodsbridge.user.Role;
@@ -26,6 +27,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
@@ -74,6 +77,9 @@ class RefundServiceTest {
             .purpose(PaymentPurpose.PURCHASE).build();
         RefundRequest request = request("p-1", 3_000, "상품 환불");
         when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+        Purchase purchase = Purchase.builder().item(mock(Item.class)).user(user).paymentId("p-1")
+            .deliveryAddress("Seoul").build();
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
         when(userRepository.getReferenceById(1L)).thenReturn(user);
         when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -82,6 +88,43 @@ class RefundServiceTest {
         ArgumentCaptor<Refund> captor = ArgumentCaptor.forClass(Refund.class);
         verify(refundRepository).save(captor.capture());
         assertEquals(RefundType.PURCHASE, captor.getValue().getType());
+    }
+
+    @Test
+    void request_allowsRefundAfterDelivery() {
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+        Payment payment = Payment.builder().paymentId("p-1").user(user).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+        Purchase purchase = Purchase.builder().item(mock(Item.class)).user(user).paymentId("p-1")
+            .deliveryAddress("Seoul").build();
+        purchase.ship("TRACK-1");
+        purchase.markDelivered();
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
+        when(userRepository.getReferenceById(1L)).thenReturn(user);
+        when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        refundService.request(1L, request("p-1", 3_000, "상품 하자"));
+
+        verify(refundRepository).save(any(Refund.class));
+    }
+
+    @Test
+    void request_rejectsRefundWhileShipping() {
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+        Payment payment = Payment.builder().paymentId("p-1").user(user).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+        Purchase purchase = Purchase.builder().item(mock(Item.class)).user(user).paymentId("p-1")
+            .deliveryAddress("Seoul").build();
+        purchase.ship("TRACK-1");   // 배송중
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
+
+        assertThrows(BadRequestException.class,
+            () -> refundService.request(1L, request("p-1", 3_000, "단순 변심")));
+        verify(refundRepository, never()).save(any(Refund.class));
     }
 
     @Test
@@ -247,7 +290,7 @@ class RefundServiceTest {
     }
 
     @Test
-    void approve_fullRefundReopensSoldItemAndRemovesPurchase() {
+    void approve_fullRefundReopensSoldItemAndMarksPurchaseRefunded() {
         Item item = mock(Item.class);
         when(item.getStatus()).thenReturn(ItemStatus.SOLD);
         when(item.getShopId()).thenReturn(null);   // 가게 상품이 아니면 구독과 무관하게 다시 연다
@@ -256,7 +299,8 @@ class RefundServiceTest {
         refundService.approve(1L, 7L);
 
         verify(item).updateStatus(ItemStatus.ON_SALE);
-        verify(purchaseRepository).delete(purchase);
+        assertEquals(PurchaseStatus.REFUNDED, purchase.getStatus());
+        verify(purchaseRepository, never()).delete(any());
     }
 
     @Test
@@ -268,7 +312,8 @@ class RefundServiceTest {
         refundService.approve(1L, 7L);
 
         verify(item, never()).updateStatus(any());
-        verify(purchaseRepository).delete(purchase);
+        assertEquals(PurchaseStatus.REFUNDED, purchase.getStatus());
+        verify(purchaseRepository, never()).delete(any());
     }
 
     @Test
@@ -283,7 +328,8 @@ class RefundServiceTest {
 
         verify(item).updateStatus(ItemStatus.ON_SALE);
         verify(item, never()).deleteItem();
-        verify(purchaseRepository).delete(purchase);
+        assertEquals(PurchaseStatus.REFUNDED, purchase.getStatus());
+        verify(purchaseRepository, never()).delete(any());
     }
 
     @Test
@@ -299,7 +345,8 @@ class RefundServiceTest {
         verify(item).pauseBySubscription();
         verify(item, never()).deleteItem();
         verify(item, never()).updateStatus(ItemStatus.ON_SALE);
-        verify(purchaseRepository).delete(purchase);
+        assertEquals(PurchaseStatus.REFUNDED, purchase.getStatus());
+        verify(purchaseRepository, never()).delete(any());
     }
 
     // 10,000원 전액 환불 승인 상황을 구성한다 (PortOne 취소 성공 시 Payment 가 전액 환불 처리됨).
@@ -562,5 +609,19 @@ class RefundServiceTest {
         assertEquals(7_000, payment.getRefundableAmount());
         verify(paymentService).refund("p-1", 3_000, "상품 하자");
         verifyNoInteractions(settlementHistoryService);
+    }
+
+    @Test
+    void findAllAdmin_usesStatusAndPageable() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(admin));
+        when(refundRepository.findAllAdminPage(eq(Status.REQUESTED), any(PageRequest.class)))
+            .thenReturn(new PageImpl<>(java.util.List.of()));
+
+        var result = refundService.findAllAdmin(2L, Status.REQUESTED, PageRequest.of(1, 20));
+
+        assertEquals(0, result.getTotalElements());
+        verify(refundRepository).findAllAdminPage(eq(Status.REQUESTED), eq(PageRequest.of(1, 20)));
     }
 }

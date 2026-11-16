@@ -65,10 +65,11 @@ public class RefundViewController {
     @GetMapping("/api/admin/refunds")
     public ResponseEntity<Page<RefundResponse.ListDto>> findAllAdmin(
         @RequestParam(defaultValue = "0") int page,
-        @RequestParam(defaultValue = "50") int size) {
+        @RequestParam(defaultValue = "50") int size,
+        @RequestParam(required = false) Status status) {
         Long adminUserId = SecurityUtil.getCurrentUserId();
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
-        return ResponseEntity.ok(refundService.findAllAdmin(adminUserId, pageable));
+        return ResponseEntity.ok(refundService.findAllAdmin(adminUserId, status, pageable));
     }
 
     // 가게 직접 환불 (하자/불량 등 가게 책임, 관리자 승인 없이 즉시 전체/부분 환불)

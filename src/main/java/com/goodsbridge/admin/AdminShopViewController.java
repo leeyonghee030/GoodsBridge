@@ -5,7 +5,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-// 관리자: 입점 신청 승인 / 구독 현황 화면 (데이터는 기존 /api/admin/shops/*, /api/admin/subscriptions 를 사용)
+// 관리자: 입점 신청 승인 / 구독 현황 / 환불 관리 화면
 @Controller
 public class AdminShopViewController {
 

@@ -78,10 +78,15 @@ class AuctionPaymentServiceTest {
         lenient().when(auction.getItem()).thenReturn(item);
     }
 
+    // 서버가 거절한 잔금 결제는 기록되지 않았으므로 자동 취소를 요청해야 한다
+    private void verifyBalanceCancelled() {
+        verify(paymentService).cancelUnrecorded("balance-1", "잔금 결제 처리 실패로 인한 자동 취소");
+    }
+
     // ===================== payBalance =====================
 
     @Test
-    void payBalance_verifiesPayment_marksItemSold_andRecordsTenPercentAuctionFee() {
+    void payBalance_verifiesPayment_marksItemSold_andRecordsFullAuctionSale() {
         when(paymentService.verify("balance-1", 9_000, PaymentPurpose.AUCTION_BALANCE, 2L))
             .thenReturn("balance-1");
         when(paymentRepository.findByPaymentId("balance-1")).thenReturn(Optional.of(payment));
@@ -101,13 +106,14 @@ class AuctionPaymentServiceTest {
     }
 
     @Test
-    void payBalance_rejectsOverdueAuctionBeforePortOneVerification() {
+    void payBalance_rejectsOverdueAuctionBeforePortOneVerificationAndCancelsPayment() {
         when(auction.isBalanceOverdue(any(LocalDateTime.class))).thenReturn(true);
 
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
         verifyNoInteractions(settlementHistoryService);
         verify(auction, never()).completeBalance(any());
     }
@@ -131,7 +137,8 @@ class AuctionPaymentServiceTest {
         assertThrows(NotFoundException.class,
             () -> auctionService.payBalance(2L, 99L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -141,7 +148,8 @@ class AuctionPaymentServiceTest {
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -149,7 +157,8 @@ class AuctionPaymentServiceTest {
         assertThrows(ForbiddenException.class,
             () -> auctionService.payBalance(3L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
         verifyNoInteractions(settlementHistoryService);
     }
 
@@ -160,7 +169,8 @@ class AuctionPaymentServiceTest {
         assertThrows(ForbiddenException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -170,7 +180,8 @@ class AuctionPaymentServiceTest {
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
         verifyNoInteractions(settlementHistoryService);
     }
 
@@ -181,7 +192,8 @@ class AuctionPaymentServiceTest {
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -195,6 +207,7 @@ class AuctionPaymentServiceTest {
         verify(auction, never()).completeBalance(any());
         verify(item, never()).updateStatus(any());
         verifyNoInteractions(settlementHistoryService);
+        verify(paymentService).cancelUnrecorded("balance-1", "잔금 결제 처리 실패로 인한 자동 취소");
     }
 
     @Test
@@ -207,6 +220,13 @@ class AuctionPaymentServiceTest {
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
         verifyNoInteractions(settlementHistoryService);
+        verify(paymentService).cancelUnrecorded("balance-1", "잔금 결제 처리 실패로 인한 자동 취소");
+    }
+
+    @Test
+    void update_rejectsNullRequest() {
+        assertThrows(BadRequestException.class, () -> auctionService.update(1L, 1L, null));
+        verifyNoInteractions(auctionRepository);
     }
 
     // ===================== refundLosers =====================
@@ -299,7 +319,7 @@ class AuctionPaymentServiceTest {
     // ===================== forfeitUnpaid =====================
 
     @Test
-    void forfeitUnpaid_changesStatus_andRecordsWinnerDepositAsNoShowFee() {
+    void forfeitUnpaid_changesStatus_andRecordsWinnerDepositAsDepositForfeit() {
         when(auction.isBalancePaid()).thenReturn(false);
         when(auction.isBalanceOverdue(any(LocalDateTime.class))).thenReturn(true);
         when(auction.getWinningPaymentId()).thenReturn("deposit-1");
@@ -310,7 +330,7 @@ class AuctionPaymentServiceTest {
 
         verify(auction).forfeitUnpaid();
         verify(settlementHistoryService).calculate(
-            shop, payment, 1_000, SettlementHistoryType.NO_SHOW_FEE);
+            shop, payment, 1_000, SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT);
     }
 
     @Test

@@ -22,29 +22,14 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         """)
     List<Refund> findAllByUserIdOrderByIdDesc(@Param("userId") Long userId);
 
-    // 관리자 - 승인할 환불 요청 1건 조회
-    @Query("""
-        select r from Refund r
-        join fetch r.user
-        join fetch r.payment
-        where r.id  = :id
-        """)
-    Optional<Refund> findByIdJoinUserAndPayment(@Param("id") Long id);
-
-    @Query("""
-        select r from Refund r
-        join fetch r.payment
-        order by r.id desc
-        """)
-    List<Refund> findAllByOrderByIdDesc();
-
     @Query(value = """
         select r from Refund r
         join fetch r.payment
+         where (:status is null or r.status = :status)
         order by r.id desc
         """,
-        countQuery = "select count(r) from Refund r")
-    Page<Refund> findAllAdminPage(Pageable pageable);
+         countQuery = "select count(r) from Refund r where (:status is null or r.status = :status)")
+    Page<Refund> findAllAdminPage(@Param("status") Status status, Pageable pageable);
 
     // 중복 환불 요청 방지
     @Query("""

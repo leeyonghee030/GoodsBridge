@@ -51,11 +51,14 @@ public class RefundService {
     private final AuctionRepository auctionRepository;
     private final SettlementHistoryRepository settlementHistoryRepository;
     private final ApplicationEventPublisher publisher;
-    private static final Set<DeliveryStatus> REFUNDABLE_DELIVERY_STATUSES = EnumSet.of(DeliveryStatus.PREPARING);
+    private static final Set<DeliveryStatus> REFUNDABLE_DELIVERY_STATUSES = EnumSet.of(DeliveryStatus.PREPARING, DeliveryStatus.DELIVERED);
 
     // 환불 요청
     @Transactional
     public RefundResponse.ListDto request(Long userId, RefundRequest request) {
+        if (request == null) {
+            throw new BadRequestException("환불 요청 값이 필요합니다.");
+        }
         request.validate();
         // 환불 가능 금액 확인과 대기 요청 중복 확인을 하나의 결제 행 잠금 안에서 처리한다.
         Payment payment = paymentRepository.findByPaymentIdLock(request.getPaymentId())
@@ -80,7 +83,7 @@ public class RefundService {
             Purchase purchase = purchaseRepository.findByPaymentId(payment.getPaymentId())
                 .orElseThrow(() -> new NotFoundException("해당 결제의 구매 내역을 찾을 수 없습니다."));
             if (!REFUNDABLE_DELIVERY_STATUSES.contains(purchase.getDeliveryStatus())) {
-                throw new BadRequestException("배송이 시작되기 전의 구매만 환불을 요청할 수 있습니다.");
+                throw new BadRequestException("배송 준비중이거나 배송이 완료된 구매만 환불을 요청할 수 있습니다.");
             }
         }
         User user = userRepository.getReferenceById(userId);
@@ -184,10 +187,14 @@ public class RefundService {
         // 외부 호출(PortOne 취소)은 되돌릴 수 없으므로 DB 쪽 상태 변경과 정산 기록을 먼저 끝내고 가장 마지막에 호출한다.
         // 앞 단계에서 예외가 나면 PortOne 취소 없이 전체가 롤백된다.
         refund.approve();
-        createSettlementIfNeeded(refund, payment);
-        boolean fullRefund = refund.getRequestedAmount().intValue() == payment.getRefundableAmount();   // Integer끼리 ==로 비교하면 안 된다
-        reopenItemIfFullyRefunded(payment, fullRefund);
-        paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
+        if (auction) {
+            refundAuctionAll(payment, refund.getReason());
+        } else {
+            createSettlementIfNeeded(refund, payment);
+            boolean fullRefund = refund.getRequestedAmount().intValue() == payment.getRefundableAmount();   // Integer끼리 ==로 비교하면 안 된다
+            reopenItemIfFullyRefunded(payment, fullRefund);
+            paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
+        }
     }
 
     // 구매 상품을 전액 환불하면 거래를 종료하고 상품을 다시 판매 목록에 노출한다. 이때 구매 내역에 환불 이력을 남긴다.
@@ -234,10 +241,23 @@ public class RefundService {
     // 경매 낙찰 전액 환불: 잔금 + 보증금을 모두 환불하고, 이미 기록된 가게 정산(낙찰가 전액)을 취소한다
     // (외부 PortOne 취소는 DB 변경 뒤 마지막에 호출)
     private void refundAuctionAll(Payment balance, String reason) {
+        // 이 삭제 쿼리는 영속성 컨텍스트를 비우므로(clearAutomatically) 가장 먼저 실행한다.
+        // 이후에 조회한 엔티티만 변경 감지가 되어 상품 상태와 구매 상태가 저장된다.
+        settlementHistoryRepository.deleteByPaymentAndType(balance, SettlementHistoryType.AUCTION_SALE);
         Auction auction = auctionRepository.findByBalancePaymentId(balance.getPaymentId()).orElse(null);
         Payment deposit = auction == null || auction.getWinningPaymentId() == null ? null
             : paymentRepository.findByPaymentIdLock(auction.getWinningPaymentId()).orElse(null);
-        settlementHistoryRepository.deleteByPaymentAndType(balance, SettlementHistoryType.AUCTION_SALE);
+        if (auction != null) {
+            Item item = auction.getItem();
+            if (item != null && item.getStatus() == ItemStatus.SOLD) {
+                if (item.getShopId() != null && !shopSubscriptionService.isSubscriptionActive(item.getShopId())) {
+                    item.pauseBySubscription();
+                } else {
+                    item.updateStatus(ItemStatus.ON_SALE);
+                }
+            }
+            purchaseRepository.findByPaymentId(balance.getPaymentId()).ifPresent(Purchase::refund);
+        }
         int balanceAmount = balance.getRefundableAmount();
         if (balanceAmount > 0) {
             paymentService.refund(balance.getPaymentId(), balanceAmount, reason);
@@ -314,9 +334,9 @@ public class RefundService {
     }
 
     // 환불 목록 조회
-    public Page<RefundResponse.ListDto> findAllAdmin(Long adminId, Pageable pageable) {
+    public Page<RefundResponse.ListDto> findAllAdmin(Long adminId, Status status, Pageable pageable) {
         validateAdmin(adminId);
-        return refundRepository.findAllAdminPage(pageable).map(RefundResponse.ListDto::new);
+        return refundRepository.findAllAdminPage(status, pageable).map(RefundResponse.ListDto::new);
     }
 
     // 자신의 환불 내역 찾기
@@ -328,6 +348,9 @@ public class RefundService {
     // 가게 책임 환불: 하자/불량 등으로 가게가 관리자 승인 없이 직접 결제를 환불한다 (전체/부분 환불)
     @Transactional
     public RefundResponse.ListDto refundByShop(Long userId, Long shopId, ShopRefundRequest shopRefundRequest) {
+        if (shopRefundRequest == null) {
+            throw new BadRequestException("환불 요청 값이 필요합니다.");
+        }
         shopRefundRequest.validate();
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
@@ -372,9 +395,13 @@ public class RefundService {
             .type(RefundType.PURCHASE)
             .build());
         // 외부 호출(PortOne 취소)은 DB 변경을 끝낸 뒤 마지막에 호출한다.
-        boolean fullRefund = shopRefundRequest.getRequestedAmount().intValue() == payment.getRefundableAmount();
-        reopenItemIfFullyRefunded(payment, fullRefund);
-        paymentService.refund(payment.getPaymentId(), shopRefundRequest.getRequestedAmount(), shopRefundRequest.getReason());
+        if (auction) {
+            refundAuctionAll(payment, shopRefundRequest.getReason());
+        } else {
+            boolean fullRefund = shopRefundRequest.getRequestedAmount().intValue() == payment.getRefundableAmount();
+            reopenItemIfFullyRefunded(payment, fullRefund);
+            paymentService.refund(payment.getPaymentId(), shopRefundRequest.getRequestedAmount(), shopRefundRequest.getReason());
+        }
         return new RefundResponse.ListDto(refund);
     }
 

@@ -7,6 +7,7 @@ import com.goodsbridge.payment.Payment;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -68,15 +69,9 @@ public class SettlementHistoryService {
         return to == null ? MAX_TIME : to.plusDays(1).atStartOfDay();   // 종료일 하루 전체 포함
     }
 
-    // 수수료 없이 정산 기록 (기존 호출부 호환)
+    // 정산 기록. 같은 결제와 유형은 한 번만 기록한다.
     @Transactional
     public void calculate(Shop shop, Payment payment, Integer amount, SettlementHistoryType type) {
-        calculate(shop, payment, amount, 0, type);
-    }
-
-    // 총액(amount)과 플랫폼 수수료(platformFee)를 함께 기록. 같은 결제+타입은 한 번만 기록한다.
-    @Transactional
-    public void calculate(Shop shop, Payment payment, Integer amount, Integer platformFee, SettlementHistoryType type) {
         if (shop == null || payment == null || type == null) {
             throw new BadRequestException("정산 생성에 필요한 값이 없습니다.");
         }
@@ -86,9 +81,11 @@ public class SettlementHistoryService {
         if (settlementHistoryRepository.existsByPaymentAndType(payment, type)) {
             return;
         }
-        if (platformFee == null || platformFee < 0 || platformFee > amount) {
-            throw new BadRequestException("플랫폼 수수료가 올바르지 않습니다.");
+        try {
+            settlementHistoryRepository.save(new SettlementHistory(shop, payment, amount, type));
+        } catch (DataIntegrityViolationException e) {
+            // exists 검사를 동시에 통과한 중복 요청 -> uk_settlement_payment_type 제약이 마지막 방어선
+            throw new BadRequestException("이미 정산이 기록된 결제입니다.");
         }
-        settlementHistoryRepository.save(new SettlementHistory(shop, payment, amount, platformFee, type));
     }
 }

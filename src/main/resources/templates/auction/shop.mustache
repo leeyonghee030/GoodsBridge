@@ -651,7 +651,7 @@
             ? list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).map(x => `
                 <a class="se-fee-row" href="#" data-receipt="${x.auctionId}">
                     <span class="at">${fmt(x.createdAt)}</span>
-                    <span class="who"><strong>${esc(x.itemTitle)}</strong><small>${x.type === 'NO_SHOW_FEE' ? '낙찰자 미결제 · 보증금만 정산' : `보증금 ${money(x.depositAmount)} + 잔금 ${money(x.balanceAmount)}`}</small></span>
+                    <span class="who"><strong>${esc(x.itemTitle)}</strong><small>${x.type === 'AUCTION_DEPOSIT_FORFEIT' ? '낙찰자 미결제 · 보증금만 정산' : `보증금 ${money(x.depositAmount)} + 잔금 ${money(x.balanceAmount)}`}</small></span>
                     <span class="amt">+${money(x.amount)}</span>
                 </a>`).join('')
             : `<div class="se-fee-empty">${feeDay === null ? (cm + 1) + '월' : (cm + 1) + '월 ' + feeDay + '일'}에는 경매 정산이 없어요.</div>`;

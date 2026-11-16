@@ -12,6 +12,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -45,7 +48,7 @@ class SettlementHistoryServiceTest {
 
         // when
         settlementHistoryService.calculate(
-            shop, payment, 50_000, 5_000,
+            shop, payment, 50_000,
             SettlementHistoryType.AUCTION_SALE
         );
 
@@ -58,14 +61,12 @@ class SettlementHistoryServiceTest {
         SettlementHistory saved = captor.getValue();
 
         assertEquals(50_000, saved.getAmount());
-        assertEquals(5_000, saved.getPlatformFee());
-        assertEquals(45_000, saved.getNetAmount());
         assertEquals(SettlementHistoryType.AUCTION_SALE, saved.getType());
     }
 
     // 플랫폼 수수료 없이 정산 기록 생성
     @Test
-    void calculate_savesSettlementWithZeroPlatformFee() {
+    void calculate_savesSettlementWithoutPlatformFee() {
         // given
         Shop shop = mock(Shop.class);
         Payment payment = mock(Payment.class);
@@ -89,8 +90,21 @@ class SettlementHistoryServiceTest {
         SettlementHistory saved = captor.getValue();
 
         assertEquals(30_000, saved.getAmount());
-        assertEquals(0, saved.getPlatformFee());
-        assertEquals(30_000, saved.getNetAmount());
+        assertEquals(SettlementHistoryType.NO_SHOW_FEE, saved.getType());
+    }
+
+    // 동시 요청으로 unique 제약에 걸리면 500이 아니라 400으로 응답
+    @Test
+    void calculate_convertsDuplicateKeyViolationToBadRequest() {
+        Shop shop = mock(Shop.class);
+        Payment payment = mock(Payment.class);
+        when(settlementHistoryRepository.existsByPaymentAndType(payment, SettlementHistoryType.PURCHASE_FEE))
+            .thenReturn(false);
+        when(settlementHistoryRepository.save(any(SettlementHistory.class)))
+            .thenThrow(new DataIntegrityViolationException("duplicate"));
+
+        assertThrows(BadRequestException.class,
+            () -> settlementHistoryService.calculate(shop, payment, 10_000, SettlementHistoryType.PURCHASE_FEE));
     }
 
     // 정산 금액이 0 이하이거나 null이면 저장하지 않음
@@ -130,7 +144,7 @@ class SettlementHistoryServiceTest {
 
         // when
         settlementHistoryService.calculate(
-            shop, payment, 30_000, 3_000,
+            shop, payment, 30_000,
             SettlementHistoryType.PURCHASE_FEE
         );
 
@@ -169,44 +183,6 @@ class SettlementHistoryServiceTest {
         verifyNoInteractions(settlementHistoryRepository);
     }
 
-    // 플랫폼 수수료가 올바르지 않으면 예외 발생
-    @Test
-    void calculate_rejectsInvalidPlatformFee() {
-        // given
-        Shop shop = mock(Shop.class);
-        Payment payment = mock(Payment.class);
-
-        when(settlementHistoryRepository.existsByPaymentAndType(
-            payment, SettlementHistoryType.PURCHASE_FEE
-        )).thenReturn(false);
-
-        // when & then
-        assertAll(
-            // 수수료가 null인 경우
-            () -> assertThrows(BadRequestException.class,
-                () -> settlementHistoryService.calculate(
-                    shop, payment, 50_000, null,
-                    SettlementHistoryType.PURCHASE_FEE
-                )),
-
-            // 수수료가 음수인 경우
-            () -> assertThrows(BadRequestException.class,
-                () -> settlementHistoryService.calculate(
-                    shop, payment, 50_000, -1,
-                    SettlementHistoryType.PURCHASE_FEE
-                )),
-
-            // 수수료가 정산 금액보다 큰 경우
-            () -> assertThrows(BadRequestException.class,
-                () -> settlementHistoryService.calculate(
-                    shop, payment, 50_000, 50_001,
-                    SettlementHistoryType.PURCHASE_FEE
-                ))
-        );
-
-        verify(settlementHistoryRepository, never()).save(any());
-    }
-
     // 본인 소유가 아닌 가게의 정산 내역 조회 차단
     @Test
     void findByShop_rejectsNonOwner() {
@@ -218,7 +194,8 @@ class SettlementHistoryServiceTest {
 
         // when & then
         assertThrows(ForbiddenException.class,
-            () -> settlementHistoryService.findByShop(1L, 9L));
+            () -> settlementHistoryService.findByShop(
+                1L, 9L, null, null, null, PageRequest.of(0, 20)));
 
         verifyNoInteractions(settlementHistoryRepository);
     }
@@ -239,9 +216,47 @@ class SettlementHistoryServiceTest {
                 1L,
                 null,
                 LocalDate.of(2026, 11, 12),
-                LocalDate.of(2026, 11, 10)
+                LocalDate.of(2026, 11, 10),
+                PageRequest.of(0, 20)
             ));
 
         verifyNoInteractions(settlementHistoryRepository);
+    }
+
+    @Test
+    void findByShop_usesDatabasePagingAndMapsPage() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(1L)).thenReturn(true);
+        when(shopRepository.findById(1L)).thenReturn(Optional.of(shop));
+        when(settlementHistoryRepository.findPageByShop(
+            eq(1L), isNull(), any(), any(), any(PageRequest.class)))
+            .thenReturn(new PageImpl<>(java.util.List.of()));
+
+        var result = settlementHistoryService.findByShop(
+            1L, 1L, null, null, null, PageRequest.of(0, 20));
+
+        assertEquals(0, result.getTotalElements());
+        verify(settlementHistoryRepository).findPageByShop(
+            eq(1L), isNull(), any(), any(), eq(PageRequest.of(0, 20)));
+    }
+
+    @Test
+    void summarizeByShop_subtractsSubscriptionExpenseOnlyForAllTypes() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(1L)).thenReturn(true);
+        when(shopRepository.findById(1L)).thenReturn(Optional.of(shop));
+        when(settlementHistoryRepository.summarizeByType(eq(1L), isNull(), any(), any()))
+            .thenReturn(java.util.List.<Object[]>of(
+                new Object[]{SettlementHistoryType.PURCHASE_FEE, 2L, 10_000L}
+            ));
+        when(settlementHistoryRepository.sumSubscriptionExpense(eq(1L), any(), any()))
+            .thenReturn(3_000L);
+
+        SettlementHistoryResponse.SummaryDto result = settlementHistoryService
+            .summarizeByShop(1L, 1L, null, null, null);
+
+        assertEquals(10_000L, result.getGrossRevenue());
+        assertEquals(3_000L, result.getSubscriptionExpense());
+        assertEquals(7_000L, result.getNetRevenue());
     }
 }
