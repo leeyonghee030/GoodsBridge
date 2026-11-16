@@ -1,3 +1,4 @@
+
 package com.goodsbridge.settlement;
 
 import com.goodsbridge._core.util.SecurityUtil;
@@ -8,15 +9,16 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.time.LocalDate;
 
-@RestController
+@Controller
 @RequiredArgsConstructor
 public class SettlementViewController {
     private final SettlementHistoryService settlementHistoryService;
@@ -29,6 +31,7 @@ public class SettlementViewController {
     }
 
     // 가게 정산 내역 조회 (type, from, to 는 선택 조건, 페이지 단위)
+    @ResponseBody
     @GetMapping("/api/shops/{id}/settlements")
     public ResponseEntity<Page<SettlementHistoryResponse.ListDto>> shopSettlements(
         @PathVariable Long id,
@@ -44,6 +47,7 @@ public class SettlementViewController {
     }
 
     // 가게 매출 요약 (총매출 / 구독료 지출 / 순매출 + 유형별 합계)
+    @ResponseBody
     @GetMapping("/api/shops/{id}/settlements/summary")
     public ResponseEntity<SettlementHistoryResponse.SummaryDto> shopSettlementSummary(
         @PathVariable Long id,
