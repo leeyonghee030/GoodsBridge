@@ -1,4 +1,95 @@
 {{> fragments/header}}
-<h1>Chat (테스트용)</h1>
-<p class="todo">TODO: #13(AI 에이전트) 완성 후 실제 화면으로 교체</p>
+
+<style>
+.chat-box { display: flex; flex-direction: column; height: 62vh; min-height: 360px; border: 1px solid var(--color-border); border-radius: 14px; background: #fff; overflow: hidden; }
+.chat-list { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.chat-msg { max-width: 78%; padding: 0.6rem 0.85rem; border-radius: 14px; font-size: 0.9rem; line-height: 1.5; white-space: pre-wrap; word-break: keep-all; }
+.chat-msg.is-user { align-self: flex-end; background: var(--color-dark); color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg.is-assistant { align-self: flex-start; background: var(--color-surface); color: var(--color-text); border-bottom-left-radius: 4px; }
+/* AI가 도구를 실행한 기록은 말풍선이 아니라 작은 회색 안내로 보여준다 */
+.chat-msg.is-tool { align-self: center; max-width: 100%; padding: 0.15rem 0.6rem; background: none; font-size: 0.74rem; color: var(--color-muted); }
+.chat-msg.is-error { align-self: center; background: #FDECEA; color: #C0392B; font-size: 0.82rem; }
+.chat-form { display: flex; gap: 0.5rem; padding: 0.7rem; border-top: 1px solid var(--color-border); margin: 0; }
+.chat-form input { flex: 1; min-width: 0; padding: 0.55rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.9rem; }
+.chat-form button { width: auto; margin: 0; padding: 0.55rem 1.1rem; border-radius: 8px; }
+.chat-hint { margin: 0 0 0.8rem; font-size: 0.82rem; color: var(--color-muted); }
+</style>
+
+<div class="container my-card">
+    <h1 style="margin:0 0 .3rem;font-size:1.15rem">GoodsBridge 도우미</h1>
+    <p class="chat-hint">내 교환 신청을 물어보거나 취소를 요청할 수 있어요. 예) "내 교환 신청 보여줘", "5번 신청 취소해줘"</p>
+
+    {{#userId}}
+    <div class="chat-box">
+        <div class="chat-list" id="chat-list" aria-live="polite"></div>
+        <form class="chat-form" id="chat-form">
+            <input id="chat-input" type="text" maxlength="1000" placeholder="메시지를 입력하세요" autocomplete="off" required>
+            <button type="submit" id="chat-send">보내기</button>
+        </form>
+    </div>
+    {{/userId}}
+    {{^userId}}
+    <p class="chat-hint">로그인한 뒤에 이용할 수 있어요.</p>
+    {{/userId}}
+</div>
+
+{{#userId}}
+<script>
+(() => {
+    const listEl = document.getElementById('chat-list');
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('chat-input');
+    const sendBtn = document.getElementById('chat-send');
+
+    // role: USER / ASSISTANT / TOOL / ERROR. 내용은 textContent로 넣어서 HTML이 섞이지 않게 한다.
+    function addMessage(role, text) {
+        const el = document.createElement('div');
+        el.className = 'chat-msg is-' + role.toLowerCase();
+        el.textContent = role === 'TOOL' ? '🔧 ' + text : text;
+        listEl.appendChild(el);
+        listEl.scrollTop = listEl.scrollHeight;
+        return el;
+    }
+
+    // 열 때 지난 대화(본인 것)를 불러온다
+    async function loadHistory() {
+        const res = await fetch('/api/chat/history', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        (await res.json()).forEach(log => addMessage(log.role, log.content));
+        if (!listEl.children.length) addMessage('ASSISTANT', '안녕하세요! 교환에 대해 궁금한 점을 물어보세요.');
+    }
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const content = input.value.trim();
+        if (!content) return;
+        input.value = '';
+        addMessage('USER', content);
+        const waiting = addMessage('ASSISTANT', '생각하는 중…');
+        sendBtn.disabled = true;
+        try {
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: content })
+            });
+            const body = await res.json().catch(() => ({}));
+            waiting.remove();
+            if (res.ok) addMessage('ASSISTANT', body.reply);
+            else addMessage('ERROR', body.message || '요청을 처리하지 못했어요.');
+        } catch (e) {
+            waiting.remove();
+            addMessage('ERROR', '서버와 통신하지 못했어요.');
+        } finally {
+            sendBtn.disabled = false;
+            input.focus();
+        }
+    });
+
+    loadHistory();
+})();
+</script>
+{{/userId}}
+
 {{> fragments/footer}}
