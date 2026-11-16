@@ -106,4 +106,17 @@ class ActionConfirmationGuardTest {
 
         assertThat(guard.consume(1L, "cancel", 5L, "t2")).isTrue();
     }
+
+    @Test
+    void clearUser_discardsOnlyThatUsersPreparations() {
+        guard.markPrepared(1L, "cancel", 5L, "t1");
+        guard.markPrepared(11L, "cancel", 5L, "t1");     // 앞자리가 같아도 다른 사용자(11)는 건드리지 않는다
+        guard.completeTurn(1L, "t1");
+        guard.completeTurn(11L, "t1");
+
+        guard.clearUser(1L);
+
+        assertThat(guard.consume(1L, "cancel", 5L, "t2")).isFalse();
+        assertThat(guard.consume(11L, "cancel", 5L, "t2")).isTrue();
+    }
 }

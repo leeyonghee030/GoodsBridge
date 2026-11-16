@@ -59,6 +59,11 @@ public class ActionConfirmationGuard {
             ? new Prepared(p.turnId(), p.at(), true) : p);
     }
 
+    /** 대화 초기화: 이 사용자의 확인 대기를 모두 버린다. */
+    public void clearUser(Long userId) {
+        prepared.keySet().removeIf(k -> k.startsWith(userId + ":"));
+    }
+
     /** 턴 종료(실패): 설명이 전달되지 않았을 수 있으니 이 턴에서 기록한 확인을 버린다. */
     public void abortTurn(Long userId, String turnId) {
         prepared.entrySet().removeIf(e -> e.getKey().startsWith(userId + ":") && e.getValue().turnId().equals(turnId));

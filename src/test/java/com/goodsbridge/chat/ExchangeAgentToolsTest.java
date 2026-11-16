@@ -34,17 +34,16 @@ class ExchangeAgentToolsTest {
 
     @Mock
     private ExchangeService exchangeService;
-    @Mock
-    private ChatLogService chatLogService;
-
     private ActionConfirmationGuard guard;
+    private List<String> notes;   // ChatService가 만들어 도구에 넘기는 "이번 턴의 도구 실행 기록" 목록
     private ExchangeAgentTools tools;
 
     @BeforeEach
     void setUp() {
         // 이중 확인 장치는 진짜를 쓴다 (확인 → 설명 전달 → 다음 턴 동의 → 실행 규칙을 같이 검증하려고)
         guard = new ActionConfirmationGuard();
-        tools = new ExchangeAgentTools(exchangeService, chatLogService, guard);
+        notes = new ArrayList<>();
+        tools = new ExchangeAgentTools(exchangeService, guard);
     }
 
     // ChatService가 답변을 사용자에게 무사히 전달하고 한 턴을 끝내는 것을 흉내 낸다
@@ -54,7 +53,7 @@ class ExchangeAgentToolsTest {
 
     // 대화 한 번(턴)마다 turnId가 다르다. 같은 turnId면 같은 요청 안이다.
     private ToolContext turn(String turnId) {
-        return new ToolContext(Map.of("userId", USER_ID, "turnId", turnId));
+        return new ToolContext(Map.of("userId", USER_ID, "turnId", turnId, "toolNotes", notes));
     }
 
     private ExchangeRequestResponse request(Long id, Long proposerId, LocalDateTime createdAt, ExchangeRequestStatus status, Integer deposit) {
@@ -82,7 +81,7 @@ class ExchangeAgentToolsTest {
         assertThat(result).extracting(ExchangeAgentTools.ExchangeInfo::requestId).containsExactly(2L, 1L);
         assertThat(result.get(0).myRole()).isEqualTo("게시글 주인");
         assertThat(result.get(1).myRole()).isEqualTo("신청자");
-        verify(chatLogService).save(USER_ID, ChatRole.TOOL, "교환 신청 조회: 2건");
+        assertThat(notes).containsExactly("교환 신청 조회: 2건");
     }
 
     @Test
@@ -157,7 +156,7 @@ class ExchangeAgentToolsTest {
         // 취소하는 사람은 AI가 넘긴 값이 아니라 도구 컨텍스트(로그인 사용자)다
         verify(exchangeService).cancelExchange(5L, USER_ID);
         assertThat(message).contains("5번").contains("취소했습니다");
-        verify(chatLogService).save(USER_ID, ChatRole.TOOL, "교환 신청 5번 취소");
+        assertThat(notes).contains("교환 신청 5번 취소");
     }
 
     @Test
@@ -233,7 +232,16 @@ class ExchangeAgentToolsTest {
         String message = tools.cancelExchangeRequest(5L, turn("turn-2"));
 
         assertThat(message).startsWith("취소하지 못했습니다").contains("교환 신청자만");
-        verify(chatLogService).save(eq(USER_ID), eq(ChatRole.TOOL), contains("취소 실패"));
+        assertThat(notes).anyMatch(note -> note.contains("취소 실패"));
+    }
+
+    @Test
+    void tools_workEvenWhenNoToolNotesListIsInTheContext() {
+        when(exchangeService.getMyExchange(USER_ID)).thenReturn(List.of());
+        ToolContext withoutNotes = new ToolContext(Map.of("userId", USER_ID, "turnId", "t1"));
+
+        // 기록 목록이 없으면 기록만 건너뛰고 도구는 정상 동작한다
+        assertThat(tools.getMyExchangeRequests(withoutNotes)).isEmpty();
     }
 
     @Test

@@ -35,7 +35,6 @@ public class ExchangeAgentTools {
     private static final int MAX_LIST = 10;     // AI에게 한 번에 넘기는 신청 수 (너무 길면 답이 느려지고 비용이 든다)
 
     private final ExchangeService exchangeService;
-    private final ChatLogService chatLogService;
     private final ActionConfirmationGuard confirmationGuard;
 
     /** AI가 돌려받는 교환 신청 요약. 화면용 응답 전체 대신 AI가 답하는 데 필요한 것만 담는다. */
@@ -59,7 +58,7 @@ public class ExchangeAgentTools {
             .limit(MAX_LIST)
             .map(r -> toInfo(r, userId))
             .toList();
-        chatLogService.save(userId, ChatRole.TOOL, "교환 신청 조회: " + result.size() + "건");
+        note(toolContext, "교환 신청 조회: " + result.size() + "건");
         return result;
     }
 
@@ -86,7 +85,7 @@ public class ExchangeAgentTools {
 
         // 점검 통과: 이 동작을 "확인 대기"로 기록한다. 사용자가 다음 메시지로 동의해야 실행 도구가 통과된다.
         confirmationGuard.markPrepared(userId, ACTION_CANCEL, exchangeRequestId, turnId(toolContext));
-        chatLogService.save(userId, ChatRole.TOOL, "교환 신청 " + exchangeRequestId + "번 취소 확인 (사용자 동의 대기)");
+        note(toolContext, "교환 신청 " + exchangeRequestId + "번 취소 확인 (사용자 동의 대기)");
         int refund = request.getDepositAmountB() == null ? 0 : request.getDepositAmountB();
         return new CancelPreview(exchangeRequestId, true, null, request.getExchangeItemTitle(),
             request.getItemTitle(), request.getItemBTitle(), String.valueOf(request.getStatus()), refund,
@@ -106,17 +105,17 @@ public class ExchangeAgentTools {
 
         // 서버가 강제하는 이중 확인: 앞선 대화에서 확인된 동작만 실행한다
         if (!confirmationGuard.consume(userId, ACTION_CANCEL, exchangeRequestId, turnId(toolContext))) {
-            chatLogService.save(userId, ChatRole.TOOL, "교환 신청 " + exchangeRequestId + "번 취소 거절: 확인·동의 절차 없음");
+            note(toolContext, "교환 신청 " + exchangeRequestId + "번 취소 거절: 확인·동의 절차 없음");
             return "취소하지 않았습니다. 취소 전에 prepareCancelExchangeRequest로 확인하고, 그 내용을 사용자에게 설명해 "
                 + "동의를 받은 뒤(사용자의 다음 메시지에서)에만 취소할 수 있습니다. 지금 사용자에게 취소 내용을 설명하고 동의를 구하세요.";
         }
         try {
             exchangeService.cancelExchange(exchangeRequestId, userId);
-            chatLogService.save(userId, ChatRole.TOOL, "교환 신청 " + exchangeRequestId + "번 취소");
+            note(toolContext, "교환 신청 " + exchangeRequestId + "번 취소");
             return "교환 신청 " + exchangeRequestId + "번을 취소했습니다. 보증금은 환불됩니다.";
         } catch (CustomException e) {
             // 권한 없음·이미 처리됨 같은 예상 가능한 실패는 AI가 사용자에게 설명할 수 있게 문장으로 돌려준다
-            chatLogService.save(userId, ChatRole.TOOL, "교환 신청 " + exchangeRequestId + "번 취소 실패: " + e.getMessage());
+            note(toolContext, "교환 신청 " + exchangeRequestId + "번 취소 실패: " + e.getMessage());
             return "취소하지 못했습니다: " + e.getMessage();
         }
     }
@@ -139,6 +138,16 @@ public class ExchangeAgentTools {
             r.getItemBTitle(),
             r.getShopName(),
             r.getMeetingAt() == null ? null : r.getMeetingAt().toString());
+    }
+
+    // 도구 실행 기록을 이번 턴의 목록에 적는다. 바로 저장하지 않는 이유: AI가 답을 못 하면 이 턴의 기록은 남기지 않으려고,
+    // ChatService가 답을 받았을 때 질문·답변과 함께 저장한다. (환불·취소 자체는 교환 내역에 따로 남는다)
+    @SuppressWarnings("unchecked")
+    private void note(ToolContext toolContext, String text) {
+        Object notes = toolContext.getContext().get(ChatService.TOOL_NOTES_KEY);
+        if (notes instanceof List<?> list) {
+            ((List<String>) list).add(text);
+        }
     }
 
     // 서버가 넣어 준 로그인 사용자 id를 꺼낸다 (ChatService의 toolContext 참고)

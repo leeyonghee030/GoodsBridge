@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * AI 에이전트 대화의 핵심 흐름.
@@ -24,13 +25,13 @@ import java.util.UUID;
  * 사용자 메시지
  *   → (1) 내용 검사
  *   → (2) 앞선 대화(최근 10건)를 불러오기
- *   → (3) 사용자 메시지를 ChatLog에 저장
- *   → (4) Gemini 호출  ← 필요하면 AI가 @Tool(교환 조회·취소)을 스스로 호출한다
- *   → (5) AI 답변을 ChatLog에 저장하고 돌려주기
+ *   → (3) Gemini 호출  ← 필요하면 AI가 @Tool(교환 조회·취소)을 스스로 호출한다
+ *   → (4) 답을 받았을 때만 질문·도구 기록·답변을 한꺼번에 ChatLog에 저장하고 돌려주기
+ *        (AI가 실패하면 질문도 저장하지 않는다)
  * </pre>
  *
  * <p>트랜잭션을 걸지 않은 이유: AI 호출은 몇 초 걸릴 수 있어서 DB 연결을 붙잡고 기다리지 않게,
- * 저장은 {@link ChatLogService}가 건마다 짧게 처리한다.
+ * 저장은 AI가 답한 뒤 {@link ChatLogService}가 한 번에 짧게 처리한다.
  */
 @Slf4j
 @Service
@@ -41,6 +42,8 @@ public class ChatService {
     static final String USER_ID_KEY = "userId";
     /** 대화 한 번(요청 하나)의 식별자를 도구에 넘길 때 쓰는 키. 취소 확인과 실행이 같은 턴인지 가리는 데 쓴다. */
     static final String TURN_ID_KEY = "turnId";
+    /** AI가 이번 턴에 실행한 도구 기록을 모으는 목록을 도구에 넘길 때 쓰는 키. 답을 받으면 질문·답변과 함께 저장한다. */
+    static final String TOOL_NOTES_KEY = "toolNotes";
 
     private static final int MAX_CONTENT_LENGTH = 1000;
 
@@ -77,11 +80,9 @@ public class ChatService {
             .map(this::toMessage)
             .toList();
 
-        // (3) 사용자 메시지 저장. AI가 도구를 실행하면 TOOL 기록이 이 뒤에 쌓여서 순서가 맞는다.
-        chatLogService.save(userId, ChatRole.USER, message);
-
-        // (4) Gemini 호출
+        // (3) Gemini 호출. 질문은 아직 저장하지 않는다 (답을 못 받으면 질문도 남기지 않는다).
         String turnId = UUID.randomUUID().toString();   // 이번 요청(대화 한 턴)의 식별자 (이중 확인용)
+        List<String> toolNotes = new CopyOnWriteArrayList<>();   // AI가 이번 턴에 실행한 도구 기록. 도구가 적고, 답을 받으면 함께 저장한다.
         String reply;
         try {
             reply = chatClient.prompt()
@@ -89,7 +90,8 @@ public class ChatService {
                 .user(message)                                      // 이번 질문
                 .tools(exchangeAgentTools)                          // AI가 쓸 수 있는 도구
                 .toolContext(Map.of(USER_ID_KEY, userId,            // 도구에 로그인 사용자 id 전달 (AI가 바꿀 수 없다)
-                    TURN_ID_KEY, turnId))                           // 취소 확인과 실행이 같은 턴인지 가리는 데 쓴다
+                    TURN_ID_KEY, turnId,                            // 취소 확인과 실행이 같은 턴인지 가리는 데 쓴다
+                    TOOL_NOTES_KEY, toolNotes))                     // 도구 실행 기록을 모으는 목록
                 .call()
                 .content();
         } catch (RuntimeException e) {
@@ -101,11 +103,13 @@ public class ChatService {
         }
         if (reply == null || reply.isBlank()) {
             confirmationGuard.abortTurn(userId, turnId);   // 사용자는 취소 내용을 설명받지 못했다
-            reply = "죄송해요, 답변을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?";
+            // 답을 받지 못한 것이므로 질문은 저장하지 않는다
+            return new ChatResponse("죄송해요, 답변을 만들지 못했어요. 다시 한 번 말씀해 주시겠어요?");
         }
 
-        // (5) AI 답변 저장. 답변이 사용자에게 전달되는 시점이므로 이 턴의 취소 확인을 인정한다.
-        chatLogService.save(userId, ChatRole.ASSISTANT, reply);
+        // (4) 답을 받았으니 질문·도구 기록·답변을 한꺼번에 저장한다.
+        //     답변이 사용자에게 전달되는 시점이므로 이 턴의 취소 확인도 인정한다.
+        chatLogService.saveConversation(userId, message, toolNotes, reply);
         confirmationGuard.completeTurn(userId, turnId);
         return new ChatResponse(reply);
     }
@@ -124,6 +128,13 @@ public class ChatService {
     // 대화 기록 조회: 로그인한 본인 것만 (userId로 걸러서 가져오므로 남의 대화는 나오지 않는다)
     public List<ChatLogResponse> history(Long userId) {
         return chatLogService.findHistory(userId);
+    }
+
+    // 대화 초기화: 내 대화 기록을 모두 지운다. 진행 중이던 취소 확인도 함께 버려서, 초기화 전의 설명에 "네"로 취소되는 일이 없게 한다.
+    // (환불·취소 같은 교환 내역은 대화 기록과 별개라 그대로 남는다)
+    public void clearHistory(Long userId) {
+        chatLogService.deleteAll(userId);
+        confirmationGuard.clearUser(userId);
     }
 
     // ChatLog → Spring AI 메시지. USER는 사용자 말풍선, ASSISTANT는 AI 말풍선으로 바꾼다.

@@ -101,17 +101,34 @@ class ChatServiceTest {
     }
 
     @Test
-    void chat_savesUserMessageBeforeAiCallAndReplyAfter() {
+    void chat_savesQuestionAndReplyTogetherOnlyAfterTheAiAnswers() {
         when(callSpec.content()).thenReturn("안녕하세요, 무엇을 도와드릴까요?");
 
         ChatResponse response = service.chat(USER_ID, "  안녕  ");
 
         assertThat(response.getReply()).isEqualTo("안녕하세요, 무엇을 도와드릴까요?");
-        // 사용자 메시지(앞뒤 공백 제거) 저장 → AI 호출 → 답변 저장 순서
-        InOrder order = inOrder(chatLogService, callSpec);
-        order.verify(chatLogService).save(USER_ID, ChatRole.USER, "안녕");
+        // AI 호출 → (답을 받은 뒤) 질문과 답변을 한꺼번에 저장. 질문은 앞뒤 공백을 뺀 채 저장된다.
+        InOrder order = inOrder(callSpec, chatLogService);
         order.verify(callSpec).content();
-        order.verify(chatLogService).save(USER_ID, ChatRole.ASSISTANT, "안녕하세요, 무엇을 도와드릴까요?");
+        order.verify(chatLogService).saveConversation(eq(USER_ID), eq("안녕"), any(), eq("안녕하세요, 무엇을 도와드릴까요?"));
+    }
+
+    @Test
+    void chat_savesTheToolRecordsTheAiMadeDuringTheTurn() {
+        // 도구가 이번 턴의 목록(toolNotes)에 적으면, 답을 받았을 때 질문·답변과 함께 저장된다
+        java.util.concurrent.atomic.AtomicReference<Map<String, Object>> context = new java.util.concurrent.atomic.AtomicReference<>();
+        when(requestSpec.toolContext(any())).thenAnswer(invocation -> {
+            context.set(invocation.getArgument(0));
+            return requestSpec;
+        });
+        when(callSpec.content()).thenAnswer(invocation -> {
+            ((List<String>) context.get().get("toolNotes")).add("교환 신청 조회: 2건");
+            return "2건이 있어요.";
+        });
+
+        service.chat(USER_ID, "내 교환 보여줘");
+
+        verify(chatLogService).saveConversation(USER_ID, "내 교환 보여줘", List.of("교환 신청 조회: 2건"), "2건이 있어요.");
     }
 
     @Test
@@ -126,6 +143,8 @@ class ChatServiceTest {
         assertThat(captor.getValue()).containsEntry("userId", USER_ID);
         // 요청마다 다른 turnId가 들어간다 (취소 확인과 실행이 같은 턴인지 가리는 데 쓴다)
         assertThat(captor.getValue().get("turnId")).isInstanceOf(String.class);
+        // 도구가 실행 기록을 적을 목록도 들어간다
+        assertThat(captor.getValue().get("toolNotes")).isInstanceOf(List.class);
         verify(requestSpec).user("내 교환 보여줘");
     }
 
@@ -147,7 +166,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void chat_turnsAiFailureIntoServiceUnavailableAndDoesNotSaveReply() {
+    void chat_turnsAiFailureIntoServiceUnavailableAndSavesNothing() {
         when(callSpec.content()).thenThrow(new IllegalStateException("API key not valid"));
 
         assertThatThrownBy(() -> service.chat(USER_ID, "안녕"))
@@ -155,7 +174,8 @@ class ChatServiceTest {
             // 원인(키 오류 같은 내부 정보)은 사용자에게 노출하지 않는다
             .hasMessageNotContaining("API key");
 
-        verify(chatLogService, never()).save(anyLong(), eq(ChatRole.ASSISTANT), any());
+        // 답을 못 받았으니 질문도 저장하지 않는다
+        verify(chatLogService, never()).saveConversation(any(), any(), any(), any());
     }
 
     @Test
@@ -166,7 +186,7 @@ class ChatServiceTest {
 
         // 설명(답변)이 저장·전달된 뒤에야 이 턴의 취소 확인이 인정된다
         InOrder order = inOrder(chatLogService, confirmationGuard);
-        order.verify(chatLogService).save(eq(USER_ID), eq(ChatRole.ASSISTANT), any());
+        order.verify(chatLogService).saveConversation(eq(USER_ID), any(), any(), any());
         order.verify(confirmationGuard).completeTurn(eq(USER_ID), any());
         verify(confirmationGuard, never()).abortTurn(anyLong(), any());
     }
@@ -214,8 +234,18 @@ class ChatServiceTest {
         ChatResponse response = service.chat(USER_ID, "안녕");
 
         assertThat(response.getReply()).contains("답변을 만들지 못했어요");
-        // 사용자는 취소 내용을 설명받지 못했으니 확인을 인정하지 않는다
+        // 사용자는 취소 내용을 설명받지 못했으니 확인을 인정하지 않고, 답을 못 받았으니 질문도 저장하지 않는다
         verify(confirmationGuard).abortTurn(eq(USER_ID), any());
+        verify(chatLogService, never()).saveConversation(any(), any(), any(), any());
+    }
+
+    @Test
+    void clearHistory_deletesMyLogsAndDiscardsPendingConfirmations() {
+        service.clearHistory(USER_ID);
+
+        verify(chatLogService).deleteAll(USER_ID);
+        // 초기화 전에 설명받은 취소가 "네"로 실행되는 일이 없게 확인 대기도 버린다
+        verify(confirmationGuard).clearUser(USER_ID);
     }
 
     @Test

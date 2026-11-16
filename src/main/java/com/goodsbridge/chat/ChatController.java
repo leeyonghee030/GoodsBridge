@@ -2,10 +2,13 @@ package com.goodsbridge.chat;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -27,9 +30,16 @@ public class ChatController {
         return chatService.chat(SecurityUtil.getCurrentUserId(), request.getContent());
     }
 
-    // 대화 기록 (본인 것만)
+    // 대화 기록 (본인 것 중 최근 50건)
     @GetMapping("/history")
     public List<ChatLogResponse> history() {
         return chatService.history(SecurityUtil.getCurrentUserId());
+    }
+
+    // 대화 초기화: 내 대화 기록을 모두 지운다 (환불·취소 같은 교환 내역은 그대로 남는다)
+    @DeleteMapping("/history")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void clearHistory() {
+        chatService.clearHistory(SecurityUtil.getCurrentUserId());
     }
 }
