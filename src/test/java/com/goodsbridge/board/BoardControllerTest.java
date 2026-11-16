@@ -1,9 +1,10 @@
+
 package com.goodsbridge.board;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.GlobalExceptionHandler;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,16 +16,19 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.willDoNothing; // 👈 반환값이 없는 수정/삭제 Mocking용
+import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -45,7 +49,7 @@ class BoardControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(boardController)
-            .setControllerAdvice(new GlobalExceptionHandler()) // 👈 글로벌 예외 핸들러 등록!
+            .setControllerAdvice(new GlobalExceptionHandler())
             .setCustomArgumentResolvers(
                 new PageableHandlerMethodArgumentResolver(),
                 new AuthenticationPrincipalArgumentResolver()
@@ -53,13 +57,36 @@ class BoardControllerTest {
             .build();
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    // 테스트용 로그인 사용자 설정
+    private void login(Long userId) {
+        SecurityContextHolder.getContext().setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                userId,
+                null,
+                List.of()
+            )
+        );
+    }
+
     @Test
-    @DisplayName("게시글 목록 조회 성공 (페이징 및 검색 파라미터 지원)")
+    @DisplayName("게시글 목록 조회 성공 - 페이징 및 검색")
     void getBoards_success() throws Exception {
         // given
+        Pageable pageable = PageRequest.of(0, 10);
+
         PageImpl<BoardResponseDto> boardPage =
-            new PageImpl<>(List.of(), PageRequest.of(0, 10), 0);
-        given(boardService.getBoards(eq("공지"), any(Pageable.class))).willReturn(boardPage);
+            new PageImpl<>(List.of(), pageable, 0);
+
+        given(boardService.getBoards(
+            eq("공지"),
+            any(Pageable.class),
+            isNull()
+        )).willReturn(boardPage);
 
         // when & then
         mockMvc.perform(get("/api/boards")
@@ -68,6 +95,12 @@ class BoardControllerTest {
                 .param("size", "10"))
             .andDo(print())
             .andExpect(status().isOk());
+
+        verify(boardService).getBoards(
+            eq("공지"),
+            any(Pageable.class),
+            isNull()
+        );
     }
 
     @Test
@@ -75,32 +108,43 @@ class BoardControllerTest {
     void getBoard_success() throws Exception {
         // given
         Long boardId = 1L;
+
         BoardResponseDto responseDto = BoardResponseDto.builder()
             .id(boardId)
             .title("테스트 제목")
             .content("테스트 내용")
             .build();
 
-        // 💡 서비스 메서드가 인자를 2개(boardId, loginUserId) 받으므로 두 번째 인자도 eq(null) 등으로 맞춰줍니다.
-        given(boardService.getBoard(eq(boardId), eq(null))).willReturn(responseDto);
+        given(boardService.getBoard(eq(boardId), isNull()))
+            .willReturn(responseDto);
 
         // when & then
         mockMvc.perform(get("/api/boards/{id}", boardId))
             .andDo(print())
             .andExpect(status().isOk());
+
+        verify(boardService).getBoard(boardId, null);
     }
 
     @Test
-    @DisplayName("게시글 작성 성공 (201 Created)")
+    @DisplayName("게시글 작성 성공 - 201 Created")
     void createBoard_success() throws Exception {
         // given
+        Long loginUserId = 10L;
+        login(loginUserId);
+
         BoardRequestDto requestDto = BoardRequestDto.builder()
             .title("테스트 제목")
             .content("테스트 내용")
+            .boardType(BoardType.PRODUCT_INQUIRY)
+            .itemId(100L)
             .isSecret(false)
             .build();
 
-        given(boardService.createBoard(any(BoardRequestDto.class), eq(null))).willReturn(1L);
+        given(boardService.createBoard(
+            any(BoardRequestDto.class),
+            eq(loginUserId)
+        )).willReturn(1L);
 
         // when & then
         mockMvc.perform(post("/api/boards")
@@ -108,6 +152,11 @@ class BoardControllerTest {
                 .content(objectMapper.writeValueAsString(requestDto)))
             .andDo(print())
             .andExpect(status().isCreated());
+
+        verify(boardService).createBoard(
+            any(BoardRequestDto.class),
+            eq(loginUserId)
+        );
     }
 
     @Test
@@ -115,55 +164,162 @@ class BoardControllerTest {
     void updateBoard_success() throws Exception {
         // given
         Long boardId = 1L;
-        BoardRequestDto requestDto = BoardRequestDto.builder()
+        Long loginUserId = 10L;
+        login(loginUserId);
+
+        BoardUpdateRequestDto requestDto = BoardUpdateRequestDto.builder()
             .title("수정된 제목")
             .content("수정된 내용")
             .isSecret(false)
             .build();
 
-        // 서비스 메서드가 void를 반환하는 경우 willDoNothing()을 사용합니다.
-        willDoNothing().given(boardService).updateBoard(eq(boardId), any(BoardRequestDto.class), any());
+        willDoNothing().given(boardService)
+            .updateBoard(
+                eq(boardId),
+                any(BoardUpdateRequestDto.class),
+                eq(loginUserId)
+            );
 
         // when & then
         mockMvc.perform(put("/api/boards/{id}", boardId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(requestDto)))
             .andDo(print())
-            .andExpect(status().isOk()); // 혹은 프로젝트 정책에 따라 isNoContent() 사용 가능
+            .andExpect(status().isOk());
+
+        verify(boardService).updateBoard(
+            eq(boardId),
+            any(BoardUpdateRequestDto.class),
+            eq(loginUserId)
+        );
     }
 
     @Test
-    @DisplayName("게시글 삭제 성공")
+    @DisplayName("게시글 수정 실패 - 제목이 비어 있으면 400 Bad Request")
+    void updateBoard_validation_fail() throws Exception {
+        // given
+        Long boardId = 1L;
+        Long loginUserId = 10L;
+
+        login(loginUserId);
+
+        String requestJson = """
+        {
+            "title": "",
+            "content": "수정된 내용",
+            "isSecret": false
+        }
+        """;
+
+        // when & then
+        mockMvc.perform(put("/api/boards/{id}", boardId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+            .andDo(print())
+            .andExpect(status().isBadRequest());
+
+        verify(boardService, never()).updateBoard(
+            anyLong(),
+            any(BoardUpdateRequestDto.class),
+            anyLong()
+        );
+    }
+
+    @Test
+    @DisplayName("게시글 삭제 성공 - 204 No Content")
     void deleteBoard_success() throws Exception {
         // given
         Long boardId = 1L;
-        willDoNothing().given(boardService).deleteBoard(eq(boardId), any());
+        Long loginUserId = 10L;
+        login(loginUserId);
+
+        willDoNothing().given(boardService)
+            .deleteBoard(eq(boardId), eq(loginUserId));
 
         // when & then
         mockMvc.perform(delete("/api/boards/{id}", boardId))
             .andDo(print())
-            .andExpect(status().isNoContent()); // 👈 status().isOk() 에서 변경 (204 No Content 검증)
+            .andExpect(status().isNoContent());
+
+        verify(boardService).deleteBoard(boardId, loginUserId);
     }
 
     @Test
-    @DisplayName("게시글 작성 실패 - 비로그인 사용자 접근 시 예외 발생 검증")
-    void createBoard_unauthorized_fail() throws Exception {
+    @DisplayName("댓글 작성 성공 - 201 Created")
+    void createReply_success() throws Exception {
         // given
-        BoardRequestDto requestDto = BoardRequestDto.builder()
-            .title("테스트 제목")
-            .content("테스트 내용")
-            .isSecret(false)
-            .build();
+        Long boardId = 1L;
+        Long loginUserId = 10L;
+        Long replyId = 100L;
 
-        // 비로그인 상태(userId 자리에 null 또는 비인증 상태)일 때 서비스에서 예외를 던지도록 설정
-        given(boardService.createBoard(any(BoardRequestDto.class), eq(null)))
-            .willThrow(new BadRequestException("로그인이 필요합니다."));
+        login(loginUserId);
+
+        String requestJson = """
+            {
+                "content": "테스트 댓글입니다."
+            }
+            """;
+
+        given(boardService.createReply(
+            eq(boardId),
+            any(ReplyRequestDto.class),
+            eq(loginUserId)
+        )).willReturn(replyId);
 
         // when & then
-        mockMvc.perform(post("/api/boards")
+        mockMvc.perform(post("/api/boards/{id}/replies", boardId)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(requestDto)))
+                .content(requestJson))
             .andDo(print())
-            .andExpect(status().isBadRequest()); // 프로젝트 예외 핸들러 처리에 맞게 상태 코드 지정 (예: 400 또는 401/500)
+            .andExpect(status().isCreated());
+
+        verify(boardService).createReply(
+            eq(boardId),
+            any(ReplyRequestDto.class),
+            eq(loginUserId)
+        );
+    }
+
+    @Test
+    @DisplayName("댓글 삭제 성공 - 204 No Content")
+    void deleteReply_success() throws Exception {
+        // given
+        Long replyId = 100L;
+        Long loginUserId = 10L;
+
+        login(loginUserId);
+
+        willDoNothing().given(boardService)
+            .deleteReply(eq(replyId), eq(loginUserId));
+
+        // when & then
+        mockMvc.perform(delete("/api/replies/{id}", replyId))
+            .andDo(print())
+            .andExpect(status().isNoContent());
+
+        verify(boardService).deleteReply(replyId, loginUserId);
+    }
+
+    @Test
+    @DisplayName("댓글 작성 실패 - 댓글 내용이 비어 있으면 400 Bad Request")
+    void createReply_validation_fail() throws Exception {
+        // given
+        Long boardId = 1L;
+        Long loginUserId = 10L;
+
+        login(loginUserId);
+
+        String requestJson = """
+            {
+                "content": ""
+            }
+            """;
+
+        // when & then
+        mockMvc.perform(post("/api/boards/{id}/replies", boardId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(requestJson))
+            .andDo(print())
+            .andExpect(status().isBadRequest());
     }
 }

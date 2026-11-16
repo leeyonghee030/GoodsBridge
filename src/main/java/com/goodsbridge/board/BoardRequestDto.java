@@ -19,5 +19,8 @@ public class BoardRequestDto {
     private String content;
 
     private Long itemId;
+
+    private BoardType boardType;
+
     private Boolean isSecret;
 }

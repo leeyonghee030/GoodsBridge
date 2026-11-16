@@ -56,6 +56,28 @@ public class BoardController {
         return ResponseEntity.ok(response);
     }
 
+    // 특정 상품의 문의 게시글 목록 조회
+    // 요청 예시: GET /api/items/100/inquiries?page=0&size=10&sort=createdAt,desc
+    @GetMapping("/items/{itemId}/inquiries")
+    public ResponseEntity<Page<BoardResponseDto>> getProductInquiries(
+        @PathVariable Long itemId,
+        @PageableDefault(
+            size = 10,
+            sort = "id",
+            direction = Sort.Direction.DESC
+        ) Pageable pageable,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        Page<BoardResponseDto> response =
+            boardService.getProductInquiries(
+                itemId,
+                pageable,
+                loginUserId
+            );
+
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/boards/{id}/replies")
     public ResponseEntity<Long> createReply(
         @PathVariable Long id,
@@ -84,7 +106,7 @@ public class BoardController {
     @PutMapping("/boards/{id}")
     public ResponseEntity<Void> updateBoard(
         @PathVariable Long id,
-        @RequestBody @Valid BoardRequestDto requestDto,
+        @RequestBody @Valid BoardUpdateRequestDto requestDto,
         @AuthenticationPrincipal Long loginUserId
     ) {
         boardService.updateBoard(id, requestDto, loginUserId);

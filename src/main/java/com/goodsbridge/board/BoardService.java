@@ -25,6 +25,7 @@ public class BoardService {
             .content(requestDto.getContent())
             .authorId(loginUserId)
             .itemId(requestDto.getItemId())
+            .boardType(requestDto.getBoardType()) // 추가
             .isSecret(requestDto.getIsSecret())
             .build();
         return boardRepository.save(board).getId();
@@ -83,8 +84,7 @@ public class BoardService {
     @Transactional
     public void deleteReply(Long replyId, Long loginUserId) {
         Reply reply = replyRepository.findById(replyId)
-            .orElseThrow(() ->
-                new NotFoundException("댓글을 찾을 수 없습니다."));
+            .orElseThrow(() -> new NotFoundException("댓글을 찾을 수 없습니다."));
 
         if (!Objects.equals(reply.getAuthorId(), loginUserId)) {
             throw new ForbiddenException("댓글을 삭제할 권한이 없습니다.");
@@ -92,17 +92,20 @@ public class BoardService {
 
         Board board = reply.getBoard();
 
-        // 양방향 연관관계 동기화
+        // 부모 엔티티 컬렉션에서도 댓글 제거
         board.removeReply(reply);
 
-        // 남은 댓글이 없으면 답변 대기 상태로 변경
+        // DB에서 댓글 삭제를 명시적으로 요청
+        replyRepository.delete(reply);
+
+        // 댓글 삭제 후 남은 댓글 개수 확인
         if (replyRepository.countByBoardId(board.getId()) == 0) {
             board.pending();
         }
     }
 
     @Transactional
-    public void updateBoard(Long id, BoardRequestDto requestDto, Long loginUserId) {
+    public void updateBoard(Long id, BoardUpdateRequestDto requestDto, Long loginUserId) {
         Board board = boardRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다."));
 
@@ -110,7 +113,11 @@ public class BoardService {
             throw new ForbiddenException("게시글 권한이 없습니다.");
         }
 
-        board.update(requestDto.getTitle(), requestDto.getContent(), requestDto.getItemId(), requestDto.getIsSecret());
+        board.update(
+            requestDto.getTitle(),
+            requestDto.getContent(),
+            requestDto.getIsSecret()
+        );
     }
 
     @Transactional
@@ -154,4 +161,20 @@ public class BoardService {
         );
     }
 
+    // 특정 상품의 문의 게시글 페이징 조회
+    public Page<BoardResponseDto> getProductInquiries(
+        Long itemId,
+        Pageable pageable,
+        Long loginUserId
+    ) {
+        Page<Board> boardPage = boardRepository.findByItemIdAndBoardType(
+            itemId,
+            BoardType.PRODUCT_INQUIRY,
+            pageable
+        );
+
+        return boardPage.map(
+            board -> BoardResponseDto.fromForList(board, loginUserId)
+        );
+    }
 }

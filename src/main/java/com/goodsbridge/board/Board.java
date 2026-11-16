@@ -1,5 +1,6 @@
 package com.goodsbridge.board;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -31,7 +32,11 @@ public class Board {
     private Long authorId;
 
     @Column(name = "item_id")
-    private Long itemId; // 상품 Q&A나 리뷰인 경우 연관된 상품 ID (공지사항 등은 null 허용)
+    private Long itemId; // 상품 문의 및 상품 판매 게시글에 연결된 상품 ID
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private BoardType boardType;
 
     @Column(nullable = false)
     private Boolean isSecret; // 비밀글 여부 (true: 비밀글, false: 공개글)
@@ -49,20 +54,34 @@ public class Board {
     private LocalDateTime createdAt;
 
     @Builder
-    public Board(String title, String content, Long authorId, Long itemId, Boolean isSecret) {
+    public Board(
+        String title,
+        String content,
+        Long authorId,
+        Long itemId,
+        BoardType boardType,
+        Boolean isSecret
+    ) {
+        validateBoardTypeAndItemId(boardType, itemId);
+
         this.title = title;
         this.content = content;
         this.authorId = authorId;
         this.itemId = itemId;
+        this.boardType = boardType;
         this.isSecret = isSecret != null ? isSecret : false;
-        this.status = BoardStatus.PENDING; // 생성 시 기본값: 답변 대기
+        this.status = BoardStatus.PENDING;
     }
 
     // 게시글 수정 메서드
-    public void update(String title, String content, Long itemId, Boolean isSecret) {
+    public void update(
+        String title,
+        String content,
+        Boolean isSecret
+    ) {
         this.title = title;
         this.content = content;
-        this.itemId = itemId;
+
         if (isSecret != null) {
             this.isSecret = isSecret;
         }
@@ -84,5 +103,50 @@ public class Board {
 
     public void removeReply(Reply reply) {
         this.replies.remove(reply);
+    }
+
+    private void validateBoardTypeAndItemId(
+        BoardType boardType,
+        Long itemId
+    ) {
+        if (boardType == null) {
+            throw new BadRequestException(
+                "게시글 유형(boardType)은 필수 입력값입니다."
+            );
+        }
+
+        switch (boardType) {
+            case PRODUCT_INQUIRY -> {
+                if (itemId == null) {
+                    throw new BadRequestException(
+                        "상품 문의 게시글은 연결할 상품 ID(itemId)가 필수입니다."
+                    );
+                }
+            }
+
+            case MARKET -> {
+                if (itemId == null) {
+                    throw new BadRequestException(
+                        "상품 판매 게시글은 판매 대상 상품 ID(itemId)가 필수입니다."
+                    );
+                }
+            }
+
+            case ADMIN_INQUIRY -> {
+                if (itemId != null) {
+                    throw new BadRequestException(
+                        "관리자 문의 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
+                    );
+                }
+            }
+
+            case COMMUNITY -> {
+                if (itemId != null) {
+                    throw new BadRequestException(
+                        "커뮤니티 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
+                    );
+                }
+            }
+        }
     }
 }

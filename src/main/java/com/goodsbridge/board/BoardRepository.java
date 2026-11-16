@@ -14,7 +14,17 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
     Optional<Board> findByIdWithReplies(@Param("id") Long id);
 
     // 제목 또는 내용에 검색어가 포함된 게시글 페이징 조회
-    Page<Board> findByTitleContainingOrContentContaining(String title, String content, Pageable pageable);
+    Page<Board> findByTitleContainingOrContentContaining(
+        String title,
+        String content,
+        Pageable pageable);
+
+    // 상품 ID와 게시글 유형으로 게시글 페이징 조회
+    Page<Board> findByItemIdAndBoardType(
+        Long itemId,
+        BoardType boardType,
+        Pageable pageable
+    );
 
 }
 
