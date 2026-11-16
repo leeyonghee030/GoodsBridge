@@ -40,14 +40,19 @@ final class ChatInputFilter {
         "youarenow", "actas", "롤플레이", "역할극", "시스템메시지", "systemmessage", "시스템지시"
     );
 
-    private static final List<Pattern> OFF_TOPIC = compile(
-        // 코딩
-        "코딩", "프로그래밍", "프로그램(을|좀)?(짜|만들|작성)", "코드(를|좀)?(짜|작성|만들|써|리뷰|수정|고쳐|알려)", "소스코드",
+    // 코딩 요청: 서비스 단어가 섞여 있어도 항상 막는다 ("교환 코드 짜줘"처럼 서비스 단어로 우회하는 것을 막기 위해).
+    // 서비스 질문에 쓰일 수 있는 말은 넣지 않는다 ("체인점 코드 알려줘"의 '코드 알려'는 넣지 않는다).
+    private static final List<Pattern> CODING = compile(
+        "코딩", "프로그래밍", "프로그램(을|좀)?(짜|만들|작성)", "코드(를|좀)?(짜|작성|만들|써|리뷰)", "소스코드",
         "파이썬", "python", "자바스크립트", "javascript", "typescript", "타입스크립트", "java(?![가-힣a-z])", "자바(로|를|코드)",
         "c\\+\\+", "kotlin", "코틀린", "html", "css", "sql", "쿼리(를|좀)?(짜|작성|만들)", "알고리즘", "함수(를|좀)?(짜|만들|작성)",
-        "버그(를|좀)?(고쳐|수정|찾아)", "리액트", "스프링", "깃허브", "github", "정규식(을|를)?(짜|만들)", "```",
+        "버그(를|좀)?(고쳐|수정|찾아)", "리액트", "깃허브", "github", "정규식(을|를)?(짜|만들)", "```"
+    );
+
+    // 그 밖의 서비스 밖 요청: 서비스에서도 쓸 수 있는 단어("교환 날씨", "굿즈 소설책")가 있어서 서비스 단어가 함께 있으면 통과시킨다.
+    private static final List<Pattern> OFF_TOPIC = compile(
         // 글쓰기·번역
-        "시(를|좀)?(한편|써|지어|작성)", "소설", "작사", "작곡", "에세이", "자기소개서", "번역", "영작", "맞춤법", "요약(해|좀)?줘.{0,20}(글|기사|논문)",
+        "시(를|좀)?(한편|써|지어|작성)", "소설", "작사", "작곡", "에세이", "자기소개서", "번역", "영작", "맞춤법", "스프링", "요약(해|좀)?줘.{0,20}(글|기사|논문)",
         "숙제", "과제(를|좀)?(해|도와)", "수학문제", "논문", "독후감",
         // 일반 상식·실시간 정보
         "날씨", "기온", "미세먼지", "주식", "코인", "비트코인", "환율", "로또", "운세", "사주", "타로", "레시피", "요리법", "맛집",
@@ -55,7 +60,7 @@ final class ChatInputFilter {
         "농담(해|좀)", "재밌는이야기", "끝말잇기", "수수께끼"
     );
 
-    // 서비스 단어가 있으면 OFF_TOPIC은 통과시킨다 (INJECTION은 이 단어와 상관없이 막는다)
+    // 서비스 단어가 있으면 OFF_TOPIC은 통과시킨다 (INJECTION과 CODING은 이 단어와 상관없이 막는다)
     private static final Pattern SERVICE_WORDS = Pattern.compile(
         "교환|보증금|경매|입찰|낙찰|이벤트|굿즈|구매|판매|환불|가게|상품|입점|구독|노쇼|취소|신청|배송|결제|포토카드|앨범|응원봉|포스터|피규어|"
             + "로그인|도우미|체인점|정산|출석|번호표|굿즈샵", FLAGS);
@@ -67,6 +72,9 @@ final class ChatInputFilter {
         String squashed = squash(message);
         if (matchesAny(INJECTION, squashed)) {
             return Verdict.INJECTION;
+        }
+        if (matchesAny(CODING, squashed)) {
+            return Verdict.OFF_TOPIC;
         }
         if (matchesAny(OFF_TOPIC, squashed) && !SERVICE_WORDS.matcher(message).find()) {
             return Verdict.OFF_TOPIC;

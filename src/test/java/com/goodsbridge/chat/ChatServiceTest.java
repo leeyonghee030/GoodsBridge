@@ -114,7 +114,7 @@ class ChatServiceTest {
 
     @Test
     void chat_rejectsTooLongContent() {
-        String tooLong = "가".repeat(1001);
+        String tooLong = "가".repeat(301);
 
         assertThatThrownBy(() -> service.chat(USER_ID, tooLong))
             .isInstanceOf(BadRequestException.class);

@@ -45,7 +45,7 @@ public class ChatService {
     /** AI가 이번 턴에 실행한 도구 기록을 모으는 목록을 도구에 넘길 때 쓰는 키. 답을 받으면 질문·답변과 함께 저장한다. */
     static final String TOOL_NOTES_KEY = "toolNotes";
 
-    private static final int MAX_CONTENT_LENGTH = 1000;
+    private static final int MAX_CONTENT_LENGTH = 300;
 
     // 지금의 AI 도구(교환 조회·취소)는 손님용이라 가게 계정에는 쓸 수 있는 기능이 없다. 가게용은 업데이트 후 제공한다.
     static final String SHOP_NOT_READY_MESSAGE = "가게용 AI 도우미는 업데이트 후 사용할 수 있어요. 조금만 기다려 주세요.";
