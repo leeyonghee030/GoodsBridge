@@ -114,22 +114,35 @@ class InfoAgentToolsTest {
     }
 
     @Test
-    void getMyEvents_usesTheLoggedInUserAndLinksToTheEvent() {
+    private EventParticipationResponse participation(String title, EventParticipationStatus status, LocalDateTime createdAt) {
         EventParticipationResponse e = mock(EventParticipationResponse.class);
-        when(e.getShopEventId()).thenReturn(11L);
-        when(e.getEventTitle()).thenReturn("선착순 이벤트");
-        when(e.getShopName()).thenReturn("데모 굿즈샵");
-        when(e.getStatus()).thenReturn(EventParticipationStatus.JOINED);
-        when(e.getCreatedAt()).thenReturn(LocalDateTime.now());
-        when(eventService.getEventParticipationList(USER_ID)).thenReturn(List.of(e));
+        when(e.getEventTitle()).thenReturn(title);
+        when(e.getStatus()).thenReturn(status);
+        when(e.getCreatedAt()).thenReturn(createdAt);
+        return e;
+    }
+
+    @Test
+    void getMyEvents_givesCountsPerStatusAndOnlyTheThreeNewestInsteadOfALongList() {
+        LocalDateTime now = LocalDateTime.now();
+        List<EventParticipationResponse> mine = List.of(
+            participation("가장 오래된", EventParticipationStatus.JOINED, now.minusDays(4)),
+            participation("셋째", EventParticipationStatus.CANCELLED, now.minusDays(2)),
+            participation("최신", EventParticipationStatus.JOINED, now),
+            participation("둘째", EventParticipationStatus.REFUNDED, now.minusDays(1)),
+            participation("넷째", EventParticipationStatus.JOINED, now.minusDays(3)));
+        when(eventService.getEventParticipationList(USER_ID)).thenReturn(mine);
 
         InfoAgentTools.MyEventsResult result = tools.getMyEvents(context);
 
-        assertThat(result.totalCount()).isEqualTo(1);
-        assertThat(result.events().get(0).status()).isEqualTo("참여");
-        assertThat(result.events().get(0).link()).isEqualTo("/test/event/11");
+        // 채팅에는 건수 요약과 최근 3건만 주고, 자세한 내용은 화면에서 보게 한다
+        assertThat(result.totalCount()).isEqualTo(5);
+        assertThat(result.countsByStatus()).containsEntry("참여", 3L).containsEntry("취소", 1L).containsEntry("환불", 1L);
+        assertThat(result.recent()).extracting(InfoAgentTools.EventBrief::title).containsExactly("최신", "둘째", "셋째");
+        assertThat(result.recent().get(1).status()).isEqualTo("환불");
         assertThat(result.allLink()).isEqualTo("/my/events");
         verify(eventService).getEventParticipationList(USER_ID);   // 사용자 id는 서버가 넣은 값만 쓴다
+        assertThat(notes).containsExactly("내 이벤트 조회: 5건");
     }
 
     private AuctionResponse auction(long id, Status status, Long winnerId, boolean balancePaid, LocalDateTime balanceDueAt) {
@@ -158,21 +171,35 @@ class InfoAgentToolsTest {
             auction(6L, Status.CANCELLED, USER_ID, false, null));                                   // 취소된 경매에 남은 입찰자 정보
         when(bidService.participateAuction(eq(USER_ID), any(Pageable.class))).thenReturn(new PageImpl<>(mine));
 
-        List<InfoAgentTools.AuctionInfo> result = tools.getMyAuctions(context).auctions();
+        InfoAgentTools.MyAuctionsResult result = tools.getMyAuctions(context);
 
-        assertThat(result).extracting(InfoAgentTools.AuctionInfo::needsBalancePayment)
-            .containsExactly(true, false, false, false, false, false);
-        // 기한이 지난 낙찰은 결제하라고 안내하지 않고 "기한 지남"으로 알린다
-        assertThat(result).extracting(InfoAgentTools.AuctionInfo::balanceOverdue)
-            .containsExactly(false, false, false, false, true, false);
-        assertThat(result.get(0).balanceDueAt()).isEqualTo(future.toString().replace('T', ' ').substring(0, 16));
-        assertThat(result.get(1).balanceDueAt()).isNull();
-        // 취소된 경매는 내가 마지막 입찰자였어도 "앞서 있다"고 하지 않는다
-        assertThat(result).extracting(InfoAgentTools.AuctionInfo::iAmTopBidder)
-            .containsExactly(true, true, false, true, true, false);
-        assertThat(result.get(0).status()).isEqualTo("낙찰");
-        assertThat(result.get(3).status()).isEqualTo("경매 중");
-        assertThat(result.get(0).link()).isEqualTo("/test/auction/1");
+        // 요약: 상태별 건수와 "잔금을 내야 하는 건수"(내가 낙찰했고 아직 안 냈고 기한 전인 것만)
+        assertThat(result.totalCount()).isEqualTo(6);
+        assertThat(result.needsBalancePaymentCount()).isEqualTo(1);
+        // 내 입장의 상태: 내가 낙찰한 건 "낙찰", 남이 낙찰한 건 "낙찰 실패"다. 진행 중은 "경매 중"으로 하나로 센다.
+        assertThat(result.countsByStatus()).containsEntry("낙찰", 3L).containsEntry("낙찰 실패", 1L)
+            .containsEntry("경매 중", 1L).containsEntry("취소", 1L);
+        // 최근 3건만 준다
+        assertThat(result.recent()).hasSize(3);
+        assertThat(result.recent().get(0).needsBalancePayment()).isTrue();
+        assertThat(result.recent().get(0).balanceDueAt()).isEqualTo(future.toString().replace('T', ' ').substring(0, 16));
+        assertThat(result.recent().get(1).needsBalancePayment()).isFalse();   // 잔금을 이미 냈다
+        assertThat(result.recent().get(1).balanceDueAt()).isNull();
+        assertThat(result.recent().get(2).status()).isEqualTo("낙찰 실패");
+        assertThat(result.allLink()).isEqualTo("/my/auctions");
+    }
+
+    @Test
+    void getMyAuctions_saysThePaymentDeadlinePassedInsteadOfAskingToPay() {
+        AuctionResponse expired = auction(5L, Status.ENDED_SUCCESS, USER_ID, false, LocalDateTime.now().minusHours(1));
+        when(bidService.participateAuction(eq(USER_ID), any(Pageable.class))).thenReturn(new PageImpl<>(List.of(expired)));
+
+        InfoAgentTools.MyAuctionsResult result = tools.getMyAuctions(context);
+
+        // 기한이 지난 낙찰은 결제하라고 안내하지 않는다 (더는 결제할 수 없다)
+        assertThat(result.needsBalancePaymentCount()).isZero();
+        assertThat(result.recent().get(0).needsBalancePayment()).isFalse();
+        assertThat(result.recent().get(0).balanceOverdue()).isTrue();
     }
 
     @Test

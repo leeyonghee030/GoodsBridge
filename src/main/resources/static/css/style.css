@@ -2200,7 +2200,8 @@ button.chat-close:hover { background: none; color: var(--color-text); }
 .chat-line.is-bullet { position: relative; padding-left: 1rem; margin: 0.2rem 0; }
 .chat-line.is-bullet::before { content: "•"; position: absolute; left: 0.25rem; color: var(--color-muted); }
 /* 목록 안의 링크는 제목이 길 수 있어서 줄바꿈이 자연스럽게 되도록 inline으로 둔다 */
-.chat-line.is-bullet a { display: inline; margin: 0; padding: 0.05rem 0.5rem; -webkit-box-decoration-break: clone; box-decoration-break: clone; line-height: 1.9; }
+.chat-line.is-bullet a { display: inline; margin: 0; padding: 0; border: 0; border-radius: 0; background: none; font-size: inherit; font-weight: 700; color: var(--color-text); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; line-height: inherit; }
+.chat-line.is-bullet a:hover { background: none; color: var(--color-text); text-decoration-thickness: 2px; }
 .chat-msg.is-user { align-self: flex-end; background: var(--color-dark); color: #fff; border-bottom-right-radius: 4px; }
 .chat-msg.is-assistant { align-self: flex-start; background: var(--color-surface); color: var(--color-text); border-bottom-left-radius: 4px; }
 /* AI가 도구를 실행한 기록은 말풍선이 아니라 작은 회색 안내로 보여준다 */

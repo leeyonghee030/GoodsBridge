@@ -141,8 +141,11 @@ AI 호출은 무료 토큰을 쓰고, "이전 지시 무시" 같은 **프롬프�
 |---|---|---|
 | `searchShops(name, region)` | 가게 이름·지역 검색 (최대 5곳) | `ShopService.findAll` |
 | `searchItems(keyword)` | 판매 중인 상품 이름 검색 (최대 5건) | `ItemService.findShopItems` (상품 화면과 같은 조회) |
-| `getMyEvents()` | 내 이벤트 참여 현황 (최대 5건) | `EventService.getEventParticipationList` |
-| `getMyAuctions()` | 내 입찰·낙찰·잔금 현황 (최대 5건) | `BidService.participateAuction` |
+| `getMyEvents()` | 내 이벤트 참여 **요약**(상태별 건수 + 최근 3건) | `EventService.getEventParticipationList` |
+| `getMyAuctions()` | 내 경매 **요약**(상태별 건수, 잔금 낼 건수, 최근 3건) | `BidService.participateAuction` |
+- **내 이벤트·내 경매는 채팅에서 길게 나열하지 않는다.** 항목마다 링크 버튼과 상태 글씨가 섞이면 읽기 어려워서, 건수 요약과 최근 3건만 "제목 · 상태"로 주고 자세한 내용은 `내 이벤트`/`내 경매` 화면 링크 하나로 보낸다. 가게·상품 검색은 항목마다 링크가 필요해서 목록으로 준다.
+- **답변 길이 상한(`max-output-tokens`)을 작게 잡으면 답이 중간에 잘린다.** Gemini는 사고(thinking)에 쓴 토큰도 이 상한에 포함한다. 700으로 두었더니 경매 목록이 `[(테스트) 아크릴 무`에서 끊겼다. 지금은 2048이고, 답을 짧게 만드는 일은 프롬프트가 맡는다.
+- 상태 이름에 괄호를 붙이면(`경매 중(최고 입찰)`) AI가 한 상태를 둘로 쪼개서 요약한다. 상태 이름은 단순하게 둔다.
 - 모두 **읽기만** 한다. 그래서 취소 도구와 달리 이중 확인이 필요 없다.
 - 결과마다 화면 링크(`/test/shop/3`, `/test/auction/7` 등)가 들어 있고, 시스템 프롬프트가 "결과의 link를 답변에 붙이라"고 시킨다.
 - `getMyEvents`, `getMyAuctions`의 사용자 id는 `ToolContext`로 서버가 넣는다. AI에게 보이는 입력에는 없다(테스트로 확인).

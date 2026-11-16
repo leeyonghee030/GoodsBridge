@@ -42,8 +42,9 @@ spring:
                     # 응답 속도: 사고(thinking)를 줄이면 훨씬 빨라진다. 도구를 고르는 정도의 질문에는 LOW로 충분하다.
                     # 모델이 이 옵션을 지원하지 않아 오류가 나면 GEMINI_THINKING_LEVEL=THINKING_LEVEL_UNSPECIFIED 로 끈다.
                     thinking-level: ${GEMINI_THINKING_LEVEL:LOW}
-                    # 답변 길이 상한: 생성하는 글자가 적을수록 빨리 끝나고 토큰도 아낀다.
-                    max-output-tokens: 700
+                    # 답변 길이 상한. 사고(thinking)에 쓴 토큰도 이 상한에 포함되어서, 너무 작게 잡으면 답이 중간에 잘린다
+                    # (700으로 두었을 때 경매 목록이 "[(테스트) 아크릴 무"에서 끊겼다). 답을 짧게 만드는 일은 프롬프트가 맡는다.
+                    max-output-tokens: 2048
 
     # 메일 발송 설정 (추가)
     mail:
