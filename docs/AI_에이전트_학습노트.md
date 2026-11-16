@@ -34,10 +34,12 @@ sequenceDiagram
 | `ChatController` | `POST /api/chat`, `GET /api/chat/history`. 로그인 사용자 id를 꺼내 서비스에 넘기기만 한다 |
 | `ChatService` | 핵심 흐름(검사 → 대화 불러오기 → Gemini 호출 → 저장). **여기부터 읽으면 된다** |
 | `ChatConfig` | `ChatClient` 생성 + **시스템 프롬프트**(AI의 역할과 규칙) |
-| `ExchangeAgentTools` | AI가 부르는 **도구**. `@Tool` 메서드 2개(교환 조회, 교환 취소) |
+| `ExchangeAgentTools` | AI가 부르는 **도구**. `@Tool` 메서드 3개(교환 조회, 취소 확인, 취소 실행) |
+| `ActionConfirmationGuard` | 취소처럼 되돌릴 수 없는 동작의 **이중 확인**을 서버에서 강제하는 장치 |
 | `ChatLog` / `ChatRole` / `ChatLogRepository` / `ChatLogService` | 대화 기록 저장·조회 (USER, ASSISTANT, TOOL) |
 | `ChatRequest` / `ChatResponse` / `ChatLogResponse` | 요청·응답 모양 |
-| `ChatViewController` + `templates/chat/index.mustache` | 시연용 채팅 화면 (`/test/chat`) |
+| `static/js/chat-widget.js` + `fragments/footer.mustache` | **오른쪽 아래 고정 채팅 위젯**(모든 화면, 로그인한 손님·가게에게만) |
+| `ChatViewController` + `templates/chat/index.mustache` | `/test/chat` 안내 화면 (위젯을 열어 둔다) |
 
 ## 3. 꼭 알아야 할 개념
 
@@ -72,12 +74,37 @@ Gemini는 지난 대화를 스스로 기억하지 않습니다. 그래서 매번
 ### 트랜잭션을 안 건 이유
 AI 호출은 몇 초 걸립니다. `chat()` 전체를 트랜잭션으로 묶으면 그동안 DB 연결을 붙잡고 있어서, 저장만 `ChatLogService`에서 건마다 짧게 처리합니다. 그래서 AI가 실패해도 사용자 질문은 남고 답변만 없습니다.
 
+### 이중 확인: 조회는 바로, 취소는 두 번 묻는다
+조회처럼 읽기만 하는 일은 AI가 바로 도구를 불러 답합니다. **취소처럼 되돌릴 수 없는 일은 이렇게 두 단계**입니다.
+
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant A as AI
+    participant G as ActionConfirmationGuard
+    U->>A: "26417번 취소해줘"
+    A->>G: prepareCancelExchangeRequest(확인 도구) → 확인 대기로 기록
+    A-->>U: "취소하면 보증금 8,000원이 환불되고 되돌릴 수 없어요. 정말 취소할까요?"
+    Note over G: 이 턴이 무사히 끝나면 확인을 인정(completeTurn)
+    U->>A: "네"
+    A->>G: cancelExchangeRequest(실행 도구) → 앞선 턴에서 인정된 확인인지 검사
+    G-->>A: 통과 (한 번만 유효)
+    A-->>U: "취소했어요"
+```
+
+- **왜 코드로 강제하나**: 프롬프트에 "확인하세요"라고만 쓰면 AI가 건너뛰거나 사용자가 "확인 없이 바로 해"라고 밀어붙일 때 따를 수 있습니다. 그래서 실행 도구는 **앞선 대화 턴에서 확인이 인정된 동작만** 실행합니다.
+- 같은 턴에서 확인과 실행을 이어서 부르면 막힙니다(사용자가 답할 기회가 없었으므로).
+- 확인 도구는 취소할 수 있는지(내 신청인지, 대기 중인지)를 먼저 점검하고, **취소하면 어떻게 되는지**(상태 변경, 환불 금액, 상대에게 알림, 되돌릴 수 없음)를 알려 줍니다. AI는 이를 사용자에게 설명해야 합니다.
+- **설명이 사용자에게 전달된 턴만 인정합니다.** AI 호출이 중간에 실패하면(예: 한도 초과) 확인을 버려서, 사용자가 보지 못한 설명에 "네"로 취소되지 않습니다.
+- 확인은 한 번만 쓸 수 있고 10분이 지나면 무효입니다. 서버 메모리에 보관하므로 서버가 여러 대가 되면 공용 저장소로 옮겨야 합니다.
+- 나중에 "수정" 같은 동작이 생기면 같은 장치(`markPrepared` → `completeTurn` → `consume`)를 동작 이름만 바꿔 재사용합니다.
+
 ## 4. 직접 해 보기
 
 1. `.env`에 진짜 키 넣기: https://aistudio.google.com 에서 무료 API 키를 받아 `GEMINI_API_KEY=...`로 바꾸고 서버를 다시 켠다 (`.env`는 커밋하지 않는다).
-2. 서버를 켜고 `DEMO` 막대에서 손님 계정으로 바꾼 뒤 `/test/chat`을 연다 (데모 `APP_DEMO_ENABLED=true`).
+2. 서버를 켜고 `DEMO` 막대에서 손님 계정으로 바꾼다 (데모 `APP_DEMO_ENABLED=true`). 어느 화면에서나 오른쪽 아래의 말풍선 버튼이 보이고, 누르면 채팅 창이 열린다. (`/test/chat`은 창을 열어 둔 채 보여 준다)
 3. "내 교환 신청 보여줘"를 보낸다 → 조회 도구가 실행되고, 아래에 `🔧 교환 신청 조회: N건`이 기록된다.
-4. "대기 중인 신청 취소해줘" → AI가 먼저 목록을 보여 주고 번호를 되물어야 한다. 번호를 알려 주면 취소가 실행된다.
+4. "대기 중인 신청 취소해줘" → AI가 먼저 목록을 보여 주고 번호를 되물어야 한다. 번호를 알려 주면 **취소하면 어떻게 되는지 설명하고 "정말 취소할까요?"라고 되묻는다**(이때는 아직 취소되지 않는다). "네"라고 답해야 실행된다.
 5. Postman으로 해도 된다: 로그인 후 `POST /api/chat` (`{"content": "..."}`), `GET /api/chat/history`.
 
 ## 5. 도구를 하나 더 추가하려면
@@ -97,6 +124,7 @@ AI 호출은 몇 초 걸립니다. `chat()` 전체를 트랜잭션으로 묶으�
 - **모델 이름이 막힐 수 있다.** 처음에 쓴 `gemini-2.5-flash`는 새 키에서 `404 ... no longer available to new users`가 나왔다.
   그래서 모델은 `.env`의 `GEMINI_MODEL`로 바꿀 수 있게 했고 기본값은 `gemini-3.5-flash`다.
   같은 문제가 또 나면 서버 로그의 `Caused by: ...ClientException`을 먼저 보고, 쓸 수 있는 모델은 모델 목록 API로 확인한다.
+- **무료 키는 사용량 한도가 있다(429).** 테스트를 많이 하면 `You exceeded your current quota`가 나온다. 그러면 사용자에게는 503 안내가 가고, 한도가 풀릴 때까지 기다리거나 다른 모델(`GEMINI_MODEL=gemini-3.1-flash-lite` 등)로 바꾼다. 모델마다 한도가 따로 있다.
 - **모델마다 속도가 크게 다르다.** 같은 인사말이 `gemini-3.5-flash`는 2초, `gemini-3.8-flash`는 90초 넘게 걸렸다. 채팅에는 빠른 모델을 쓴다.
 - 서버 로그에 실패 원인이 안 보이면 `ChatService`의 `log.warn(..., e)`가 예외 전체를 남기는지 확인한다. 맨 위 한 줄(`Failed to generate content`)만으로는 키·한도·모델 문제를 구분할 수 없다.
 - AI가 인사에도 도구를 부르는 일이 있었다. 시스템 프롬프트에 "인사나 일반 질문에는 도구를 쓰지 말라"를 넣어 줄였다. 도구 사용이 이상하면 프롬프트부터 고친다.
