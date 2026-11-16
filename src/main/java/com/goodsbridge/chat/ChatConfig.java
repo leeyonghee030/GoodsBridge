@@ -4,9 +4,9 @@ import com.google.genai.Client;
 import com.google.genai.types.HttpOptions;
 import com.google.genai.types.HttpRetryOptions;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Spring AI의 ChatClient 설정.
@@ -46,7 +46,13 @@ public class ChatConfig {
      * 이 빈이 있으면 Spring AI의 자동 설정 클라이언트는 만들어지지 않는다.
      */
     @Bean
-    public Client geminiClient(@Value("${spring.ai.google.genai.api-key}") String apiKey) {
+    public Client geminiClient(Environment environment) {
+        // @Value("${...}")로 받으면 이 빈에서는 자리표시자가 풀리지 않은 채 들어와 "API key not valid"(400)가 났다.
+        // Environment에서 직접 읽으면 application.yaml의 ${GEMINI_API_KEY}까지 제대로 풀린다.
+        String apiKey = environment.getProperty("spring.ai.google.genai.api-key");
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("GEMINI_API_KEY가 설정되지 않았습니다. .env를 확인해 주세요.");
+        }
         return Client.builder()
             .apiKey(apiKey)
             .httpOptions(HttpOptions.builder()
