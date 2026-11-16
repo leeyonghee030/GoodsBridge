@@ -292,7 +292,11 @@ fetch('/demo/status', { credentials: 'same-origin' })
         });
         bar.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', async () => {
             const res = await fetch('/demo/login/' + btn.dataset.demo, { method: 'POST', credentials: 'same-origin' });
-            if (res.ok) location.reload(); else alert('계정 전환에 실패했습니다.');
+            if (!res.ok) { alert('계정 전환에 실패했습니다.'); return; }
+            // 관리자·가게 전용 화면을 보던 중이면 바뀐 계정에 맞는 화면으로 보낸다 (권한 없음 화면이 뜨지 않게). 그 밖의 화면은 그대로 새로고침한다.
+            const onRolePage = location.pathname.startsWith('/test/admin') || location.pathname.startsWith('/shop/');
+            const home = { admin: '/test/admin', shop: '/shop/dashboard', 'shop-b': '/shop/dashboard' }[btn.dataset.demo] || '/';
+            if (onRolePage) location.href = home; else location.reload();
         }));
     })
     .catch(() => {});
