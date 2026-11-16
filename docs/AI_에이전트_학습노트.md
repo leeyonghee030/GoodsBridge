@@ -72,7 +72,22 @@ Gemini 연결 정보(키, 모델)는 `application.yaml`의 `spring.ai.google.gen
 Gemini는 지난 대화를 스스로 기억하지 않습니다. 그래서 매번 **최근 대화 10건을 DB에서 읽어 같이 보냅니다**(`findTop10ByUser_IdAndRoleInOrderByIdDesc`). TOOL 기록은 대화 문맥에서 뺍니다.
 
 ### 트랜잭션을 안 건 이유
-AI 호출은 몇 초 걸립니다. `chat()` 전체를 트랜잭션으로 묶으면 그동안 DB 연결을 붙잡고 있어서, 저장만 `ChatLogService`에서 건마다 짧게 처리합니다. 그래서 AI가 실패해도 사용자 질문은 남고 답변만 없습니다.
+AI 호출은 몇 초 걸립니다. `chat()` 전체를 트랜잭션으로 묶으면 그동안 DB 연결을 붙잡고 있어서, 저장은 AI가 답한 **뒤에** `ChatLogService.saveConversation`이 한 번에 짧게 처리합니다.
+
+### 대화 기록 정책: 오래 쌓지 않는다
+대화 기록은 편의 기능일 뿐이고, **환불·취소 같은 중요한 내역은 교환 내역(`ExchangeRequest`)에 따로 남습니다.** 그래서 대화 기록은 가볍게 관리합니다.
+
+| 정책 | 내용 | 코드 |
+|---|---|---|
+| 화면에는 최근 50건만 | 위젯을 열 때 불러오는 기록 | `findTop50ByUser_IdOrderByIdDesc`, `HISTORY_LIMIT` |
+| AI에게는 최근 10건만 | 문맥으로 보내는 앞선 대화 (USER·ASSISTANT) | `findTop10...` |
+| 30일 지나면 자동 삭제 | 매일 04:30에 모든 사용자의 오래된 기록을 지움 (데모 초기화 04:00와 겹치지 않게) | `ChatLogCleanupScheduler`, `RETENTION_DAYS` |
+| 새 대화 버튼 | 내 기록을 모두 지움 `DELETE /api/chat/history`. 진행 중이던 취소 확인도 함께 버림 | `ChatService.clearHistory` |
+| 답을 못 받은 질문은 저장 안 함 | 질문·도구 기록·답변을 답을 받았을 때 **한 트랜잭션으로** 저장 | `saveConversation` |
+
+- 도구 실행 기록(TOOL)도 바로 저장하지 않는다. 도구는 이번 턴의 목록(`toolNotes`)에 적기만 하고, `ChatService`가 답을 받았을 때 `질문 → 도구 기록 → 답변` 순서로 함께 저장한다. AI가 실패하면 이번 턴의 기록은 통째로 버려진다. 환불·취소가 실제로 실행됐다면 그 사실은 교환 내역에 남아 있다.
+- 한 번에 저장(`saveAll`)하므로 id(시간) 순서가 보장되고, 중간에 실패하면 일부만 남는 일이 없다.
+- 삭제 쿼리(`deleteAllByUserId`, `deleteOlderThan`)는 목(mock) 단위 테스트로는 JPQL이 맞는지 알 수 없어서 `ChatLogRepositoryIntegrationTest`로 실제 DB(H2)에서 검증한다.
 
 ### 이중 확인: 조회는 바로, 취소는 두 번 묻는다
 조회처럼 읽기만 하는 일은 AI가 바로 도구를 불러 답합니다. **취소처럼 되돌릴 수 없는 일은 이렇게 두 단계**입니다.
