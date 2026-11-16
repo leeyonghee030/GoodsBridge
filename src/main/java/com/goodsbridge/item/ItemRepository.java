@@ -7,62 +7,151 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface ItemRepository extends JpaRepository<Item, Long> {
-    // 삭제되지 않은 특정 판매자의 상품 목록 조회
-    @Query("SELECT i FROM Item i WHERE i.sellerUserId = :sellerUserId AND i.deleted = false")
-    List<Item> findBySellerUserIdAndDeletedFalse(@Param("sellerUserId") Long sellerUserId);
 
-    // 특정 카테고리에 속한 상품 개수 조회
-    Long countByCategoryId(Long categoryId);
-
-
-    // 삭제되지 않은 특정 카테고리에 속한 상품 개수 조회
-    Long countByCategoryIdAndDeletedFalse(Long categoryId);
-
-    // 단건 조회 시 삭제되지 않은 것만 탐색
+    /**
+     * 상품 ID로 삭제되지 않은 상품 조회
+     */
     Optional<Item> findByIdAndDeletedFalse(Long id);
 
-    //조건(카테고리, 지역, 판매 유형)에 맞는 상품을 페이징 처리하여 검색
-    @Query(value = """
-        SELECT i FROM Item i
+    /**
+     * 판매자 ID로 삭제되지 않은 상품 목록 조회
+     */
+    List<Item> findBySellerUserIdAndDeletedFalse(Long userId);
+
+    /**
+     * 카테고리에 속한 삭제되지 않은 상품 개수 조회
+     */
+    Long countByCategoryIdAndDeletedFalse(Long categoryId);
+
+    /**
+     * 상품 검색 및 필터링
+     *
+     * 카테고리, 지역, 판매 유형을 조건으로 상품을 검색합니다.
+     */
+    @Query("""
+        SELECT i
+        FROM Item i
         JOIN FETCH i.category c
         LEFT JOIN Shop s ON i.shopId = s.id
         WHERE (:categoryId IS NULL OR c.id = :categoryId)
           AND (:region IS NULL OR s.region = :region)
           AND (:saleType IS NULL OR i.saleType = :saleType)
+          AND (:keyword IS NULL OR LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')))
           AND i.deleted = false
-        """,
-        countQuery = """
-            SELECT COUNT(i) FROM Item i
-            JOIN i.category c
-            LEFT JOIN Shop s ON i.shopId = s.id
-            WHERE (:categoryId IS NULL OR c.id = :categoryId)
-              AND (:region IS NULL OR s.region = :region)
-              AND (:saleType IS NULL OR i.saleType = :saleType)
-              AND i.deleted = false
-            """)
-    Page<Item> searchItemsWithFilter(@Param("categoryId") Long categoryId,
-                                     @Param("region") String region,
-                                     @Param("saleType") SaleType saleType,
-                                     Pageable pageable);
-
-    // 특정 가게 ID 리스트에 속한 상품들의 상태를 일괄 변경 (구독 만료 시 CLOSED 처리용)
-    // TODO - 스케줄러 등록해서 구독 만료된 가게들 일괄처리 시킬려고 만들어둠 일단 보류
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("""
-        UPDATE Item i SET i.status = :status WHERE i.shopId IN :shopIds
         """)
-    void updateStatusByShopIds(@Param("shopIds") List<Long> shopIds, @Param("status") ItemStatus status);
+    Page<Item> searchItemsWithFilterAndKeyword(
+        @Param("categoryId") Long categoryId,
+        @Param("region") String region,
+        @Param("saleType") SaleType saleType,
+        @Param("keyword") String keyword,
+        Pageable pageable
+    );
 
-    // 특정 가게의 특정 상태인 상품들을 다른 상태로 일괄 변경 (구독 갱신 시 CLOSED -> ON_SALE 복구용)
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    // SHOP 목록용: 가게 상품만 (교환용 개인 상품, 선착순 이벤트 상품 제외), 판매중/판매완료만, status 가 있으면 그 상태만
     @Query("""
-        UPDATE Item i SET i.status = :toStatus WHERE i.shopId = :shopId AND i.status = :fromStatus
+        SELECT i FROM Item i
+        JOIN FETCH i.category c
+        LEFT JOIN Shop s ON i.shopId = s.id
+        WHERE i.shopId IS NOT NULL
+          AND i.saleType <> com.goodsbridge.item.SaleType.EVENT
+          AND i.status IN (com.goodsbridge.item.ItemStatus.ON_SALE, com.goodsbridge.item.ItemStatus.SOLD)
+          AND (:status IS NULL OR i.status = :status)
+          AND (:categoryId IS NULL OR c.id = :categoryId)
+          AND (:region IS NULL OR s.region = :region)
+          AND (:saleType IS NULL OR i.saleType = :saleType)
+          AND (:keyword IS NULL OR LOWER(i.title) LIKE LOWER(CONCAT('%', :keyword, '%')))
+          AND i.deleted = false
         """)
-    void updateStatusByShopIdAndStatus(@Param("shopId") Long shopId,
-                                       @Param("fromStatus") ItemStatus fromStatus,
-                                       @Param("toStatus") ItemStatus toStatus);
+    Page<Item> searchShopItems(
+        @Param("categoryId") Long categoryId,
+        @Param("region") String region,
+        @Param("saleType") SaleType saleType,
+        @Param("keyword") String keyword,
+        @Param("status") ItemStatus status,
+        Pageable pageable
+    );
+
+    // 제목 검색어 없이 조회 (기존 호출부 호환)
+    default Page<Item> searchItemsWithFilter(Long categoryId, String region, SaleType saleType, Pageable pageable) {
+        return searchItemsWithFilterAndKeyword(categoryId, region, saleType, null, pageable);
+    }
+
+    /**
+     * 가게 삭제 시 소속 상품 전체 소프트 삭제
+     *
+     * 구독 취소 및 만료에서는 사용하지 않습니다.
+     */
+    @Modifying(
+        clearAutomatically = true,
+        flushAutomatically = true
+    )
+    @Query("""
+        UPDATE Item i
+           SET i.deleted = true,
+               i.deletedAt = :now,
+               i.status = :closed,
+               i.pausedBySubscription = false,
+               i.version = i.version + 1
+         WHERE i.shopId = :shopId
+           AND i.deleted = false
+        """)
+    int softDeleteByShopId(
+        @Param("shopId") Long shopId,
+        @Param("now") LocalDateTime now,
+        @Param("closed") ItemStatus closed
+    );
+
+    /**
+     * 구독 취소 및 만료 시 상품 판매 중지
+     *
+     * 현재 ON_SALE 상태인 상품만 CLOSED로 변경합니다.
+     * 구독 때문에 중지된 상품임을 pausedBySubscription으로 표시합니다.
+     */
+    @Modifying(
+        clearAutomatically = true,
+        flushAutomatically = true
+    )
+    @Query("""
+        UPDATE Item i
+           SET i.status = :closed,
+               i.pausedBySubscription = true,
+               i.version = i.version + 1
+         WHERE i.shopId = :shopId
+           AND i.status = :onSale
+           AND i.deleted = false
+        """)
+    int pauseItemsBySubscription(
+        @Param("shopId") Long shopId,
+        @Param("onSale") ItemStatus onSale,
+        @Param("closed") ItemStatus closed
+    );
+
+    /**
+     * 구독 재활성화 시 상품 판매 재개
+     *
+     * 구독으로 중지된 상품만 ON_SALE로 복구합니다.
+     * 점주가 직접 CLOSED 처리한 상품은 복구하지 않습니다.
+     */
+    @Modifying(
+        clearAutomatically = true,
+        flushAutomatically = true
+    )
+    @Query("""
+        UPDATE Item i
+           SET i.status = :onSale,
+               i.pausedBySubscription = false,
+               i.version = i.version + 1
+         WHERE i.shopId = :shopId
+           AND i.pausedBySubscription = true
+           AND i.deleted = false
+        """)
+    int resumeItemsBySubscription(
+        @Param("shopId") Long shopId,
+        @Param("onSale") ItemStatus onSale
+    );
 }

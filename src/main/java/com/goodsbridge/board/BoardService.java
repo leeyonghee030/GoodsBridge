@@ -2,11 +2,19 @@ package com.goodsbridge.board;
 
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.user.User;
+import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import java.util.Objects;
 
@@ -17,6 +25,7 @@ public class BoardService {
 
     private final BoardRepository boardRepository;
     private final ReplyRepository replyRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public Long createBoard(BoardRequestDto requestDto, Long loginUserId) {
@@ -43,7 +52,7 @@ public class BoardService {
             }
         }
 
-        return BoardResponseDto.from(board);
+        return BoardResponseDto.from(board, collectNicknames(List.of(board)));
     }
 
     @Transactional
@@ -67,6 +76,7 @@ public class BoardService {
         }
 
         Reply reply = Reply.builder()
+            .board(board)
             .content(requestDto.getContent())
             .authorId(loginUserId)
             .build();
@@ -76,6 +86,7 @@ public class BoardService {
 
         Long replyId = replyRepository.save(reply).getId();
 
+        // 3. 댓글이 작성되면 게시판 상태를 '답변 완료'로 자동 변경
         board.complete();
 
         return replyId;
@@ -148,17 +159,27 @@ public class BoardService {
         if (searchKeyword.isEmpty()) {
             boardPage = boardRepository.findAll(pageable);
         } else {
-            boardPage = boardRepository
-                .findByTitleContainingOrContentContaining(
-                    searchKeyword,
-                    searchKeyword,
-                    pageable
-                );
+            boardPage = boardRepository.findByKeyword(keyword, pageable);
         }
 
-        return boardPage.map(
-            board -> BoardResponseDto.fromForList(board, loginUserId)
-        );
+        Map<Long, String> nicknames = collectNicknames(boardPage.getContent());
+        return boardPage.map(board -> BoardResponseDto.from(board, nicknames));
+    }
+
+    // 게시글(+댓글) 작성자 ID들을 모아 닉네임을 한 번에 조회
+    private Map<Long, String> collectNicknames(List<Board> boards) {
+        Set<Long> authorIds = new HashSet<>();
+        for (Board board : boards) {
+            authorIds.add(board.getAuthorId());
+            for (Reply reply : board.getReplies()) {
+                authorIds.add(reply.getAuthorId());
+            }
+        }
+        if (authorIds.isEmpty()) {
+            return Map.of();
+        }
+        return userRepository.findAllById(authorIds).stream()
+            .collect(Collectors.toMap(User::getId, User::getNickname));
     }
 
     // 특정 상품의 문의 게시글 페이징 조회

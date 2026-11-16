@@ -1,0 +1,267 @@
+{{> fragments/header}}
+
+<style>
+/* 상품 상세: 사진과 정보 칸 높이를 맞추고, 구매 버튼은 정보 칸 맨 아래에 */
+/* 교환 상세처럼 헤더 바로 아래에 붙이고, 사진/정보를 같은 높이(450px)로 맞춰 한 화면에 보이게 */
+.container.item-detail { margin-top: 1.5rem; }
+.item-detail .detail-image { aspect-ratio: auto; height: 450px; }
+.item-detail-info { height: 450px; display: flex; flex-direction: column; }
+.item-detail-info .item-tag { font-size: 0.78rem; color: var(--color-muted); margin: 0 0 0.4rem; }
+.item-detail-info h1 { margin: 0 0 0.5rem; font-size: 1.35rem; line-height: 1.35; }
+.item-detail-info .item-price { margin: 0 0 0.8rem; font-size: 1.15rem; font-weight: 700; }
+.item-detail-info .item-status { align-self: flex-start; margin-bottom: 0.8rem; }
+.item-detail-info .item-desc { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: 1rem 0; border-top: 1px solid var(--color-border); font-size: 0.92rem; line-height: 1.7; color: var(--color-text-soft, #444); white-space: pre-line; }
+.item-detail-info .item-buy { padding-top: 1rem; border-top: 1px solid var(--color-border); }
+.item-detail-info .item-buy-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.7rem; font-size: 0.85rem; color: var(--color-muted); }
+.item-detail-info .item-buy-row b { font-size: 1.1rem; color: var(--color-text); }
+@media (max-width: 760px) { .item-detail .detail-image, .item-detail-info { height: auto; } .item-detail .detail-image { aspect-ratio: 3 / 4; } }
+
+/* 주문/결제 창 */
+.modal-card.order-modal { max-width: 520px; padding: 0; }
+.order-modal h1 { margin: 0; padding: 1.2rem 1.5rem; border-bottom: 1px solid var(--color-border); font-size: 1.05rem; text-align: center; }
+.order-modal .modal-close { top: 1rem; }
+.order-section { padding: 1.2rem 1.5rem; border-bottom: 8px solid var(--color-surface); }
+.order-section:last-of-type { border-bottom: 0; }
+.order-section h2 { margin: 0 0 0.9rem; font-size: 0.98rem; }
+.order-item { display: flex; gap: 0.9rem; align-items: center; }
+.order-item-thumb { flex: none; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; background: #fff; border: 1px solid var(--color-border); box-sizing: border-box; }
+.order-item-thumb img { width: 100%; height: 100%; object-fit: contain; }
+.order-item small { display: block; font-size: 0.76rem; color: var(--color-muted); }
+.order-item strong { display: block; margin-top: 0.15rem; font-size: 0.92rem; font-weight: 500; }
+.order-qty { display: flex; justify-content: space-between; margin-top: 0.9rem; padding: 0.8rem 1rem; border-radius: 8px; background: var(--color-surface); font-size: 0.84rem; }
+.order-qty b { font-size: 0.95rem; }
+.order-field { margin-bottom: 0.9rem; }
+.order-field label { display: block; margin-bottom: 0.35rem; font-size: 0.84rem; font-weight: 500; }
+.order-field label em { font-style: normal; color: #C0392B; }
+.order-field input, .order-field select { margin: 0; }
+.order-pay { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+.order-pay input { width: auto; margin: 0; accent-color: var(--color-dark); }
+.order-sum div { display: flex; justify-content: space-between; margin-bottom: 0.45rem; font-size: 0.86rem; color: var(--color-muted); }
+.order-sum div.total { margin: 0.7rem 0 0; padding-top: 0.7rem; border-top: 1px solid var(--color-border); color: var(--color-text); font-weight: 600; }
+.order-sum div.total b { font-size: 1.15rem; }
+.order-submit { padding: 1rem 1.5rem 1.4rem; }
+</style>
+
+<div class="container detail-container item-detail">
+<a href="/test/item" class="back-link">← 목록으로</a>
+<div class="detail-grid">
+    <div class="detail-media">
+        <div class="detail-image">
+            {{#item.imageUrl}}<img src="{{item.imageUrl}}" alt="{{item.title}}">{{/item.imageUrl}}
+            {{^item.imageUrl}}이미지 없음{{/item.imageUrl}}
+        </div>
+    </div>
+    <div class="detail-info item-detail-info">
+        <p class="item-tag">{{item.categoryName}}</p>
+        <h1>{{item.title}}</h1>
+        <p class="item-price">{{#money}}{{item.price}}{{/money}}원</p>
+        <span class="badge item-status" id="item-status" data-status="{{item.status}}">{{item.status}}</span>
+        <script>
+            // 외부 스크립트(결제/우편번호)를 기다리지 않고 바로 상태를 한글로 표시
+            (el => { el.textContent = ({ ON_SALE: '판매중', SOLD: '판매완료', CLOSED: '판매종료' })[el.dataset.status] || el.dataset.status; })(document.getElementById('item-status'));
+        </script>
+        <p class="item-desc">{{item.description}}</p>
+        <div class="item-buy">
+            <div class="item-buy-row"><span>수량 1개 · 무료배송</span><b>{{#money}}{{item.price}}{{/money}}원</b></div>
+            <button type="button" id="buy-button">구매하기</button>
+            <p id="buy-message" class="form-message"></p>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- 주문/결제 창 -->
+<div class="modal-backdrop" id="order-modal" hidden>
+<div class="modal-card order-modal">
+    <button type="button" class="modal-close" id="order-close">✕</button>
+    <h1>주문/결제</h1>
+
+    <section class="order-section">
+        <h2>주문 상품</h2>
+        <div class="order-item">
+            <div class="order-item-thumb">{{#item.imageUrl}}<img src="{{item.imageUrl}}" alt="">{{/item.imageUrl}}</div>
+            <div><small>{{item.categoryName}}</small><strong>{{item.title}}</strong></div>
+        </div>
+        <div class="order-qty"><span>상품 구매 수량 : 1개</span><b>{{#money}}{{item.price}}{{/money}}원</b></div>
+    </section>
+
+    <section class="order-section">
+        <h2>배송지</h2>
+        <div class="order-field">
+            <label for="order-name">받는 사람 <em>*</em></label>
+            <input id="order-name" type="text" maxlength="20" placeholder="이름을 입력해 주세요." autocomplete="name">
+        </div>
+        <div class="order-field">
+            <label for="order-phone">휴대폰번호 <em>*</em></label>
+            <input id="order-phone" type="text" inputmode="numeric" maxlength="13" placeholder="숫자만 입력해 주세요." autocomplete="tel">
+        </div>
+        <div class="order-field">
+            <label for="order-address">주소 <em>*</em></label>
+            <input id="order-address" type="text" maxlength="150" placeholder="받으실 주소를 입력해 주세요. (예: 서울시 마포구 와우산로 21, 3층)" autocomplete="street-address">
+        </div>
+        <div class="order-field">
+            <label for="order-request">배송 요청사항 (선택)</label>
+            <select id="order-request">
+                <option value="">선택 안 함</option>
+                <option>문 앞에 놓아주세요.</option>
+                <option>경비실에 맡겨주세요.</option>
+                <option>배송 전에 연락 주세요.</option>
+                <option>파손 위험이 있으니 조심히 다뤄주세요.</option>
+                <option value="custom">직접 입력</option>
+            </select>
+            <input id="order-request-custom" type="text" maxlength="40" placeholder="요청사항을 입력해 주세요." style="margin-top:0.5rem" hidden>
+        </div>
+    </section>
+
+    <section class="order-section">
+        <h2>결제수단</h2>
+        <label class="order-pay"><input type="radio" name="order-pay" checked> 신용/체크카드</label>
+    </section>
+
+    <section class="order-section order-sum">
+        <h2>결제금액</h2>
+        <div><span>상품 금액</span><span>{{#money}}{{item.price}}{{/money}}원</span></div>
+        <div><span>배송비</span><span>0원</span></div>
+        <div class="total"><span>총 결제금액</span><b>{{#money}}{{item.price}}{{/money}}원</b></div>
+    </section>
+
+    <div class="order-submit">
+        <button type="button" id="order-pay-button">{{#money}}{{item.price}}{{/money}}원 결제하기</button>
+        <p id="order-message" class="form-message"></p>
+    </div>
+</div>
+</div>
+
+<script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+<script>
+// 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
+const errorText = async (res, fallback) => {
+    const text = await res.text();
+    try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+};
+
+(() => {
+    const itemId = {{item.id}};
+    const price = {{item.price}};
+    const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
+    const title = document.querySelector('.item-detail-info h1').textContent;
+    const statusEl = document.getElementById('item-status');
+    const buyButton = document.getElementById('buy-button');
+    const message = document.getElementById('buy-message');
+    const $ = id => document.getElementById(id);
+
+    if (statusEl.dataset.status !== 'ON_SALE') {
+        buyButton.textContent = '판매완료';
+        buyButton.disabled = true;
+        return;
+    }
+    // 가게 계정은 어떤 상품도 살 수 없다
+    if ({{shopAccount}}) {
+        buyButton.textContent = '가게 계정은 구매할 수 없어요';
+        buyButton.disabled = true;
+        return;
+    }
+    // 내가 등록한 상품(내 가게 상품)은 살 수 없다 — 결제창을 열기 전에 막는다
+    if ({{ownItem}}) {
+        buyButton.textContent = '내 가게 상품이라 구매할 수 없어요';
+        buyButton.disabled = true;
+        return;
+    }
+
+    // ===== 주문/결제 창 =====
+    const modal = $('order-modal');
+    const orderMessage = $('order-message');
+    const fail = text => { orderMessage.textContent = text; orderMessage.className = 'form-message error'; };
+    buyButton.addEventListener('click', () => {
+        if (userId === null) {
+            alert('로그인이 필요합니다.');
+            const loginModal = document.getElementById('login-modal');
+            if (loginModal) loginModal.hidden = false;
+            return;
+        }
+        orderMessage.textContent = '';
+        modal.hidden = false;
+        $('order-name').focus();
+    });
+    $('order-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', ev => { if (ev.target === modal) modal.hidden = true; });
+
+    // 휴대폰번호: 숫자만 받아 010-1234-5678 형태로
+    $('order-phone').addEventListener('input', ev => {
+        const d = ev.target.value.replace(/\D/g, '').slice(0, 11);
+        ev.target.value = d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}`;
+    });
+
+    $('order-request').addEventListener('change', ev => {
+        $('order-request-custom').hidden = ev.target.value !== 'custom';
+        if (ev.target.value === 'custom') $('order-request-custom').focus();
+    });
+
+    // 구매 API 는 배송지 문자열 하나만 받으므로 받는 사람/연락처/주소/요청사항을 한 줄로 합친다 (가게 판매 상세에 그대로 보인다)
+    function deliveryText() {
+        const name = $('order-name').value.trim();
+        const phone = $('order-phone').value.trim();
+        const address = $('order-address').value.trim();
+        const req = $('order-request').value === 'custom' ? $('order-request-custom').value.trim() : $('order-request').value;
+        if (!name) return { error: '받는 사람을 입력해 주세요.', focus: 'order-name' };
+        if (phone.replace(/\D/g, '').length < 10) return { error: '휴대폰번호를 정확히 입력해 주세요.', focus: 'order-phone' };
+        if (!address) return { error: '주소를 입력해 주세요.', focus: 'order-address' };
+        let text = `${name} / ${phone} / ${address}`;
+        if (req) text += ` / 요청: ${req}`;
+        if (text.length > 250) return { error: '배송지 정보가 너무 길어요. 주소나 요청사항을 줄여 주세요.', focus: 'order-address' };
+        return { text };
+    }
+
+    // TODO(데모 종료 후 제거): 데모 모드(app.demo.enabled)에서는 PortOne 결제창 없이 바로 결제된 것으로 처리한다 (서버 DemoPaymentService 도 검증 생략)
+    const skipPayment = '{{skipPayment}}' === 'true' && window.gbPaySkip();
+    async function pay() {
+        if (skipPayment) return { paymentId: `demo-pay-${crypto.randomUUID()}` };
+        const result = await PortOne.requestPayment({
+            storeId: '{{portoneStoreId}}',
+            channelKey: '{{portoneChannelKey}}',
+            paymentId: `goodsbridge-${crypto.randomUUID()}`,
+            orderName: title,
+            totalAmount: price,
+            currency: 'KRW',
+            payMethod: 'CARD'
+        });
+        if (result.code) throw new Error(result.message || '결제가 취소되었습니다.');
+        return result;
+    }
+
+    const payButton = $('order-pay-button');
+    payButton.addEventListener('click', async () => {
+        const delivery = deliveryText();
+        if (delivery.error) { fail(delivery.error); $(delivery.focus).focus(); return; }
+        if (!skipPayment && !window.PortOne) { fail('포트원 SDK를 불러오지 못했습니다.'); return; }
+
+        payButton.disabled = true;
+        orderMessage.textContent = skipPayment ? '구매하는 중입니다. (데모: 결제 생략)' : '결제창을 여는 중입니다.';
+        orderMessage.className = 'form-message';
+        try {
+            const result = await pay();
+
+            const response = await fetch('/api/items/' + itemId + '/purchase', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ paymentId: result.paymentId, deliveryAddress: delivery.text })
+            });
+            if (!response.ok) throw new Error(await errorText(response, '구매 처리에 실패했습니다.'));
+
+            // 교환 신청 완료처럼 결제 창을 닫고 디자인 알림창으로 안내
+            modal.hidden = true;
+            orderMessage.textContent = '';
+            buyButton.textContent = '판매완료';
+            buyButton.disabled = true;
+            statusEl.textContent = '판매완료';
+            alert('구매가 완료되었습니다.\n가게에서 상품을 보내면 배송이 시작돼요.');
+        } catch (error) {
+            fail(error.message);
+            payButton.disabled = false;
+        }
+    });
+})();
+</script>
+
+{{> fragments/footer}}

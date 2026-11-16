@@ -28,11 +28,13 @@ public interface ShopEventRepository extends JpaRepository<ShopEvent, Long> {
     Optional<ShopEvent> findByIdForUpdate(@Param("id") Long id);
 
 
+    // 마감시간이 지났는데 아직 정산 안 된 이벤트 (정원이 차서 먼저 CLOSED 된 이벤트도 포함)
     @Query("""
     select s from ShopEvent s
-    where s.status = :status and s.deadline < :deadline
+    join fetch s.shop
+    where s.status <> com.goodsbridge.event.ShopEventStatus.CANCELLED
+          and s.settled = false and s.deadline < :now
 """)
-    List<ShopEvent> findByStatusAndDeadlineBefore(@Param("status") ShopEventStatus status
-        , @Param("deadline") LocalDateTime deadline);
+    List<ShopEvent> findSettleTargets(@Param("now") LocalDateTime now);
 
 }

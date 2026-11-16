@@ -26,6 +26,7 @@ public class PurchaseViewController {
     public String index(Model model) {
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
         return "purchase/index";
     }
 
@@ -55,7 +56,7 @@ public class PurchaseViewController {
         return ResponseEntity.ok(purchaseService.findMine(userId));
     }
 
-    // 가게 발송 관리 목록
+    // 가게 발송 관리 목록 (status: PREPARING / SHIPPED / DELIVERED / ALL, 기본 PREPARING)
     @GetMapping("/api/shops/{id}/purchases")
     public ResponseEntity<List<PurchaseResponse.DetailDto>> shopPurchases(
         @PathVariable Long id, @RequestParam(defaultValue = "PREPARING") String status) {

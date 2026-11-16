@@ -6,6 +6,7 @@ import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.user.User;
+import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -26,6 +27,7 @@ public class BidService {
     private final AuctionRepository auctionRepository;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
+    private final ShopRepository shopRepository;
 
     // 입찰 여부 판단
     @Transactional
@@ -40,9 +42,12 @@ public class BidService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
 
-        // 2. 가게 주인 본인 입찰 차단
+        // 2. 가게 주인 본인 입찰 차단 (다른 가게 경매도 가게 계정은 입찰할 수 없다)
         if (auction.getShop().isOwner(userId)) {
             throw new ForbiddenException("자신이 판매한 상품은 입찰할 수 없습니다.");
+        }
+        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
+            throw new ForbiddenException("가게 계정은 경매에 입찰할 수 없습니다.");
         }
 
         // 3. 상태/마감 검증
@@ -57,6 +62,8 @@ public class BidService {
         }
 
         // 5. 최초 입찰 시에만 보증금 검증 (금액 = Auction.depositAmount)
+        //    주의: 이 검증은 PortOne(외부 API)을 호출하며 경매 행 락을 쥔 채 실행된다.
+        //    외부 서버가 느려지면 같은 경매의 다른 입찰이 대기하므로, 규모가 커지면 락 범위 분리를 검토한다.
         boolean firstBid = !bidRepository.existsByAuctionIdAndUserId(auctionId, userId);
         String depositPaymentId;
 
@@ -67,7 +74,7 @@ public class BidService {
             depositPaymentId = paymentService.verify(request.getPaymentId(),
                 auction.getDepositAmount(), PaymentPurpose.AUCTION_DEPOSIT, userId);
         } else {
-            Bid previousBid = bidRepository.findTopByAuctionIdAndUserId(auctionId, userId)
+            Bid previousBid = bidRepository.findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(auctionId, userId)
                 .orElseThrow(() -> new NotFoundException("기존 입찰 보증금을 찾을 수 없습니다."));
             depositPaymentId = previousBid.getDepositPaymentId();
         }
@@ -99,6 +106,12 @@ public class BidService {
         // IN 조회는 순서를 보장하지 않으므로 ID 순서대로 재정렬
         Map<Long, Auction> auctionMap = auctionRepository.findAllById(idPage.getContent()).stream()
             .collect(Collectors.toMap(Auction::getId, Function.identity()));
-        return idPage.map(id -> AuctionResponse.from(auctionMap.get(id)));
+        java.util.Map<Long, Long> counts = new java.util.HashMap<>();
+        if (!idPage.getContent().isEmpty()) {
+            for (Object[] row : bidRepository.countBidsByAuctionIds(idPage.getContent())) {
+                counts.put((Long) row[0], ((Number) row[1]).longValue());
+            }
+        }
+        return idPage.map(id -> AuctionResponse.from(auctionMap.get(id)).withBidCount(counts.getOrDefault(id, 0L)));
     }
 }

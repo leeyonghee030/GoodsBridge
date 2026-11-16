@@ -26,7 +26,13 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     boolean existsByItemId(@Param("itemId") Long itemId);
 
     // 구매 내역 조회
-    @Query("select p from Purchase p join fetch p.user where p.user.id = :userId order by p.id desc")
+    @Query("""
+        select p
+        from Purchase p
+        join fetch p.user
+        join fetch p.item
+        where p.user.id = :userId
+        order by p.id desc""")
     List<Purchase> findAllPurchaseByUserId(@Param("userId") Long userId);
 
     // 전체 상품 조회

@@ -45,22 +45,31 @@ public class SecurityConfig {
 
             // API 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
+                // 💡 [필수 추가] 관리자 전용 경로는 ROLE_ADMIN만 접근 가능하도록 최상단에 배치
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/join", "/api/login",
-                    "/css/**", "/js/**", "/favicon.ico", "/images/**", "/api/email/**"
+                    "/css/**", "/js/**", "/img/**", "/favicon.ico", "/images/**", "/api/email/**",
+                    // /shop/exchange: 가게 사장님 화면. 사장님이 아니면 컨트롤러가 /my/exchange 로 보낸다 (401 빈 화면 방지)
+                    "/test/**", "/exchange/**", "/demo/**", "/my/**", "/shop/exchange"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
 
                 // 목록/상세 조회는 비로그인도 가능 (CLAUDE.md 권한 규칙)
-                .requestMatchers(HttpMethod.GET, "/api/shops/**", "/api/items/**", "/api/boards/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**", "/api/categories/**").permitAll()
 
                 // 인증이 필요한 경로를 여기에 추가 (조회 외 나머지 메서드)
-                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**","/api/replies/**").authenticated()
+                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**","/api/replies/**")
+                .authenticated()
 
                 .requestMatchers(HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
+
+                // 토큰 재발급은 Access Token이 만료된 뒤에도 Refresh Token 쿠키만으로 호출할 수 있어야 한다.
+                .requestMatchers(HttpMethod.POST, "/api/auth/reissue").permitAll()
 
                 .anyRequest().authenticated()
             )

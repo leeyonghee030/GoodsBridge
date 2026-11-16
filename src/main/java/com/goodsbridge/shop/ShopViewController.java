@@ -2,19 +2,43 @@ package com.goodsbridge.shop;
 
 import com.goodsbridge._core.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class ShopViewController {
 
     private final ShopService shopService;
+    private final ShopSubscriptionService shopSubscriptionService;
+
+    @GetMapping("/test/shop")
+    public String index(@RequestParam(required = false) String region,
+                         @RequestParam(required = false) String keyword,
+                         Model model) {
+        model.addAttribute("shops", shopService.findAll(keyword, region, PageRequest.of(0, 60)).getContent());
+        model.addAttribute("selectedRegion", region);
+        model.addAttribute("keyword", keyword == null ? "" : keyword);
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "shop/index";
+    }
+
+    @GetMapping("/test/shop/{id}")
+    public String detail(@PathVariable Long id, Model model) {
+        model.addAttribute("shop", shopService.findById(id));
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        return "shop/detail";
+    }
 
     @PostMapping("/api/shops")
     public ResponseEntity<ShopResponse> createShop(@RequestBody ShopCreateRequest requestDto) {
@@ -57,6 +81,48 @@ public class ShopViewController {
         return ResponseEntity.noContent().build();
     }
 
+    // --- 💡 [추가] 가게 구독 관련 API 엔드포인트 ---
+
+    /**
+     * 가게 구독 생성 (또는 연장)
+     * POST /api/shops/{shopId}/subscription
+     */
+    @PostMapping("/api/shops/{shopId}/subscription")
+    public ResponseEntity<Long> createSubscription(
+        @PathVariable Long shopId,
+        @RequestBody ShopSubscriptionRequest request
+    ) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        Long subscriptionId = shopSubscriptionService.create(userId, shopId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(subscriptionId);
+    }
+
+    /**
+     * 가게 구독 정보 단건 조회
+     * GET /api/shops/{shopId}/subscription
+     */
+    @GetMapping("/api/shops/{shopId}/subscription")
+    public ResponseEntity<ShopSubscriptionResponse> getSubscription(
+        @PathVariable Long shopId
+    ) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        ShopSubscriptionResponse response = shopSubscriptionService.findById(userId, shopId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * 가게 구독 자발적 취소
+     * POST /api/shops/{shopId}/subscription/cancel
+     */
+    @PostMapping("/api/shops/{shopId}/subscription/cancel")
+    public ResponseEntity<Void> cancelSubscription(
+        @PathVariable Long shopId
+    ) {
+        Long userId = SecurityUtil.getCurrentUserId();
+        shopSubscriptionService.cancelSubscription(userId, shopId);
+        return ResponseEntity.ok().build();
+    }
+
     // --- 관리자 전용 API ---
 
     @GetMapping("/api/admin/shops/search")
@@ -70,6 +136,7 @@ public class ShopViewController {
         return ResponseEntity.ok(shopService.searchShopsByAdmin(adminUserId, name, region, status, pageable));
     }
 
+    // 관리자 입점 승인
     @PatchMapping("/api/admin/shops/{id}/approve")
     public ResponseEntity<Void> approveShop(@PathVariable Long id) {
         Long adminUserId = SecurityUtil.getCurrentUserId();
@@ -77,6 +144,7 @@ public class ShopViewController {
         return ResponseEntity.ok().build();
     }
 
+    // 관리자 입점 거절
     @PatchMapping("/api/admin/shops/{id}/reject")
     public ResponseEntity<Void> rejectShop(@PathVariable Long id) {
         Long adminUserId = SecurityUtil.getCurrentUserId();
@@ -90,4 +158,24 @@ public class ShopViewController {
         shopService.close(adminUserId, id);
         return ResponseEntity.ok().build();
     }
+
+    // --- 관리자 전용 스케줄러 수동 트리거 API ---
+
+    @PostMapping("/api/admin/scheduler/subscriptions")
+    public ResponseEntity<SchedulerResponse> triggerExpiredSubscriptionBatch() {
+        log.info("[관리자 API] 수동 스케줄러 트리거 요청 수신: 만료 구독 일괄 처리");
+
+        int processedCount = shopSubscriptionService.processExpiredSubscriptionsByAdmin();
+
+        log.info("[관리자 API] 수동 스케줄러 실행 완료: 총 {}건 처리됨", processedCount);
+
+        return ResponseEntity.ok(new SchedulerResponse(true, processedCount, "만료 구독 배치가 성공적으로 수동 실행되었습니다."));
+    }
+
+
+    public record SchedulerResponse(
+        boolean success,
+        int processedCount,
+        String message
+    ) {}
 }

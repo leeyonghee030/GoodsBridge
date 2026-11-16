@@ -8,6 +8,7 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,9 @@ public class MailService {
 
     //의존성 설정, application.yaml의 spring.mail 설정으로 스프링 부트가 만들어준 빈 객체이다.
     private final JavaMailSender javaMailSender;
+
+    @Value("${spring.mail.username}")
+    private String fromAddress;
 
     // record 문법 : JDK 16 정식으로 사용할 수 있음
     // 이 아래 한 줄이 클래스를 설계해준다. 필드 + getter + equals + hashCode + toString 을 가진 녀석을
@@ -42,6 +46,7 @@ public class MailService {
         try {
             // false : 첨부 파일 없음, "UTF-8" : 한글 깨짐 방지
             MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setFrom(fromAddress); // 보내는 사람 이메일 주소 (미설정 시 OS 계정명으로 대체되어 발송 실패함)
             helper.setTo(email); // 받는 사람 이메일 주소
             helper.setSubject("[Goods Bridge] 회원가입 인증번호"); // 제목
             helper.setText("<h3>인증번호는 " + code + " 입니다</h3>" +
@@ -51,6 +56,7 @@ public class MailService {
             javaMailSender.send(message);
 
         } catch (Exception e) {
+            log.error("메일 발송 실패", e);
             throw new InternalServerException("메일 작성 중 오류가 발생했습니다");
         }
 
