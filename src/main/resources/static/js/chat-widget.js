@@ -293,15 +293,34 @@
     }
 
     // 오늘 남은 AI 질문 횟수를 입력창 위에 작게 보여 준다 (빠른 메뉴 버튼은 AI를 쓰지 않아 횟수와 상관없다)
+    // 헤더에 작게 "AI 3/3"만 보이고, 자세한 설명은 마우스를 올렸을 때(title)와 환영 메시지에 있다.
+    let dailyLimit = null;
     async function refreshUsage() {
         try {
             const res = await api('/api/chat/usage');
             if (!res.ok) return;
+            dailyLimit = res.body.limit;
             usageEl.hidden = false;
-            usageEl.textContent = res.body.remaining > 0
-                ? '오늘 AI 질문 ' + res.body.remaining + '/' + res.body.limit + '번 남았어요 · 버튼은 계속 쓸 수 있어요'
-                : '오늘 AI 질문을 모두 썼어요 · 버튼은 계속 쓸 수 있어요';
+            usageEl.textContent = 'AI ' + res.body.remaining + '/' + res.body.limit;
+            usageEl.classList.toggle('is-empty', res.body.remaining === 0);
+            usageEl.title = res.body.remaining > 0
+                ? '오늘 AI 질문 ' + res.body.remaining + '번 남았어요 (하루 ' + res.body.limit + '번). 아래 버튼은 계속 쓸 수 있어요.'
+                : '오늘 AI 질문을 모두 썼어요. 아래 버튼은 계속 쓸 수 있어요.';
         } catch (e) { /* 표시만 못 할 뿐이다 */ }
+    }
+
+    // 처음 열었을 때와 새 대화 뒤에 보여 주는 사용법 소개
+    function showIntro(prefix) {
+        const times = dailyLimit ? '하루 ' + dailyLimit + '번' : '하루 정해진 횟수';
+        addMessage('ASSISTANT', (prefix ? prefix + '\n\n' : '') + [
+            '안녕하세요! GoodsBridge 도우미예요.',
+            '',
+            '**이렇게 쓰세요**',
+            '• 글로 물어보세요: 교환·경매·이벤트 사용법, 가게·상품 찾기, 내 교환·이벤트·경매 현황',
+            '• 교환 신청 취소처럼 중요한 일은 설명해 드린 뒤 한 번 더 확인해요',
+            '• 글 질문은 ' + times + '까지예요. 아래 버튼은 횟수 제한 없이 계속 쓸 수 있어요',
+            '• 대화 기록은 하루가 지나면 지워져요'
+        ].join('\n'));
     }
 
     // 처음 열 때 한 번만 지난 대화(본인 것)를 불러온다
@@ -311,13 +330,13 @@
             showShopNotice();
             return;
         }
-        refreshUsage();
+        await refreshUsage();   // 소개 문구에 하루 횟수를 넣으려고 먼저 받아 온다
         try {
             const res = await api('/api/chat/history');
             if (res.ok) res.body.forEach(log => addMessage(log.role, log.content));
         } catch (e) { /* 기록을 못 불러와도 대화는 할 수 있다 */ }
         if (!listEl.children.length) {
-            addMessage('ASSISTANT', '안녕하세요! 글로 물어보시거나 아래 빠른 메뉴 버튼을 눌러 교환 신청 확인·취소와 서비스 안내를 볼 수 있어요. 대화 기록은 하루가 지나면 지워져요.');
+            showIntro();
         }
     }
 
@@ -381,7 +400,7 @@
         const res = await fetch('/api/chat/history', { method: 'DELETE', credentials: 'same-origin' });
         if (!res.ok) { addMessage('ERROR', '대화를 지우지 못했어요.'); return; }
         listEl.replaceChildren();
-        addMessage('ASSISTANT', '대화를 모두 지웠어요. 새로 시작해 볼까요?');
+        showIntro('대화를 모두 지웠어요.');
     });
 
     // 다른 화면(/test/chat 등)에서 위젯을 열 수 있게 노출한다

@@ -2250,4 +2250,5 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .chat-msg.is-user a { background: transparent; border-color: #fff; color: #fff; }
 .chat-widget a.chat-link { text-decoration: none; }
 /* 오늘 남은 AI 질문 횟수 */
-.chat-usage { margin: 0; padding: 0.4rem 0.9rem 0; font-size: 0.72rem; color: var(--color-muted); }
+.chat-usage { margin-right: 0.2rem; font-size: 0.68rem; color: var(--color-muted); white-space: nowrap; cursor: default; }
+.chat-usage.is-empty { color: var(--color-text); font-weight: 600; }

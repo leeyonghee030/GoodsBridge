@@ -41,6 +41,7 @@
         <div class="chat-head">
             <strong>GoodsBridge 도우미</strong>
             <div class="chat-head-actions">
+                <span class="chat-usage" id="chat-usage" hidden></span>
                 <button type="button" class="chat-reset" id="chat-reset" title="대화 기록을 모두 지워요">새 대화</button>
                 <button type="button" class="chat-close" id="chat-close" aria-label="닫기">✕</button>
             </div>
@@ -55,7 +56,6 @@
             <button type="button" data-quick="guide-more">경매·이벤트</button>
             <button type="button" data-quick="guide-browse">상품·가게 보기</button>
         </div>
-        <p class="chat-usage" id="chat-usage" hidden></p>
         <form class="chat-form" id="chat-form">
             <input id="chat-input" type="text" maxlength="300" placeholder="메시지를 입력하세요" autocomplete="off" required>
             <button type="submit" id="chat-send">보내기</button>
