@@ -202,6 +202,32 @@ class RefundServiceTest {
     }
 
     @Test
+    void approve_rejectsWhenDeliveryStartedAfterRequest() {
+        User admin = mock(User.class);
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(admin));
+
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("환불")
+            .requestedAmount(10_000).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
+
+        // 요청 이후 판매자가 발송한 상황
+        Purchase purchase = Purchase.builder().item(mock(Item.class)).user(mock(User.class))
+            .paymentId("p-1").deliveryAddress("Seoul").build();
+        purchase.ship("TRACK-1");
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
+
+        assertThrows(BadRequestException.class, () -> refundService.approve(1L, 7L));
+
+        assertEquals(Status.REQUESTED, refund.getStatus());
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
     void refundByShop_rejectsNonOwnerWithForbidden() {
         Shop shop = mock(Shop.class);
         when(shop.isOwner(5L)).thenReturn(false);

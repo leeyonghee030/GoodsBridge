@@ -14,6 +14,7 @@ import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.refund.RefundRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -46,6 +47,7 @@ public class PurchaseService {
     private final SettlementHistoryService settlementHistoryService;
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher publisher;
+    private final RefundRepository refundRepository;
 
     // 구매 (서버가 거절하면 이미 승인된 PortOne 결제를 자동 취소한다)
     @Transactional
@@ -191,6 +193,11 @@ public class PurchaseService {
         if (deliveryStatus == DeliveryStatus.PREPARING
             || (deliveryStatus == DeliveryStatus.SHIPPED && trackingNumber == null)) {
             throw new BadRequestException("지원하지 않는 배송 상태 변경입니다. 운송장 번호를 입력하면 배송중으로, DELIVERED 로 배송완료 처리됩니다.");
+        }
+        // 환불 요청이 대기 중인 구매는 발송하지 못하게 막는다 (먼저 승인/거절로 정리해야 한다)
+        if (purchase.getPaymentId() != null
+            && refundRepository.existsPendingByPaymentId(purchase.getPaymentId())) {
+            throw new BadRequestException("환불 요청이 대기 중인 구매는 배송 처리를 할 수 없습니다. 환불 요청을 먼저 승인하거나 거절해 주세요.");
         }
 
         // 운송 번호 입력 -> 배송중

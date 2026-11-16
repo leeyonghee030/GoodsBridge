@@ -1,20 +1,23 @@
 package com.goodsbridge.purchase;
 
+import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.ForbiddenException;
+import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.payment.PaymentRepository;
+import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.refund.RefundRepository;
+import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
-import com.goodsbridge.payment.PaymentService;
-import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.shop.ShopRepository;
-import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
-import com.goodsbridge._core.exception.ForbiddenException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,11 +29,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import com.goodsbridge._core.exception.BadRequestException;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseServiceTest {
@@ -43,9 +43,10 @@ class PurchaseServiceTest {
     @Mock ShopRepository shopRepository;
     @Mock UserRepository userRepository;
     @Mock SettlementHistoryService settlementHistoryService;
-    @Mock com.goodsbridge.auction.AuctionRepository auctionRepository;
+    @Mock AuctionRepository auctionRepository;
     @InjectMocks PurchaseService purchaseService;
     @Mock ApplicationEventPublisher publisher;
+    @Mock RefundRepository refundRepository;
 
     @Test
     void findMine_returnsPurchaseDetailsFromRepository() {
@@ -362,6 +363,19 @@ class PurchaseServiceTest {
         PurchaseRequest.ShippingDto shippedOnly = new PurchaseRequest.ShippingDto();
         shippedOnly.setDeliveryStatus(DeliveryStatus.SHIPPED);
         assertThrows(BadRequestException.class, () -> purchaseService.shipping(1L, 10L, shippedOnly));
+
+        assertEquals(DeliveryStatus.PREPARING, purchase.getDeliveryStatus());
+    }
+
+    @Test
+    void shipping_rejectsWhenRefundRequestIsPending() {
+        Purchase purchase = purchaseOwnedBySeller(10L);
+        when(refundRepository.existsPendingByPaymentId("payment-1")).thenReturn(true);
+
+        PurchaseRequest.ShippingDto dto = new PurchaseRequest.ShippingDto();
+        dto.setTrackingNumber("TRACK-1");
+
+        assertThrows(BadRequestException.class, () -> purchaseService.shipping(1L, 10L, dto));
 
         assertEquals(DeliveryStatus.PREPARING, purchase.getDeliveryStatus());
     }

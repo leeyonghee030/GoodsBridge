@@ -85,6 +85,9 @@ public class RefundService {
             if (!REFUNDABLE_DELIVERY_STATUSES.contains(purchase.getDeliveryStatus())) {
                 throw new BadRequestException("배송 준비중이거나 배송이 완료된 구매만 환불을 요청할 수 있습니다.");
             }
+        } else if (isAuctionBalance(payment)) {
+            // 경매 낙찰 잔금도 배송 중에는 환불 요청을 받지 않는다
+            validateRefundableDelivery(payment);
         }
         User user = userRepository.getReferenceById(userId);
         Refund refund = Refund.builder().payment(payment).user(user).reason(request.getReason())
@@ -178,6 +181,8 @@ public class RefundService {
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("결제 완료 상태만 환불할 수 있습니다.");
         }
+        // 요청 시점에는 배송 전이었어도 승인 전에 발송됐을 수 있으므로 승인할 때 다시 확인한다.
+        validateRefundableDelivery(payment);
         boolean auction = isAuctionBalance(payment);
         if (auction) {
             validateAuctionFullRefund(payment, refund.getRequestedAmount());
@@ -195,6 +200,16 @@ public class RefundService {
             reopenItemIfFullyRefunded(payment, fullRefund);
             paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
         }
+    }
+
+    // 배송 중(SHIPPED)인 구매는 환불을 처리할 수 없다 (REFUNDABLE_DELIVERY_STATUSES 기준).
+    // 구매 내역이 없는 결제(교환 보증금 등)는 검사 대상이 아니므로 그냥 넘어간다.
+    private void validateRefundableDelivery(Payment payment) {
+        purchaseRepository.findByPaymentId(payment.getPaymentId()).ifPresent(purchase -> {
+            if (!REFUNDABLE_DELIVERY_STATUSES.contains(purchase.getDeliveryStatus())) {
+                throw new BadRequestException("배송 중인 구매는 환불을 처리할 수 없습니다. 배송이 완료된 뒤 처리해주세요.");
+            }
+        });
     }
 
     // 구매 상품을 전액 환불하면 거래를 종료하고 상품을 다시 판매 목록에 노출한다. 이때 구매 내역에 환불 이력을 남긴다.
