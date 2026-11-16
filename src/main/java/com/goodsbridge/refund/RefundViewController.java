@@ -44,6 +44,20 @@ public class RefundViewController {
         return ResponseEntity.ok().build();
     }
 
+    // 가게 주인의 환불 승인 (거절했던 건 재승인 포함)
+    @PatchMapping("/api/shops/{shopId}/refunds/{id}/approve")
+    public ResponseEntity<Void> approveByShop(@PathVariable Long shopId, @PathVariable Long id) {
+        refundService.approveByShop(SecurityUtil.getCurrentUserId(), shopId, id);
+        return ResponseEntity.ok().build();
+    }
+
+    // 가게 주인의 환불 거절 (이미 거절한 건은 거절 사유 수정)
+    @PatchMapping("/api/shops/{shopId}/refunds/{id}/reject")
+    public ResponseEntity<Void> rejectByShop(@PathVariable Long shopId, @PathVariable Long id, @RequestParam String rejectReason) {
+        refundService.rejectByShop(SecurityUtil.getCurrentUserId(), shopId, id, rejectReason);
+        return ResponseEntity.ok().build();
+    }
+
     // 환불 내역 화면 호출 및 조회
     @GetMapping("/api/admin/refunds")
     public ResponseEntity<List<RefundResponse.ListDto>> findAllAdmin() {

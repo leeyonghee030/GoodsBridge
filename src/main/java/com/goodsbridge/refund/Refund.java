@@ -83,6 +83,35 @@ public class Refund {
         this.updatedAt = new Timestamp(System.currentTimeMillis());
     }
 
+    // 가게가 거절했던 환불을 다시 검토해 승인한다 (실수로 거절한 경우)
+    public void reapprove() {
+        if (status != Status.REJECTED) {
+            throw new BadRequestException("거절된 환불만 다시 승인할 수 있습니다.");
+        }
+        this.rejectReason = null;
+        this.status = Status.APPROVED;
+        this.updatedAt = new Timestamp(System.currentTimeMillis());
+    }
+
+    // 거절 사유 수정 (이미 거절한 환불)
+    public void changeRejectReason(String rejectReason) {
+        if (status != Status.REJECTED) {
+            throw new BadRequestException("거절된 환불만 거절 사유를 수정할 수 있습니다.");
+        }
+        validateRejectReason(rejectReason);
+        this.rejectReason = rejectReason;
+        this.updatedAt = new Timestamp(System.currentTimeMillis());
+    }
+
+    private void validateRejectReason(String rejectReason) {
+        if (rejectReason == null || rejectReason.isBlank()) {
+            throw new BadRequestException("거절 사유는 필수입니다.");
+        }
+        if (rejectReason.length() > 500) {
+            throw new BadRequestException("거절 사유는 500자 이하로 입력해주세요.");
+        }
+    }
+
     // 거절
     public void reject(String rejectReason) {
         if (status != Status.REQUESTED) {

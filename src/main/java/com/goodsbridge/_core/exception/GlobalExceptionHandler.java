@@ -14,6 +14,11 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.io.IOException;
 
@@ -55,6 +60,23 @@ public class GlobalExceptionHandler {
                 exception.getErrorCode(),
                 exception.getMessage()
             ));
+    }
+
+    // 숫자 자리에 글자가 오거나, 필수 값이 없거나, JSON 형식·날짜 형식이 틀린 요청은 서버 오류(500)가 아니라 400 으로 돌려준다
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class, HttpMessageNotReadableException.class})
+    public ResponseEntity<ErrorResponse> handleMalformedRequest(Exception e) {
+        log.warn("[잘못된 요청 값] {}", e.getMessage());
+        BadRequestException exception = new BadRequestException("요청 값이 올바르지 않습니다. 입력한 값의 형식을 확인해 주세요.");
+        return ResponseEntity
+            .status(exception.getErrorCode().getStatus())
+            .body(ErrorResponse.of(exception.getErrorCode(), exception.getMessage()));
+    }
+
+    // 없는 주소에 잘못된 방식(GET 대신 POST 등)으로 요청하면 서버 오류(500)가 아니라 405/415 로 돌려준다
+    @ExceptionHandler({HttpRequestMethodNotSupportedException.class, HttpMediaTypeNotSupportedException.class})
+    public ResponseEntity<Void> handleUnsupportedRequest(Exception e) {
+        HttpStatus status = e instanceof HttpRequestMethodNotSupportedException ? HttpStatus.METHOD_NOT_ALLOWED : HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+        return ResponseEntity.status(status).build();
     }
 
     @ExceptionHandler(Exception.class)

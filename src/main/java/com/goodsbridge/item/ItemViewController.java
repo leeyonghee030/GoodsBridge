@@ -23,6 +23,7 @@ public class ItemViewController {
     private final ItemService itemService;
     private final ShopRepository shopRepository;
     private final ShopSaleService shopSaleService;
+    private final com.goodsbridge.auction.AuctionRepository auctionRepository;
 
     @Value("${portone.store-id}")
     private String storeId;
@@ -49,6 +50,11 @@ public class ItemViewController {
         boolean ownItem = userId != null && (userId.equals(item.getSellerUserId())
             || (item.getShopId() != null && shopRepository.findById(item.getShopId()).map(shop -> shop.isOwner(userId)).orElse(false)));
         model.addAttribute("item", item);
+        // 경매 전용 상품은 일반 구매가 아니라 경매로만 살 수 있다 → 구매 버튼 대신 경매 안내를 보여준다
+        boolean auctionItem = item.getSaleType() == SaleType.AUCTION;
+        model.addAttribute("auctionItem", auctionItem);
+        model.addAttribute("auctionId", auctionItem
+            ? auctionRepository.findActiveAuctionIdsByItemId(id).stream().findFirst().orElse(null) : null);
         model.addAttribute("ownItem", ownItem);
         // 가게 계정은 다른 가게 상품도 살 수 없다 (서버에서도 거절하지만 버튼부터 막는다)
         model.addAttribute("shopAccount", userId != null && shopRepository.existsByOwnerUserIdAndDeletedFalse(userId));

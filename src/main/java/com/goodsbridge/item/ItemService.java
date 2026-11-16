@@ -29,6 +29,9 @@ public class ItemService {
     private final CategoryJpaRepository categoryRepository;
     private final ShopRepository shopRepository;
     private final ShopSubscriptionRepository shopSubscriptionRepository;
+    private final com.goodsbridge.auction.AuctionRepository auctionRepository;
+    private final com.goodsbridge.exchange.ExchangeItemRepository exchangeItemRepository;
+    private final com.goodsbridge.exchange.ExchangeRequestRepository exchangeRequestRepository;
 
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -176,6 +179,13 @@ public class ItemService {
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
+        assertNotInAuction(item);
+        // 교환에 쓰이는 상품은 가격·상태·판매 종류를 바꾸면 보증금 계산과 교환이 꼬이므로 막는다 (제목·설명·이미지는 수정 가능)
+        if (isInExchange(item) && (!java.util.Objects.equals(item.getPrice(), request.getPrice())
+            || item.getStatus() != request.getStatus() && request.getStatus() != null
+            || item.getSaleType() != request.getSaleType() && request.getSaleType() != null)) {
+            throw new BadRequestException("교환에 쓰이고 있는 상품은 가격·상태·판매 종류를 바꿀 수 없습니다. 교환이 끝난 뒤에 수정해 주세요.");
+        }
 
         if (request.getShopId() == null) {
             // 가게 없는 상품(교환용)은 가게 ID 없이 수정 가능. 가게 상품은 가게를 떼어낼 수 없음
@@ -222,8 +232,27 @@ public class ItemService {
         if (!item.isOwner(userId)) {
             throw new ForbiddenException("해당 상품에 대한 권한이 없습니다.");
         }
+        assertNotInAuction(item);
+        if (isInExchange(item)) {
+            throw new BadRequestException("교환에 쓰이고 있는 상품은 삭제할 수 없습니다. 교환 게시글을 먼저 삭제하거나 교환이 끝난 뒤에 삭제해 주세요.");
+        }
 
         item.deleteItem();
+    }
+
+    // 모집중·매칭완료 교환 게시글에 올라가 있거나, 대기·확정 중인 교환 제안에 쓰이는 상품인지
+    private boolean isInExchange(Item item) {
+        return exchangeItemRepository.existsByItem_IdAndStatusIn(item.getId(),
+                List.of(com.goodsbridge.exchange.ExchangeItemStatus.OPEN, com.goodsbridge.exchange.ExchangeItemStatus.MATCHED))
+            || exchangeRequestRepository.existsByItemBAndStatusIn(item.getId(),
+                List.of(com.goodsbridge.exchange.ExchangeRequestStatus.PENDING, com.goodsbridge.exchange.ExchangeRequestStatus.CONFIRMED));
+    }
+
+    // 경매 중이거나 낙찰자의 잔금 결제를 기다리는 상품은 종류·가격·상태를 바꾸거나 삭제하면 경매가 꼬이므로 막는다
+    private void assertNotInAuction(Item item) {
+        if (auctionRepository.existsInUseByItemId(item.getId())) {
+            throw new BadRequestException("경매 중이거나 낙찰자의 잔금 결제를 기다리는 상품은 수정하거나 삭제할 수 없습니다.");
+        }
     }
 
     /**

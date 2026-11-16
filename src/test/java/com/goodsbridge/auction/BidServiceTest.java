@@ -87,6 +87,29 @@ class BidServiceTest {
     }
 
     @Test
+    void placeBid_firstBidEqualToStartPriceIsAllowed() {
+        // 입찰이 아직 없으면(현재 1위 없음) 시작가와 같은 금액으로 첫 입찰할 수 있다
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
+        when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L))
+            .thenReturn("payment-1");
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BidResponse response = bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1"));
+
+        assertEquals(10_000, response.getBidAmount());
+        verify(auction).updateCurrentBid(10_000, user);
+    }
+
+    @Test
+    void placeBid_firstBidBelowStartPriceIsRejectedWithStartPriceMessage() {
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(9_999, "payment-1")));
+
+        assertEquals("첫 입찰은 시작가(10,000원) 이상이어야 합니다.", exception.getMessage());
+        verify(bidRepository, never()).save(any());
+    }
+
+    @Test
     void placeBid_doesNotExtendDeadlineWhenBidIsNearDeadline() {
         when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
         when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L))
@@ -197,6 +220,8 @@ class BidServiceTest {
 
     @Test
     void placeBid_rejectsBidAtOrBelowCurrentPrice() {
+        // 이미 입찰이 있는 경매(현재 1위가 있음)에서는 현재가와 같은 금액도 안 된다
+        lenient().when(auction.getCurrentWinner()).thenReturn(user);
         BadRequestException exception = assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1")));
 

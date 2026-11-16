@@ -327,19 +327,31 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
 // 브라우저 기본 alert/confirm/prompt 를 사이트 디자인 대화상자로 대체한다.
 // alert 는 await 하면 닫힐 때까지 기다릴 수 있고, 안 해도 기존처럼 동작한다.
 (() => {
-    function gbDialog({ message, confirm = false, prompt = false, defaultValue = '' }) {
+    function gbDialog({ message, confirm = false, prompt = false, defaultValue = '', html = null, multiline = false, maxLength = 500 }) {
         return new Promise(resolve => {
             const back = document.createElement('div');
             back.className = 'modal-backdrop gb-dialog-backdrop';
             back.innerHTML = '<div class="modal-card gb-dialog" role="dialog" aria-modal="true">'
                 + '<p class="gb-dialog-msg"></p>'
-                + (prompt ? '<input type="text" class="gb-dialog-input">' : '')
+                + (prompt ? (multiline
+                    ? '<textarea class="gb-dialog-input" rows="5" maxlength="' + maxLength + '"></textarea><p class="gb-dialog-count"></p>'
+                    : '<input type="text" class="gb-dialog-input">') : '')
                 + '<div class="gb-dialog-actions">'
                 + (confirm || prompt ? '<button type="button" class="gb-cancel">취소</button>' : '')
                 + '<button type="button" class="gb-ok">확인</button></div></div>';
-            back.querySelector('.gb-dialog-msg').textContent = String(message ?? '');
+            // html 은 호출하는 쪽에서 이스케이프한 안내 조각만 넘긴다 (입찰 확인창 등)
+            if (html) { const m = back.querySelector('.gb-dialog-msg'); m.classList.add('is-rich'); m.innerHTML = html; }
+            else back.querySelector('.gb-dialog-msg').textContent = String(message ?? '');
             const input = back.querySelector('.gb-dialog-input');
             if (input) input.value = defaultValue;
+            if (multiline && input) {
+                // 길게 적는 입력: 넓은 창 + 글자 수 표시
+                back.querySelector('.gb-dialog').classList.add('is-wide');
+                const count = back.querySelector('.gb-dialog-count');
+                const updateCount = () => { count.textContent = input.value.length + ' / ' + maxLength; };
+                input.addEventListener('input', updateCount);
+                updateCount();
+            }
             const cancelValue = prompt ? null : (confirm ? false : undefined);
             const okValue = () => prompt ? input.value : (confirm ? true : undefined);
 
@@ -350,6 +362,11 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
             }
             function onKey(e) {
                 if (e.key === 'Escape') { e.preventDefault(); close(cancelValue); }
+                // 여러 줄 입력에서는 Enter 가 줄바꿈이고, Ctrl+Enter 로 확인한다
+                if (e.key === 'Enter' && multiline && prompt) {
+                    if (e.ctrlKey || e.metaKey) { e.preventDefault(); close(okValue()); }
+                    return;
+                }
                 if (e.key === 'Enter') { e.preventDefault(); close(okValue()); }
             }
             back.querySelector('.gb-ok').addEventListener('click', () => close(okValue()));
@@ -362,8 +379,8 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
         });
     }
     window.alert = message => gbDialog({ message });
-    window.gbConfirm = message => gbDialog({ message, confirm: true });
-    window.gbPrompt = (message, defaultValue) => gbDialog({ message, prompt: true, defaultValue });
+    window.gbConfirm = (message, opts) => gbDialog({ message, confirm: true, html: opts && opts.html });
+    window.gbPrompt = (message, defaultValue, opts) => gbDialog({ message, prompt: true, defaultValue, multiline: !!(opts && opts.multiline), maxLength: (opts && opts.maxLength) || 500 });
 })();
 </script>
 
@@ -450,11 +467,13 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
     Promise.all([json('/api/events'), json('/api/events/me'), json('/api/shops/me')])
         .then(([events, mine, myShops]) => {
             const now = new Date();
-            const joined = new Set((mine || []).filter(p => p.status === 'JOINED').map(p => p.shopEventId));
+            // 내가 산 수량(추가 구매 포함). 1인 최대 수량까지 다 샀을 때만 '참가 가능'에서 뺀다
+            const boughtQty = {};
+            (mine || []).filter(p => p.status === 'JOINED').forEach(p => { boughtQty[p.shopEventId] = (boughtQty[p.shopEventId] || 0) + p.quantity; });
             const ownShops = new Set(((myShops && myShops.content) || []).map(s => s.id));
             const open = (events || [])
                 .filter(e => e.status === 'OPEN' && new Date(e.deadline) > now && e.currentCount < e.capacity)
-                .filter(e => !joined.has(e.id) && !ownShops.has(e.shopId))
+                .filter(e => (boughtQty[e.id] || 0) < e.maxPerUser && !ownShops.has(e.shopId))
                 .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
                 .slice(0, 5);
             const listEl = document.getElementById('event-rank-list');

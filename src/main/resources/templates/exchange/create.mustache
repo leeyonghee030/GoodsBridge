@@ -11,13 +11,17 @@
         </select>
     </p>
     <p>
+        <label for="postTitle" class="sr-only">게시글 제목</label>
+        <input id="postTitle" name="postTitle" type="text" placeholder="게시글 제목 (비우면 상품 이름이 제목이 돼요)" maxlength="100" autocomplete="off">
+    </p>
+    <p>
         <textarea id="wantDescription" name="wantDescription" placeholder="원하는 것을 적어주세요" rows="3" required></textarea>
     </p>
-    <p style="position: relative;">
+    <div style="position: relative; margin: 0 0 0.6rem;">
         <input id="shopName" type="text" placeholder="교환장소(가게) 이름을 검색하세요" autocomplete="off" required>
         <input id="shopId" type="hidden" name="shopId">
         <div id="shop-results" class="autocomplete-list"></div>
-    </p>
+    </div>
     <button type="submit">게시글 등록</button>
 </form>
 <p id="create-message" class="form-message"></p>
@@ -35,17 +39,31 @@ const errorText = async (res, fallback) => {
     const money = v => Number(v || 0).toLocaleString('ko-KR') + '원';
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 
+    // 내 아이템 선택 목록: 이미 교환 게시글로 올렸거나 다른 교환 신청에 쓰이고 있는 상품은 선택할 수 없게 표시한다 (창을 열 때마다 새로 채운다)
     async function loadMyItems() {
-        const res = await pageFetch('/api/items/me');
-        if (!res.ok) return;
+        const [res, postsRes, reqRes] = await Promise.all([
+            pageFetch('/api/items/me'), pageFetch('/api/exchange-items/me'), pageFetch('/api/exchange-requests/me')
+        ]);
+        if (!res.ok) return [];
         const items = await res.json();
+        const posts = postsRes.ok ? await postsRes.json() : [];
+        const requests = reqRes.ok ? await reqRes.json() : [];
+        const posted = new Set(posts.filter(p => ['OPEN', 'MATCHED'].includes(p.status)).map(p => p.itemId));
+        const proposing = new Set(requests.filter(r => ['PENDING', 'CONFIRMED'].includes(r.status)).map(r => r.itemBId));
+        const onSale = items.filter(item => item.status === 'ON_SALE');
         const select = document.getElementById('itemId');
-        items.filter(item => item.status === 'ON_SALE').forEach(item => {
+        const selected = select.value;
+        while (select.options.length > 1) select.remove(1);   // 첫 번째 안내 옵션만 남기고 비움
+        onSale.forEach(item => {
             const option = document.createElement('option');
             option.value = item.id;
-            option.textContent = `${item.title} (${money(item.price)})`;
+            const reason = posted.has(item.id) ? ' · 이미 올린 상품' : proposing.has(item.id) ? ' · 신청 중' : '';
+            option.disabled = !!reason;
+            option.textContent = `${item.title} (${money(item.price)})${reason}`;
             select.appendChild(option);
         });
+        select.value = [...select.options].some(o => o.value === selected && !o.disabled) ? selected : '';
+        return onSale;
     }
 
     let shopSearchTimer;
@@ -78,6 +96,7 @@ const errorText = async (res, fallback) => {
         if (!shopId) { message.textContent = '목록에서 가게를 선택해주세요.'; message.className = 'form-message error'; return; }
         const body = {
             itemId: Number(document.getElementById('itemId').value),
+            title: document.getElementById('postTitle').value.trim(),
             wantDescription: document.getElementById('wantDescription').value.trim(),
             shopId: Number(shopId)
         };

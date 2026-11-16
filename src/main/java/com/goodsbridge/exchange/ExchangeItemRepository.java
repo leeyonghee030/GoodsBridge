@@ -9,6 +9,9 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface ExchangeItemRepository extends JpaRepository<ExchangeItem, Long> {
+    // 이 상품이 지금 (모집중·매칭완료) 교환 게시글로 올라가 있는지
+    boolean existsByItem_IdAndStatusIn(Long itemId, java.util.Collection<ExchangeItemStatus> statuses);
+
     //1.탐색  items?category 쿼리
     @Query("""
         select e from ExchangeItem e
@@ -37,7 +40,7 @@ public interface ExchangeItemRepository extends JpaRepository<ExchangeItem, Long
         join fetch e.user
         join fetch e.shop
         where (:categoryId is null or e.item.category.id = :categoryId)
-          and (:keyword is null or lower(e.item.title) like lower(concat('%', :keyword, '%'))
+          and (:keyword is null or lower(e.item.title) like lower(concat('%', :keyword, '%')) or lower(e.title) like lower(concat('%', :keyword, '%'))
                or lower(e.wantDescription) like lower(concat('%', :keyword, '%')))
                  """)
     public List<ExchangeItem> search(@Param("categoryId") Long categoryId, @Param("keyword") String keyword);
@@ -50,14 +53,14 @@ public interface ExchangeItemRepository extends JpaRepository<ExchangeItem, Long
         join fetch e.shop
         where e.status = com.goodsbridge.exchange.ExchangeItemStatus.OPEN
           and (:categoryId is null or e.item.category.id = :categoryId)
-          and (:keyword is null or lower(e.item.title) like lower(concat('%', :keyword, '%'))
+          and (:keyword is null or lower(e.item.title) like lower(concat('%', :keyword, '%')) or lower(e.title) like lower(concat('%', :keyword, '%'))
                or lower(e.wantDescription) like lower(concat('%', :keyword, '%')))
                  """,
         countQuery = """
             select count(e) from ExchangeItem e
             where e.status = com.goodsbridge.exchange.ExchangeItemStatus.OPEN
               and (:categoryId is null or e.item.category.id = :categoryId)
-              and (:keyword is null or lower(e.item.title) like lower(concat('%', :keyword, '%'))
+              and (:keyword is null or lower(e.item.title) like lower(concat('%', :keyword, '%')) or lower(e.title) like lower(concat('%', :keyword, '%'))
                    or lower(e.wantDescription) like lower(concat('%', :keyword, '%')))
                      """)
     public Page<ExchangeItem> search(@Param("categoryId") Long categoryId, @Param("keyword") String keyword, Pageable pageable);
