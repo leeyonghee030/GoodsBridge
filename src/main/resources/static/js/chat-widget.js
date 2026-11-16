@@ -44,12 +44,15 @@
         }
     }
 
-    // AI 답변의 **굵게**와 [글자](/사이트경로) 링크만 살려서 보여준다. 링크는 이 사이트 안의 경로(/로 시작)만 허용한다.
-    function fillText(node, text) {
-        text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(\/[^)\s]*\))/g).forEach(part => {
+    // 한 줄 안의 **굵게**와 [글자](/사이트경로) 링크를 살린다. 굵은 글씨 안에 링크가 들어 있어도(**[제목](/경로)**) 풀어서 보여 준다.
+    // 링크는 이 사이트 안의 경로(/로 시작)만 허용한다. 내용은 모두 textContent로 넣어서 HTML이 실행되지 않는다.
+    function fillInline(node, text) {
+        text.split(/(\*\*.+?\*\*|\[[^\]]+\]\(\/[^)\s]*\))/g).forEach(part => {
             const link = /^\[([^\]]+)\]\((\/[^)\s]*)\)$/.exec(part);
-            if (/^\*\*[^*]+\*\*$/.test(part)) {
-                node.appendChild(el('strong', null, part.slice(2, -2)));
+            if (/^\*\*.+\*\*$/.test(part)) {
+                const strong = el('strong');
+                fillInline(strong, part.slice(2, -2));
+                node.appendChild(strong);
             } else if (link && isSameSitePath(link[2])) {
                 const a = el('a', null, link[1]);
                 a.href = link[2];
@@ -57,6 +60,16 @@
             } else if (part) {
                 node.appendChild(document.createTextNode(part));
             }
+        });
+    }
+
+    // AI 답변을 줄 단위로 보여 준다: "- 항목"은 점이 붙은 목록으로, 빈 줄은 작은 간격으로 만든다.
+    function fillText(node, text) {
+        text.split('\n').forEach(line => {
+            const bullet = /^\s*[-*•]\s+(.*)$/.exec(line);
+            const row = el('div', 'chat-line' + (bullet ? ' is-bullet' : '') + (line.trim() ? '' : ' is-blank'));
+            fillInline(row, bullet ? bullet[1] : line);
+            node.appendChild(row);
         });
     }
 
@@ -366,7 +379,13 @@
         sendBtn.disabled = true;
         input.value = '';
         addMessage('USER', content);
+        // 기다리는 동안 경과 시간을 보여 준다 (멈춘 게 아니라는 것을 알리고, 오래 걸리면 버튼을 쓰도록 안내한다)
         const waiting = addMessage('ASSISTANT', '생각하는 중…');
+        const startedAt = Date.now();
+        const ticker = setInterval(() => {
+            const seconds = Math.floor((Date.now() - startedAt) / 1000);
+            waiting.textContent = '생각하는 중… ' + seconds + '초' + (seconds >= 8 ? ' (급하면 아래 버튼을 써 보세요)' : '');
+        }, 1000);
         try {
             const res = await api('/api/chat', {
                 method: 'POST',
@@ -385,6 +404,7 @@
             waiting.remove();
             addMessage('ERROR', '서버와 통신하지 못했어요.');
         } finally {
+            clearInterval(ticker);
             sending = false;
             sendBtn.disabled = false;
             refreshUsage();
