@@ -33,13 +33,23 @@
         return node;
     }
 
+    // 브라우저가 실제로 해석한 주소가 이 사이트인지로 판단한다. "//evil.com"뿐 아니라 "/\evil.com"처럼
+    // 브라우저가 슬래시로 바꿔 읽는 값도 바깥 주소가 되므로, 글자 모양만 보고 거르지 않는다.
+    function isSameSitePath(path) {
+        try {
+            return new URL(path, location.origin).origin === location.origin;
+        } catch (e) {
+            return false;
+        }
+    }
+
     // AI 답변의 **굵게**와 [글자](/사이트경로) 링크만 살려서 보여준다. 링크는 이 사이트 안의 경로(/로 시작)만 허용한다.
     function fillText(node, text) {
         text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\(\/[^)\s]*\))/g).forEach(part => {
             const link = /^\[([^\]]+)\]\((\/[^)\s]*)\)$/.exec(part);
             if (/^\*\*[^*]+\*\*$/.test(part)) {
                 node.appendChild(el('strong', null, part.slice(2, -2)));
-            } else if (link && !link[2].startsWith('//')) {
+            } else if (link && isSameSitePath(link[2])) {
                 const a = el('a', null, link[1]);
                 a.href = link[2];
                 node.appendChild(a);
