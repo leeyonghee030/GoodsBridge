@@ -237,7 +237,18 @@
         await refresh();
     });
 
-    load();
+    // 알림에서 /my/purchases?purchase={구매ID}로 들어오면 그 구매가 있는 단계 탭(배송 준비중 등)으로 가서 상세를 바로 연다
+    load().then(() => {
+        const id = Number(new URLSearchParams(location.search).get('purchase'));
+        const target = id && purchases.find(p => p.purchaseId === id);
+        if (!target) return;
+        kind = 'ALL';
+        sub = stateOf(target);
+        render();
+        current = target;
+        renderDetail();
+        modal.hidden = false;
+    });
 })();
 </script>
 

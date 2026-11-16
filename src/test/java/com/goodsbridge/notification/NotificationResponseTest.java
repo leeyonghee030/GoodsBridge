@@ -27,7 +27,8 @@ class NotificationResponseTest {
 
     @Test
     void deliveryAndPaymentNotificationsOpenMyPurchases() {
-        assertEquals("/my/purchases", urlOf(Notification.Type.DELIVERY_STARTED, Notification.ReferenceType.DELIVERY, 42L));
+        // 그 구매의 단계 탭(배송 준비중 등)과 상세를 바로 연다
+        assertEquals("/my/purchases?purchase=42", urlOf(Notification.Type.DELIVERY_STARTED, Notification.ReferenceType.DELIVERY, 42L));
         assertEquals("/my/purchases", urlOf(Notification.Type.PAYMENT_COMPLETED, Notification.ReferenceType.PAYMENT, 42L));
     }
 
@@ -44,7 +45,7 @@ class NotificationResponseTest {
 
         NotificationResponse.NotificationDto dto = new NotificationResponse.NotificationDto(notification);
 
-        assertEquals("/my/purchases", dto.url());
+        assertEquals("/my/purchases?purchase=42", dto.url());
     }
 
     @Test

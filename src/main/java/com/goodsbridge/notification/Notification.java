@@ -112,7 +112,7 @@ public class Notification {
         SHOP_ADMIN("/test/admin/shops"),            // 관리자 가게
         SUBSCRIPTION_ADMIN("/test/admin/subscriptions"), // 관리자 구독
         BOARD("/test/board/{id}"),                  // 게시글 상세
-        DELIVERY("/my/purchases"),                  // 배송 알림: 구매 내역
+        DELIVERY("/my/purchases?purchase={id}"),     // 배송 알림: 구매 내역에서 그 구매의 단계 탭과 상세를 연다
         PAYMENT("/my/purchases");                  // 결제 알림: 구매 내역
 
         private final String path;
