@@ -127,8 +127,33 @@ public class DemoDataService {
         deleteDemoPayments();
         seed(userA, userB, shopOwner, shop);
         seedBranches();
+        seedSubscriptionPayments();
         // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
         demoSampleDataService.seed();
+        spreadAccountDates();
+    }
+
+    // 시연 계정과 시연 가게의 가입일·입점일을 과거로 흩어 놓는다 (샘플 데이터와 같은 이유: 대시보드 차트가 DB마다 같은 모양이 되게)
+    private void spreadAccountDates() {
+        Object[][] accounts = {
+            { ADMIN_EMAIL, 165 }, { SHOP_EMAIL, 150 }, { USER_A_EMAIL, 130 }, { USER_B_EMAIL, 110 }, { SHOP_B_EMAIL, 70 },
+        };
+        for (Object[] a : accounts) {
+            jdbcTemplate.update("update user_tb set created_at = ? where email = ?", daysAgoAt10((int) a[1]), a[0]);
+        }
+        for (int n = 1; n <= 6; n++) {
+            jdbcTemplate.update("update user_tb set created_at = ? where email = ?", daysAgoAt10(100 - n * 10),
+                "demo-branch-" + n + "@goodsbridge.demo");
+        }
+        // 데모 굿즈샵과 B는 새 DB에서는 승인 시각이 '지금'으로 찍히므로 고정된 과거로 맞춘다
+        jdbcTemplate.update("update shop_tb set approved_at = ?, created_at = ? where owner_user_id = (select id from user_tb where email = ?) and status = 'APPROVED' and deleted = 0",
+            daysAgoAt10(95), daysAgoAt10(96), SHOP_EMAIL);
+        jdbcTemplate.update("update shop_tb set approved_at = ?, created_at = ? where owner_user_id = (select id from user_tb where email = ?) and status = 'APPROVED' and deleted = 0",
+            daysAgoAt10(45), daysAgoAt10(46), SHOP_B_EMAIL);
+    }
+
+    private Timestamp daysAgoAt10(int days) {
+        return Timestamp.valueOf(LocalDate.now().minusDays(days).atTime(10, 0));
     }
 
     private User findOrCreateUser(String email, String nickname) {
@@ -193,6 +218,12 @@ public class DemoDataService {
             shopRepository.flush();
             jdbcTemplate.update("update shop_tb set created_at = ? where id = ?",
                 Timestamp.valueOf(LocalDateTime.now().minusDays(Integer.parseInt(b[5]) > 0 ? Math.min(Integer.parseInt(b[5]), 30) : 0).minusHours(n + 1)), branch.getId());
+            // 승인된 지점은 입점 승인일을 신청 며칠 전(승인 하루 전 신청)으로 과거에 흩어 놓아서, 입점 관리 달력으로 월별 조회를 시연할 수 있게 한다
+            if ("APPROVED".equals(b[3])) {
+                LocalDateTime approvedAt = LocalDateTime.now().minusDays(Integer.parseInt(b[5])).minusHours(n + 1);
+                jdbcTemplate.update("update shop_tb set created_at = ?, approved_at = ? where id = ?",
+                    Timestamp.valueOf(approvedAt.minusDays(1)), Timestamp.valueOf(approvedAt), branch.getId());
+            }
 
             LocalDate start;
             LocalDate end;
@@ -207,6 +238,59 @@ public class DemoDataService {
                 .shopId(branch.getId()).paymentId("demo-subscription-" + UUID.randomUUID())
                 .setupFeePaid(true).startDate(start).endDate(end).status(status).build());
         }
+    }
+
+    // 구독 요금 (기획서 3.1: 1일 1,000원)
+    private static final int SUBSCRIPTION_FEE_PER_DAY = 1_000;
+
+    // 관리자 대시보드의 구독 매출·결제 건수를 시연할 수 있게 구독 결제 기록(SHOP_SUBSCRIPTION)을 만든다.
+    // 시연 구독마다 시작일에 결제한 것으로 기록하고, 최근 몇 달에 걸친 연장 결제 이력도 함께 넣는다.
+    // 결제 번호가 demo- 로 시작해서 초기화할 때마다 deleteDemoPayments()가 지우고 다시 만든다.
+    private void seedSubscriptionPayments() {
+        // 1) 시연 구독(데모 가게, 지점들)의 최초 결제: 구독 기간 길이만큼, 시작일에 결제
+        jdbcTemplate.query(
+            "select sub.payment_id, sub.start_date, sub.end_date, s.owner_user_id "
+                + "from shop_subscription_tb sub join shop_tb s on s.id = sub.shop_id "
+                + "where sub.payment_id like 'demo-subscription-%'",
+            rs -> {
+                long days = java.time.temporal.ChronoUnit.DAYS.between(
+                    rs.getDate("start_date").toLocalDate(), rs.getDate("end_date").toLocalDate());
+                insertSubscriptionPayment(rs.getString("payment_id"), rs.getLong("owner_user_id"),
+                    (int) days * SUBSCRIPTION_FEE_PER_DAY, rs.getDate("start_date").toLocalDate());
+            });
+
+        // 2) 최근 몇 달의 연장 결제 이력 { 시연 계정, 몇 달 전, 일, 구독 일수 }
+        User shopOwner = findOrCreateUser(SHOP_EMAIL, "데모가게");
+        Object[][] history = {
+            { "demo-branch-4@goodsbridge.demo", 5, 8, 30 },
+            { "demo-branch-4@goodsbridge.demo", 4, 8, 30 },
+            { "demo-branch-4@goodsbridge.demo", 3, 8, 60 },
+            { "demo-branch-5@goodsbridge.demo", 5, 15, 90 },
+            { "demo-branch-5@goodsbridge.demo", 2, 15, 90 },
+            { "demo-branch-6@goodsbridge.demo", 5, 20, 180 },
+            { "demo-branch-6@goodsbridge.demo", 0, 2, 60 },
+            { SHOP_EMAIL, 4, 22, 60 },
+            { SHOP_EMAIL, 1, 5, 30 },
+        };
+        LocalDate today = LocalDate.now();
+        for (Object[] h : history) {
+            Long ownerId = h[0].equals(SHOP_EMAIL) ? shopOwner.getId()
+                : userRepository.findByEmail((String) h[0]).map(User::getId).orElse(null);
+            if (ownerId == null) continue;
+            java.time.YearMonth month = java.time.YearMonth.from(today).minusMonths((int) h[1]);
+            LocalDate paidOn = month.atDay(Math.min((int) h[2], month.lengthOfMonth()));
+            if (paidOn.isAfter(today)) paidOn = today;   // 이번 달 결제가 미래 날짜가 되지 않게
+            insertSubscriptionPayment("demo-subscription-history-" + UUID.randomUUID(), ownerId,
+                (int) h[3] * SUBSCRIPTION_FEE_PER_DAY, paidOn);
+        }
+    }
+
+    // JPA의 @CreationTimestamp는 결제일을 지금으로 덮어쓰므로, 과거 날짜로 넣으려고 JDBC로 직접 넣는다.
+    private void insertSubscriptionPayment(String paymentId, Long userId, int amount, LocalDate paidOn) {
+        jdbcTemplate.update(
+            "insert into payment_tb (payment_id, pg_tx_id, user_id, amount, refunded_amount, purpose, status, created_at) "
+                + "values (?, ?, ?, ?, 0, 'SHOP_SUBSCRIPTION', 'PAID', ?)",
+            paymentId, "demo-tx-" + paymentId, userId, amount, Timestamp.valueOf(paidOn.atTime(10, 0)));
     }
 
     // 시연 계정이 만든 상품/교환글과 거기에 딸린 데이터를 외래키 순서대로 지운다.

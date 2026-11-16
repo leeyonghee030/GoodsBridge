@@ -152,9 +152,9 @@
         const openPropose = document.getElementById('open-propose');
         openPropose.hidden = false;
         // 가게 계정은 교환을 신청할 수 없다
-        if ({{shopAccount}}) {
+        if ({{shopAccount}} || {{adminAccount}}) {
             openPropose.disabled = true;
-            openPropose.textContent = '가게 계정은 교환할 수 없어요';
+            openPropose.textContent = {{adminAccount}} ? '관리자 계정은 교환할 수 없어요' : '가게 계정은 교환할 수 없어요';
             return;
         }
         if (!postOpen) {

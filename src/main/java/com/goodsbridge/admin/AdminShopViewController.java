@@ -21,6 +21,13 @@ public class AdminShopViewController {
         return render(authentication, model, true);
     }
 
+    // 구독 결제 내역 (월별 결제 목록과 매출 합계, 데이터는 /api/admin/subscription-payments)
+    @GetMapping("/test/admin/subscription-payments")
+    public String subscriptionPayments(Authentication authentication, Model model) {
+        String view = render(authentication, model, true);
+        return "admin/shops".equals(view) ? "admin/subscription-payments" : view;
+    }
+
     private String render(Authentication authentication, Model model, boolean subscriptionsMode) {
         model.addAttribute("subscriptionsMode", subscriptionsMode);
         boolean admin = authentication != null && authentication.getAuthorities().stream()
