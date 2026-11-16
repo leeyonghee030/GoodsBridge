@@ -7,6 +7,7 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.shop.Shop;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +85,17 @@ class BidServiceTest {
         verify(auction).setWinningPaymentId("payment-1");
         verify(auction).updateCurrentBid(12_000, user);
         verify(bidRepository).save(any(Bid.class));
+    }
+
+    @Test
+    void placeBid_rejectsAdminAccount() {
+        when(user.getRole()).thenReturn(Role.ADMIN);
+
+        assertThrows(com.goodsbridge._core.exception.ForbiddenException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1")));
+
+        verify(bidRepository, never()).save(any());
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
     }
 
     @Test

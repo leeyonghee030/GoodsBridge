@@ -6,11 +6,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,37 +23,64 @@ import java.util.List;
 public class AdminService {
 
     private static final int CHART_MONTHS = 6;  // 그래프에 보여줄 개월 수
+    private static final int EXPIRING_DAYS = 7; // 만료 임박 기준(일)
 
     private final AdminRepository adminRepository;
 
     public AdminResponse getDashboard(String month) {
         YearMonth selected = parseMonth(month);
         List<AdminResponse.MonthlyDto> months = new ArrayList<>();
-        for (int i = 5; i >= 0; i--) {              // 5,4,3,2,1,0 → 오래된 달부터
+        for (int i = CHART_MONTHS - 1; i >= 0; i--) {   // 오래된 달부터
             months.add(monthly(selected.minusMonths(i)));
         }
+
+        LocalDate today = LocalDate.now();
+        long approved = adminRepository.countApprovedShops();
+        long active = adminRepository.countActiveSubscribedShops(today);
         return new AdminResponse(
-            adminRepository.countPendingRefunds(),
-            adminRepository.countPendingShipments(),
-            adminRepository.countActiveAuctions(),
-            adminRepository.countEndedAuctions(),
-            adminRepository.countUnpaidBalanceAuctions(),
+            adminRepository.countPendingShops(),
+            approved,
+            active,
+            adminRepository.countExpiringShops(today, today.plusDays(EXPIRING_DAYS)),
+            approved == 0 ? 0 : Math.round(active * 100.0 / approved),
             months);
     }
 
-    // 월 별 지표 6개
+    // 월별 구독 결제 내역. 결제 합계는 목록과 같은 값에서 계산해서 화면의 합계와 목록이 어긋나지 않는다.
+    public AdminSubscriptionPaymentResponse getSubscriptionPayments(String month) {
+        YearMonth selected = parseMonth(month);
+        List<AdminSubscriptionPaymentItem> payments = adminRepository.findSubscriptionPayments(
+            selected.atDay(1).atStartOfDay(), selected.plusMonths(1).atDay(1).atStartOfDay());
+
+        // 구독과 연결되지 않은 결제는 결제한 사람의 가게 이름으로 채운다
+        Set<Long> ownerIds = payments.stream().filter(p -> p.getShopName() == null)
+            .map(AdminSubscriptionPaymentItem::getPayerUserId).collect(Collectors.toSet());
+        if (!ownerIds.isEmpty()) {
+            Map<Long, String> shopNames = new HashMap<>();
+            for (Object[] row : adminRepository.findShopNamesByOwners(ownerIds)) {
+                shopNames.merge((Long) row[0], (String) row[1], (a, b) -> a + ", " + b);
+            }
+            payments.stream().filter(p -> p.getShopName() == null)
+                .forEach(p -> p.fillShopName(shopNames.get(p.getPayerUserId())));
+        }
+
+        long total = payments.stream().mapToLong(AdminSubscriptionPaymentItem::getAmount).sum();
+        long refunded = payments.stream().mapToLong(AdminSubscriptionPaymentItem::getRefundedAmount).sum();
+        return new AdminSubscriptionPaymentResponse(
+            selected.toString(), payments.size(), total, refunded, total - refunded, payments);
+    }
+
     private AdminResponse.MonthlyDto monthly(YearMonth month) {
         LocalDateTime startAt = month.atDay(1).atStartOfDay();
         LocalDateTime endAt = month.plusMonths(1).atDay(1).atStartOfDay();
 
         return new AdminResponse.MonthlyDto(
-          month.toString(),
+            month.toString(),
             adminRepository.countSignups(Timestamp.valueOf(startAt), Timestamp.valueOf(endAt)),
-            adminRepository.countPayments(startAt, endAt),
-            adminRepository.sumRefundedAmount(startAt, endAt),
-            adminRepository.sumSettlementAmount(startAt, endAt),
-            adminRepository.sumPlatformRevenue(startAt, endAt),
-            adminRepository.sumShopRevenue(startAt, endAt)
+            adminRepository.countSubscriptionPayments(startAt, endAt),
+            adminRepository.sumSubscriptionRevenue(startAt, endAt),
+            adminRepository.countNewShops(startAt, endAt),
+            adminRepository.countChurnedShops(startAt, endAt, month.atDay(1), month.plusMonths(1).atDay(1))
         );
     }
 

@@ -5,6 +5,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
@@ -48,6 +49,10 @@ public class BidService {
         }
         if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
             throw new ForbiddenException("가게 계정은 경매에 입찰할 수 없습니다.");
+        }
+        // 관리자 계정은 관리만 하고 입찰하지 않는다
+        if (user.getRole() == Role.ADMIN) {
+            throw new ForbiddenException("관리자 계정은 경매에 입찰할 수 없습니다.");
         }
 
         // 3. 상태/마감 검증

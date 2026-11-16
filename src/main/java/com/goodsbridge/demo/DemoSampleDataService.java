@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -82,6 +84,29 @@ public class DemoSampleDataService {
         for (JsonNode r : data.get("replies")) {
             ensureReply(boardIds.get(r.get("board").asInt()), userIds.get(r.get("author").asText()), r.get("content").asText());
         }
+        spreadDates(data, userIds, shopIds);
+    }
+
+    // 관리자 대시보드의 가입자·신규 입점 차트가 어느 DB에서나 같은 모양으로 보이도록,
+    // 샘플 계정의 가입일과 샘플 가게의 입점일을 오늘 기준으로 과거 몇 달에 흩어 놓는다.
+    // 값이 오늘 기준 상대 날짜라서 언제 서버를 켜도 같은 분포가 되고, 입점일이 이미 기록된 가게는 건드리지 않는다.
+    private void spreadDates(JsonNode data, Map<String, Long> userIds, Map<String, Long> shopIds) {
+        int i = 0;
+        for (JsonNode u : data.get("users")) {
+            jdbc.update("update user_tb set created_at = ? where id = ?", daysAgo(150 - i * 10), userIds.get(u.get("email").asText()));
+            i++;
+        }
+        int j = 0;
+        for (JsonNode s : data.get("shops")) {
+            int days = 5 + (j * 7) % 165;
+            jdbc.update("update shop_tb set approved_at = ?, created_at = ? where id = ? and approved_at is null",
+                daysAgo(days), daysAgo(days + 1), shopIds.get(s.get("name").asText()));
+            j++;
+        }
+    }
+
+    private Timestamp daysAgo(int days) {
+        return Timestamp.valueOf(LocalDate.now().minusDays(days).atTime(10, 0));
     }
 
     private JsonNode load() {

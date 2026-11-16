@@ -11,7 +11,9 @@ import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
+import com.goodsbridge.user.UserRepository;
 import com.goodsbridge._core.exception.ForbiddenException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
@@ -39,6 +41,7 @@ class PurchaseServiceTest {
     @Mock ItemRepository itemRepository;
     @Mock PaymentRepository paymentRepository;
     @Mock ShopRepository shopRepository;
+    @Mock UserRepository userRepository;
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock com.goodsbridge.auction.AuctionRepository auctionRepository;
     @InjectMocks PurchaseService purchaseService;
@@ -126,6 +129,24 @@ class PurchaseServiceTest {
         verify(purchaseRepository).save(any(Purchase.class));
         // 정상 구매는 자동 취소 대상이 아니다.
         verify(paymentService, never()).cancelUnrecorded(any(), any());
+    }
+
+    @Test
+    void purchase_rejectsAdminAccountAndCancelsPayment() {
+        Item item = mock(Item.class);
+        when(item.getSellerUserId()).thenReturn(99L);
+        when(itemRepository.findById(7L)).thenReturn(java.util.Optional.of(item));
+        when(userRepository.existsByIdAndRole(3L, Role.ADMIN)).thenReturn(true);
+
+        PurchaseRequest.CreateDto dto = new PurchaseRequest.CreateDto();
+        dto.setPaymentId("payment-1");
+        dto.setDeliveryAddress("Seoul");
+
+        assertThrows(ForbiddenException.class, () -> purchaseService.purchase(7L, 3L, dto));
+
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verify(purchaseRepository, never()).save(any());
+        verify(paymentService).cancelUnrecorded(eq("payment-1"), any());
     }
 
     @Test

@@ -21,6 +21,7 @@ import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
 import com.goodsbridge.shop.ShopSubscriptionService;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.Status;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -183,6 +184,22 @@ class EventServiceTest {
     void join_otherShopOwner_rejectedAndPaymentCancelled() {
         joinable(event(5, LocalDateTime.now().plusDays(1)));
         when(shopRepository.existsByOwnerUserIdAndDeletedFalse(USER_ID)).thenReturn(true);
+
+        assertThrows(ForbiddenException.class,
+            () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1")));
+
+        verify(paymentService, never()).verify(anyString(), anyInt(), any(), anyLong());
+        verify(paymentService).cancelUnrecorded(eq("pay-1"), anyString());
+    }
+
+    @Test
+    @DisplayName("관리자 계정은 이벤트에 참가할 수 없고, 이미 승인된 결제는 자동 취소한다")
+    void join_admin_rejectedAndPaymentCancelled() {
+        ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        User admin = activeUser();
+        when(admin.getRole()).thenReturn(Role.ADMIN);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(admin));
 
         assertThrows(ForbiddenException.class,
             () -> eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1")));

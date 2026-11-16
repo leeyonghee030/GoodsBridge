@@ -144,6 +144,7 @@
 <div class="container my-card">
 <nav class="my-tabs">
     <a href="/update">내 정보</a>
+    <a href="/shop/dashboard">대시보드</a>
     <a href="/shop/exchange">가게 교환 관리</a>
     <a href="/shop/items" class="active">판매 상품 관리</a>
     <a href="/shop/events">이벤트 관리</a>
@@ -988,6 +989,20 @@
             await load();
         }
     }, true);
+
+    // 가게 대시보드 등에서 ?tab=SOLD&sub=PREPARING 처럼 열면 그 탭과 분류로 시작한다
+    (() => {
+        const q = new URLSearchParams(location.search);
+        const t = q.get('tab'), s = q.get('sub');
+        if (!['ON_SALE', 'SOLD', 'REFUND', 'FEE'].includes(t)) return;
+        tab = t;
+        document.querySelectorAll('#si-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === t));
+        if (t === 'REFUND' && REFUND_STATES.some(x => x[0] === s)) refundSub = s;
+        if (t === 'SOLD' && SALE_STATES.some(x => x[0] === s)) saleSub = s;
+        // ?month=YYYY-MM 이면 판매완료·환불 탭의 기간을 그 달로 맞춘다 (대시보드의 월 지표에서 넘어올 때)
+        const mm = /^(\d{4})-(\d{2})$/.exec(q.get('month') || '');
+        if (mm && Number(mm[2]) >= 1 && Number(mm[2]) <= 12) { setMonth(Number(mm[1]), Number(mm[2]) - 1); viewYear = Number(mm[1]); }
+    })();
 
     load();
 })();
