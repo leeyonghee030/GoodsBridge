@@ -2,6 +2,7 @@ package com.goodsbridge.board;
 
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -19,6 +20,7 @@ public class BoardResponseDto {
     private Boolean isSecret;
     private BoardStatus status;
     private List<ReplyResponseDto> replies; // 댓글 목록 포함
+    private LocalDateTime createdAt;
 
     public static BoardResponseDto from(Board board) {
         List<ReplyResponseDto> replyDtos = board.getReplies().stream()
@@ -33,7 +35,8 @@ public class BoardResponseDto {
             board.getItemId(),
             board.getIsSecret(),
             board.getStatus(),
-            replyDtos
+            replyDtos,
+            board.getCreatedAt()
         );
     }
 
@@ -53,7 +56,8 @@ public class BoardResponseDto {
                 null,
                 true,
                 null,
-                List.of()
+                List.of(),
+                null
             );
         }
 
@@ -66,7 +70,8 @@ public class BoardResponseDto {
             board.getItemId(),
             board.getIsSecret(),
             board.getStatus(),
-            List.of()
+            List.of(),
+            board.getCreatedAt()
         );
     }
 }

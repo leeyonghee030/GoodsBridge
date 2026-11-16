@@ -12,8 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
@@ -30,10 +28,18 @@ public class BoardController {
         return ResponseEntity.status(HttpStatus.CREATED).body(boardId);
     }
 
+    // 게시글 상세 조회
+    @GetMapping("/boards/{id}")
+    public ResponseEntity<BoardResponseDto> getBoard(
+        @PathVariable Long id,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        BoardResponseDto response = boardService.getBoard(id, loginUserId);
+        return ResponseEntity.ok(response);
+    }
+
     // 게시글 목록 조회 (페이징 및 검색 지원)
     // 요청 예시: GET /api/boards?page=0&size=10&sort=id,desc&keyword=공지
-
-
     @GetMapping("/boards")
     public ResponseEntity<Page<BoardResponseDto>> getBoards(
         @RequestParam(required = false) String keyword,

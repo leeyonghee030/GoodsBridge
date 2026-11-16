@@ -92,12 +92,10 @@ public class BoardService {
 
         Board board = reply.getBoard();
 
-        replyRepository.delete(reply);
-
         // 양방향 연관관계 동기화
         board.removeReply(reply);
 
-// 남은 댓글이 없으면 답변 대기 상태로 변경
+        // 남은 댓글이 없으면 답변 대기 상태로 변경
         if (replyRepository.countByBoardId(board.getId()) == 0) {
             board.pending();
         }
@@ -106,7 +104,7 @@ public class BoardService {
     @Transactional
     public void updateBoard(Long id, BoardRequestDto requestDto, Long loginUserId) {
         Board board = boardRepository.findById(id)
-            .orElseThrow(() ->  new NotFoundException("게시글을 찾을 수 없습니다."));
+            .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다."));
 
         if (!board.getAuthorId().equals(loginUserId)) {
             throw new ForbiddenException("게시글 권한이 없습니다.");
@@ -138,13 +136,15 @@ public class BoardService {
     ) {
         Page<Board> boardPage;
 
-        if (keyword == null || keyword.trim().isEmpty()) {
+        String searchKeyword = keyword == null ? "" : keyword.trim();
+
+        if (searchKeyword.isEmpty()) {
             boardPage = boardRepository.findAll(pageable);
         } else {
             boardPage = boardRepository
                 .findByTitleContainingOrContentContaining(
-                    keyword,
-                    keyword,
+                    searchKeyword,
+                    searchKeyword,
                     pageable
                 );
         }
