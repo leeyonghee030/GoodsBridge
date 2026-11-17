@@ -36,11 +36,14 @@ public interface AdminRepository extends Repository<Payment, Long> {
 
     // 지금 구독 중인 가게 수 (구독 기간이 아직 끝나지 않은 ACTIVE 구독)
     @Query("""
-        select count(distinct sub.shopId)
-        from ShopSubscription sub
-        where sub.status = com.goodsbridge.shop.ShopSubscriptionStatus.ACTIVE
-          and sub.endDate >= :today
-        """)
+    select count(distinct sub.shopId)
+    from ShopSubscription sub, Shop s
+    where s.id = sub.shopId
+      and s.status = com.goodsbridge.shop.ShopStatus.APPROVED
+      and s.deleted = false
+      and sub.status = com.goodsbridge.shop.ShopSubscriptionStatus.ACTIVE
+      and sub.endDate >= :today
+    """)
     long countActiveSubscribedShops(@Param("today") LocalDate today);
 
     // 구독이 today ~ until 사이에 끝나는 가게 수 (만료 임박)
