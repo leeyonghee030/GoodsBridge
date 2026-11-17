@@ -21,6 +21,12 @@ public class Auction {
     // 낙찰 후 잔금 결제 기한(일) - 기한 내 미결제 시 보증금은 가게가 가져간다
     public static final int BALANCE_DUE_DAYS = 1;
 
+    // 경매 마감 설정 최대 일수
+    public static final int MAX_DURATION_DAYS = 30;
+
+    // 경매 최소 인상 폭
+    public static final int MIN_BID_INCREMENT = 1000;
+
     // 기존 DB 스키마 호환용. 안티 스나이핑 연장 로직은 사용하지 않는다.
     @Column(name = "extension_count", nullable = false)
     private int extensionCount = 0;

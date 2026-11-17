@@ -165,6 +165,8 @@ class BidServiceTest {
         verifyNoInteractions(paymentService);
     }
 
+    // ===================== 거부 케이스 =====================
+
     @Test
     void placeBid_rejectsWhenCurrentWinnerTriesToBidAgain() {
         when(auction.getCurrentWinner()).thenReturn(user);
@@ -178,7 +180,20 @@ class BidServiceTest {
         verify(bidRepository, never()).save(any());
     }
 
-    // ===================== 거부 케이스 =====================
+    @Test
+    void placeBid_rejectsRaiseSmallerThanMinimumIncrement() {
+        User otherWinner = mock(User.class);
+        when(otherWinner.getId()).thenReturn(99L);
+        lenient().when(auction.getCurrentWinner()).thenReturn(otherWinner);
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(10_500, "payment-1")));
+
+        assertEquals("입찰가는 현재가보다 최소 " + String.format("%,d", Auction.MIN_BID_INCREMENT)
+                + "원 높아야 합니다.", exception.getMessage());
+
+        verifyDepositCancelled();
+    }
 
     @Test
     void placeBid_rejectsNullRequest() {

@@ -97,4 +97,16 @@ class AuctionRequestTest {
             () -> request(1L, 50_000, 5_000, LocalDateTime.now().minusSeconds(1)).validate());
         assertEquals("마감 시간은 미래 시간이어야 합니다.", e.getMessage());
     }
+
+    @Test
+    void validate_rejectsDeadlineMoreThanThirtyDaysAway() {
+        BadRequestException e = assertThrows(BadRequestException.class,
+            () -> request(1L, 50_000, 7_500, LocalDateTime.now().plusDays(31)).validate());
+        assertEquals("경매 마감은 최대 30일 이내로 설정해주세요.", e.getMessage());
+    }
+
+    @Test
+    void validate_acceptsDeadlineWithinThirtyDays() {
+        assertDoesNotThrow(() -> request(1L, 50_000, 7_500, LocalDateTime.now().plusDays(29)).validate());
+    }
 }

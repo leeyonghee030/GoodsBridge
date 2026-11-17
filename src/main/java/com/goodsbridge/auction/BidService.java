@@ -90,6 +90,11 @@ public class BidService {
                 : "입찰가는 현재가보다 높아야 합니다.");
         }
 
+        if (!noBidYet && (long) bidAmount < (long) auction.getCurrentPrice() + Auction.MIN_BID_INCREMENT) {
+            throw new BadRequestException("입찰가는 현재가보다 최소 "
+                + String.format("%,d", Auction.MIN_BID_INCREMENT) + "원 높아야 합니다.");
+        }
+
         // 5. 최초 입찰 시에만 보증금 검증 (금액 = Auction.depositAmount)
         //    주의: 이 검증은 PortOne(외부 API)을 호출하며 경매 행 락을 쥔 채 실행된다.
         //    외부 서버가 느려지면 같은 경매의 다른 입찰이 대기하므로, 규모가 커지면 락 범위 분리를 검토한다.
