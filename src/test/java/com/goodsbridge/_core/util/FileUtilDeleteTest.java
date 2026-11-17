@@ -19,4 +19,16 @@ class FileUtilDeleteTest {
         assertThatCode(() -> FileUtil.deleteFile(" ")).doesNotThrowAnyException();
         assertThatCode(() -> FileUtil.deleteFile("no-such-file.png")).doesNotThrowAnyException();
     }
+
+    @Test
+    void 이름이_http로_시작하는_내_서버_파일은_지운다() throws Exception {
+        java.nio.file.Path dir = java.nio.file.Paths.get(FileUtil.UPLOAD_DIR);
+        java.nio.file.Files.createDirectories(dir);
+        java.nio.file.Path file = dir.resolve("httpfoo-delete-test.png");
+        java.nio.file.Files.writeString(file, "x");
+
+        FileUtil.deleteFile("httpfoo-delete-test.png");
+
+        org.assertj.core.api.Assertions.assertThat(java.nio.file.Files.exists(file)).isFalse();
+    }
 }

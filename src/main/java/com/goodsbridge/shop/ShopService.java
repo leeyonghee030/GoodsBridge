@@ -8,6 +8,7 @@ import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.exchange.ExchangeRequestRepository;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
+import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -37,6 +38,7 @@ public class ShopService {
     private final ShopEventRepository shopEventRepository;
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final AuctionRepository auctionRepository;
+    private final PurchaseRepository purchaseRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.chain-code}")
@@ -144,12 +146,13 @@ public class ShopService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // 3. 진행 중인 이벤트·교환·경매가 있으면 삭제 거절 (이미 결제한 사람들이 손해를 보지 않도록)
-        if (shopEventRepository.existsOngoingByShopId(shopId, now)
+        // 3. 진행 중인 이벤트·교환·경매, 배송이 끝나지 않은 구매가 있으면 삭제 거절 (이미 결제한 사람들이 손해를 보지 않도록)
+        if (shopEventRepository.existsOngoingByShopId(shopId)
             || exchangeRequestRepository.existsOngoingByShopId(shopId)
-            || auctionRepository.existsOngoingByShopId(shopId)) {
+            || auctionRepository.existsOngoingByShopId(shopId)
+            || purchaseRepository.existsUndeliveredByShopId(shopId)) {
             throw new BadRequestException(
-                "진행 중인 이벤트·교환·경매가 있어 가게를 삭제할 수 없어요. 먼저 마무리하거나 취소해 주세요."
+                "진행 중인 이벤트·교환·경매·배송이 있어 가게를 삭제할 수 없어요. 먼저 마무리하거나 취소해 주세요."
             );
         }
 

@@ -55,7 +55,8 @@ public class FileUtil {
     // 파일 삭제 (파일 이름이 없거나 파일이 이미 없으면 아무 일도 하지 않음)
     // 카카오 프로필 사진처럼 http 주소로 저장된 값은 우리 서버의 파일이 아니므로 지우지 않는다
     public static void deleteFile(String filename) {
-        if (filename == null || filename.isBlank() || filename.startsWith("http")) {
+        if (filename == null || filename.isBlank()
+            || filename.startsWith("http://") || filename.startsWith("https://")) {
             return;
         }
         try {

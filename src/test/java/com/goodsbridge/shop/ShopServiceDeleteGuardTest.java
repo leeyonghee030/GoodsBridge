@@ -5,6 +5,7 @@ import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.exchange.ExchangeRequestRepository;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,13 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,6 +36,7 @@ class ShopServiceDeleteGuardTest {
     @Mock ShopEventRepository shopEventRepository;
     @Mock ExchangeRequestRepository exchangeRequestRepository;
     @Mock AuctionRepository auctionRepository;
+    @Mock PurchaseRepository purchaseRepository;
     @Mock ApplicationEventPublisher eventPublisher;
 
     ShopService shopService;
@@ -46,7 +46,7 @@ class ShopServiceDeleteGuardTest {
     void setUp() {
         shopService = new ShopService(shopRepository, userRepository, itemRepository,
             subscriptionRepository, shopEventRepository, exchangeRequestRepository,
-            auctionRepository, eventPublisher);
+            auctionRepository, purchaseRepository, eventPublisher);
         shop = Shop.builder().ownerUserId(OWNER_ID).name("가게").region("서울").address("주소")
             .status(ShopStatus.APPROVED).build();
         when(shopRepository.findByIdWithLock(SHOP_ID)).thenReturn(Optional.of(shop));
@@ -54,14 +54,14 @@ class ShopServiceDeleteGuardTest {
 
     @Test
     void 진행중인_이벤트가_있으면_삭제를_거절한다() {
-        when(shopEventRepository.existsOngoingByShopId(anyLong(), any(LocalDateTime.class))).thenReturn(true);
+        when(shopEventRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(true);
 
         assertRejectedWithoutCleanup();
     }
 
     @Test
     void 진행중인_교환이_있으면_삭제를_거절한다() {
-        when(shopEventRepository.existsOngoingByShopId(anyLong(), any(LocalDateTime.class))).thenReturn(false);
+        when(shopEventRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
         when(exchangeRequestRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(true);
 
         assertRejectedWithoutCleanup();
@@ -69,7 +69,7 @@ class ShopServiceDeleteGuardTest {
 
     @Test
     void 진행중인_경매가_있으면_삭제를_거절한다() {
-        when(shopEventRepository.existsOngoingByShopId(anyLong(), any(LocalDateTime.class))).thenReturn(false);
+        when(shopEventRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
         when(exchangeRequestRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
         when(auctionRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(true);
 
@@ -77,8 +77,18 @@ class ShopServiceDeleteGuardTest {
     }
 
     @Test
+    void 배송이_끝나지_않은_구매가_있으면_삭제를_거절한다() {
+        when(shopEventRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
+        when(exchangeRequestRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
+        when(auctionRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
+        when(purchaseRepository.existsUndeliveredByShopId(SHOP_ID)).thenReturn(true);
+
+        assertRejectedWithoutCleanup();
+    }
+
+    @Test
     void 진행중인게_없으면_기존처럼_삭제한다() {
-        when(shopEventRepository.existsOngoingByShopId(anyLong(), any(LocalDateTime.class))).thenReturn(false);
+        when(shopEventRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
         when(exchangeRequestRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
         when(auctionRepository.existsOngoingByShopId(SHOP_ID)).thenReturn(false);
 
@@ -91,7 +101,7 @@ class ShopServiceDeleteGuardTest {
     private void assertRejectedWithoutCleanup() {
         assertThatThrownBy(() -> shopService.delete(OWNER_ID, SHOP_ID))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("진행 중인 이벤트·교환·경매");
+            .hasMessageContaining("진행 중인 이벤트·교환·경매·배송");
 
         assertThat(shop.isDeleted()).isFalse();
         verify(itemRepository, never()).softDeleteByShopId(any(), any(), any());
