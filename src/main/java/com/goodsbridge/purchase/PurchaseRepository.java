@@ -51,6 +51,16 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         """)
     Optional<Purchase> findByPaymentId(@Param("paymentId") String paymentId);
 
+    // 가게 삭제 차단용: 이 가게 상품의 구매 중 아직 배송이 끝나지 않은(환불되지 않은) 건이 있는지
+    @Query("""
+        select count(p) > 0 from Purchase p
+        where p.item.shopId = :shopId
+          and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
+          and p.deliveryStatus in (com.goodsbridge.purchase.DeliveryStatus.PREPARING,
+                                   com.goodsbridge.purchase.DeliveryStatus.SHIPPED)
+        """)
+    boolean existsUndeliveredByShopId(@Param("shopId") Long shopId);
+
     // 회원 탈퇴 차단용: 아직 배송이 끝나지 않은(환불되지 않은) 구매가 있는지
     @Query("""
         select count(p) > 0 from Purchase p

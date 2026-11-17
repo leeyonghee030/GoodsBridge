@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -175,13 +177,27 @@ public class UserService {
         }
     }
 
+    // 트랜잭션이 롤백되면 파일만 지워지는 일이 없도록 커밋된 뒤에 지운다
+    private void deleteFileAfterCommit(String filename) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    FileUtil.deleteFile(filename);
+                }
+            });
+        } else {
+            FileUtil.deleteFile(filename);
+        }
+    }
+
     @Transactional
     public void withdraw(Long userId, HttpServletResponse response) {
         User user = findById(userId);
         validateCanWithdraw(userId);
         String oldImage = user.getProfileImage();
         user.withdraw();
-        FileUtil.deleteFile(oldImage);
+        deleteFileAfterCommit(oldImage);
         authService.logout(userId);
         authService.clearAuthCookies(response);
 
