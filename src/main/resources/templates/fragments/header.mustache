@@ -160,6 +160,7 @@
 </div>
 
 {{^userId}}
+{{#loginError}}<div id="login-error" data-message="{{loginError}}" hidden></div>{{/loginError}}
 <div class="modal-backdrop" id="login-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" id="login-modal-close">✕</button>
@@ -546,6 +547,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const message = document.getElementById('login-modal-message');
 
     loginTrigger.addEventListener('click', () => { modal.hidden = false; });
+
+    // /login 주소로 들어오면(회원가입 완료 후 등) 홈으로 와서 로그인 팝업을 자동으로 연다
+    if (new URLSearchParams(location.search).get('login') === 'open') {
+        modal.hidden = false;
+        history.replaceState(null, '', location.pathname);
+    }
+    {{#loginError}}
+    // 로그인 실패 안내(탈퇴한 카카오 계정 등). 탈퇴한 카카오 계정이면 확인 후 계정 선택 화면으로 다시 보낸다
+    (async () => {
+        await alert(document.getElementById('login-error').dataset.message);
+        {{#kakaoRetry}}location.href = '/api/kakao-login?reselect=true';{{/kakaoRetry}}
+        {{^kakaoRetry}}modal.hidden = false;{{/kakaoRetry}}
+    })();
+    {{/loginError}}
     document.getElementById('login-modal-close').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
 

@@ -32,7 +32,7 @@ class KakaoCallbackWithdrawnTest {
 
         String view = userController.kakaoCallback("code", null, mock(HttpServletResponse.class), redirectAttributes);
 
-        assertThat(view).isEqualTo("redirect:/login");
+        assertThat(view).isEqualTo("redirect:/");
         assertThat(redirectAttributes.getFlashAttributes().get("loginError")).isNotNull();
         assertThat(redirectAttributes.getFlashAttributes().get("kakaoRetry")).isEqualTo(true);
         verify(authService, never()).login(any());
@@ -46,7 +46,7 @@ class KakaoCallbackWithdrawnTest {
         String view = userController.kakaoCallback("code", KakaoApiClient.RESELECT_STATE,
             mock(HttpServletResponse.class), redirectAttributes);
 
-        assertThat(view).isEqualTo("redirect:/login");
+        assertThat(view).isEqualTo("redirect:/");
         assertThat(redirectAttributes.getFlashAttributes()).containsKey("loginError");
         assertThat(redirectAttributes.getFlashAttributes()).doesNotContainKey("kakaoRetry");
     }
@@ -58,7 +58,7 @@ class KakaoCallbackWithdrawnTest {
 
         String view = userController.kakaoCallback("code", null, mock(HttpServletResponse.class), redirectAttributes);
 
-        assertThat(view).isEqualTo("redirect:/login");
+        assertThat(view).isEqualTo("redirect:/");
         assertThat(redirectAttributes.getFlashAttributes()).containsKey("loginError");
         assertThat(redirectAttributes.getFlashAttributes()).doesNotContainKey("kakaoRetry");
     }
