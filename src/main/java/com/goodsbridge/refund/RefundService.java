@@ -61,14 +61,13 @@ public class RefundService {
             throw new BadRequestException("환불 요청 값이 필요합니다.");
         }
         request.validate();
-        // 환불 가능 금액 확인과 대기 요청 중복 확인을 하나의 결제 행 잠금 안에서 처리한다.
         Payment payment = paymentRepository.findByPaymentIdLock(request.getPaymentId())
             .orElseThrow(() -> new NotFoundException("결제 내역을 찾을 수 없습니다."));
         validateNotAuctionPayment(payment);
         if (!payment.isOwner(userId)) {
             throw new ForbiddenException("본인의 결제만 환불 요청할 수 있습니다.");
         }
-        if (!USER_REFUNDABLE_PURPOSES.contains(payment.getPurpose())) {      // ← 추가
+        if (!USER_REFUNDABLE_PURPOSES.contains(payment.getPurpose())) {
             throw new BadRequestException("구매 또는 경매 낙찰 결제만 환불을 요청할 수 있어요.");
         }
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
@@ -90,7 +89,6 @@ public class RefundService {
                 throw new BadRequestException("배송 준비중이거나 배송이 완료된 구매만 환불을 요청할 수 있습니다.");
             }
         } else if (isAuctionBalance(payment)) {
-            // 경매 낙찰 잔금도 배송 중에는 환불 요청을 받지 않는다
             validateRefundableDelivery(payment);
         }
         User user = userRepository.getReferenceById(userId);
@@ -112,11 +110,11 @@ public class RefundService {
         if (!refund.isPending()) {
             throw new BadRequestException("대기 중인 환불 요청만 거절할 수 있습니다.");
         }
-        rejectRefund(refund, rejectReason);
+        rejectRefund(refund, rejectReason, RejectedBy.ADMIN);
     }
 
-    private void rejectRefund(Refund refund, String rejectReason) {
-        refund.reject(rejectReason);
+    private void rejectRefund(Refund refund, String rejectReason, RejectedBy rejectedBy) {
+        refund.reject(rejectReason, rejectedBy);
         publisher.publishEvent(
             new NotificationEvent(
                 refund.getUser().getId(),
@@ -129,30 +127,42 @@ public class RefundService {
         );
     }
 
-    // 가게 주인: 자기 가게에서 판매된 상품의 환불 요청 거절 (이미 거절한 건은 거절 사유만 수정)
+    // 가게 주인: 자기 가게에서 판매된 상품의 환불 요청 거절 (가게가 이미 거절한 건은 거절 사유만 수정)
+    // 관리자가 거절한 건은 가게가 사유를 바꾸거나 뒤집을 수 없다.
     @Transactional
     public void rejectByShop(Long userId, Long shopId, Long refundId, String rejectReason) {
         Refund refund = refundRepository.findByIdLock(refundId)
             .orElseThrow(() -> new NotFoundException("환불 요청을 찾을 수 없습니다."));
         validateShopOwnsRefund(userId, shopId, refund);
         if (refund.getStatus() == Status.REJECTED) {
+            validateRejectedByShop(refund);
             refund.changeRejectReason(rejectReason);
             return;
         }
         if (!refund.isPending()) {
             throw new BadRequestException("대기 중인 환불 요청만 거절할 수 있습니다.");
         }
-        rejectRefund(refund, rejectReason);
+        rejectRefund(refund, rejectReason, RejectedBy.SHOP);
     }
 
     // 가게 주인: 환불 요청 승인. 가게가 실수로 거절한 건(REJECTED)은 다시 승인할 수 있다.
-    // (승인되어 이미 결제가 취소된 환불은 되돌릴 수 없다)
+    // 관리자가 거절한 건은 가게가 뒤집을 수 없다. (승인되어 이미 결제가 취소된 환불은 되돌릴 수 없다)
     @Transactional
     public void approveByShop(Long userId, Long shopId, Long refundId) {
         Refund refund = refundRepository.findByIdLock(refundId)
             .orElseThrow(() -> new NotFoundException("환불 요청을 찾을 수 없습니다."));
         validateShopOwnsRefund(userId, shopId, refund);
+        if (refund.getStatus() == Status.REJECTED) {
+            validateRejectedByShop(refund);
+        }
         approveRefund(refund, true);
+    }
+
+    // 거절 주체가 가게인 건만 가게가 다시 손댈 수 있다. (주체가 기록되지 않은 이전 데이터는 관리자 거절로 취급)
+    private void validateRejectedByShop(Refund refund) {
+        if (!refund.isRejectedByShop()) {
+            throw new ForbiddenException("관리자가 거절한 환불 요청은 가게에서 변경할 수 없습니다.");
+        }
     }
 
     private void validateShopOwnsRefund(Long userId, Long shopId, Refund refund) {

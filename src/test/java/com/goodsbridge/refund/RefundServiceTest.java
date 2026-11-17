@@ -490,6 +490,7 @@ class RefundServiceTest {
         Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("파손")
             .requestedAmount(3_000).status(Status.REJECTED).requestedBy(RequestedBy.USER)
             .type(RefundType.PURCHASE).build();
+        ReflectionTestUtils.setField(refund, "rejectedBy", RejectedBy.SHOP);
         when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
         when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
         Purchase shopSale = shopPurchase(10L, "p-1");
@@ -550,6 +551,7 @@ class RefundServiceTest {
             .requestedAmount(3_000).status(Status.REJECTED).requestedBy(RequestedBy.USER)
             .type(RefundType.PURCHASE).build();
         ReflectionTestUtils.setField(refund, "rejectReason", "이전 사유");
+        ReflectionTestUtils.setField(refund, "rejectedBy", RejectedBy.SHOP);
         when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
         Purchase shopSale = shopPurchase(10L, "p-1");
         when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(shopSale));
@@ -666,5 +668,67 @@ class RefundServiceTest {
 
         assertEquals(0, result.getTotalElements());
         verify(refundRepository).findAllAdminPage(eq(Status.REQUESTED), eq(PageRequest.of(1, 20)));
+    }
+
+    @Test
+    void approveByShop_forbiddenWhenRefundWasRejectedByAdmin() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(5L)).thenReturn(true);
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("파손")
+            .requestedAmount(3_000).status(Status.REJECTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        ReflectionTestUtils.setField(refund, "rejectedBy", RejectedBy.ADMIN);
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        Purchase shopSale = shopPurchase(10L, "p-1");
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(shopSale));
+
+        assertThrows(ForbiddenException.class, () -> refundService.approveByShop(5L, 10L, 1L));
+
+        assertEquals(Status.REJECTED, refund.getStatus());
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void rejectByShop_forbiddenToChangeReasonOfAdminRejectedRefund() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(5L)).thenReturn(true);
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("파손")
+            .requestedAmount(3_000).status(Status.REJECTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        ReflectionTestUtils.setField(refund, "rejectReason", "관리자 사유");
+        ReflectionTestUtils.setField(refund, "rejectedBy", RejectedBy.ADMIN);
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        Purchase shopSale = shopPurchase(10L, "p-1");
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(shopSale));
+
+        assertThrows(ForbiddenException.class, () -> refundService.rejectByShop(5L, 10L, 1L, "새 사유"));
+
+        assertEquals("관리자 사유", refund.getRejectReason());
+    }
+
+    @Test
+    void rejectByShop_recordsShopAsRejecter() {
+        Shop shop = mock(Shop.class);
+        when(shop.isOwner(5L)).thenReturn(true);
+        when(shopRepository.findById(10L)).thenReturn(Optional.of(shop));
+        Payment payment = Payment.builder().paymentId("p-1").user(mock(User.class)).amount(10_000)
+            .purpose(PaymentPurpose.PURCHASE).build();
+        Refund refund = Refund.builder().payment(payment).user(mock(User.class)).reason("파손")
+            .requestedAmount(3_000).status(Status.REQUESTED).requestedBy(RequestedBy.USER)
+            .type(RefundType.PURCHASE).build();
+        when(refundRepository.findByIdLock(1L)).thenReturn(Optional.of(refund));
+        Purchase shopSale = shopPurchase(10L, "p-1");
+        when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(shopSale));
+
+        refundService.rejectByShop(5L, 10L, 1L, "상품 이상 없음");
+
+        assertEquals(Status.REJECTED, refund.getStatus());
+        assertEquals(RejectedBy.SHOP, refund.getRejectedBy());
     }
 }
