@@ -18,7 +18,9 @@ import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
+import com.goodsbridge.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +42,7 @@ public class PurchaseService {
     private final EntityManager entityManager;
     private final ItemRepository itemRepository;
     private final ShopRepository shopRepository;
+    private final UserRepository userRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher publisher;
@@ -78,6 +81,10 @@ public class PurchaseService {
         // 가게 계정은 다른 가게 상품도 구매할 수 없다
         if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
             throw new ForbiddenException("가게 계정은 상품을 구매할 수 없습니다.");
+        }
+        // 관리자 계정은 관리만 하고 구매하지 않는다
+        if (userRepository.existsByIdAndRole(userId, Role.ADMIN)) {
+            throw new ForbiddenException("관리자 계정은 상품을 구매할 수 없습니다.");
         }
 
         // 이미 구매된 상품인지 확인

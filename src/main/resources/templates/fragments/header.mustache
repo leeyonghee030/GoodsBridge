@@ -117,7 +117,8 @@
     </div>
     <a href="/test/board">BOARD</a>
     {{#userId}}
-    <a href="/update" id="nav-mypage">MY PAGE</a>
+    {{#adminAccount}}<a href="/test/admin" id="nav-mypage">ADMIN</a>{{/adminAccount}}
+    {{^adminAccount}}<a href="/update" id="nav-mypage">MY PAGE</a>{{/adminAccount}}
     <form action="/api/logout" method="post" class="inline-form"><button type="submit" class="link-button">LOGOUT</button></form>
     <!-- 알림 (#34): 로그인한 사용자만, LOGOUT 오른쪽. 동작은 /js/notifications.js -->
     <div class="notification-area">
@@ -261,9 +262,6 @@ fetch('/demo/status', { credentials: 'same-origin' })
         const toggle = bar.querySelector('.demo-toggle');
         const menu = bar.querySelector('.demo-menu');
         bar.hidden = false;
-        // 관리자 계정이면 마이페이지 자리가 입점/구독 관리로 연결된다
-        const adminNav = document.getElementById('nav-mypage');
-        if (data.current === 'admin' && adminNav) { adminNav.href = '/test/admin/shops'; adminNav.textContent = 'ADMIN'; }
         // 지금 선택된 계정 표시 (토글 라벨 + 메뉴 강조)
         const names = { 'user-a': 'A', 'user-b': 'B', 'shop': '가게', 'shop-b': '가게B', 'admin': '관리자' };
         if (names[data.current]) {
@@ -294,7 +292,11 @@ fetch('/demo/status', { credentials: 'same-origin' })
         });
         bar.querySelectorAll('[data-demo]').forEach(btn => btn.addEventListener('click', async () => {
             const res = await fetch('/demo/login/' + btn.dataset.demo, { method: 'POST', credentials: 'same-origin' });
-            if (res.ok) location.reload(); else alert('계정 전환에 실패했습니다.');
+            if (!res.ok) { alert('계정 전환에 실패했습니다.'); return; }
+            // 관리자·가게 전용 화면을 보던 중이면 바뀐 계정에 맞는 화면으로 보낸다 (권한 없음 화면이 뜨지 않게). 그 밖의 화면은 그대로 새로고침한다.
+            const onRolePage = location.pathname.startsWith('/test/admin') || location.pathname.startsWith('/shop/');
+            const home = { admin: '/test/admin', shop: '/shop/dashboard', 'shop-b': '/shop/dashboard' }[btn.dataset.demo] || '/';
+            if (onRolePage) location.href = home; else location.reload();
         }));
     })
     .catch(() => {});
@@ -307,6 +309,9 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
     .then(r => r.ok ? r.json() : null)
     .then(d => {
         if (!(d && d.content && d.content.length)) return;
+        // 가게 사장님의 MY PAGE는 대시보드로 간다 (내 정보는 대시보드 옆 탭에 있다)
+        const myPage = document.getElementById('nav-mypage');
+        if (myPage) myPage.href = '/shop/dashboard';
         // 가게는 체인점 성격이라 개인 구매 내역 탭을 두지 않는다
         document.querySelectorAll('.my-tabs a[href="/my/purchases"], .my-tabs a[href="/my/events"], .my-tabs a[href="/my/auctions"]').forEach(a => a.remove());
         // 개인 이벤트 내역 화면은 가게 계정에 없으니 가게 이벤트 관리로 보낸다
@@ -316,6 +321,7 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
         if (location.pathname === '/my/exchange') return;   // 개인 교환 내역 화면을 직접 연 경우는 그대로 둔다
         document.querySelectorAll('.my-tabs a[href="/my/exchange"]').forEach(a => {
             a.href = '/shop/exchange'; a.textContent = '가게 교환 관리';
+            a.insertAdjacentHTML('beforebegin', '<a href="/shop/dashboard">대시보드</a>');
             a.insertAdjacentHTML('afterend', '<a href="/shop/items">판매 상품 관리</a><a href="/shop/events">이벤트 관리</a><a href="/shop/auctions">경매 관리</a>');
         });
     })
@@ -327,19 +333,31 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
 // 브라우저 기본 alert/confirm/prompt 를 사이트 디자인 대화상자로 대체한다.
 // alert 는 await 하면 닫힐 때까지 기다릴 수 있고, 안 해도 기존처럼 동작한다.
 (() => {
-    function gbDialog({ message, confirm = false, prompt = false, defaultValue = '' }) {
+    function gbDialog({ message, confirm = false, prompt = false, defaultValue = '', html = null, multiline = false, maxLength = 500 }) {
         return new Promise(resolve => {
             const back = document.createElement('div');
             back.className = 'modal-backdrop gb-dialog-backdrop';
             back.innerHTML = '<div class="modal-card gb-dialog" role="dialog" aria-modal="true">'
                 + '<p class="gb-dialog-msg"></p>'
-                + (prompt ? '<input type="text" class="gb-dialog-input">' : '')
+                + (prompt ? (multiline
+                    ? '<textarea class="gb-dialog-input" rows="5" maxlength="' + maxLength + '"></textarea><p class="gb-dialog-count"></p>'
+                    : '<input type="text" class="gb-dialog-input">') : '')
                 + '<div class="gb-dialog-actions">'
                 + (confirm || prompt ? '<button type="button" class="gb-cancel">취소</button>' : '')
                 + '<button type="button" class="gb-ok">확인</button></div></div>';
-            back.querySelector('.gb-dialog-msg').textContent = String(message ?? '');
+            // html 은 호출하는 쪽에서 이스케이프한 안내 조각만 넘긴다 (입찰 확인창 등)
+            if (html) { const m = back.querySelector('.gb-dialog-msg'); m.classList.add('is-rich'); m.innerHTML = html; }
+            else back.querySelector('.gb-dialog-msg').textContent = String(message ?? '');
             const input = back.querySelector('.gb-dialog-input');
             if (input) input.value = defaultValue;
+            if (multiline && input) {
+                // 길게 적는 입력: 넓은 창 + 글자 수 표시
+                back.querySelector('.gb-dialog').classList.add('is-wide');
+                const count = back.querySelector('.gb-dialog-count');
+                const updateCount = () => { count.textContent = input.value.length + ' / ' + maxLength; };
+                input.addEventListener('input', updateCount);
+                updateCount();
+            }
             const cancelValue = prompt ? null : (confirm ? false : undefined);
             const okValue = () => prompt ? input.value : (confirm ? true : undefined);
 
@@ -350,6 +368,11 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
             }
             function onKey(e) {
                 if (e.key === 'Escape') { e.preventDefault(); close(cancelValue); }
+                // 여러 줄 입력에서는 Enter 가 줄바꿈이고, Ctrl+Enter 로 확인한다
+                if (e.key === 'Enter' && multiline && prompt) {
+                    if (e.ctrlKey || e.metaKey) { e.preventDefault(); close(okValue()); }
+                    return;
+                }
                 if (e.key === 'Enter') { e.preventDefault(); close(okValue()); }
             }
             back.querySelector('.gb-ok').addEventListener('click', () => close(okValue()));
@@ -362,8 +385,8 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
         });
     }
     window.alert = message => gbDialog({ message });
-    window.gbConfirm = message => gbDialog({ message, confirm: true });
-    window.gbPrompt = (message, defaultValue) => gbDialog({ message, prompt: true, defaultValue });
+    window.gbConfirm = (message, opts) => gbDialog({ message, confirm: true, html: opts && opts.html });
+    window.gbPrompt = (message, defaultValue, opts) => gbDialog({ message, prompt: true, defaultValue, multiline: !!(opts && opts.multiline), maxLength: (opts && opts.maxLength) || 500 });
 })();
 </script>
 
@@ -450,11 +473,13 @@ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
     Promise.all([json('/api/events'), json('/api/events/me'), json('/api/shops/me')])
         .then(([events, mine, myShops]) => {
             const now = new Date();
-            const joined = new Set((mine || []).filter(p => p.status === 'JOINED').map(p => p.shopEventId));
+            // 내가 산 수량(추가 구매 포함). 1인 최대 수량까지 다 샀을 때만 '참가 가능'에서 뺀다
+            const boughtQty = {};
+            (mine || []).filter(p => p.status === 'JOINED').forEach(p => { boughtQty[p.shopEventId] = (boughtQty[p.shopEventId] || 0) + p.quantity; });
             const ownShops = new Set(((myShops && myShops.content) || []).map(s => s.id));
             const open = (events || [])
                 .filter(e => e.status === 'OPEN' && new Date(e.deadline) > now && e.currentCount < e.capacity)
-                .filter(e => !joined.has(e.id) && !ownShops.has(e.shopId))
+                .filter(e => (boughtQty[e.id] || 0) < e.maxPerUser && !ownShops.has(e.shopId))
                 .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
                 .slice(0, 5);
             const listEl = document.getElementById('event-rank-list');

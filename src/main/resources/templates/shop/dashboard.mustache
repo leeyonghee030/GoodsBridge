@@ -1,0 +1,204 @@
+{{> fragments/header}}
+
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/shop/dashboard" class="active">대시보드</a>
+    <a href="/shop/exchange">가게 교환 관리</a>
+    <a href="/shop/items">판매 상품 관리</a>
+    <a href="/shop/events">이벤트 관리</a>
+    <a href="/shop/auctions">경매 관리</a>
+</nav>
+<div class="dash">
+    <div class="dash-head">
+        <div>
+            <h1>가게 대시보드</h1>
+            <p id="selected-month">통계를 불러오는 중입니다.</p>
+        </div>
+        <form id="dashboard-form" class="dash-filter">
+            <input id="month" type="month" required>
+            <button type="submit">조회</button>
+        </form>
+    </div>
+
+    <!-- 구독이 끝났거나 곧 끝나면 알려 주는 한 줄 -->
+    <div id="sub-banner" class="dash-banner" hidden></div>
+
+    <section class="dash-panel">
+        <div class="dash-title"><h2>지금 처리할 일</h2><small>월과 무관한 현재 값</small></div>
+        <div id="todo-cards" class="stat-row cols4"></div>
+    </section>
+
+    <section class="dash-panel">
+        <div class="dash-title"><h2>운영 현황</h2></div>
+        <div id="status-cards" class="stat-row cols5"></div>
+    </section>
+
+    <section class="dash-panel">
+        <div class="dash-title"><h2>월 운영 지표</h2><small id="compare-label">지난달 대비</small></div>
+        <div id="month-cards" class="stat-row cols3"></div>
+        <p class="dash-note" style="margin-top:.8rem">매출은 일반 판매 대금·교환 수수료·노쇼 몰수금·경매 낙찰가·이벤트 참가비입니다. 판매 건수는 환불된 구매를 뺀 값이고, 환불 금액은 그 달에 요청해서 승인된 환불의 합계(경매 낙찰가 전액 환불은 보증금 포함)예요. 내 가게(여러 곳이면 합산) 기준이에요.</p>
+    </section>
+
+    <section class="dash-panel">
+        <div class="dash-title"><h2>최근 6개월 추이</h2></div>
+        <div class="chart-grid">
+            <div class="chart-box"><h3>매출</h3><div class="chart-canvas"><canvas id="revenue-chart"></canvas></div></div>
+            <div class="chart-box"><h3>판매 건수</h3><div class="chart-canvas"><canvas id="sale-chart"></canvas></div></div>
+            <div class="chart-box"><h3>환불 금액</h3><div class="chart-canvas"><canvas id="refund-chart"></canvas></div></div>
+        </div>
+    </section>
+
+    <p id="dashboard-message" class="dash-note">통계를 불러오는 중입니다.</p>
+</div>
+</div>
+
+<!-- 매출 칸을 누르면 뜨는 월별 매출 창 -->
+<div class="modal-backdrop" id="rev-modal" hidden>
+    <div class="modal-card rev-card" role="dialog" aria-modal="true" aria-labelledby="rev-title">
+        <button type="button" class="modal-close" id="rev-close" aria-label="닫기">✕</button>
+        <h1 id="rev-title">월별 매출</h1>
+        <div class="rev-year">
+            <button type="button" id="rev-prev" aria-label="이전 해">‹</button>
+            <span id="rev-year">-</span>
+            <button type="button" id="rev-next" aria-label="다음 해">›</button>
+        </div>
+        <div id="rev-body"><p class="rev-empty">불러오는 중입니다.</p></div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="/js/dashboard.js"></script>
+<script>
+(() => {
+    const { fmt, addStat, delta, drawChart, monthLabels } = Dash;
+
+    // ===== 월별 매출 창 =====
+    const revModal = document.getElementById('rev-modal');
+    const revBody = document.getElementById('rev-body');
+    const closeRevenue = () => { revModal.hidden = true; };
+    document.getElementById('rev-close').addEventListener('click', closeRevenue);
+    revModal.addEventListener('click', ev => { if (ev.target === revModal) closeRevenue(); });
+    document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && !revModal.hidden) closeRevenue(); });
+
+    // 종류별 내역 (0원인 종류는 보여주지 않는다)
+    const TYPES = [['purchaseAmount', '상품 판매'], ['auctionAmount', '경매 낙찰'], ['eventAmount', '이벤트'], ['exchangeAmount', '교환 수수료'], ['noShowAmount', '노쇼 몰수']];
+    const monthText = ym => ym.slice(0, 4) + '년 ' + Number(ym.slice(5)) + '월';
+
+    const THIS_YEAR = new Date().getFullYear();
+    const MIN_YEAR = 2020;
+    let revYear = THIS_YEAR;
+    let revMonth = '';   // 대시보드에서 조회 중인 달 (창에서 굵게 표시)
+
+    function openRevenue(month) {
+        revMonth = month;
+        loadRevenue(Number(month.slice(0, 4)));
+        revModal.hidden = false;
+    }
+    document.getElementById('rev-prev').addEventListener('click', () => loadRevenue(revYear - 1));
+    document.getElementById('rev-next').addEventListener('click', () => loadRevenue(revYear + 1));
+
+    async function loadRevenue(year) {
+        if (year < MIN_YEAR || year > THIS_YEAR) return;
+        revYear = year;
+        document.getElementById('rev-year').textContent = year + '년';
+        document.getElementById('rev-prev').disabled = year <= MIN_YEAR;
+        document.getElementById('rev-next').disabled = year >= THIS_YEAR;
+        revBody.innerHTML = '<p class="rev-empty">불러오는 중입니다.</p>';
+        try {
+            const res = await fetch('/api/shop/dashboard/revenue?year=' + year, { credentials: 'same-origin' });
+            if (!res.ok) { revBody.innerHTML = '<p class="rev-empty">매출을 불러오지 못했어요.</p>'; return; }
+            const data = await res.json();
+            if (data.year !== revYear) return;   // 그 사이 다른 해를 눌렀으면 이 응답은 버린다
+            const max = Math.max(1, ...data.months.map(m => m.totalAmount));
+            const rows = data.months.slice().reverse().map(m => {
+                const detail = TYPES.filter(([key]) => m[key] > 0).map(([key, label]) => label + ' ' + fmt.won(m[key])).join(' · ');
+                return '<div class="rev-row' + (m.month === revMonth ? ' is-current' : '') + '">'
+                    + '<div class="rev-row-head"><span class="rev-month">' + monthText(m.month) + '</span><strong>' + fmt.won(m.totalAmount) + '</strong></div>'
+                    + '<div class="rev-bar"><i style="width:' + Math.round(m.totalAmount / max * 100) + '%"></i></div>'
+                    + '<div class="rev-detail">' + (detail || '매출 없음') + '</div></div>';
+            }).join('');
+            revBody.innerHTML = '<div class="rev-total"><span>' + data.year + '년 합계</span><strong>' + fmt.won(data.totalAmount) + '</strong></div>'
+                + '<div class="rev-list">' + rows + '</div>';
+        } catch (e) {
+            revBody.innerHTML = '<p class="rev-empty">서버와 통신하지 못했어요.</p>';
+        }
+    }
+
+    // 구독이 없거나 곧 끝나면 알려 준다 (판매 상품 관리의 구독 안내와 같은 60일 기준)
+    const NOTICE_DAYS = 60;
+    const URGENT_DAYS = 14;
+    function renderBanner(data) {
+        const banner = document.getElementById('sub-banner');
+        let text = '', link = '', urgent = false;
+        if (data.inactiveShopCount > 0 && data.subscriptionDaysLeft == null) {
+            text = '구독 중이 아니에요. 구독해야 상품 등록과 경매·이벤트 개설을 할 수 있어요.';
+            link = '구독하기'; urgent = true;
+        } else if (data.inactiveShopCount > 0) {
+            text = data.inactiveShopCount + '곳은 구독 중이 아니에요. 구독해야 상품 등록과 경매·이벤트 개설을 할 수 있어요.';
+            link = '구독하기'; urgent = true;
+        } else if (data.subscriptionDaysLeft != null && data.subscriptionDaysLeft <= NOTICE_DAYS) {
+            const left = data.subscriptionDaysLeft === 0 ? '오늘' : data.subscriptionDaysLeft + '일 뒤';
+            text = '구독이 ' + left + '(' + data.subscriptionEndDate + ') 만료돼요. 만료되면 판매 중인 상품이 닫혀요.';
+            link = '구독 연장'; urgent = data.subscriptionDaysLeft <= URGENT_DAYS;
+        }
+        banner.hidden = !text;
+        if (!text) return;
+        banner.className = 'dash-banner' + (urgent ? ' is-urgent' : '');
+        banner.replaceChildren();
+        const span = document.createElement('span');
+        span.textContent = text;
+        const a = document.createElement('a');
+        a.href = '/update';
+        a.textContent = link;
+        banner.append(span, a);
+    }
+
+    function render(data) {
+        const todo = document.getElementById('todo-cards');
+        const status = document.getElementById('status-cards');
+        const monthly = document.getElementById('month-cards');
+        todo.replaceChildren();
+        status.replaceChildren();
+        monthly.replaceChildren();
+        renderBanner(data);
+
+        addStat(todo, '환불 승인 대기', fmt.count(data.pendingRefundCount), data.pendingRefundCount > 0 ? '처리하러 가기' : '',
+            { todo: data.pendingRefundCount > 0, href: '/shop/items?tab=REFUND&sub=REQUESTED' });
+        addStat(todo, '발송 대기', fmt.count(data.pendingShipmentCount), data.pendingShipmentCount > 0 ? '운송장 입력' : '',
+            { todo: data.pendingShipmentCount > 0, href: '/shop/items?tab=SOLD&sub=PREPARING' });
+        addStat(todo, '오늘 방문 교환', fmt.count(data.todayMeetingCount), data.todayMeetingCount > 0 ? '출석 체크' : '',
+            { todo: data.todayMeetingCount > 0, href: '/shop/exchange' });
+        addStat(todo, '잔금 미납 낙찰', fmt.count(data.unpaidBalanceCount), data.unpaidBalanceCount > 0 ? '결제 기한 내' : '',
+            { todo: data.unpaidBalanceCount > 0, href: '/shop/auctions?tab=ENDED&sub=WAITING' });
+
+        addStat(status, '진행 중 경매', fmt.count(data.activeAuctionCount), '', { href: '/shop/auctions?tab=ACTIVE' });
+        addStat(status, '종료된 경매', fmt.count(data.endedAuctionCount), '누적', { href: '/shop/auctions?tab=ENDED' });
+        addStat(status, '진행 중 이벤트', fmt.count(data.openEventCount), '모집 중', { href: '/shop/events' });
+        addStat(status, '교환 방문 대기', fmt.count(data.waitingExchangeCount), '확정된 교환', { href: '/shop/exchange' });
+        addStat(status, '정산 예정', fmt.won(data.pendingSettlementAmount), '낙찰 잔금 대기', { href: '/shop/auctions?tab=ENDED&sub=WAITING' });
+
+        // 마지막 원소가 조회한 달, 그 앞이 지난달이다.
+        const months = data.months;
+        const m = months[months.length - 1];
+        const p = months.length > 1 ? months[months.length - 2] : {};
+        document.getElementById('compare-label').textContent = (p.month || '지난달') + ' 대비';
+        // 판매 건수·환불 금액은 조회한 달로 맞춘 판매완료·환불 탭으로 간다
+        // 매출을 누르면 월별 매출 창이 열린다
+        addStat(monthly, '매출', fmt.won(m.revenue), delta(m.revenue, p.revenue), { onClick: () => openRevenue(m.month) });
+        addStat(monthly, '판매 건수', fmt.count(m.saleCount), delta(m.saleCount, p.saleCount),
+            { href: '/shop/items?tab=SOLD&month=' + encodeURIComponent(m.month) });
+        addStat(monthly, '환불 금액', fmt.won(m.refundedAmount), delta(m.refundedAmount, p.refundedAmount),
+            { href: '/shop/items?tab=REFUND&month=' + encodeURIComponent(m.month) });
+
+        const labels = monthLabels(months);
+        drawChart('revenue-chart', labels, [{ label: '매출', data: months.map(x => x.revenue) }], fmt.won);
+        drawChart('sale-chart', labels, [{ label: '판매', data: months.map(x => x.saleCount) }], fmt.count);
+        drawChart('refund-chart', labels, [{ label: '환불', data: months.map(x => x.refundedAmount) }], fmt.won);
+    }
+
+    Dash.start({ api: '/api/shop/dashboard', render: render });
+})();
+</script>
+
+{{> fragments/footer}}

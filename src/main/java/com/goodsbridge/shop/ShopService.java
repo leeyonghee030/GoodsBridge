@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Service
@@ -301,12 +303,26 @@ public class ShopService {
         String name,
         String region,
         ShopStatus status,
+        String month,
         Pageable pageable
     ) {
         validateAdmin(adminUserId);
 
+        // month(YYYY-MM)를 주면 그 달에 입점한(승인된) 가게만, 없으면 전체. 승인 시각이 없는 가게는 신청일로 본다.
+        LocalDateTime startAt = LocalDateTime.of(1900, 1, 1, 0, 0);
+        LocalDateTime endAt = LocalDateTime.of(9999, 1, 1, 0, 0);
+        if (month != null && !month.isBlank()) {
+            try {
+                YearMonth selected = YearMonth.parse(month);
+                startAt = selected.atDay(1).atStartOfDay();
+                endAt = selected.plusMonths(1).atDay(1).atStartOfDay();
+            } catch (DateTimeParseException e) {
+                throw new BadRequestException("month는 YYYY-MM 형식이어야 합니다.");
+            }
+        }
+
         return shopRepository
-            .searchShopsByAdmin(name, region, status, pageable)
+            .searchShopsByAdmin(name, region, status, startAt, endAt, pageable)
             .map(ShopResponse::new);
     }
 

@@ -165,7 +165,7 @@ class ShopSubscriptionProcessorTest {
 
         assertThat(sent).isTrue();
         verify(subscription).markExpiringReminderSent();
-        verify(eventPublisher).publishEvent(argThat(event -> event instanceof NotificationEvent notification
+        verify(eventPublisher).publishEvent(argThat((Object event) -> event instanceof NotificationEvent notification
             && notification.userId().equals(88L)
             && notification.type() == Notification.Type.SUBSCRIPTION_EXPIRING
             && notification.content().equals("구독이 3일 뒤 만료돼요")

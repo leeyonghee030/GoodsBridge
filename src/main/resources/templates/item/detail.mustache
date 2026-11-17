@@ -150,14 +150,24 @@ const errorText = async (res, fallback) => {
     const message = document.getElementById('buy-message');
     const $ = id => document.getElementById(id);
 
+    // 경매 전용 상품: 일반 구매가 아니라 경매 입찰로만 살 수 있다
+    if ({{auctionItem}}) {
+        const auctionId = {{#auctionId}}{{auctionId}}{{/auctionId}}{{^auctionId}}null{{/auctionId}};
+        buyButton.textContent = '경매로만 구매할 수 있어요';
+        buyButton.disabled = true;
+        message.innerHTML = auctionId !== null
+            ? `<a href="/test/auction/${auctionId}">진행 중인 경매 보러 가기 →</a>`
+            : '지금 진행 중인 경매가 없어요.';
+        return;
+    }
     if (statusEl.dataset.status !== 'ON_SALE') {
         buyButton.textContent = '판매완료';
         buyButton.disabled = true;
         return;
     }
     // 가게 계정은 어떤 상품도 살 수 없다
-    if ({{shopAccount}}) {
-        buyButton.textContent = '가게 계정은 구매할 수 없어요';
+    if ({{shopAccount}} || {{adminAccount}}) {
+        buyButton.textContent = {{adminAccount}} ? '관리자 계정은 구매할 수 없어요' : '가게 계정은 구매할 수 없어요';
         buyButton.disabled = true;
         return;
     }

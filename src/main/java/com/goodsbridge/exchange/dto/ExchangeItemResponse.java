@@ -16,7 +16,8 @@ public class ExchangeItemResponse {
     private Long id;
     private Long userId;
     private Long itemId;
-    private String itemTitle;
+    private String title;      // 게시글 제목 (직접 적은 제목, 없으면 상품 이름)
+    private String itemTitle;   // 올린 상품의 이름
     private Integer itemPrice;
     private String itemImageUrl;
     private String categoryName;
@@ -30,7 +31,8 @@ public class ExchangeItemResponse {
     @Builder
     public ExchangeItemResponse(Long id, Long userId, Long itemId, String itemTitle, Integer itemPrice, String itemImageUrl,
                                  String categoryName, String wantDescription, Long shopId, String shopName,
-                                 ExchangeItemStatus status, LocalDateTime createdAt, Long requestCount) {
+                                 ExchangeItemStatus status, LocalDateTime createdAt, Long requestCount, String title) {
+        this.title = title != null ? title : itemTitle;
         this.id = id;
         this.userId = userId;
         this.itemId = itemId;
@@ -65,6 +67,7 @@ public class ExchangeItemResponse {
             .status(exchangeItem.getStatus())
             .createdAt(exchangeItem.getCreatedAt())
             .requestCount(requestCount == null ? 0L : requestCount)
+            .title(exchangeItem.getDisplayTitle())
             .build();
     }
 }

@@ -7,6 +7,7 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.shop.Shop;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -41,6 +43,7 @@ class BidServiceTest {
     @Mock AuctionRepository auctionRepository;
     @Mock UserRepository userRepository;
     @Mock PaymentService paymentService;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock com.goodsbridge.shop.ShopRepository shopRepository;
     @Mock Auction auction;
     @Mock Shop shop;
@@ -50,7 +53,8 @@ class BidServiceTest {
 
     @BeforeEach
     void setUp() {
-        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService, shopRepository);
+        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
+            shopRepository, eventPublisher);
         lenient().when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
         lenient().when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         lenient().when(auction.getId()).thenReturn(1L);
@@ -84,6 +88,40 @@ class BidServiceTest {
         verify(auction).setWinningPaymentId("payment-1");
         verify(auction).updateCurrentBid(12_000, user);
         verify(bidRepository).save(any(Bid.class));
+    }
+
+    @Test
+    void placeBid_rejectsAdminAccount() {
+        when(user.getRole()).thenReturn(Role.ADMIN);
+
+        assertThrows(com.goodsbridge._core.exception.ForbiddenException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1")));
+
+        verify(bidRepository, never()).save(any());
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+    }
+
+    @Test
+    void placeBid_firstBidEqualToStartPriceIsAllowed() {
+        // 입찰이 아직 없으면(현재 1위 없음) 시작가와 같은 금액으로 첫 입찰할 수 있다
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
+        when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L))
+            .thenReturn("payment-1");
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BidResponse response = bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1"));
+
+        assertEquals(10_000, response.getBidAmount());
+        verify(auction).updateCurrentBid(10_000, user);
+    }
+
+    @Test
+    void placeBid_firstBidBelowStartPriceIsRejectedWithStartPriceMessage() {
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(9_999, "payment-1")));
+
+        assertEquals("첫 입찰은 시작가(10,000원) 이상이어야 합니다.", exception.getMessage());
+        verify(bidRepository, never()).save(any());
     }
 
     @Test
@@ -197,6 +235,8 @@ class BidServiceTest {
 
     @Test
     void placeBid_rejectsBidAtOrBelowCurrentPrice() {
+        // 이미 입찰이 있는 경매(현재 1위가 있음)에서는 현재가와 같은 금액도 안 된다
+        lenient().when(auction.getCurrentWinner()).thenReturn(user);
         BadRequestException exception = assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1")));
 

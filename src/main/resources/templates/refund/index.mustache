@@ -171,7 +171,7 @@
                 loadRefunds();
             }));
             document.querySelectorAll('[data-reject]').forEach((button) => button.addEventListener('click', async () => {
-                const reason = await gbPrompt('거절 사유를 입력하세요.');
+                const reason = await gbPrompt('거절 사유를 입력하세요.', '', { multiline: true });
                 if (!reason) return;
                 const response = await pageFetch('/api/admin/refunds/' + button.dataset.reject + '/reject?rejectReason=' + encodeURIComponent(reason), {method: 'PATCH'});
                 if (!response.ok) {

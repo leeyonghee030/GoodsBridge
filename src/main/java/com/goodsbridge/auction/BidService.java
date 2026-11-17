@@ -7,6 +7,7 @@ import com.goodsbridge.notification.Notification;
 import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
@@ -53,6 +54,10 @@ public class BidService {
         if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
             throw new ForbiddenException("가게 계정은 경매에 입찰할 수 없습니다.");
         }
+        // 관리자 계정은 관리만 하고 입찰하지 않는다
+        if (user.getRole() == Role.ADMIN) {
+            throw new ForbiddenException("관리자 계정은 경매에 입찰할 수 없습니다.");
+        }
 
         // 3. 상태/마감 검증
         if (auction.getStatus() != Status.ACTIVE
@@ -60,9 +65,14 @@ public class BidService {
             throw new BadRequestException("진행 중이며 마감되지 않은 경매만 입찰할 수 있습니다.");
         }
 
-        // 4. 현재가 검증
-        if (request.getBidAmount() == null || request.getBidAmount() <= auction.getCurrentPrice()) {
-            throw new BadRequestException("입찰가는 현재가보다 높아야 합니다.");
+        // 4. 현재가 검증: 아직 입찰이 없으면(현재가 = 시작가) 시작가 이상, 이미 입찰이 있으면 현재가보다 높아야 한다
+        Integer bidAmount = request.getBidAmount();
+        boolean noBidYet = auction.getCurrentWinner() == null;
+        if (bidAmount == null
+            || (noBidYet ? bidAmount < auction.getCurrentPrice() : bidAmount <= auction.getCurrentPrice())) {
+            throw new BadRequestException(bidAmount != null && noBidYet
+                ? "첫 입찰은 시작가(" + String.format("%,d", auction.getCurrentPrice()) + "원) 이상이어야 합니다."
+                : "입찰가는 현재가보다 높아야 합니다.");
         }
 
         // 5. 최초 입찰 시에만 보증금 검증 (금액 = Auction.depositAmount)
