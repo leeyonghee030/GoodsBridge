@@ -75,6 +75,15 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     boolean existsInUseByItemId(@Param("itemId") Long itemId);
 
+    // 가게 삭제 차단용: 진행 중이거나, 낙찰됐지만 잔금 미결제인 경매가 이 가게에 있는지
+    @Query("""
+        select count(a) > 0 from Auction a
+        where a.shop.id = :shopId
+          and (a.status = com.goodsbridge.auction.Status.ACTIVE
+               or (a.status = com.goodsbridge.auction.Status.ENDED_SUCCESS and a.balancePaymentId is null))
+        """)
+    boolean existsOngoingByShopId(@Param("shopId") Long shopId);
+
     // 낙찰됐지만 낙찰자가 아직 잔금을 결제하지 않은 경매가 있는 상품인지 (이런 상품은 새 경매에 올릴 수 없다)
     @Query("""
         select count(a) > 0 from Auction a

@@ -79,6 +79,15 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
         ,@Param("statuses") List<ExchangeRequestStatus> statuses);
 
 
+    // 가게 삭제 차단용: 이 가게가 중개하는 대기/확정 교환이 있는지
+    @Query("""
+        select count(e) > 0 from ExchangeRequest e
+        where e.shop.id = :shopId
+          and e.status in (com.goodsbridge.exchange.ExchangeRequestStatus.PENDING,
+                           com.goodsbridge.exchange.ExchangeRequestStatus.CONFIRMED)
+""")
+    boolean existsOngoingByShopId(@Param("shopId") Long shopId);
+
     // 교환 게시글 삭제 시 거절/취소/만료된 지난 신청 기록도 함께 삭제
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from ExchangeRequest r where r.exchangeItemA.id = :exchangeItemId")

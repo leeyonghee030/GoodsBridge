@@ -3,6 +3,9 @@ package com.goodsbridge.shop;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.auction.AuctionRepository;
+import com.goodsbridge.event.ShopEventRepository;
+import com.goodsbridge.exchange.ExchangeRequestRepository;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.user.Role;
@@ -31,6 +34,9 @@ public class ShopService {
     private final UserRepository userRepository;
     private final ItemRepository itemRepository;
     private final ShopSubscriptionRepository subscriptionRepository;
+    private final ShopEventRepository shopEventRepository;
+    private final ExchangeRequestRepository exchangeRequestRepository;
+    private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.chain-code}")
@@ -138,17 +144,26 @@ public class ShopService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // 3. 가게 소프트 삭제
+        // 3. 진행 중인 이벤트·교환·경매가 있으면 삭제 거절 (이미 결제한 사람들이 손해를 보지 않도록)
+        if (shopEventRepository.existsOngoingByShopId(shopId, now)
+            || exchangeRequestRepository.existsOngoingByShopId(shopId)
+            || auctionRepository.existsOngoingByShopId(shopId)) {
+            throw new BadRequestException(
+                "진행 중인 이벤트·교환·경매가 있어 가게를 삭제할 수 없어요. 먼저 마무리하거나 취소해 주세요."
+            );
+        }
+
+        // 4. 가게 소프트 삭제
         shop.deleteShop();
 
-        // 4. 소속 상품 전체 소프트 삭제
+        // 5. 소속 상품 전체 소프트 삭제
         itemRepository.softDeleteByShopId(
             shopId,
             now,
             ItemStatus.CLOSED
         );
 
-        // 5. 활성 구독이 있다면 실제 소프트 삭제
+        // 6. 활성 구독이 있다면 실제 소프트 삭제
         // 구독 취소나 만료 이벤트와는 구분합니다.
         subscriptionRepository
             .findActiveByShopIdWithLock(
