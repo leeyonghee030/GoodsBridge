@@ -376,16 +376,30 @@ public class AuctionService {
         if (winnerId == null) {
             return;
         }
-        for (String paymentId : bidRepository.findLoserDepositPaymentIds(auctionId, winnerId)) {
-            refundDeposit(paymentId, "경매 패찰 보증금 환불");
-        }
+        refundDeposits(bidRepository.findLoserDepositPaymentIds(auctionId, winnerId), "경매 패찰 보증금 환불");
     }
 
     // 취소된 경매의 보증금 환불
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void refundCancelled(Long auctionId) {
-        for (String paymentId : bidRepository.findAllDepositPaymentIds(auctionId)) {
-            refundDeposit(paymentId, "경매 취소 보증금 환불");
+        refundDeposits(bidRepository.findAllDepositPaymentIds(auctionId), "경매 취소 보증금 환불");
+    }
+
+    // 한 건이 실패해도 나머지 환불은 계속하고, 하나라도 실패했으면 첫 예외를 던져 스케줄러가 다음 주기에 재시도하게 한다
+    private void refundDeposits(java.util.Collection<String> paymentIds, String reason) {
+        RuntimeException firstFailure = null;
+        for (String paymentId : paymentIds) {
+            try {
+                refundDeposit(paymentId, reason);
+            } catch (RuntimeException e) {
+                log.error("경매 보증금 환불 실패 - paymentId={}", paymentId, e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
         }
     }
 
@@ -402,7 +416,7 @@ public class AuctionService {
         paymentService.refund(paymentId, payment.getRefundableAmount(), reason);
     }
 
-    // 환불이 전부 끝난 경매 표시 (refundLosers 성공 뒤 스케줄러가 호출)
+    // 환불이 전부 끝난 경매 표시
     @Transactional
     public void markLosersRefunded(Long auctionId) {
         auctionRepository.findById(auctionId).ifPresent(Auction::markLosersRefunded);

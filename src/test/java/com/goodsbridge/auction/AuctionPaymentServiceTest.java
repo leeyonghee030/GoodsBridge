@@ -298,6 +298,25 @@ class AuctionPaymentServiceTest {
         assertThrows(RuntimeException.class, () -> auctionService.refundLosers(1L));
     }
 
+    @Test
+    void refundLosers_continuesWithOtherPaymentsWhenOneFails_thenPropagatesFailure() {
+        Payment first = mock(Payment.class);
+        Payment second = mock(Payment.class);
+        when(auctionRepository.findWinnerUserId(1L)).thenReturn(2L);
+        when(bidRepository.findLoserDepositPaymentIds(1L, 2L)).thenReturn(List.of("dep-1", "dep-2"));
+        when(paymentRepository.findByPaymentId("dep-1")).thenReturn(Optional.of(first));
+        when(paymentRepository.findByPaymentId("dep-2")).thenReturn(Optional.of(second));
+        when(first.isPaid()).thenReturn(true);
+        when(first.getRefundableAmount()).thenReturn(1_000);
+        when(second.isPaid()).thenReturn(true);
+        when(second.getRefundableAmount()).thenReturn(2_000);
+        doThrow(new RuntimeException("PortOne 오류")).when(paymentService)
+            .refund("dep-1", 1_000, "경매 패찰 보증금 환불");
+
+        assertThrows(RuntimeException.class, () -> auctionService.refundLosers(1L));
+
+        verify(paymentService).refund("dep-2", 2_000, "경매 패찰 보증금 환불");
+    }
     // ===================== markLosersRefunded =====================
 
     @Test
