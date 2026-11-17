@@ -30,7 +30,10 @@
 
 {{#loginError}}
 <div id="login-error" data-message="{{loginError}}" hidden></div>
-<script>alert(document.getElementById('login-error').dataset.message);</script>
+<script>
+    // 탈퇴한 카카오 계정이면 안내 후 카카오 계정 선택 화면으로 다시 보낸다
+    alert(document.getElementById('login-error').dataset.message){{#kakaoRetry}}.then(() => { location.href = '/api/kakao-login?reselect=true'; }){{/kakaoRetry}};
+</script>
 {{/loginError}}
 
 {{> fragments/footer}}

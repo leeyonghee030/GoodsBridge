@@ -87,7 +87,7 @@ public class UserService {
             .orElseGet(() -> joinKakaoUser(userId, kakaoUserInfo));
 
         if (!user.isActive()) {
-            throw new BadRequestException("탈퇴한 계정입니다. 다른 계정으로 로그인해 주세요.");
+            throw new WithdrawnUserException();
         }
 
         // 3. 같은 이름의 일반 회원이 있다면 카카오 사용자로 로그인 시키지 않음
@@ -110,7 +110,8 @@ public class UserService {
             });
 
         if (!user.isActive()) {
-            throw new BadRequestException("탈퇴한 계정입니다. 다른 계정으로 로그인해 주세요.");
+            // 탈퇴한 계정이라는 사실이 드러나지 않도록 비밀번호가 틀린 경우와 같은 문구를 쓴다
+            throw new BadRequestException("사용자명 또는 비밀번호가 올바르지 않습니다");
         }
 
         // 2. 비밀번호 비교 : matchs(입력한 평문, DB에 저장된 해쉬)
