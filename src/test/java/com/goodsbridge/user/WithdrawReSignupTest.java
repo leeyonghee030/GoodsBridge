@@ -66,4 +66,25 @@ class WithdrawReSignupTest {
         assertThat(second.isActive()).isTrue();
         assertThat(second.getEmail()).isEqualTo("987654321@kakao.com");
     }
+
+    // 실제 탈퇴 서비스 → 이메일 중복 확인(인증 메일 단계) → 가입까지 이어서 확인한다
+    @Test
+    void 탈퇴_서비스로_탈퇴한_뒤_이메일_중복확인을_통과하고_재가입된다() {
+        User old = userRepository.save(User.builder()
+            .email("flow@test.com").password("pw").nickname("흐름").loginType(LoginType.EMAIL).build());
+
+        userService.withdraw(old.getId(), org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse.class));
+        userRepository.flush();
+
+        userService.checkEmailAvailable("flow@test.com");   // 예외가 나면 "이미 등록된 이메일입니다"
+
+        UserRequest.JoinDto joinDto = new UserRequest.JoinDto();
+        joinDto.setEmail("flow@test.com");
+        joinDto.setPassword("newpass123!");
+        joinDto.setNickname("흐름");
+        userService.join(joinDto, "flow@test.com");
+
+        assertThat(userRepository.findByEmail("flow@test.com").orElseThrow().getId()).isNotEqualTo(old.getId());
+        assertThat(userRepository.findById(old.getId()).orElseThrow().isActive()).isFalse();
+    }
 }
