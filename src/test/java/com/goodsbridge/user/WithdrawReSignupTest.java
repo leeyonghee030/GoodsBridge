@@ -71,7 +71,8 @@ class WithdrawReSignupTest {
     @Test
     void 탈퇴_서비스로_탈퇴한_뒤_이메일_중복확인을_통과하고_재가입된다() {
         User old = userRepository.save(User.builder()
-            .email("flow@test.com").password("pw").nickname("흐름").loginType(LoginType.EMAIL).build());
+            .email("flow@test.com").password("pw").nickname("흐름").loginType(LoginType.KAKAO)
+            .profileImage("http://k.kakaocdn.net/dn/test/img_640x640.jpg").build());
 
         userService.withdraw(old.getId(), org.mockito.Mockito.mock(jakarta.servlet.http.HttpServletResponse.class));
         userRepository.flush();
