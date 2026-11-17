@@ -65,16 +65,16 @@ public class UserController {
             user = kakaoLoginService.login(code);
         } catch (WithdrawnUserException e) {
             // 탈퇴한 계정: 안내 후 카카오 계정 선택 화면으로 다시 보내 다른 계정으로 로그인하게 한다.
-            // 계정 선택을 이미 거친 뒤에도 탈퇴한 계정이면 또 보내지 않고 로그인 화면에서 안내만 한다.
+            // 계정 선택을 이미 거친 뒤에도 탈퇴한 계정이면 또 보내지 않고 로그인 팝업에서 안내만 한다.
             redirectAttributes.addFlashAttribute("loginError", e.getMessage());
             if (!KakaoApiClient.RESELECT_STATE.equals(state)) {
                 redirectAttributes.addFlashAttribute("kakaoRetry", true);
             }
-            return "redirect:/login";
+            return "redirect:/";
         } catch (BadRequestException e) {
-            // 그 밖에 로그인할 수 없는 경우: 에러 페이지 대신 로그인 화면으로 돌려보내 안내한다
+            // 그 밖에 로그인할 수 없는 경우: 에러 페이지 대신 홈으로 돌려보내 로그인 팝업에서 안내한다
             redirectAttributes.addFlashAttribute("loginError", e.getMessage());
-            return "redirect:/login";
+            return "redirect:/";
         }
         // 2. 우리 서비스 JWT 발급
         TokenResponse tokens = authService.login(user);
@@ -115,11 +115,11 @@ public class UserController {
     // GET http://localhost:8080/login
     @GetMapping("/login")
     public String loginForm(@AuthenticationPrincipal Long userId) {
-        // 이미 로그인한 사용자는 로그인 화면 대신 홈으로 보낸다
+        // 로그인은 헤더의 로그인 팝업으로 통일한다. 홈으로 보내면서 팝업을 열어 달라고 표시한다
         if (userId != null) {
             return "redirect:/";
         }
-        return "user/login-form";
+        return "redirect:/?login=open";
     }
 
     @PostMapping("/api/login")
