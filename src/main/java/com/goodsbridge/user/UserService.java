@@ -4,6 +4,11 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.util.FileUtil;
+import com.goodsbridge.auction.AuctionRepository;
+import com.goodsbridge.event.EventParticipationRepository;
+import com.goodsbridge.exchange.ExchangeRequestRepository;
+import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.shop.ShopRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +28,11 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final KakaoApiClient kakaoApiClient;
     private final AuthService authService;
+    private final ShopRepository shopRepository;
+    private final ExchangeRequestRepository exchangeRequestRepository;
+    private final AuctionRepository auctionRepository;
+    private final EventParticipationRepository eventParticipationRepository;
+    private final PurchaseRepository purchaseRepository;
 
     @Transactional
     public UserResponse.JoinDto join(UserRequest.JoinDto joinDto, String  verifiedEmail) {
@@ -145,9 +155,29 @@ public class UserService {
         FileUtil.deleteFile(oldImage);
     }
 
+    // 돈이 걸려 있거나 상대방이 있는 활동이 남아 있으면 탈퇴를 막는다 (가게 삭제 차단과 같은 방식)
+    private void validateCanWithdraw(Long userId) {
+        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
+            throw new BadRequestException("운영 중인 가게가 있어 탈퇴할 수 없어요. 가게를 먼저 삭제해 주세요.");
+        }
+        if (exchangeRequestRepository.existsOngoingByUserId(userId)) {
+            throw new BadRequestException("진행 중인 교환이 있어 탈퇴할 수 없어요. 교환을 마무리하거나 취소해 주세요.");
+        }
+        if (auctionRepository.existsOngoingByBidderId(userId)) {
+            throw new BadRequestException("입찰 중이거나 잔금을 결제하지 않은 경매가 있어 탈퇴할 수 없어요. 경매를 마무리해 주세요.");
+        }
+        if (eventParticipationRepository.existsOngoingByUserId(userId)) {
+            throw new BadRequestException("참여 중인 이벤트가 있어 탈퇴할 수 없어요. 이벤트가 끝난 뒤 다시 시도해 주세요.");
+        }
+        if (purchaseRepository.existsUndeliveredByUserId(userId)) {
+            throw new BadRequestException("배송이 끝나지 않은 구매가 있어 탈퇴할 수 없어요. 배송 완료 후 다시 시도해 주세요.");
+        }
+    }
+
     @Transactional
     public void withdraw(Long userId, HttpServletResponse response) {
         User user = findById(userId);
+        validateCanWithdraw(userId);
         user.withdraw();
         authService.logout(userId);
         authService.clearAuthCookies(response);
