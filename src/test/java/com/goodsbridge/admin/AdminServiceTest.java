@@ -253,6 +253,21 @@ class AdminServiceTest {
         verifyNoInteractions(adminRepository);
     }
 
+    @Test
+    void getSubscriptionPayments_countExcludesFullyCancelledPayments() {
+        LocalDateTime paidAt = LocalDateTime.of(2026, 11, 3, 10, 0);
+        when(adminRepository.findSubscriptionPayments(any(), any())).thenReturn(new java.util.ArrayList<>(List.of(
+            new AdminSubscriptionPaymentItem("p1", 1L, "사장1", "성수점", 30000, 0,
+                com.goodsbridge.payment.PaymentStatus.PAID, paidAt),
+            new AdminSubscriptionPaymentItem("p2", 2L, "사장2", "잠실점", 30000, 30000,
+                com.goodsbridge.payment.PaymentStatus.CANCELLED, paidAt))));
+
+        AdminSubscriptionPaymentResponse response = adminService.getSubscriptionPayments("2026-11");
+
+        assertThat(response.getPaymentCount()).isEqualTo(1L);
+        assertThat(response.getNetAmount()).isEqualTo(30000L);
+    }
+
     // 마지막 원소가 조회한 달이다.
     private AdminResponse.MonthlyDto lastMonth(AdminResponse response) {
         return response.getMonths().get(response.getMonths().size() - 1);

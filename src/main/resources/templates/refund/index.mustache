@@ -133,9 +133,10 @@
             const list = $('refund-list');
             list.innerHTML = '<div class="refund-empty">환불 내역을 불러오는 중입니다.</div>';
             try {
-                const response = await pageFetch(view === 'admin' ? '/api/admin/refunds' : '/api/refunds/me');
+                const response = await pageFetch(view === 'admin' ? '/api/admin/refunds?size=50' : '/api/refunds/me');
                 if (!response.ok) throw new Error(view === 'admin' ? '관리자 권한이 필요합니다.' : '환불 내역을 불러오지 못했습니다.');
-                refunds = await response.json();
+                const body = await response.json();
+                refunds = view === 'admin' ? (body.content || []) : body;
                 render();
                 renderPayments();
             } catch (error) {

@@ -1,6 +1,7 @@
 package com.goodsbridge.admin;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge.payment.PaymentStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,11 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -65,9 +62,11 @@ public class AdminService {
         }
 
         long total = payments.stream().mapToLong(AdminSubscriptionPaymentItem::getAmount).sum();
+        int paidCount = (int) payments.stream()
+            .filter(p -> p.getStatus() != PaymentStatus.CANCELLED).count();
         long refunded = payments.stream().mapToLong(AdminSubscriptionPaymentItem::getRefundedAmount).sum();
         return new AdminSubscriptionPaymentResponse(
-            selected.toString(), payments.size(), total, refunded, total - refunded, payments);
+            selected.toString(), paidCount, total, refunded, total - refunded, payments);
     }
 
     private AdminResponse.MonthlyDto monthly(YearMonth month) {

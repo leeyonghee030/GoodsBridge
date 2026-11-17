@@ -44,9 +44,9 @@ public class AdminViewController {
 
     private Long currentUserId(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()
-                || "anonymousUser".equals(authentication.getPrincipal())) {
+            || !(authentication.getPrincipal() instanceof Long userId)) {
             return null;
         }
-        return (Long) authentication.getPrincipal();
+        return userId;
     }
 }
