@@ -197,7 +197,7 @@
     // ===== 회원탈퇴: 진행 중인 가게·교환·경매·이벤트·배송이 있으면 서버가 거절하고 이유를 알려준다 =====
     document.getElementById('withdraw-btn').addEventListener('click', async ev => {
         const btn = ev.currentTarget;
-        if (!(await gbConfirm('정말 탈퇴할까요?\n탈퇴하면 계정을 다시 사용할 수 없어요.'))) return;
+        if (!(await gbConfirm('정말 탈퇴할까요?\n같은 이메일이나 카카오 계정으로 다시 가입할 수 있지만,\n이전 활동 기록은 이어지지 않아요.'))) return;
         btn.disabled = true;
         const res = await fetch('/api/withdraw', { method: 'POST', credentials: 'same-origin' });
         if (!res.ok) {

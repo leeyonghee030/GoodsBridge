@@ -179,7 +179,9 @@ public class UserService {
     public void withdraw(Long userId, HttpServletResponse response) {
         User user = findById(userId);
         validateCanWithdraw(userId);
+        String oldImage = user.getProfileImage();
         user.withdraw();
+        FileUtil.deleteFile(oldImage);
         authService.logout(userId);
         authService.clearAuthCookies(response);
 
