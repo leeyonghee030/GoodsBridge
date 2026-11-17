@@ -28,4 +28,9 @@
 </div>
 </div>
 
+{{#loginError}}
+<div id="login-error" data-message="{{loginError}}" hidden></div>
+<script>alert(document.getElementById('login-error').dataset.message);</script>
+{{/loginError}}
+
 {{> fragments/footer}}

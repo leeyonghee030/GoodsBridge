@@ -1,5 +1,6 @@
 package com.goodsbridge.user;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.security.AuthService.TokenResponse;
 import com.goodsbridge._core.util.Define;
@@ -16,6 +17,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 
 @RequiredArgsConstructor
@@ -53,9 +55,17 @@ public class UserController {
     // 카카오 로그인 콜백
     @GetMapping("/oauth2/kakao")
     public String kakaoCallback(@RequestParam(name = "code", required = false) String code,
-                                HttpServletResponse response) {
+                                HttpServletResponse response,
+                                RedirectAttributes redirectAttributes) {
         // 1. 카카오 사용자 조회 및 우리 서비스 회원 조회/가입
-        User user = kakaoLoginService.login(code);
+        User user;
+        try {
+            user = kakaoLoginService.login(code);
+        } catch (BadRequestException e) {
+            // 탈퇴한 계정 등 로그인할 수 없는 경우: 에러 페이지 대신 로그인 화면으로 돌려보내 안내한다
+            redirectAttributes.addFlashAttribute("loginError", e.getMessage());
+            return "redirect:/login";
+        }
         // 2. 우리 서비스 JWT 발급
         TokenResponse tokens = authService.login(user);
         // 3. Access / Refresh Token을 HttpOnly 쿠키로 저장
