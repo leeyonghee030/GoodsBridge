@@ -88,6 +88,15 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
 """)
     boolean existsOngoingByShopId(@Param("shopId") Long shopId);
 
+    // 회원 탈퇴 차단용: 내가 게시글 주인(A)이거나 제안자(B)인 대기/확정 교환이 있는지
+    @Query("""
+        select count(e) > 0 from ExchangeRequest e
+        where (e.exchangeItemA.user.id = :userId or e.itemB.sellerUserId = :userId)
+          and e.status in (com.goodsbridge.exchange.ExchangeRequestStatus.PENDING,
+                           com.goodsbridge.exchange.ExchangeRequestStatus.CONFIRMED)
+""")
+    boolean existsOngoingByUserId(@Param("userId") Long userId);
+
     // 교환 게시글 삭제 시 거절/취소/만료된 지난 신청 기록도 함께 삭제
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("delete from ExchangeRequest r where r.exchangeItemA.id = :exchangeItemId")

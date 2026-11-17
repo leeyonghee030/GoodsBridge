@@ -84,6 +84,16 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     boolean existsOngoingByShopId(@Param("shopId") Long shopId);
 
+    // 회원 탈퇴 차단용: 내가 입찰한 진행 중 경매가 있거나, 내가 낙찰자인데 잔금을 결제하지 않은 경매가 있는지
+    @Query("""
+        select count(a) > 0 from Auction a
+        where (a.status = com.goodsbridge.auction.Status.ACTIVE
+               and exists (select 1 from Bid b where b.auction = a and b.user.id = :userId))
+           or (a.status = com.goodsbridge.auction.Status.ENDED_SUCCESS
+               and a.balancePaymentId is null and a.currentWinner.id = :userId)
+        """)
+    boolean existsOngoingByBidderId(@Param("userId") Long userId);
+
     // 낙찰됐지만 낙찰자가 아직 잔금을 결제하지 않은 경매가 있는 상품인지 (이런 상품은 새 경매에 올릴 수 없다)
     @Query("""
         select count(a) > 0 from Auction a

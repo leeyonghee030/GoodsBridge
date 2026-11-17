@@ -176,10 +176,8 @@
 </div>
 <div class="profile-view-actions">
     <div class="profile-danger-zone">
-        <form action="/api/withdraw" method="post">
-            <button type="submit" class="secondary"
-                    onclick="event.preventDefault(); const f = this.form; gbConfirm('정말 탈퇴할까요?\n탈퇴하면 계정을 다시 사용할 수 없어요.').then(ok => { if (ok) f.submit(); });">회원탈퇴</button>
-        </form>
+        <button type="button" id="withdraw-btn" class="secondary">회원탈퇴</button>
+        <p id="withdraw-message" class="form-message"></p>
     </div>
 </div>
 </div>
@@ -191,6 +189,25 @@
     document.getElementById('open-profile-edit').addEventListener('click', () => { modal.hidden = false; });
     document.getElementById('close-profile-edit').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', ev => { if (ev.target === modal) modal.hidden = true; });
+
+    // ===== 회원탈퇴: 진행 중인 가게·교환·경매·이벤트·배송이 있으면 서버가 거절하고 이유를 알려준다 =====
+    document.getElementById('withdraw-btn').addEventListener('click', async ev => {
+        const btn = ev.currentTarget;
+        const msg = document.getElementById('withdraw-message');
+        if (!(await gbConfirm('정말 탈퇴할까요?\n탈퇴하면 계정을 다시 사용할 수 없어요.'))) return;
+        btn.disabled = true;
+        const res = await fetch('/api/withdraw', { method: 'POST', credentials: 'same-origin' });
+        if (!res.ok) {
+            const text = await res.text();
+            let reason = '탈퇴에 실패했어요.';
+            try { reason = JSON.parse(text).message || reason; } catch (e) { /* 본문이 JSON이 아니면 기본 문구 */ }
+            msg.textContent = reason;
+            msg.className = 'form-message error';
+            btn.disabled = false;
+            return;
+        }
+        location.href = '/';
+    });
 
     // ===== 입점 신청: 내 가게 상태에 따라 버튼/안내가 바뀐다 =====
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
