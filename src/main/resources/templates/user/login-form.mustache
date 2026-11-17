@@ -3,7 +3,7 @@
 <div class="container">
 <h1>로그인</h1>
 
-<form action="/api/login" method="post">
+<form id="login-page-form" action="/api/login" method="post">
     <p>
         <label for="email" class="sr-only">이메일</label>
         <input id="email" type="email" name="email" placeholder="이메일" required>
@@ -27,6 +27,25 @@
     <a href="/api/kakao-login">카카오 로그인</a>
 </div>
 </div>
+
+<script>
+// 로그인 실패(아이디·비밀번호 불일치, 탈퇴한 계정 포함)는 에러 페이지 대신 얼럿으로 안내한다
+document.getElementById('login-page-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const response = await fetch('/api/login', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: new URLSearchParams(new FormData(form))
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        await alert((error && error.message) || '이메일 또는 비밀번호를 확인해주세요.');
+        return;
+    }
+    location.href = '/';
+});
+</script>
 
 {{#loginError}}
 <div id="login-error" data-message="{{loginError}}" hidden></div>

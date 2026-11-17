@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
@@ -122,19 +123,13 @@ public class UserController {
     }
 
     @PostMapping("/api/login")
-    public String login(@Valid UserRequest.LoginDto loginDto, HttpServletResponse response,
-                        RedirectAttributes redirectAttributes) {
-        User user;
-        try {
-            user = userService.login(loginDto);
-        } catch (BadRequestException e) {
-            // 아이디·비밀번호 불일치(탈퇴한 계정 포함)는 에러 페이지 대신 로그인 화면에서 안내한다
-            redirectAttributes.addFlashAttribute("loginError", e.getMessage());
-            return "redirect:/login";
-        }
+    public ResponseEntity<Void> login(@Valid UserRequest.LoginDto loginDto, HttpServletResponse response) {
+        // ResponseEntity 를 돌려주므로 실패하면 에러 페이지 대신 JSON 에러가 내려간다.
+        // 로그인 화면들(헤더 로그인 창, /login 페이지)이 fetch 로 받아 얼럿으로 안내하고, 성공하면 직접 이동한다.
+        User user = userService.login(loginDto);
         TokenResponse tokens = authService.login(user);
         authService.addAuthCookies(response, tokens);
-        return "redirect:/";
+        return ResponseEntity.ok().build();
     }
 
     // GET http://localhost:8080/join

@@ -62,17 +62,4 @@ class KakaoCallbackWithdrawnTest {
         assertThat(redirectAttributes.getFlashAttributes()).containsKey("loginError");
         assertThat(redirectAttributes.getFlashAttributes()).doesNotContainKey("kakaoRetry");
     }
-
-    @Test
-    void 이메일_로그인이_거절되면_에러_페이지_대신_로그인_화면에서_안내한다() {
-        when(userService.login(any())).thenThrow(new BadRequestException("사용자명 또는 비밀번호가 올바르지 않습니다"));
-        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
-
-        String view = userController.login(mock(UserRequest.LoginDto.class), mock(HttpServletResponse.class), redirectAttributes);
-
-        assertThat(view).isEqualTo("redirect:/login");
-        assertThat(redirectAttributes.getFlashAttributes().get("loginError"))
-            .isEqualTo("사용자명 또는 비밀번호가 올바르지 않습니다");
-        assertThat(redirectAttributes.getFlashAttributes()).doesNotContainKey("kakaoRetry");
-    }
 }
