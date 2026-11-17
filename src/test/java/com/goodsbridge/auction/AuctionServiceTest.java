@@ -176,7 +176,7 @@ class AuctionServiceTest {
     void findAll_filtersByStatusAndFindByIdRejectsMissingAuction() {
         auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, 10));
 
-        Page<AuctionResponse> active = auctionService.findAll(1, 10, Status.ACTIVE);
+        Page<AuctionResponse> active = auctionService.findAll(0, 10, Status.ACTIVE);
 
         assertThat(active.getContent()).isNotEmpty();
         assertThat(active.getContent()).allMatch(auction -> auction.getStatus() == Status.ACTIVE);
@@ -190,7 +190,7 @@ class AuctionServiceTest {
         Auction expired = saveExpiredAuction();
         auctionService.close(OWNER_ID, expired.getId());   // ENDED_FAIL
 
-        Page<AuctionResponse> all = auctionService.findAll(1, 10, null);
+        Page<AuctionResponse> all = auctionService.findAll(0, 10, null);
 
         assertThat(all.getContent()).extracting(AuctionResponse::getStatus)
             .contains(Status.ACTIVE, Status.ENDED_FAIL);
@@ -201,7 +201,7 @@ class AuctionServiceTest {
         Auction expired = saveExpiredAuction();
         auctionService.close(OWNER_ID, expired.getId());
 
-        Page<AuctionResponse> ended = auctionService.findAll(1, 10, Status.ENDED_FAIL);
+        Page<AuctionResponse> ended = auctionService.findAll(0, 10, Status.ENDED_FAIL);
 
         assertThat(ended.getContent()).extracting(AuctionResponse::getId).contains(expired.getId());
         assertThat(ended.getContent()).allMatch(auction -> auction.getStatus() == Status.ENDED_FAIL);

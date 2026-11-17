@@ -25,13 +25,13 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
           and s.createdAt < :toAt
         """,
         countQuery = """
-        select count(s)
-        from SettlementHistory s
-        where s.shop.id = :shopId
-          and (:type is null or s.type = :type)
-          and s.createdAt >= :fromAt
-          and s.createdAt < :toAt
-        """)
+            select count(s)
+            from SettlementHistory s
+            where s.shop.id = :shopId
+              and (:type is null or s.type = :type)
+              and s.createdAt >= :fromAt
+              and s.createdAt < :toAt
+            """)
     Page<SettlementHistory> findPageByShop(@Param("shopId") Long shopId,
                                            @Param("type") SettlementHistoryType type,
                                            @Param("fromAt") LocalDateTime fromAt,
@@ -60,7 +60,7 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
           and s.type = :type
         """)
     void deleteByPaymentAndType(@Param("payment") Payment payment,
-                               @Param("type") SettlementHistoryType type);
+                                @Param("type") SettlementHistoryType type);
 
     // 유형별 건수와 합계
     @Query("""
@@ -79,7 +79,7 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
 
     // 가게가 낸 구독료
     @Query("""
-        select coalesce(sum(p.amount - p.refundedAmount), 0)
+        select coalesce(sum(p.amount - coalesce(p.refundedAmount, 0)), 0)
         from Payment p, ShopSubscriptionPayment ssp
         where ssp.paymentId = p.paymentId
           and ssp.shopId = :shopId
