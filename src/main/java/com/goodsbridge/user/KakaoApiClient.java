@@ -29,10 +29,16 @@ public class KakaoApiClient {
     private final RestTemplate restTemplate = new RestTemplate();
 
     public String getAuthorizeUrl() {
+        return getAuthorizeUrl(false);
+    }
+
+    // selectAccount=true 이면 카카오가 로그인돼 있는 계정을 자동으로 쓰지 않고 계정을 다시 고르게 한다
+    public String getAuthorizeUrl(boolean selectAccount) {
         return AUTHORIZE_URL
             + "?client_id=" + kakaoClientId
             + "&redirect_uri=" + redirectUri
-            + "&response_type=code";
+            + "&response_type=code"
+            + (selectAccount ? "&prompt=select_account" : "");
     }
 
     // 2. 인가 코드로 액세스 토큰 요청 (POST, 폼 테이터)

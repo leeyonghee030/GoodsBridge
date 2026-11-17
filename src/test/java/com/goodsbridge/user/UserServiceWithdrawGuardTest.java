@@ -19,6 +19,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -49,7 +50,7 @@ class UserServiceWithdrawGuardTest {
             shopRepository, exchangeRequestRepository, auctionRepository,
             eventParticipationRepository, purchaseRepository);
         user = User.builder().email("a@a.com").password("pw").nickname("닉").loginType(LoginType.KAKAO).build();
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        lenient().when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
     }
 
     @Test
@@ -88,6 +89,29 @@ class UserServiceWithdrawGuardTest {
 
         assertThat(user.isActive()).isFalse();
         verify(authService).logout(USER_ID);
+    }
+
+    @Test
+    void 탈퇴한_계정의_이메일_로그인은_비밀번호가_틀린_것과_같은_문구로_거절한다() {
+        user.withdraw();
+        UserRequest.LoginDto loginDto = mock(UserRequest.LoginDto.class);
+        when(loginDto.getEmail()).thenReturn("a@a.com");
+        when(userRepository.findByEmail("a@a.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> userService.login(loginDto))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessage("사용자명 또는 비밀번호가 올바르지 않습니다");
+    }
+
+    @Test
+    void 탈퇴한_계정의_카카오_로그인은_WithdrawnUserException을_던진다() {
+        user.withdraw();
+        UserResponse.KakaoUserInfo info = new UserResponse.KakaoUserInfo();
+        info.setId(123L);
+        when(userRepository.findByEmail("123@kakao.com")).thenReturn(Optional.of(user));
+
+        assertThatThrownBy(() -> userService.kakaoLogin(info))
+            .isInstanceOf(WithdrawnUserException.class);
     }
 
     private void assertRejected(String messagePart) {

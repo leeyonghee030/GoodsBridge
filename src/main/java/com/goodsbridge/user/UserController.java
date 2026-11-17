@@ -48,8 +48,8 @@ public class UserController {
 
     // 카카오 로그인 페이지 이동
     @GetMapping("/api/kakao-login")
-    public String kakaoLogin() {
-        return "redirect:" + kakaoLoginService.getAuthorizeUrl();
+    public String kakaoLogin(@RequestParam(name = "reselect", defaultValue = "false") boolean reselect) {
+        return "redirect:" + kakaoLoginService.getAuthorizeUrl(reselect);
     }
 
     // 카카오 로그인 콜백
@@ -61,8 +61,13 @@ public class UserController {
         User user;
         try {
             user = kakaoLoginService.login(code);
+        } catch (WithdrawnUserException e) {
+            // 탈퇴한 계정: 안내 후 카카오 계정 선택 화면으로 다시 보내 다른 계정으로 로그인하게 한다
+            redirectAttributes.addFlashAttribute("loginError", e.getMessage());
+            redirectAttributes.addFlashAttribute("kakaoRetry", true);
+            return "redirect:/login";
         } catch (BadRequestException e) {
-            // 탈퇴한 계정 등 로그인할 수 없는 경우: 에러 페이지 대신 로그인 화면으로 돌려보내 안내한다
+            // 그 밖에 로그인할 수 없는 경우: 에러 페이지 대신 로그인 화면으로 돌려보내 안내한다
             redirectAttributes.addFlashAttribute("loginError", e.getMessage());
             return "redirect:/login";
         }
@@ -113,8 +118,16 @@ public class UserController {
     }
 
     @PostMapping("/api/login")
-    public String login(@Valid UserRequest.LoginDto loginDto, HttpServletResponse response) {
-        User user = userService.login(loginDto);
+    public String login(@Valid UserRequest.LoginDto loginDto, HttpServletResponse response,
+                        RedirectAttributes redirectAttributes) {
+        User user;
+        try {
+            user = userService.login(loginDto);
+        } catch (BadRequestException e) {
+            // 아이디·비밀번호 불일치(탈퇴한 계정 포함)는 에러 페이지 대신 로그인 화면에서 안내한다
+            redirectAttributes.addFlashAttribute("loginError", e.getMessage());
+            return "redirect:/login";
+        }
         TokenResponse tokens = authService.login(user);
         authService.addAuthCookies(response, tokens);
         return "redirect:/";
