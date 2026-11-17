@@ -33,7 +33,7 @@ public class SettlementHistory {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private SettlementHistoryType type; // 가게가 가져가는 수수료 타입
+    private SettlementHistoryType type; // 가게 정산 금액
 
     @CreationTimestamp
     private LocalDateTime createdAt;

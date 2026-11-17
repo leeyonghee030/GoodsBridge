@@ -27,6 +27,7 @@ import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +38,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RefundService {
@@ -270,6 +272,8 @@ public class RefundService {
     // 경매 낙찰 전액 환불: 잔금 + 보증금을 모두 환불하고, 이미 기록된 가게 정산(낙찰가 전액)을 취소한다
     // (외부 PortOne 취소는 DB 변경 뒤 마지막에 호출)
     private void refundAuctionAll(Payment balance, String reason) {
+        log.info("경매 낙찰 환불로 가게 정산 기록을 취소합니다 - balancePaymentId={}, type={}",
+            balance.getPaymentId(), SettlementHistoryType.AUCTION_SALE);
         // 이 삭제 쿼리는 영속성 컨텍스트를 비우므로(clearAutomatically) 가장 먼저 실행한다.
         // 이후에 조회한 엔티티만 변경 감지가 되어 상품 상태와 구매 상태가 저장된다.
         settlementHistoryRepository.deleteByPaymentAndType(balance, SettlementHistoryType.AUCTION_SALE);

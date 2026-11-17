@@ -118,7 +118,7 @@ public class AuctionService {
 
     // 경매 목록 조회 + 페이징 처리
     public Page<AuctionResponse> findAll(int page, int size, Status status) {
-        int pageIndex = Math.max(0, page - 1);
+        int pageIndex = Math.max(0, page);
         int validSize = Math.max(1, Math.min(size, 50));
         Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
 
@@ -133,7 +133,7 @@ public class AuctionService {
 
     // 가게의 경매 목록 (가게 경매 관리 화면용, 상태는 선택)
     public Page<AuctionResponse> findAllByShop(int page, int size, Status status, Long shopId) {
-        int pageIndex = Math.max(0, page - 1);
+        int pageIndex = Math.max(0, page);
         int validSize = Math.max(1, Math.min(size, 50));
         Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
         return withBidCounts(auctionRepository.findAllByShop(shopId, status, pageable));
@@ -238,7 +238,7 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
-    // 경매 취소 - 가게 주인은 경매 입찰자가 없으면 취소한다.
+    // 경매 취소
     @Transactional
     public AuctionResponse cancel(Long userId, Long id) {
         Auction auction = auctionRepository.findByIdLock(id)

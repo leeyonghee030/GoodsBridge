@@ -209,9 +209,9 @@ class AuctionServiceTest {
 
     @Test
     void findAll_normalizesInvalidPageAndSize() {
-        // page는 1부터 시작(0 이하는 첫 페이지), size는 1~50으로 보정된다.
-        assertThat(auctionService.findAll(0, 1_000, null).getSize()).isEqualTo(50);
-        assertThat(auctionService.findAll(1, 0, null).getSize()).isEqualTo(1);
+        // page는 0부터 시작(음수는 첫 페이지), size는 1~50으로 보정된다.
+        assertThat(auctionService.findAll(-1, 1_000, null).getSize()).isEqualTo(50);
+        assertThat(auctionService.findAll(0, 0, null).getSize()).isEqualTo(1);
     }
 
     @Test
@@ -344,14 +344,14 @@ class AuctionServiceTest {
         AuctionResponse created = auctionService.create(OWNER_ID, SHOP_ID,
             request(SHOP_ITEM_ID, 50_000, 5_000, 10));
 
-        Page<AuctionResponse> mine = auctionService.findAllByShop(1, 20, null, SHOP_ID);
+        Page<AuctionResponse> mine = auctionService.findAllByShop(0, 20, null, SHOP_ID);
         assertThat(mine.getContent()).extracting(AuctionResponse::getId).contains(created.getId());
         assertThat(mine.getContent()).allMatch(a -> a.getShopId().equals(SHOP_ID));
 
-        Page<AuctionResponse> other = auctionService.findAllByShop(1, 20, null, OTHER_SHOP_ID);
+        Page<AuctionResponse> other = auctionService.findAllByShop(0, 20, null, OTHER_SHOP_ID);
         assertThat(other.getContent()).extracting(AuctionResponse::getId).doesNotContain(created.getId());
 
-        Page<AuctionResponse> cancelledOnly = auctionService.findAllByShop(1, 20, Status.CANCELLED, SHOP_ID);
+        Page<AuctionResponse> cancelledOnly = auctionService.findAllByShop(0, 20, Status.CANCELLED, SHOP_ID);
         assertThat(cancelledOnly.getContent()).extracting(AuctionResponse::getId).doesNotContain(created.getId());
     }
 }

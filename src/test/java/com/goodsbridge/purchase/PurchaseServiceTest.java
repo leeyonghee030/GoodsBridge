@@ -548,4 +548,28 @@ class PurchaseServiceTest {
         // 경매 정산(수수료 포함)은 잔금 결제 때 이미 기록했으므로 PURCHASE_FEE 를 또 만들지 않는다
         verifyNoInteractions(settlementHistoryService);
     }
+
+    @Test
+    void confirm_auctionPurchaseAlsoReleasesWinnerDepositPayment() {
+        User buyer = mock(User.class);
+        when(buyer.getId()).thenReturn(10L);
+        Purchase purchase = Purchase.builder().item(mock(Item.class)).user(buyer).paymentId("balance-1")
+            .deliveryAddress("Seoul").source(PurchaseSource.AUCTION).amount(35_000).build();
+        purchase.ship("TRACK-1");
+        purchase.markDelivered();
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
+
+        com.goodsbridge.auction.Auction auction = mock(com.goodsbridge.auction.Auction.class);
+        when(auction.getWinningPaymentId()).thenReturn("deposit-1");
+        when(auctionRepository.findByBalancePaymentId("balance-1")).thenReturn(java.util.Optional.of(auction));
+        Payment deposit = mock(Payment.class);
+        when(deposit.isPaid()).thenReturn(true);
+        when(deposit.getPaymentId()).thenReturn("deposit-1");
+        when(paymentRepository.findByPaymentId("deposit-1")).thenReturn(java.util.Optional.of(deposit));
+
+        purchaseService.confirm(1L, 10L);
+
+        verify(paymentService).release("balance-1");
+        verify(paymentService).release("deposit-1");
+    }
 }

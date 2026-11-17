@@ -3,6 +3,7 @@ package com.goodsbridge.purchase;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.auction.Auction;
 import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
@@ -10,10 +11,7 @@ import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.item.SaleType;
 import com.goodsbridge.notification.Notification;
 import com.goodsbridge.notification.NotificationEvent;
-import com.goodsbridge.payment.Payment;
-import com.goodsbridge.payment.PaymentRepository;
-import com.goodsbridge.payment.PaymentPurpose;
-import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.payment.*;
 import com.goodsbridge.refund.RefundRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
@@ -143,7 +141,6 @@ public class PurchaseService {
             log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
                 itemId, userId, createDto.getPaymentId());
         } catch (DataIntegrityViolationException e) {
-            // 위 existsByItemId 검사를 동시에 통과한 경우: uk_purchase_item 제약이 마지막 방어선
             throw new BadRequestException("이미 판매된 상품입니다.");
         }
 
@@ -271,6 +268,9 @@ public class PurchaseService {
         if (purchase.getStatus() == PurchaseStatus.CONFIRMED) return;
         purchase.confirm();
         paymentService.release(purchase.getPaymentId());
+        if (purchase.isAuction()) {
+            releaseWinnerDeposit(purchase.getPaymentId());
+        }
 
         // 경매 낙찰 구매는 잔금 결제 시점에 정산(수수료 포함)이 이미 기록되므로 여기서 다시 정산하지 않는다.
         if (!purchase.isAuction() && purchase.getItem().getShopId() != null) {
@@ -287,5 +287,14 @@ public class PurchaseService {
                 SettlementHistoryType.PURCHASE_FEE
             );
         }
+    }
+
+    // 낙찰자의 보증금 결제도 잔금과 함께 지급 완료(RELEASED)로 바꾼다. 이미 환불된 결제는 건드리지 않는다.
+    private void releaseWinnerDeposit(String balancePaymentId) {
+        auctionRepository.findByBalancePaymentId(balancePaymentId)
+            .map(Auction::getWinningPaymentId)
+            .flatMap(paymentRepository::findByPaymentId)
+            .filter(p -> p.isPaid() || p.getStatus() == PaymentStatus.PARTIAL_CANCELLED)
+            .ifPresent(p -> paymentService.release(p.getPaymentId()));
     }
 }
