@@ -270,10 +270,18 @@ public class PurchaseService {
         paymentService.release(purchase.getPaymentId());
         if (purchase.isAuction()) {
             releaseWinnerDeposit(purchase.getPaymentId());
-        }
-
-        // 경매 낙찰 구매는 잔금 결제 시점에 정산(수수료 포함)이 이미 기록되므로 여기서 다시 정산하지 않는다.
-        if (!purchase.isAuction() && purchase.getItem().getShopId() != null) {
+            // 잔금 결제만으로는 상품이 인도되지 않았으므로 정산하지 않는다.
+            // 구매 확정(배송 완료 후) 시 보증금+잔금 전체를 정산한다.
+            auctionRepository.findByBalancePaymentId(purchase.getPaymentId()).ifPresent(auction -> {
+                if (auction.getShop() != null) {
+                    Payment payment = paymentRepository.findByPaymentId(purchase.getPaymentId())
+                        .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
+                    settlementHistoryService.calculate(
+                        auction.getShop(), payment, auction.getAuctionSettlementAmount(),
+                        SettlementHistoryType.AUCTION_SALE);
+                }
+            });
+        } else if (purchase.getItem().getShopId() != null) {
             Shop shop = shopRepository.findById(purchase.getItem().getShopId())
                 .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
             Payment payment = paymentRepository.findByPaymentId(purchase.getPaymentId())

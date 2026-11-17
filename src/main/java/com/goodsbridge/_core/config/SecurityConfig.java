@@ -3,6 +3,7 @@ package com.goodsbridge._core.config;
 
 import com.goodsbridge._core.security.JwtAuthenticationFilter;
 import com.goodsbridge._core.security.JwtProvider;
+import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,6 +46,10 @@ public class SecurityConfig {
 
             // API 접근 권한 설정
             .authorizeHttpRequests(auth -> auth
+                // SSE(SseEmitter) 같은 비동기 응답은 완료/타임아웃 때 ASYNC 로 다시 디스패치된다.
+                // 이미 인가를 통과한 요청의 후속 처리인데 STATELESS 라 인증 정보가 없어 Access Denied 가 나므로 통과시킨다.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
+
                 // 💡 [필수 추가] 관리자 전용 경로는 ROLE_ADMIN만 접근 가능하도록 최상단에 배치
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
 

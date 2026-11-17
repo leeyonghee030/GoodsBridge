@@ -159,7 +159,6 @@
     const portoneStoreId = '{{portoneStoreId}}';
     const portoneChannelKey = '{{portoneChannelKey}}';
     const userId = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
-    const shopAccount = {{shopAccount}};   // 가게 계정은 입찰할 수 없다 (서버에서도 거절)
     const adminAccount = {{adminAccount}}; // 관리자 계정도 입찰할 수 없다 (서버에서도 거절)
     // TODO(데모 종료 후 제거): 데모 모드면 결제창 없이 결제 (데모 바의 결제 O/X 토글을 따른다)
     const skipPayment = () => '{{skipPayment}}' === 'true' && window.gbPaySkip && window.gbPaySkip();
@@ -175,7 +174,7 @@
     const isOwnerShop = () => myShopIds.includes(a.shopId);
     const myBidCount = () => bids.filter(b => b.userId === userId).length;
     // 최소 입찰가: 아직 입찰이 없으면 시작가 그대로도 가능, 입찰이 있으면 현재가보다 높아야 한다
-    const minBid = () => a.bidCount ? a.currentPrice + 1 : a.currentPrice;
+    const minBid = () => a.bidCount ? a.currentPrice + {{minBidIncrement}} : a.currentPrice;
     // 서버/네트워크 오류를 사용자가 알아보기 쉬운 문장으로
     const friendly = err => {
         const m = String((err && err.message) || err || '');
@@ -231,8 +230,8 @@
             // 입찰 안내
             if (isWinner()) st.innerHTML = '<div class="au-state">지금 <b>내가 최고 입찰자</b>예요. 다른 사람이 더 높게 입찰하면 알려 드릴게요.</div>';
             const first = userId !== null && myBidCount() === 0;
-            if (shopAccount || adminAccount) {
-                action.hidden = false; action.disabled = true; action.textContent = adminAccount ? '관리자 계정은 입찰할 수 없어요' : '가게 계정은 입찰할 수 없어요';
+            if (adminAccount) {
+                action.hidden = false; action.disabled = true; action.textContent = '관리자 계정은 입찰할 수 없어요';
             } else if (isOwnerShop()) {
                 action.hidden = false; action.disabled = true; action.textContent = '내 가게 경매라 입찰할 수 없어요';
             } else {

@@ -37,8 +37,7 @@ public class AuctionPageController {
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);
-        // 가게 계정은 경매에 입찰할 수 없다 (서버에서도 거절하지만 버튼부터 막는다)
-        model.addAttribute("shopAccount", userId != null && shopRepository.existsByOwnerUserIdAndDeletedFalse(userId));
+        model.addAttribute("minBidIncrement", Auction.MIN_BID_INCREMENT);
     }
 
     // 경매 목록

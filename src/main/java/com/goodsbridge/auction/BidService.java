@@ -57,12 +57,9 @@ public class BidService {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다."));
 
-        // 2. 가게 주인 본인 입찰 차단 (다른 가게 경매도 가게 계정은 입찰할 수 없다)
+        // 2. 자기 상품 입찰만 차단한다. 가게 계정도 다른 가게 경매에는 참여할 수 있다.
         if (auction.getShop().isOwner(userId)) {
             throw new ForbiddenException("자신이 판매한 상품은 입찰할 수 없습니다.");
-        }
-        if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userId)) {
-            throw new ForbiddenException("가게 계정은 경매에 입찰할 수 없습니다.");
         }
         // 관리자 계정은 관리만 하고 입찰하지 않는다
         if (user.getRole() == Role.ADMIN) {

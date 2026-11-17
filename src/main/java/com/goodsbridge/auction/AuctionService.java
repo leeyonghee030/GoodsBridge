@@ -271,7 +271,7 @@ public class AuctionService {
         if (auction.getDeadline().isAfter(now)) {
             throw new BadRequestException("아직 마감 시간이 지나지 않았습니다.");
         }
-        // 낙찰이면 잔금 결제 기한이 정해진다. 수수료 정산은 잔금 결제가 끝난 뒤(payBalance)에 한다.
+        // 낙찰이면 잔금 결제 기한이 정해진다. 정산은 배송 완료 후 구매 확정 시 처리한다.
         // 패찰자 보증금 환불은 PortOne 호출이라 마감 트랜잭션과 분리해 스케줄러가 처리한다(refundLosers).
         auction.end();
 
@@ -345,6 +345,9 @@ public class AuctionService {
 
         String balancePaymentId = paymentService.verify(
             request.getPaymentId(), balance, PaymentPurpose.AUCTION_BALANCE, userId);
+        // 결제 검증에 성공했더라도 내부 결제 기록이 없으면 구매를 만들지 않는다.
+        paymentRepository.findByPaymentId(balancePaymentId)
+            .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
         auction.completeBalance(balancePaymentId);
         auction.getItem().updateStatus(ItemStatus.SOLD);
 
@@ -357,15 +360,6 @@ public class AuctionService {
             .amount(auction.getCurrentPrice())
             .build());
 
-        // 가게 정산: 실제로 잔금 결제가 완료된 시점에 보증금 + 잔금인 낙찰가 전액을 기록한다.
-        Payment payment = paymentRepository.findByPaymentId(balancePaymentId)
-            .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
-        settlementHistoryService.calculate(
-            auction.getShop(),
-            payment,
-            auction.getAuctionSettlementAmount(),
-            SettlementHistoryType.AUCTION_SALE
-        );
         return new AuctionResponse(auction);
     }
 

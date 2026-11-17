@@ -28,6 +28,13 @@ public class AdminShopViewController {
         return "admin/shops".equals(view) ? "admin/subscription-payments" : view;
     }
 
+    // 경매 관리 (전체 경매 목록과 취소, 데이터는 /api/auctions, 취소는 /api/admin/auctions/{id}/cancel)
+    @GetMapping("/test/admin/auctions")
+    public String auctions(Authentication authentication, Model model) {
+        String view = render(authentication, model, true);
+        return "admin/shops".equals(view) ? "admin/auctions" : view;
+    }
+
     private String render(Authentication authentication, Model model, boolean subscriptionsMode) {
         model.addAttribute("subscriptionsMode", subscriptionsMode);
         boolean admin = authentication != null && authentication.getAuthorities().stream()
