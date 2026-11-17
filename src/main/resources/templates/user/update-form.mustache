@@ -46,6 +46,7 @@
         <p id="shop-apply-status" hidden></p>
         <p id="shop-sub-status" hidden></p>
         <button type="button" class="shop-apply-link" id="open-shop-sub" hidden>구독 신청</button>
+        <button type="button" class="shop-apply-link" id="delete-shop-btn" hidden>가게 삭제</button>
     </div>
 </div>
 </div>
@@ -177,7 +178,6 @@
 <div class="profile-view-actions">
     <div class="profile-danger-zone">
         <button type="button" id="withdraw-btn" class="secondary">회원탈퇴</button>
-        <p id="withdraw-message" class="form-message"></p>
     </div>
 </div>
 </div>
@@ -193,7 +193,6 @@
     // ===== 회원탈퇴: 진행 중인 가게·교환·경매·이벤트·배송이 있으면 서버가 거절하고 이유를 알려준다 =====
     document.getElementById('withdraw-btn').addEventListener('click', async ev => {
         const btn = ev.currentTarget;
-        const msg = document.getElementById('withdraw-message');
         if (!(await gbConfirm('정말 탈퇴할까요?\n탈퇴하면 계정을 다시 사용할 수 없어요.'))) return;
         btn.disabled = true;
         const res = await fetch('/api/withdraw', { method: 'POST', credentials: 'same-origin' });
@@ -201,9 +200,8 @@
             const text = await res.text();
             let reason = '탈퇴에 실패했어요.';
             try { reason = JSON.parse(text).message || reason; } catch (e) { /* 본문이 JSON이 아니면 기본 문구 */ }
-            msg.textContent = reason;
-            msg.className = 'form-message error';
             btn.disabled = false;
+            await alert(reason);
             return;
         }
         location.href = '/';
@@ -217,6 +215,26 @@
     const applyForm = document.getElementById('shop-apply-form');
     const applyMessage = document.getElementById('shop-apply-message');
 
+    // ===== 가게 삭제: 진행 중인 이벤트·교환·경매가 있으면 서버가 거절하고 이유를 알려준다 =====
+    const deleteShopBtn = document.getElementById('delete-shop-btn');
+    let shopToDelete = null;
+    deleteShopBtn.addEventListener('click', async () => {
+        if (!shopToDelete) return;
+        if (!(await gbConfirm(`'${shopToDelete.name}' 가게를 삭제할까요?\n등록한 상품과 구독도 함께 정리되고, 되돌릴 수 없어요.`))) return;
+        deleteShopBtn.disabled = true;
+        const res = await fetch('/api/shops/' + shopToDelete.id, { method: 'DELETE', credentials: 'same-origin' });
+        deleteShopBtn.disabled = false;
+        if (!res.ok) {
+            const text = await res.text();
+            let reason = '가게 삭제에 실패했어요.';
+            try { reason = JSON.parse(text).message || reason; } catch (e) { /* 본문이 JSON이 아니면 기본 문구 */ }
+            await alert(reason);
+            return;
+        }
+        await alert('가게를 삭제했어요.');
+        location.reload();
+    });
+
     async function loadShopStatus() {
         const res = await fetch('/api/shops/me', { credentials: 'same-origin' });
         const shops = res.ok ? ((await res.json()).content || []) : [];
@@ -224,6 +242,9 @@
         const pending = shops.find(s => s.status === 'PENDING');
         applyBtn.hidden = true;
         applyStatus.hidden = false;
+        // 내 가게가 있으면 상태와 상관없이 삭제할 수 있다 (가게가 남아 있으면 회원탈퇴가 막히므로)
+        shopToDelete = approved || pending || shops[0] || null;
+        deleteShopBtn.hidden = !shopToDelete;
         subStatus.hidden = true; subBtn.hidden = true; shopForSub = null;
         if (approved) { applyStatus.textContent = `입점 완료 · ${approved.name}`; shopForSub = approved; loadSubscription(approved); }
         else if (pending) applyStatus.textContent = `입점 승인 대기 중 · ${pending.name}`;
