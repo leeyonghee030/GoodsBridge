@@ -55,6 +55,7 @@ public class UserController {
     // 카카오 로그인 콜백
     @GetMapping("/oauth2/kakao")
     public String kakaoCallback(@RequestParam(name = "code", required = false) String code,
+                                @RequestParam(name = "state", required = false) String state,
                                 HttpServletResponse response,
                                 RedirectAttributes redirectAttributes) {
         // 1. 카카오 사용자 조회 및 우리 서비스 회원 조회/가입
@@ -62,9 +63,12 @@ public class UserController {
         try {
             user = kakaoLoginService.login(code);
         } catch (WithdrawnUserException e) {
-            // 탈퇴한 계정: 안내 후 카카오 계정 선택 화면으로 다시 보내 다른 계정으로 로그인하게 한다
+            // 탈퇴한 계정: 안내 후 카카오 계정 선택 화면으로 다시 보내 다른 계정으로 로그인하게 한다.
+            // 계정 선택을 이미 거친 뒤에도 탈퇴한 계정이면 또 보내지 않고 로그인 화면에서 안내만 한다.
             redirectAttributes.addFlashAttribute("loginError", e.getMessage());
-            redirectAttributes.addFlashAttribute("kakaoRetry", true);
+            if (!KakaoApiClient.RESELECT_STATE.equals(state)) {
+                redirectAttributes.addFlashAttribute("kakaoRetry", true);
+            }
             return "redirect:/login";
         } catch (BadRequestException e) {
             // 그 밖에 로그인할 수 없는 경우: 에러 페이지 대신 로그인 화면으로 돌려보내 안내한다

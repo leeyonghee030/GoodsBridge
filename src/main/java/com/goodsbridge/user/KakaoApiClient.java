@@ -28,6 +28,8 @@ public class KakaoApiClient {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    public static final String RESELECT_STATE = "reselect";
+
     public String getAuthorizeUrl() {
         return getAuthorizeUrl(false);
     }
@@ -38,7 +40,8 @@ public class KakaoApiClient {
             + "?client_id=" + kakaoClientId
             + "&redirect_uri=" + redirectUri
             + "&response_type=code"
-            + (selectAccount ? "&prompt=select_account" : "");
+            // state 는 카카오가 콜백에 그대로 돌려준다. 계정 선택을 이미 거친 로그인인지 구분하는 데 쓴다
+            + (selectAccount ? "&prompt=select_account&state=" + RESELECT_STATE : "");
     }
 
     // 2. 인가 코드로 액세스 토큰 요청 (POST, 폼 테이터)
