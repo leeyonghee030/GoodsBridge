@@ -51,7 +51,6 @@
 
 <div class="container detail-container profile-danger-zone" id="shop-danger-zone" hidden>
     <button type="button" id="delete-shop" class="secondary">가게 삭제</button>
-    <p id="delete-shop-message" class="form-message"></p>
 </div>
 
 <script>
@@ -159,14 +158,12 @@ const errorText = async (res, fallback) => {
         document.getElementById('shop-danger-zone').hidden = false;
         document.getElementById('delete-shop').addEventListener('click', async event => {
             const button = event.currentTarget;
-            const message = document.getElementById('delete-shop-message');
             if (!(await gbConfirm('정말 가게를 삭제할까요?\n등록한 상품과 구독도 함께 정리되고, 되돌릴 수 없어요.'))) return;
             button.disabled = true;
             const res = await pageFetch('/api/shops/' + shopId, { method: 'DELETE' });
             if (!res.ok) {
-                message.textContent = await errorText(res, '가게 삭제에 실패했습니다.');
-                message.className = 'form-message error';
                 button.disabled = false;
+                await alert(await errorText(res, '가게 삭제에 실패했습니다.'));
                 return;
             }
             location.href = '/test/shop';
