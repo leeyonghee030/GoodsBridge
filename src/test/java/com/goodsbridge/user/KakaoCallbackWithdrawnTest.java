@@ -30,7 +30,7 @@ class KakaoCallbackWithdrawnTest {
         when(kakaoLoginService.login("code")).thenThrow(new WithdrawnUserException());
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
 
-        String view = userController.kakaoCallback("code", mock(HttpServletResponse.class), redirectAttributes);
+        String view = userController.kakaoCallback("code", null, mock(HttpServletResponse.class), redirectAttributes);
 
         assertThat(view).isEqualTo("redirect:/login");
         assertThat(redirectAttributes.getFlashAttributes().get("loginError")).isNotNull();
@@ -39,11 +39,24 @@ class KakaoCallbackWithdrawnTest {
     }
 
     @Test
+    void 계정_선택을_거친_뒤에도_탈퇴한_계정이면_다시_카카오로_보내지_않고_안내만_한다() {
+        when(kakaoLoginService.login("code")).thenThrow(new WithdrawnUserException());
+        RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
+
+        String view = userController.kakaoCallback("code", KakaoApiClient.RESELECT_STATE,
+            mock(HttpServletResponse.class), redirectAttributes);
+
+        assertThat(view).isEqualTo("redirect:/login");
+        assertThat(redirectAttributes.getFlashAttributes()).containsKey("loginError");
+        assertThat(redirectAttributes.getFlashAttributes()).doesNotContainKey("kakaoRetry");
+    }
+
+    @Test
     void 탈퇴가_아닌_다른_로그인_실패는_안내만_하고_카카오를_다시_띄우지_않는다() {
         when(kakaoLoginService.login("code")).thenThrow(new BadRequestException("카카오 인가 코드가 전달되지 않았습니다."));
         RedirectAttributesModelMap redirectAttributes = new RedirectAttributesModelMap();
 
-        String view = userController.kakaoCallback("code", mock(HttpServletResponse.class), redirectAttributes);
+        String view = userController.kakaoCallback("code", null, mock(HttpServletResponse.class), redirectAttributes);
 
         assertThat(view).isEqualTo("redirect:/login");
         assertThat(redirectAttributes.getFlashAttributes()).containsKey("loginError");
