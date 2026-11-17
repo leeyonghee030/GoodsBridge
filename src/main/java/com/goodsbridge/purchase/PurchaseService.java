@@ -261,7 +261,7 @@ public class PurchaseService {
     @Transactional
     public void confirm(Long id, Long userId) {
         // 구매 조회
-        Purchase purchase = purchaseRepository.findById(id)
+        Purchase purchase = purchaseRepository.findByIdLock(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구매 내역입니다."));
 
         // 권한 체크

@@ -81,7 +81,7 @@ class PurchaseServiceTest {
         Purchase purchase = Purchase.builder()
             .item(mock(Item.class)).user(buyer).paymentId("payment-1")
             .deliveryAddress("Seoul").build();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         assertThrows(ForbiddenException.class, () -> purchaseService.confirm(1L, 20L));
         verifyNoInteractions(paymentService, settlementHistoryService);
@@ -254,7 +254,7 @@ class PurchaseServiceTest {
         purchase.ship("TRACK-1");
         purchase.markDelivered();
         purchase.confirm();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         purchaseService.confirm(1L, 10L);
 
@@ -425,7 +425,7 @@ class PurchaseServiceTest {
             .deliveryAddress("Seoul").build();
         purchase.ship("TRACK-1");
         purchase.markDelivered();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         Shop shop = mock(Shop.class);
         when(shopRepository.findById(1L)).thenReturn(java.util.Optional.of(shop));
@@ -539,7 +539,7 @@ class PurchaseServiceTest {
             .deliveryAddress("Seoul").source(PurchaseSource.AUCTION).amount(35_000).build();
         purchase.ship("TRACK-1");
         purchase.markDelivered();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         purchaseService.confirm(1L, 10L);
 

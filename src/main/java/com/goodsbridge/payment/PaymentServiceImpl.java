@@ -181,7 +181,14 @@ public class PaymentServiceImpl implements PaymentService {
             if (paymentRepository.existsByPaymentId(paymentId)) {
                 return;
             }
-            PaymentResponse.PortOnePayment portOnePayment = portOnePaymentService.getPayment(paymentId);
+            PaymentResponse.PortOnePayment portOnePayment;
+            try {
+                portOnePayment = portOnePaymentService.getPayment(paymentId);
+            } catch (BadRequestException e) {
+                // 형식이 잘못됐거나 PortOne에 없는 paymentId: 취소할 결제가 없으니 재시도 기록을 남기지 않는다
+                log.warn("자동 취소 대상 결제를 찾을 수 없습니다 - paymentId={}", paymentId);
+                return;
+            }
             if (portOnePayment == null || !PORTONE_PAID.equals(portOnePayment.getStatus())
                 || portOnePayment.getAmount() == null
                 || portOnePayment.getAmount().getTotal() == null

@@ -425,6 +425,30 @@ class PaymentServiceImplTest {
         verify(paymentCancelFailureRepository, never()).save(any());
     }
 
+    @Test
+    void cancelUnrecorded_doesNotRecordFailureWhenPaymentDoesNotExistAtPortOne() {
+        when(paymentRepository.existsByPaymentId("garbage")).thenReturn(false);
+        when(portOnePaymentService.getPayment("garbage"))
+            .thenThrow(new BadRequestException("결제를 찾을 수 없습니다."));
+
+        paymentService.cancelUnrecorded("garbage", "자동 취소");
+
+        verifyNoInteractions(paymentCancelFailureRepository);
+        verify(portOnePaymentService, never()).cancelPayment(any(), anyInt(), any());
+    }
+
+    @Test
+    void cancelUnrecorded_recordsFailureWhenPortOneLookupHasNetworkError() {
+        when(paymentRepository.existsByPaymentId("payment-1")).thenReturn(false);
+        when(portOnePaymentService.getPayment("payment-1"))
+            .thenThrow(new InternalServerException("결제 서버에 연결할 수 없습니다."));
+        when(paymentCancelFailureRepository.existsByPaymentId("payment-1")).thenReturn(false);
+
+        paymentService.cancelUnrecorded("payment-1", "자동 취소");
+
+        verify(paymentCancelFailureRepository).save(any(PaymentCancelFailure.class));
+    }
+
     private static Payment newPayment(PaymentPurpose purpose) {
         return Payment.builder()
             .paymentId("payment-1")
