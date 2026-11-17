@@ -561,8 +561,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             if (!response.ok) {
                 const error = await response.json().catch(() => null);
-                message.textContent = (error && error.message) || '이메일 또는 비밀번호를 확인해주세요.';
-                message.className = 'form-message error';
+                await alert((error && error.message) || '이메일 또는 비밀번호를 확인해주세요.');
                 return;
             }
             location.reload();
