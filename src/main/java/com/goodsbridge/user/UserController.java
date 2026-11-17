@@ -5,16 +5,19 @@ import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.security.AuthService.TokenResponse;
 import com.goodsbridge._core.util.Define;
 import jakarta.servlet.http.HttpServletResponse;
+import java.time.Duration;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -25,6 +28,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 @Slf4j
 @Controller
 public class UserController {
+
+    static final String KAKAO_REAUTH_COOKIE = "kakaoReauth";
 
     private final KakaoLoginService kakaoLoginService;
     private final AuthService authService;
@@ -49,8 +54,29 @@ public class UserController {
 
     // 카카오 로그인 페이지 이동
     @GetMapping("/api/kakao-login")
-    public String kakaoLogin(@RequestParam(name = "reselect", defaultValue = "false") boolean reselect) {
-        return "redirect:" + kakaoLoginService.getAuthorizeUrl(reselect);
+    public String kakaoLogin(@RequestParam(name = "reselect", defaultValue = "false") boolean reselect,
+                             @CookieValue(name = KAKAO_REAUTH_COOKIE, required = false) String reauth,
+                             HttpServletResponse response) {
+        String prompt = null;
+        if (reselect) {
+            prompt = KakaoApiClient.PROMPT_SELECT_ACCOUNT;
+        }
+        if (reauth != null) {
+            // 방금 탈퇴한 브라우저의 첫 카카오 로그인: 카카오에 로그인돼 있는 같은 계정으로 바로 재가입되지 않도록 다시 로그인하게 한다.
+            // 한 번만 쓰도록 표시 쿠키는 바로 지운다.
+            prompt = KakaoApiClient.PROMPT_LOGIN;
+            response.addHeader("Set-Cookie", kakaoReauthCookie("", Duration.ZERO).toString());
+        }
+        return "redirect:" + kakaoLoginService.getAuthorizeUrl(prompt);
+    }
+
+    private static ResponseCookie kakaoReauthCookie(String value, Duration maxAge) {
+        return ResponseCookie.from(KAKAO_REAUTH_COOKIE, value)
+            .httpOnly(true)
+            .path("/")
+            .sameSite("Lax")
+            .maxAge(maxAge)
+            .build();
     }
 
     // 카카오 로그인 콜백
@@ -158,6 +184,8 @@ public class UserController {
     @PostMapping("/api/withdraw")
     public String withdraw(@AuthenticationPrincipal Long userId, HttpServletResponse response){
         userService.withdraw(userId, response);
+        // 다음 카카오 로그인 때 카카오 로그인을 다시 하게 하려는 표시 (하루 동안 유지)
+        response.addHeader("Set-Cookie", kakaoReauthCookie("1", Duration.ofDays(1)).toString());
         return "redirect:/";
     }
 

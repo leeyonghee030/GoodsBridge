@@ -30,18 +30,22 @@ public class KakaoApiClient {
 
     public static final String RESELECT_STATE = "reselect";
 
+    public static final String PROMPT_SELECT_ACCOUNT = "select_account";   // 카카오 계정을 다시 고르게 한다
+    public static final String PROMPT_LOGIN = "login";                     // 카카오 로그인을 처음부터 다시 하게 한다
+
     public String getAuthorizeUrl() {
-        return getAuthorizeUrl(false);
+        return getAuthorizeUrl(null);
     }
 
-    // selectAccount=true 이면 카카오가 로그인돼 있는 계정을 자동으로 쓰지 않고 계정을 다시 고르게 한다
-    public String getAuthorizeUrl(boolean selectAccount) {
+    // prompt 가 null 이면 카카오가 로그인돼 있는 계정을 그대로 쓴다.
+    // PROMPT_SELECT_ACCOUNT / PROMPT_LOGIN 이면 자동으로 같은 계정을 쓰지 않고 사용자가 다시 고르거나 로그인하게 한다
+    public String getAuthorizeUrl(String prompt) {
         return AUTHORIZE_URL
             + "?client_id=" + kakaoClientId
             + "&redirect_uri=" + redirectUri
             + "&response_type=code"
-            // state 는 카카오가 콜백에 그대로 돌려준다. 계정 선택을 이미 거친 로그인인지 구분하는 데 쓴다
-            + (selectAccount ? "&prompt=select_account&state=" + RESELECT_STATE : "");
+            // state 는 카카오가 콜백에 그대로 돌려준다. 계정 선택/재로그인을 이미 거친 로그인인지 구분하는 데 쓴다
+            + (prompt != null ? "&prompt=" + prompt + "&state=" + RESELECT_STATE : "");
     }
 
     // 2. 인가 코드로 액세스 토큰 요청 (POST, 폼 테이터)
