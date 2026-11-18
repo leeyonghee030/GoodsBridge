@@ -39,4 +39,8 @@ public class Reply {
         this.content = content;
         this.authorId = authorId;
     }
+
+    void assignBoard(Board board) {
+        this.board = board;
+    }
 }
