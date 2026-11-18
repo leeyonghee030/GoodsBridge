@@ -116,6 +116,9 @@ public class DemoDataService {
 
         // 가게B: 입점 승인만 받은 상태로 구독을 처음 시작하는 시연용 가게 (구독/상품 없음)
         User shopOwnerB = findOrCreateUser(SHOP_B_EMAIL, "데모가게B");
+        // 시연 중 탈퇴한 데모 계정도 초기화하면 다시 로그인할 수 있게 되살린다 (User 엔티티에 복구 메서드가 없어 직접 갱신)
+        jdbcTemplate.update("update user_tb set status = 'ACTIVE' where email in (?, ?, ?, ?, ?)",
+            USER_A_EMAIL, USER_B_EMAIL, SHOP_EMAIL, SHOP_B_EMAIL, ADMIN_EMAIL);
         Shop shopB = findOrCreateShop(shopOwnerB, "데모 굿즈샵B", "부산", "부산시 해운대구 데모로 2");
         jdbcTemplate.update("delete from shop_subscription_tb where shop_id = ?", shopB.getId());
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shopB.getId());
