@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -40,8 +42,10 @@ public class Notification {
     private User receiver;
 
     // 알림 카테고리
+    // enum 컬럼으로 만들면 종류가 늘 때마다 DB 의 enum 정의를 바꿔야 하므로 varchar 로 저장한다
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 50)
     private Type type;
 
     // 알림 제목
@@ -54,6 +58,8 @@ public class Notification {
 
     // 관련 데이터 유형
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 50)
     private ReferenceType referenceType;
 
     // 관련 데이터 ID
