@@ -19,15 +19,15 @@ import java.sql.Timestamp;
 public class Refund {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id;        // PK
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payment_id", nullable = false)
-    private Payment payment;
+    private Payment payment;    // payment FK
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "requester_user_id", nullable = false)
-    private User user;
+    private User user;      // user FK
 
     private String reason;      // 사용자의 환불 사유
 
@@ -57,7 +57,7 @@ public class Refund {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    private RefundType type;
+    private RefundType type;    // 환불 타입
 
     @Builder
     public Refund(Payment payment, User user, String reason, Integer

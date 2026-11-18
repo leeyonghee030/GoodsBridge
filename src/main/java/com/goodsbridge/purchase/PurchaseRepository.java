@@ -43,11 +43,13 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     @Query("""
             select p from Purchase p join fetch p.item i
             where i.shopId = :shopId
+              and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
               and (:ds is null or p.deliveryStatus = :ds)
             order by p.id desc
         """)
     List<Purchase> findAllByShop(@Param("shopId") Long shopId, @Param("ds") DeliveryStatus ds);
 
+    // 결제 ID 조회
     @Query("""
         select p
         from Purchase p

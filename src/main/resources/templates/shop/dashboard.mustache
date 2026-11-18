@@ -136,6 +136,7 @@
             link = '구독하기'; urgent = true;
         } else if (data.inactiveShopCount > 0) {
             text = data.inactiveShopCount + '곳은 구독 중이 아니에요. 구독해야 상품 등록과 경매·이벤트 개설을 할 수 있어요.';
+
             link = '구독하기'; urgent = true;
         } else if (data.subscriptionDaysLeft != null && data.subscriptionDaysLeft <= NOTICE_DAYS) {
             const left = data.subscriptionDaysLeft === 0 ? '오늘' : data.subscriptionDaysLeft + '일 뒤';

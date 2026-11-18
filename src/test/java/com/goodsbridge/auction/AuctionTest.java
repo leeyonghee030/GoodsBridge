@@ -58,7 +58,7 @@ class AuctionTest {
 
         assertEquals(Status.ENDED_SUCCESS, auction.getStatus());
         assertNotNull(auction.getBalanceDueAt());
-        assertFalse(auction.getBalanceDueAt().isBefore(before.plusMinutes(Auction.BALANCE_DUE_DAYS)));
+        assertFalse(auction.getBalanceDueAt().isBefore(before.plusDays(Auction.BALANCE_DUE_DAYS)));
     }
 
     // ---------- 잔금 ----------

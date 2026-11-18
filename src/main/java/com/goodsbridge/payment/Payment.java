@@ -17,12 +17,12 @@ import java.time.LocalDateTime;
 public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;    // 사용자 PK
+    private Long id;    // PK
 
     @Column(nullable = false, unique = true)
-    private String paymentId;   // PG 거래 식별자
+    private String paymentId;   // 결제 ID
 
-    private String pgTxId;  // PG id
+    private String pgTxId;  // PG 거래 식별자
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

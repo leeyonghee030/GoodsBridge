@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.util.List;
 
 public interface PaymentCancelFailureRepository extends JpaRepository<PaymentCancelFailure, Long> {
-
+    // 결제 취소 실패 기록이 존재하는지 확인
     @Query("""
         select case when count(f) > 0 then true else false end
         from PaymentCancelFailure f
@@ -14,6 +14,7 @@ public interface PaymentCancelFailureRepository extends JpaRepository<PaymentCan
     """)
     boolean existsByPaymentId(String paymentId);
 
+    // 상태별 결제 취소 실패 기록을 ID 오름차순으로 조회 (최대 20건)
     @Query("""
         select f from PaymentCancelFailure f
         where f.status = :status

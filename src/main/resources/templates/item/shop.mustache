@@ -384,10 +384,11 @@
         if (t === 'ON_SALE') return items.filter(i => i.status === 'ON_SALE').filter(byCategory);
         if (t === 'REFUND') return sales.filter(s => s.refunds.length).filter(byCategory);
         // 판매완료: 구매 내역 + (경매 등) 구매 내역 없이 판매완료된 상품
+        // 전액 환불된 구매(REFUNDED)는 거래가 취소된 건이라 판매완료/배송 준비중에 두지 않고 환불 탭에서만 보여준다
         const purchased = new Set(sales.map(s => s.itemId));
         const others = items.filter(i => i.status === 'SOLD' && !purchased.has(i.id))
             .map(i => ({ itemId: i.id, itemTitle: i.title, categoryName: i.categoryName, price: i.price, imageUrl: i.imageUrl, shopId: i.shopId, saleType: i.saleType }));
-        return [...sales, ...others].filter(byCategory);
+        return [...sales.filter(s => s.purchaseStatus !== 'REFUNDED'), ...others].filter(byCategory);
     };
 
     const thumb = url => `<span class="related-item-thumb">${url ? `<img src="${esc(url)}" alt="">` : '📦'}</span>`;
@@ -448,7 +449,7 @@
             }
             const r = latestRefund(s);
             const badge = tab === 'REFUND'
-                ? `<span class="si-badge ${{ REQUESTED: 'is-warn', DONE: 'is-ok', PARTIAL: 'is-dark', REJECTED: '' }[refundState(s)]}">${refundLabel(r, s)}</span>`
+                ? `<span class="si-badge ${({ REQUESTED: 'is-warn', DONE: 'is-ok', PARTIAL: 'is-dark', REJECTED: '' })[refundState(s)]}">${refundLabel(r, s)}</span>`
                 : STATE_BADGE[saleState(s)];
             const sub = tab === 'REFUND'
                 ? `${BY[r.requestedBy]} 요청 · ${money(r.amount)} · ${date(r.requestedAt)}`
@@ -588,8 +589,19 @@
         items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT' && i.saleType !== 'AUCTION').sort((a, b) => b.id - a.id);   // 이벤트·경매 상품은 각 관리 화면에서 다룬다
         sales = await saleRes.json();
         const salesByPayment = Object.fromEntries(sales.map(x => [x.paymentId, x]));
-        const lists = await Promise.all([...shopIds].map(id =>
-            pageFetch(`/api/shops/${id}/settlements`).then(r => r.ok ? r.json() : [])));
+        // 정산 API는 페이지 응답({ content, last, ...})이므로 모든 페이지의 content를 가져온다.
+        const loadFees = async id => {
+            const rows = [];
+            for (let page = 0; page < 50; page++) {
+                const r = await pageFetch(`/api/shops/${id}/settlements?type=PURCHASE_FEE&size=100&page=${page}`);
+                if (!r.ok) break;
+                const data = await r.json();
+                rows.push(...(data.content || []));
+                if (data.last !== false) break;
+            }
+            return rows;
+        };
+        const lists = await Promise.all([...shopIds].map(loadFees));
         saleFees = lists.flat().filter(x => x.type === 'PURCHASE_FEE')
             .map(x => Object.assign({}, x, { sale: salesByPayment[x.paymentId] || {} }));
         render();

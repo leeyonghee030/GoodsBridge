@@ -1,0 +1,199 @@
+{{> fragments/header}}
+
+<style>
+    .pay-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .pay-table th { padding: 0.5rem 0.6rem; text-align: left; font-size: 0.76rem; font-weight: 500; color: var(--color-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+    .pay-table td { padding: 0.75rem 0.6rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+    .pay-table tr:last-child td { border-bottom: 0; }
+    .pay-table .num { text-align: right; white-space: nowrap; }
+    .pay-table td small { display: block; margin-top: 0.1rem; font-size: 0.74rem; color: var(--color-muted); }
+    .pay-badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+    .pay-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+    .pay-badge.is-warn { background: #FDECEA; color: #C0392B; }
+    .pay-badge.is-live { background: #EAF1FB; color: #2B5FAE; }
+    .pay-empty { padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+    .pay-scroll { overflow-x: auto; }
+    /* 전역 button[type="button"] 스타일(width:100%, 흰 글씨, 검은 배경)을 덮어쓰기 위해 속성 선택자까지 맞춘다 */
+    /* 전역 h1 { text-align: center } 를 덮어써 제목을 설명 문구와 같이 왼쪽 정렬한다 */
+    .dash-head h1 { text-align: left; }
+    .auc-filter { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .auc-filter button[type="button"] { width: auto; padding: 0.3rem 0.8rem; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-text); font: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer; }
+    .auc-filter button[type="button"]:hover { background: var(--color-surface); color: var(--color-text); }
+    .auc-filter button[type="button"].active,
+    .auc-filter button[type="button"].active:hover { background: #111; color: #fff; border-color: #111; }
+    .auc-cancel[type="button"] { width: auto; padding: 0.3rem 0.75rem; border: 1px solid #C0392B; border-radius: 8px; background: #fff; color: #C0392B; font: inherit; font-size: 0.8rem; font-weight: 500; cursor: pointer; }
+    .auc-cancel[type="button"]:hover { background: #FDECEA; color: #C0392B; }
+    .auc-cancel[type="button"]:disabled { opacity: 0.5; cursor: default; }
+    .auc-title { display: flex; align-items: center; gap: 0.6rem; }
+    .auc-title img { width: 2.4rem; height: 2.4rem; border-radius: 6px; object-fit: cover; background: var(--color-surface); }
+    .auc-pager { display: flex; justify-content: center; align-items: center; gap: 0.8rem; margin-top: 1rem; font-size: 0.84rem; }
+    .auc-pager button[type="button"] { width: auto; padding: 0.3rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-text); font: inherit; font-weight: 500; cursor: pointer; }
+    .auc-pager button[type="button"]:hover:not(:disabled) { background: var(--color-surface); color: var(--color-text); }
+    .auc-pager button[type="button"]:disabled { opacity: 0.4; cursor: default; }
+</style>
+
+<div class="container my-card">
+    <nav class="my-tabs">
+        <a href="/test/admin">대시보드</a>
+        <a href="/test/admin/shops">입점 관리</a>
+        <a href="/test/admin/subscriptions">구독 관리</a>
+        <a href="/test/admin/subscription-payments">구독 결제 내역</a>
+        <a href="/test/admin/auctions" class="active">경매 관리</a>
+    </nav>
+    <div class="dash">
+        <div class="dash-head">
+            <div>
+                <h1>경매 관리</h1>
+                <p>진행 중인 경매는 관리자가 취소할 수 있어요. 취소하면 모든 입찰자의 보증금이 환불돼요.</p>
+            </div>
+        </div>
+
+        <section class="dash-panel">
+            <div class="dash-title"><h2>경매 목록</h2><small id="auc-count"></small></div>
+            <div class="auc-filter" id="auc-filter"></div>
+            <div class="pay-scroll" id="auc-list"><p class="pay-empty">경매를 불러오는 중입니다.</p></div>
+            <div class="auc-pager" id="auc-pager" hidden>
+                <button type="button" id="auc-prev">이전</button>
+                <span id="auc-page"></span>
+                <button type="button" id="auc-next">다음</button>
+            </div>
+        </section>
+
+        <p id="auc-message" class="dash-note"></p>
+    </div>
+</div>
+
+<script>
+    (() => {
+        const SIZE = 20;
+        const STATUS = {
+            ACTIVE: ['진행 중', 'is-live'], ENDED_SUCCESS: ['낙찰 성공', 'is-ok'],
+            ENDED_FAIL: ['낙찰 실패', ''], CANCELLED: ['취소됨', 'is-warn']
+        };
+        const FILTERS = [['', '전체'], ['ACTIVE', '진행 중'], ['ENDED_SUCCESS', '낙찰 성공'], ['ENDED_FAIL', '낙찰 실패'], ['CANCELLED', '취소됨']];
+
+        const listEl = document.getElementById('auc-list');
+        const countEl = document.getElementById('auc-count');
+        const filterEl = document.getElementById('auc-filter');
+        const pagerEl = document.getElementById('auc-pager');
+        const pageEl = document.getElementById('auc-page');
+        const prevBtn = document.getElementById('auc-prev');
+        const nextBtn = document.getElementById('auc-next');
+        const message = document.getElementById('auc-message');
+
+        let status = '';
+        let page = 0;
+        let totalPages = 0;
+
+        const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+        const won = v => Number(v || 0).toLocaleString('ko-KR') + '원';
+        const when = iso => {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            const p = n => String(n).padStart(2, '0');
+            return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+        };
+        const show = (text, isError) => { message.textContent = text; message.className = isError ? 'dash-note dash-error' : 'dash-note'; };
+        const errorText = async (res, fallback) => {
+            const text = await res.text();
+            try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+        };
+
+        function renderFilter() {
+            filterEl.innerHTML = FILTERS.map(([key, label]) =>
+                `<button type="button" data-status="${key}" class="${key === status ? 'active' : ''}">${label}</button>`).join('');
+        }
+
+        function renderList(data) {
+            const rows = data.content || [];
+            totalPages = data.totalPages || 0;
+            countEl.textContent = `총 ${data.totalElements || 0}건`;
+            if (!rows.length) {
+                listEl.innerHTML = '<p class="pay-empty">조건에 맞는 경매가 없어요.</p>';
+                pagerEl.hidden = true;
+                return;
+            }
+            listEl.innerHTML = '<table class="pay-table"><thead><tr>'
+                + '<th>경매 상품</th><th>가게</th><th class="num">시작가</th><th class="num">현재가</th><th class="num">입찰</th><th>마감</th><th>상태</th><th></th>'
+                + '</tr></thead><tbody>'
+                + rows.map(a => {
+                    const st = STATUS[a.status] || [a.status, ''];
+                    const cancellable = a.status === 'ACTIVE';
+                    return '<tr>'
+                        + '<td><span class="auc-title">' + (a.itemImageUrl ? '<img src="' + esc(a.itemImageUrl) + '" alt="">' : '')
+                        + '<span>' + esc(a.itemTitle) + '<small>경매 #' + a.id + '</small></span></span></td>'
+                        + '<td>' + esc(a.shopName || '-') + '</td>'
+                        + '<td class="num">' + won(a.startPrice) + '</td>'
+                        + '<td class="num">' + won(a.currentPrice) + '</td>'
+                        + '<td class="num">' + (a.bidCount || 0) + '건</td>'
+                        + '<td>' + when(a.deadline) + '</td>'
+                        + '<td><span class="pay-badge ' + st[1] + '">' + esc(st[0]) + '</span></td>'
+                        + '<td class="num">' + (cancellable
+                            ? '<button type="button" class="auc-cancel" data-cancel="' + a.id + '" data-title="' + esc(a.itemTitle) + '" data-bids="' + (a.bidCount || 0) + '">경매 취소</button>'
+                            : '') + '</td>'
+                        + '</tr>';
+                }).join('')
+                + '</tbody></table>';
+            pagerEl.hidden = totalPages <= 1;
+            pageEl.textContent = (page + 1) + ' / ' + Math.max(totalPages, 1);
+            prevBtn.disabled = page <= 0;
+            nextBtn.disabled = page + 1 >= totalPages;
+        }
+
+        async function load() {
+            renderFilter();
+            try {
+                const query = '/api/auctions?page=' + page + '&size=' + SIZE + (status ? '&status=' + status : '');
+                const res = await fetch(query, { credentials: 'same-origin' });
+                if (!res.ok) {
+                    listEl.innerHTML = '<p class="pay-empty">경매를 불러오지 못했어요.</p>';
+                    pagerEl.hidden = true;
+                    return;
+                }
+                renderList(await res.json());
+            } catch (e) {
+                listEl.innerHTML = '<p class="pay-empty">서버와 통신하지 못했어요.</p>';
+                pagerEl.hidden = true;
+            }
+        }
+
+        async function cancelAuction(id, title, bids, button) {
+            const warn = Number(bids) > 0 ? `\n입찰 ${bids}건의 보증금은 모두 환불돼요.` : '';
+            if (!confirm(`"${title}" 경매를 취소할까요?${warn}\n취소한 경매는 되돌릴 수 없어요.`)) return;
+            button.disabled = true;
+            show('경매를 취소하는 중입니다.', false);
+            try {
+                const res = await fetch('/api/admin/auctions/' + id + '/cancel', { method: 'PATCH', credentials: 'same-origin' });
+                if (!res.ok) {
+                    show(await errorText(res, '경매를 취소하지 못했어요.'), true);
+                    button.disabled = false;
+                    return;
+                }
+                show('경매를 취소했어요. 입찰자 보증금은 곧 자동으로 환불돼요.', false);
+                await load();
+            } catch (e) {
+                show('서버와 통신하지 못했어요.', true);
+                button.disabled = false;
+            }
+        }
+
+        filterEl.addEventListener('click', ev => {
+            const b = ev.target.closest('[data-status]');
+            if (!b) return;
+            status = b.dataset.status;
+            page = 0;
+            show('', false);
+            load();
+        });
+        listEl.addEventListener('click', ev => {
+            const b = ev.target.closest('[data-cancel]');
+            if (b) cancelAuction(b.dataset.cancel, b.dataset.title, b.dataset.bids, b);
+        });
+        prevBtn.addEventListener('click', () => { if (page > 0) { page--; load(); } });
+        nextBtn.addEventListener('click', () => { if (page + 1 < totalPages) { page++; load(); } });
+
+        load();
+    })();
+</script>
+
+{{> fragments/footer}}
