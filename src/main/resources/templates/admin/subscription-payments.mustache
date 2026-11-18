@@ -1,160 +1,160 @@
 {{> fragments/header}}
 
 <style>
-    .pay-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-    .pay-table th { padding: 0.5rem 0.6rem; text-align: left; font-size: 0.76rem; font-weight: 500; color: var(--color-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
-    .pay-table td { padding: 0.75rem 0.6rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
-    .pay-table tr:last-child td { border-bottom: 0; }
-    .pay-table .num { text-align: right; white-space: nowrap; }
-    .pay-table td small { display: block; margin-top: 0.1rem; font-size: 0.74rem; color: var(--color-muted); word-break: break-all; }
-    .pay-badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
-    .pay-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
-    .pay-badge.is-warn { background: #FDECEA; color: #C0392B; }
-    .pay-empty { padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
-    .pay-scroll { overflow-x: auto; }
-    .pay-search { width: 14rem; max-width: 100%; margin: 0 0 0.75rem auto; display: block; padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.86rem; background: #fff; }
+.pay-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+.pay-table th { padding: 0.5rem 0.6rem; text-align: left; font-size: 0.76rem; font-weight: 500; color: var(--color-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.pay-table td { padding: 0.75rem 0.6rem; border-bottom: 1px solid var(--color-border); vertical-align: middle; }
+.pay-table tr:last-child td { border-bottom: 0; }
+.pay-table .num { text-align: right; white-space: nowrap; }
+.pay-table td small { display: block; margin-top: 0.1rem; font-size: 0.74rem; color: var(--color-muted); word-break: break-all; }
+.pay-badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.pay-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
+.pay-badge.is-warn { background: #FDECEA; color: #C0392B; }
+.pay-empty { padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.86rem; }
+.pay-scroll { overflow-x: auto; }
+.pay-search { width: 14rem; max-width: 100%; margin: 0 0 0.75rem auto; display: block; padding: 0.4rem 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: 0.86rem; background: #fff; }
 </style>
 
 <div class="container my-card">
-    <nav class="my-tabs">
-        <a href="/test/admin">대시보드</a>
-        <a href="/test/admin/shops">입점 관리</a>
-        <a href="/test/admin/subscriptions">구독 관리</a>
-        <a href="/test/admin/subscription-payments" class="active">구독 결제 내역</a>
-        <a href="/test/admin/auctions">경매 관리</a>
-    </nav>
-    <div class="dash">
-        <div class="dash-head">
-            <div>
-                <h1>구독 결제 내역</h1>
-                <p id="selected-month">내역을 불러오는 중입니다.</p>
-            </div>
-            <form id="pay-form" class="dash-filter">
-                <input id="month" type="month" required>
-                <button type="submit">조회</button>
-            </form>
+<nav class="my-tabs">
+    <a href="/test/admin">대시보드</a>
+    <a href="/test/admin/shops">입점 관리</a>
+    <a href="/test/admin/subscriptions">구독 관리</a>
+    <a href="/test/admin/subscription-payments" class="active">구독 결제 내역</a>
+    <a href="/test/admin/auctions">경매 관리</a>
+</nav>
+<div class="dash">
+    <div class="dash-head">
+        <div>
+            <h1>구독 결제 내역</h1>
+            <p id="selected-month">내역을 불러오는 중입니다.</p>
         </div>
-
-        <section class="dash-panel">
-            <div class="dash-title"><h2>월 합계</h2><small>환불을 뺀 값이 플랫폼 매출이에요</small></div>
-            <div id="summary" class="stat-row cols3"></div>
-        </section>
-
-        <section class="dash-panel">
-            <div class="dash-title"><h2>결제 목록</h2><small id="list-count"></small></div>
-            <input id="pay-search" class="pay-search" type="text" placeholder="결제자·가게 이름 검색" autocomplete="off">
-            <div class="pay-scroll" id="pay-list"><p class="pay-empty">내역을 불러오는 중입니다.</p></div>
-        </section>
-
-        <p id="pay-message" class="dash-note"></p>
+        <form id="pay-form" class="dash-filter">
+            <input id="month" type="month" required>
+            <button type="submit">조회</button>
+        </form>
     </div>
+
+    <section class="dash-panel">
+        <div class="dash-title"><h2>월 합계</h2><small>환불을 뺀 값이 플랫폼 매출이에요</small></div>
+        <div id="summary" class="stat-row cols3"></div>
+    </section>
+
+    <section class="dash-panel">
+        <div class="dash-title"><h2>결제 목록</h2><small id="list-count"></small></div>
+        <input id="pay-search" class="pay-search" type="text" placeholder="결제자·가게 이름 검색" autocomplete="off">
+        <div class="pay-scroll" id="pay-list"><p class="pay-empty">내역을 불러오는 중입니다.</p></div>
+    </section>
+
+    <p id="pay-message" class="dash-note"></p>
+</div>
 </div>
 
 <script>
-    (() => {
-        const form = document.getElementById('pay-form');
-        const monthInput = document.getElementById('month');
-        const selectedMonth = document.getElementById('selected-month');
-        const message = document.getElementById('pay-message');
-        const summary = document.getElementById('summary');
-        const listEl = document.getElementById('pay-list');
-        const countEl = document.getElementById('list-count');
+(() => {
+    const form = document.getElementById('pay-form');
+    const monthInput = document.getElementById('month');
+    const selectedMonth = document.getElementById('selected-month');
+    const message = document.getElementById('pay-message');
+    const summary = document.getElementById('summary');
+    const listEl = document.getElementById('pay-list');
+    const countEl = document.getElementById('list-count');
 
-        const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-        const num = v => Number(v || 0).toLocaleString('ko-KR');
-        const won = v => num(v) + '원';
-        const when = iso => {
-            const d = new Date(iso);
-            const p = n => String(n).padStart(2, '0');
-            return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-        };
-        // 결제 상태 → [표시 이름, 배지 색]
-        const STATUS = {
-            PAID: ['결제 완료', 'is-ok'], RELEASED: ['결제 완료', 'is-ok'],
-            PARTIAL_CANCELLED: ['부분 환불', 'is-warn'], CANCELLED: ['전액 환불', 'is-warn']
-        };
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const num = v => Number(v || 0).toLocaleString('ko-KR');
+    const won = v => num(v) + '원';
+    const when = iso => {
+        const d = new Date(iso);
+        const p = n => String(n).padStart(2, '0');
+        return d.getFullYear() + '.' + p(d.getMonth() + 1) + '.' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    };
+    // 결제 상태 → [표시 이름, 배지 색]
+    const STATUS = {
+        PAID: ['결제 완료', 'is-ok'], RELEASED: ['결제 완료', 'is-ok'],
+        PARTIAL_CANCELLED: ['부분 환불', 'is-warn'], CANCELLED: ['전액 환불', 'is-warn']
+    };
 
-        // 대시보드에서 넘어온 월(?month=YYYY-MM)이 있으면 그 달을, 없으면 이번 달을 보여준다
-        const now = new Date();
-        const requested = new URLSearchParams(location.search).get('month');
-        monthInput.value = /^\d{4}-\d{2}$/.test(requested || '') ? requested
-            : now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    // 대시보드에서 넘어온 월(?month=YYYY-MM)이 있으면 그 달을, 없으면 이번 달을 보여준다
+    const now = new Date();
+    const requested = new URLSearchParams(location.search).get('month');
+    monthInput.value = /^\d{4}-\d{2}$/.test(requested || '') ? requested
+        : now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
 
-        function addStat(label, value, note) {
-            const stat = document.createElement('div');
-            stat.className = 'stat';
-            const l = document.createElement('span'); l.textContent = label;
-            const v = document.createElement('strong'); v.textContent = value;
-            const n = document.createElement('small'); n.textContent = note || '';
-            stat.append(l, v, n);
-            summary.appendChild(stat);
+    function addStat(label, value, note) {
+        const stat = document.createElement('div');
+        stat.className = 'stat';
+        const l = document.createElement('span'); l.textContent = label;
+        const v = document.createElement('strong'); v.textContent = value;
+        const n = document.createElement('small'); n.textContent = note || '';
+        stat.append(l, v, n);
+        summary.appendChild(stat);
+    }
+
+    let loaded = null;   // 조회한 달의 결제 전체. 검색은 이 안에서 걸러서 보여준다.
+    const searchEl = document.getElementById('pay-search');
+
+    function render(data) {
+        loaded = data;
+        summary.replaceChildren();
+        addStat('결제 금액', won(data.totalAmount), data.paymentCount + '건');
+        addStat('환불 금액', won(data.refundedAmount), '');
+        addStat('플랫폼 매출', won(data.netAmount), '결제 − 환불');
+        renderList();
+    }
+
+    function renderList() {
+        const data = loaded;
+        const kw = searchEl.value.trim().toLowerCase();
+        const payments = kw ? data.payments.filter(p =>
+            (p.payerNickname || '').toLowerCase().includes(kw) || (p.shopName || '').toLowerCase().includes(kw)) : data.payments;
+        countEl.textContent = kw ? payments.length + '건 / 전체 ' + data.paymentCount + '건' : data.paymentCount + '건';
+
+        if (!payments.length) {
+            listEl.innerHTML = '<p class="pay-empty">' + (kw ? '검색 결과가 없어요.' : '이 달에는 구독 결제가 없어요.') + '</p>';
+            return;
         }
+        listEl.innerHTML = '<table class="pay-table"><thead><tr>'
+            + '<th>결제일시</th><th>가게</th><th>결제자</th><th class="num">결제 금액</th><th class="num">환불</th><th>상태</th>'
+            + '</tr></thead><tbody>'
+            + payments.map(p => {
+                const st = STATUS[p.status] || [p.status, ''];
+                return '<tr>'
+                    + '<td>' + when(p.paidAt) + '<small>결제번호 ' + esc(p.paymentId) + '</small></td>'
+                    + '<td>' + esc(p.shopName || '-') + '</td>'
+                    + '<td>' + esc(p.payerNickname || ('#' + p.payerUserId)) + '</td>'
+                    + '<td class="num">' + won(p.amount) + '</td>'
+                    + '<td class="num">' + (p.refundedAmount ? won(p.refundedAmount) : '-') + '</td>'
+                    + '<td><span class="pay-badge ' + st[1] + '">' + esc(st[0]) + '</span></td>'
+                    + '</tr>';
+            }).join('')
+            + '</tbody></table>';
+    }
 
-        let loaded = null;   // 조회한 달의 결제 전체. 검색은 이 안에서 걸러서 보여준다.
-        const searchEl = document.getElementById('pay-search');
-
-        function render(data) {
-            loaded = data;
-            summary.replaceChildren();
-            addStat('결제 금액', won(data.totalAmount), data.paymentCount + '건');
-            addStat('환불 금액', won(data.refundedAmount), '');
-            addStat('플랫폼 매출', won(data.netAmount), '결제 − 환불');
-            renderList();
-        }
-
-        function renderList() {
-            const data = loaded;
-            const kw = searchEl.value.trim().toLowerCase();
-            const payments = kw ? data.payments.filter(p =>
-                (p.payerNickname || '').toLowerCase().includes(kw) || (p.shopName || '').toLowerCase().includes(kw)) : data.payments;
-            countEl.textContent = kw ? payments.length + '건 / 전체 ' + data.paymentCount + '건' : data.paymentCount + '건';
-
-            if (!payments.length) {
-                listEl.innerHTML = '<p class="pay-empty">' + (kw ? '검색 결과가 없어요.' : '이 달에는 구독 결제가 없어요.') + '</p>';
+    async function load(month) {
+        message.textContent = '내역을 불러오는 중입니다.';
+        message.className = 'dash-note';
+        try {
+            const res = await fetch('/api/admin/subscription-payments?month=' + encodeURIComponent(month), { credentials: 'same-origin' });
+            if (!res.ok) {
+                message.textContent = res.status === 400 ? '날짜 형식이 올바르지 않습니다.'
+                    : res.status === 403 ? '관리자 권한이 필요합니다.' : '구독 결제 내역을 불러오지 못했습니다.';
+                message.className = 'dash-note dash-error';
                 return;
             }
-            listEl.innerHTML = '<table class="pay-table"><thead><tr>'
-                + '<th>결제일시</th><th>가게</th><th>결제자</th><th class="num">결제 금액</th><th class="num">환불</th><th>상태</th>'
-                + '</tr></thead><tbody>'
-                + payments.map(p => {
-                    const st = STATUS[p.status] || [p.status, ''];
-                    return '<tr>'
-                        + '<td>' + when(p.paidAt) + '<small>결제번호 ' + esc(p.paymentId) + '</small></td>'
-                        + '<td>' + esc(p.shopName || '-') + '</td>'
-                        + '<td>' + esc(p.payerNickname || ('#' + p.payerUserId)) + '</td>'
-                        + '<td class="num">' + won(p.amount) + '</td>'
-                        + '<td class="num">' + (p.refundedAmount ? won(p.refundedAmount) : '-') + '</td>'
-                        + '<td><span class="pay-badge ' + st[1] + '">' + esc(st[0]) + '</span></td>'
-                        + '</tr>';
-                }).join('')
-                + '</tbody></table>';
+            const data = await res.json();
+            selectedMonth.textContent = month + ' 결제';
+            message.textContent = '';
+            render(data);
+        } catch (e) {
+            message.textContent = '서버와 통신하지 못했습니다.';
+            message.className = 'dash-note dash-error';
         }
+    }
 
-        async function load(month) {
-            message.textContent = '내역을 불러오는 중입니다.';
-            message.className = 'dash-note';
-            try {
-                const res = await fetch('/api/admin/subscription-payments?month=' + encodeURIComponent(month), { credentials: 'same-origin' });
-                if (!res.ok) {
-                    message.textContent = res.status === 400 ? '날짜 형식이 올바르지 않습니다.'
-                        : res.status === 403 ? '관리자 권한이 필요합니다.' : '구독 결제 내역을 불러오지 못했습니다.';
-                    message.className = 'dash-note dash-error';
-                    return;
-                }
-                const data = await res.json();
-                selectedMonth.textContent = month + ' 결제';
-                message.textContent = '';
-                render(data);
-            } catch (e) {
-                message.textContent = '서버와 통신하지 못했습니다.';
-                message.className = 'dash-note dash-error';
-            }
-        }
-
-        searchEl.addEventListener('input', () => { if (loaded) renderList(); });
-        form.addEventListener('submit', event => { event.preventDefault(); load(monthInput.value); });
-        load(monthInput.value);
-    })();
+    searchEl.addEventListener('input', () => { if (loaded) renderList(); });
+    form.addEventListener('submit', event => { event.preventDefault(); load(monthInput.value); });
+    load(monthInput.value);
+})();
 </script>
 
 {{> fragments/footer}}
