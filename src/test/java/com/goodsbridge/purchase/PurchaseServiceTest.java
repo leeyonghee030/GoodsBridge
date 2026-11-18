@@ -531,7 +531,7 @@ class PurchaseServiceTest {
     }
 
     @Test
-    void confirm_auctionPurchaseReleasesPaymentButDoesNotSettleAgain() {
+    void confirm_auctionPurchaseReleasesPaymentAndSettlesAfterDelivery() {
         User buyer = mock(User.class);
         when(buyer.getId()).thenReturn(10L);
         Item item = mock(Item.class);
@@ -540,13 +540,19 @@ class PurchaseServiceTest {
         purchase.ship("TRACK-1");
         purchase.markDelivered();
         when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
+        com.goodsbridge.auction.Auction auction = mock(com.goodsbridge.auction.Auction.class);
+        when(auction.getShop()).thenReturn(mock(Shop.class));
+        when(auction.getAuctionSettlementAmount()).thenReturn(35_000);
+        when(auctionRepository.findByBalancePaymentId("balance-1")).thenReturn(java.util.Optional.of(auction));
+        Payment balancePayment = mock(Payment.class);
+        when(paymentRepository.findByPaymentId("balance-1")).thenReturn(java.util.Optional.of(balancePayment));
 
         purchaseService.confirm(1L, 10L);
 
         assertEquals(PurchaseStatus.CONFIRMED, purchase.getStatus());
         verify(paymentService).release("balance-1");
-        // 경매 정산(수수료 포함)은 잔금 결제 때 이미 기록했으므로 PURCHASE_FEE 를 또 만들지 않는다
-        verifyNoInteractions(settlementHistoryService);
+        verify(settlementHistoryService).calculate(
+            auction.getShop(), balancePayment, 35_000, SettlementHistoryType.AUCTION_SALE);
     }
 
     @Test

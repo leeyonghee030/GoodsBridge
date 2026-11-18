@@ -25,7 +25,7 @@ public class PaymentCancelFailure {
     private String paymentId;
 
     @Column(nullable = false, length = 200)
-    private String reason;
+    private String reason;  // 결제 취소 이유
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -42,6 +42,7 @@ public class PaymentCancelFailure {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    // 결제 취소 실패
     public PaymentCancelFailure(String paymentId, String reason, String error) {
         this.paymentId = paymentId;
         this.reason = reason == null ? "" : reason;

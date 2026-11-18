@@ -9,7 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
-// 가게가 가져가는 수수료
+// 가게가 가져가는 금액
 @Entity
 @NoArgsConstructor
 @Getter

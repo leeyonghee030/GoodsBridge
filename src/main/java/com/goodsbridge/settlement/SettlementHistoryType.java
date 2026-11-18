@@ -1,7 +1,7 @@
 package com.goodsbridge.settlement;
 
 public enum SettlementHistoryType {
-    PURCHASE_FEE,
+    PURCHASE_FEE,   // 구매 금액
     EXCHANGE_FEE,   // 교환 금액 수수료
     AUCTION_SALE, // 경매 낙찰가 전액 정산
     EVENT_FEE,   // 이벤트 금액 수수료

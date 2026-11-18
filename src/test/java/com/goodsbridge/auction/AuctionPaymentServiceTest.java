@@ -88,7 +88,7 @@ class AuctionPaymentServiceTest {
     // ===================== payBalance =====================
 
     @Test
-    void payBalance_verifiesPayment_marksItemSold_andRecordsFullAuctionSale() {
+    void payBalance_verifiesPayment_marksItemSold_withoutSettlingBeforeDelivery() {
         when(paymentService.verify("balance-1", 9_000, PaymentPurpose.AUCTION_BALANCE, 2L))
             .thenReturn("balance-1");
         when(paymentRepository.findByPaymentId("balance-1")).thenReturn(Optional.of(payment));
@@ -103,8 +103,7 @@ class AuctionPaymentServiceTest {
                 && purchase.getAmount() == 10_000
                 && "서울시 마포구".equals(purchase.getDeliveryAddress())
                 && "balance-1".equals(purchase.getPaymentId())));
-        verify(settlementHistoryService).calculate(
-            shop, payment, 10_000, SettlementHistoryType.AUCTION_SALE);
+        verifyNoInteractions(settlementHistoryService);
     }
 
     @Test

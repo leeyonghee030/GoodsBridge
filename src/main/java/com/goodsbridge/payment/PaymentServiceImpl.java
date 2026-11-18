@@ -156,7 +156,6 @@ public class PaymentServiceImpl implements PaymentService {
         payment.refund(amount);
     }
 
-
     // 수령 확인 후 판매자에게 지급 처리
     @Override
     @Transactional

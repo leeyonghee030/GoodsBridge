@@ -42,6 +42,7 @@ public class AdminViewController {
             .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN"));
     }
 
+    // 현재 user_id 검증
     private Long currentUserId(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()
             || !(authentication.getPrincipal() instanceof Long userId)) {

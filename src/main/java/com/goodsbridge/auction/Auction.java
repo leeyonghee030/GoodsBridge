@@ -105,7 +105,7 @@ public class Auction {
         this.status = currentWinner == null
             ? Status.ENDED_FAIL : Status.ENDED_SUCCESS;
         if (this.status == Status.ENDED_SUCCESS) {
-            this.balanceDueAt = LocalDateTime.now().plusMinutes(BALANCE_DUE_DAYS);
+            this.balanceDueAt = LocalDateTime.now().plusDays(BALANCE_DUE_DAYS);
         }
     }
 
