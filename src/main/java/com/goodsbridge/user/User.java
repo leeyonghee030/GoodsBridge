@@ -31,6 +31,10 @@ public class User {
     @Column(unique = true)
     private String nickname;
 
+    private Address address; // 배송 주소
+
+    private String phoneNumber;
+
     private String profileImage;
 
     @CreationTimestamp
@@ -60,10 +64,12 @@ public class User {
     private String refreshTokenHash;
 
     @Builder
-    public User(String email, String password, String nickname, LoginType loginType, String profileImage) {
+    public User(String email, String password, String nickname, LoginType loginType, String profileImage, Address address, String phoneNumber) {
         this.email = email;
         this.password = password;
         this.nickname = nickname;
+        this.address = address;
+        this.phoneNumber = phoneNumber;
         this.profileImage = profileImage;
         this.loginType = (loginType == null)? LoginType.EMAIL : loginType;
         this.role = Role.USER;
@@ -81,6 +87,10 @@ public class User {
     public void updateNickname(String nickname){
         this.nickname = nickname;
     }
+
+    public void updatePhoneNumber(String phoneNumber){this.phoneNumber = phoneNumber;}
+
+    public void updateAddress(Address address){this.address = address;}
 
     public String getProfilePath() {
         if(this.profileImage == null){

@@ -135,6 +135,19 @@ public class UserService {
             user.updateProfileImage(newImage); // DB에는 새 파일 이름 (변경 감지)
             FileUtil.deleteFile(oldImage);
         }
+
+        if (updateDto.hasAddress()){
+            user.updateAddress(new Address());
+        }
+
+        if (updateDto.hasPhoneNumber()){
+            user.updatePhoneNumber(updateDto.getPhoneNumber());
+        }
+        // TODO - update fix 확인용
+        log.info("password : {}", user.getPassword());
+        log.info("Nickname : {}", user.getNickname());
+        log.info("Address : {}", user.getAddress());
+        log.info("PhoneNumber : {}", user.getPhoneNumber());
     }
 
     @Transactional

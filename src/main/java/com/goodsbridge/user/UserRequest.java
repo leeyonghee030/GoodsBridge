@@ -35,8 +35,14 @@ public class UserRequest {
     @Data
     public static class UpdateDto {
         private String password;
-        private MultipartFile profileImage;
+        private MultipartFile profileImage; // 프로필 이미지
         private String nickname;
+
+        private String postalCode;      // 우편 번호
+        private String address;         // 기본 주소
+        private String detailAddress;   // 상세 주소
+
+        private String phoneNumber;
 
         public boolean hasPassword() {
             return password != null && !password.isBlank();
@@ -46,16 +52,31 @@ public class UserRequest {
             return profileImage != null && !profileImage.isEmpty();
         }
 
-        public boolean hasNickname(){
+        public boolean hasNickname() {
             return nickname != null && !nickname.isBlank();
         }
 
-        public void validate(){
-            if (!hasNickname() && !hasPassword() && !hasProfileImage()){
+        public boolean hasAddress() {
+            return postalCode != null && !postalCode.isBlank() &&
+                address != null && !address.isBlank() &&
+                detailAddress != null && !detailAddress.isBlank();
+        }
+
+        public boolean hasPhoneNumber() {
+            return phoneNumber != null && !phoneNumber.isBlank();
+        }
+
+        public void validate() {
+            if (!hasNickname() &&
+                !hasPassword() &&
+                !hasProfileImage() &&
+                !hasAddress() &&
+                !hasPhoneNumber())
+            {
                 throw new BadRequestException("변경할 데이터를 입력해주세요");
             }
 
-            if (hasPassword() && password.length() < 8){
+            if (hasPassword() && password.length() < 8) {
                 throw new BadRequestException("패스워드는 8자 이상이어야 합니다");
             }
         }
