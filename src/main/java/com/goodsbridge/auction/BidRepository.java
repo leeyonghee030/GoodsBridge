@@ -29,8 +29,15 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
     Page<Bid> findBidsByAuctionId(@Param("auctionId") Long auctionId, Pageable pageable);
 
     // 입찰자의 최초 입찰 1건 조회 (보증금 결제 ID 재사용용)
-    // 파생 쿼리의 First는 LIMIT 1을 보장한다. 같은 유저의 입찰이 여러 건이어도 예외가 나지 않는다.
-    Optional<Bid> findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(Long auctionId, Long userId);
+    @Query("""
+        select b
+        from Bid b
+        where b.auction.id = :auctionId
+        and b.user.id = :userId
+        order by b.createdAt asc, b.id asc
+        """)
+    Optional<Bid> findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(@Param("auctionId") Long auctionId,
+                                                                        @Param("userId") Long userId);
 
     // 내가 참여한 경매 ID 목록
     @Query(value = """
@@ -55,9 +62,6 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
         where b.auction.id = :auctionId and b.user.id <> :winnerId
         """)
     List<String> findLoserDepositPaymentIds(@Param("auctionId") Long auctionId, @Param("winnerId") Long winnerId);
-
-    @Query("select distinct b.user.id from Bid b where b.auction.id = :auctionId")
-    List<Long> findBidderUserIds(@Param("auctionId") Long auctionId);
 
     // 경매별 입찰 횟수 (목록 화면용). 행 = [경매 id, 입찰 수]
     @Query("select b.auction.id, count(b) from Bid b where b.auction.id in :ids group by b.auction.id")
