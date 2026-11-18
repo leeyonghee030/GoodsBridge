@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -42,6 +43,7 @@ class BidServiceTest {
     @Mock AuctionRepository auctionRepository;
     @Mock UserRepository userRepository;
     @Mock PaymentService paymentService;
+    @Mock ApplicationEventPublisher eventPublisher;
     @Mock com.goodsbridge.shop.ShopRepository shopRepository;
     @Mock Auction auction;
     @Mock Shop shop;
@@ -51,7 +53,8 @@ class BidServiceTest {
 
     @BeforeEach
     void setUp() {
-        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService, shopRepository);
+        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
+            shopRepository, eventPublisher);
         lenient().when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
         lenient().when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         lenient().when(auction.getId()).thenReturn(1L);

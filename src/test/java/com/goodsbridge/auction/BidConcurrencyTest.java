@@ -7,6 +7,7 @@ import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,7 +85,8 @@ class BidConcurrencyTest {
         paymentService = mock(PaymentService.class);
         when(paymentService.verify(anyString(), anyInt(), any(), anyLong()))
             .thenAnswer(invocation -> invocation.getArgument(0));
-        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService, shopRepository);
+        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
+            shopRepository, mock(ApplicationEventPublisher.class));
 
         auctionId = tx.execute(status -> auctionRepository.save(new Auction(
             shopRepository.findById(SHOP_ID).orElseThrow(),

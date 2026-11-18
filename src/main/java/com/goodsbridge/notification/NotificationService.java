@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
@@ -77,23 +79,42 @@ public class NotificationService {
         User receiver = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("사용자가 없습니다"));
 
-        // 읽지 않은 상태의 알림 객체를 만듭니다.
-        Notification notification = new Notification(
-            receiver,
-            type,
-            title,
-            content,
-            referenceType,
-            referenceId
-        );
+        Notification notification;
+        if (type == Notification.Type.EXCHANGE_MESSAGE) {
+            notification = notificationRepository
+                .findFirstByReceiverIdAndTypeAndReferenceTypeAndReferenceIdAndReadStatus(
+                    userId,
+                    type,
+                    referenceType,
+                    referenceId,
+                    Notification.ReadStatus.UNREAD
+                )
+                .orElse(null);
+            if (notification != null) {
+                notification.updateContent(title, content);
+            }
+        } else {
+            notification = null;
+        }
+
+        // 같은 교환 건의 읽지 않은 메시지 알림이 없다면 새로 만듭니다.
+        if (notification == null) {
+            notification = new Notification(receiver, type, title, content, referenceType, referenceId);
+        }
 
         // 알림을 데이터베이스에 저장합니다.
         notificationRepository.save(notification);
 
-        // 해당 사용자가 SSE 연결 중이면 저장한 알림을 실시간으로 보냅니다.
-        sseService.send(
-            userId,
-            new NotificationResponse.NotificationDto(notification)
+        // 커밋된 알림만 실시간으로 보냅니다. 클라이언트가 즉시 조회해도 저장 결과가 보이도록 합니다.
+        NotificationResponse.NotificationDto notificationDto =
+            new NotificationResponse.NotificationDto(notification);
+        TransactionSynchronizationManager.registerSynchronization(
+            new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sseService.send(userId, notificationDto);
+                }
+            }
         );
     }
 }

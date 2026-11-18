@@ -38,8 +38,13 @@ class ShopSubscriptionCancelIntegrationTest {
     @Autowired
     private CategoryJpaRepository categoryRepository;
 
+    @Autowired
+    com.goodsbridge.notification.NotificationRepository notificationRepository;
+
     @AfterEach
     void tearDown() {
+        // 알림이 유저를 참조하므로 유저보다 먼저 지운다
+        notificationRepository.deleteAllInBatch();
         subscriptionRepository.deleteAllInBatch();
         itemRepository.deleteAllInBatch();
         shopRepository.deleteAllInBatch();

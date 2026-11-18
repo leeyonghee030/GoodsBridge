@@ -65,6 +65,21 @@ class ShopSubscriptionBatchServiceTest {
     }
 
     @Test
+    void D3_만료_예정_ACTIVE_구독만_리마인더를_보낸다() {
+        LocalDate targetDate = LocalDate.now().plusDays(3);
+        when(subscriptionRepository.findActiveSubscriptionIdsEndingOn(
+            targetDate, ShopSubscriptionStatus.ACTIVE)).thenReturn(List.of(21L, 22L));
+        when(subscriptionProcessor.sendExpiringReminderById(anyLong(), eq(targetDate)))
+            .thenReturn(true);
+
+        int result = batchService.sendExpiringSubscriptionReminders();
+
+        assertThat(result).isEqualTo(2);
+        verify(subscriptionProcessor).sendExpiringReminderById(21L, targetDate);
+        verify(subscriptionProcessor).sendExpiringReminderById(22L, targetDate);
+    }
+
+    @Test
     void 특정_구독_처리에_실패해도_나머지_구독을_계속_처리한다() {
 
         // given

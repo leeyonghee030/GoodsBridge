@@ -3,6 +3,8 @@ package com.goodsbridge.auction;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.user.Role;
@@ -10,6 +12,7 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,6 +32,7 @@ public class BidService {
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopRepository shopRepository;
+    private final ApplicationEventPublisher publisher;
 
     // 입찰 (서버가 거절하면 이미 승인된 보증금 PortOne 결제를 자동 취소한다)
     @Transactional
@@ -121,7 +125,22 @@ public class BidService {
             .depositPaymentId(depositPaymentId)
             .build());
 
+        // 현재가를 갱신하기 전의 1등 (상위 입찰로 밀려난 사람)
+        User prevWinner = auction.getCurrentWinner();
         auction.updateCurrentBid(request.getBidAmount(), user);
+        if (prevWinner != null && !prevWinner.getId().equals(userId)) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    prevWinner.getId(),
+                    Notification.Type.AUCTION_OUTBID,
+                    "[상위 입찰]",
+                    "'" + auction.getItem().getTitle() + "' 경매에서 더 높은 입찰이 발생했습니다. " +
+                        "현재 최고 입찰가를 확인해 주세요.",
+                    Notification.ReferenceType.AUCTION,
+                    auction.getId()
+                )
+            );
+        }
 
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);
