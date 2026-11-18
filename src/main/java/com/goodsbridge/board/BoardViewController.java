@@ -58,7 +58,11 @@ public class BoardViewController {
     @GetMapping("/test/board/{id}")
     public String detail(@PathVariable Long id, Model model) {
         Long userId = SecurityUtil.getCurrentUserIdOrNull();
-        model.addAttribute("board", boardService.getBoard(id, userId));
+        BoardResponseDto board = boardService.getBoard(id, userId);
+        model.addAttribute("board", board);
+        // 커뮤니티와 상품 리뷰는 항상 공개 글이라 수정 폼에 비밀글 선택지를 보여주지 않는다
+        model.addAttribute("canSecret",
+            board.getBoardType() != BoardType.COMMUNITY && board.getBoardType() != BoardType.PRODUCT_REVIEW);
         model.addAttribute("userId", userId);
         return "board/detail";
     }

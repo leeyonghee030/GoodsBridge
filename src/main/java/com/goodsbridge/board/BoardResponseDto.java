@@ -28,6 +28,7 @@ public class BoardResponseDto {
     private BoardStatus status;
     private LocalDateTime createdAt;
     private List<ReplyResponseDto> replies;
+    private BoardType boardType;
 
     // 게시글 상세 조회
     public static BoardResponseDto from(
@@ -50,7 +51,8 @@ public class BoardResponseDto {
             board.getIsSecret(),
             getReplyStatus(board),
             board.getCreatedAt(),
-            replyDtos
+            replyDtos,
+            board.getBoardType()
         );
     }
 
@@ -73,7 +75,8 @@ public class BoardResponseDto {
                 true,
                 null,
                 null,
-                List.of()
+                List.of(),
+                board.getBoardType()
             );
         }
 
@@ -87,7 +90,8 @@ public class BoardResponseDto {
             board.getIsSecret(),
             getReplyStatus(board),
             board.getCreatedAt(),
-            List.of()
+            List.of(),
+            board.getBoardType()
         );
     }
 

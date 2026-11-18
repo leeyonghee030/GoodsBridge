@@ -1,7 +1,7 @@
 {{> fragments/header}}
 
 <div class="container detail-container board-detail-container">
-<a href="/test/board" class="back-link">← 목록으로</a>
+<a href="/test/board?boardType={{board.boardType}}" class="back-link">← 목록으로</a>
 <div class="detail-grid">
     <div class="detail-post" id="view-section">
         <div class="detail-head-top">
@@ -25,12 +25,13 @@
         <form id="edit-form">
             <p><input id="edit-title" type="text" maxlength="100" autocomplete="off" required></p>
             <p><textarea id="edit-content" rows="5" required></textarea></p>
-            <p style="position: relative;">
+            <!-- 게시글의 연결 상품은 수정할 수 없다(서버가 수정 요청의 상품을 반영하지 않는다) -->
+            <p style="position: relative;" hidden>
                 <input id="item-search" type="text" placeholder="관련 상품 검색 (선택)" autocomplete="off">
                 <input id="edit-item-id" type="hidden" value="{{#board.itemId}}{{board.itemId}}{{/board.itemId}}">
                 <div id="item-search-results" class="autocomplete-list"></div>
             </p>
-            <label class="checkbox-row">
+            <label class="checkbox-row" {{^canSecret}}hidden{{/canSecret}}>
                 <input type="checkbox" id="edit-secret" {{#board.isSecret}}checked{{/board.isSecret}}>
                 비밀글로 유지
             </label>

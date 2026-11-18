@@ -28,6 +28,7 @@
     <div id="board-list" class="board-list-box">
         {{^boards}}<p class="empty">아직 등록된 게시글이 없습니다.</p>{{/boards}}
         {{#boards}}
+        {{#authorId}}
         <a class="payment-row" href="/test/board/{{id}}" style="text-decoration: none; color: inherit;">
             <div>
                 <strong>{{#isSecret}}🔒 {{/isSecret}}{{title}}</strong>
@@ -35,6 +36,15 @@
             </div>
             <small class="board-meta"><span class="board-date" data-iso="{{createdAt}}"></span></small>
         </a>
+        {{/authorId}}
+        {{^authorId}}
+        <div class="payment-row" style="color: var(--color-muted);">
+            <div>
+                <strong>🔒 {{title}}</strong>
+                <small>작성자와 관리자만 볼 수 있어요</small>
+            </div>
+        </div>
+        {{/authorId}}
         {{/boards}}
     </div>
     <p id="load-more-status" class="empty" hidden>불러오는 중...</p>
@@ -98,6 +108,12 @@ const errorText = async (res, fallback) => {
     let sortDirection = 'desc'; // 최신순 기본
 
     function rowHtml(board) {
+        // 읽을 권한이 없는 글은 서버가 작성자 등 정보를 비워서 보낸다. 눌러도 403 이라 링크 없이 안내만 보여준다.
+        if (board.authorId == null) {
+            return `<div class="payment-row" style="color: var(--color-muted);">
+                <div><strong>🔒 ${esc(board.title)}</strong><small>작성자와 관리자만 볼 수 있어요</small></div>
+            </div>`;
+        }
         return `<a class="payment-row" href="/test/board/${board.id}" style="text-decoration: none; color: inherit;">
             <div>
                 <strong>${board.isSecret ? '🔒 ' : ''}${esc(board.title)}</strong>
