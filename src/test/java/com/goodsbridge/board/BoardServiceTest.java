@@ -1,6 +1,7 @@
 
 package com.goodsbridge.board;
 
+import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -51,6 +52,9 @@ class BoardServiceTest {
 
     @Mock
     private ItemRepository itemRepository;
+
+    @Mock
+    private ApplicationEventPublisher publisher;
 
     @InjectMocks
     private BoardService boardService;

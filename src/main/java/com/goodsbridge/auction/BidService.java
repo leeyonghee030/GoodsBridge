@@ -125,12 +125,13 @@ public class BidService {
             .depositPaymentId(depositPaymentId)
             .build());
 
-        User prevWinner = auction.getCurrentWinner(); // ← 85줄 앞
+        // 현재가를 갱신하기 전의 1등 (상위 입찰로 밀려난 사람)
+        User prevWinner = auction.getCurrentWinner();
         auction.updateCurrentBid(request.getBidAmount(), user);
         if (prevWinner != null && !prevWinner.getId().equals(userId)) {
             publisher.publishEvent(
                 new NotificationEvent(
-                    auction.getCurrentWinner().getId(),
+                    prevWinner.getId(),
                     Notification.Type.AUCTION_OUTBID,
                     "[상위 입찰]",
                     "'" + auction.getItem().getTitle() + "' 경매에서 더 높은 입찰이 발생했습니다. " +
@@ -140,8 +141,6 @@ public class BidService {
                 )
             );
         }
-
-        auction.updateCurrentBid(request.getBidAmount(), user);
 
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);

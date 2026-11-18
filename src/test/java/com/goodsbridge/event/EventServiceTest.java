@@ -1,5 +1,6 @@
 package com.goodsbridge.event;
 
+import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge.event.dto.EventParticipationRequest;
@@ -77,6 +78,7 @@ class EventServiceTest {
     @Mock TransactionTemplate transactionTemplate;
     @Mock ShopSubscriptionService shopSubscriptionService;
     @Mock CategoryJpaRepository categoryRepository;
+    @Mock ApplicationEventPublisher publisher;
     @InjectMocks EventService eventService;
 
     private static final Long EVENT_ID = 1L;

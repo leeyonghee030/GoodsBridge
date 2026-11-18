@@ -67,7 +67,9 @@ class AuctionServiceCloseExpiredTest {
 
     @Test
     void closeExpired_endsAuctionWithoutBidsAsFailAndSkipsSettlement() {
-        Auction auction = expiredAuction(mock(Shop.class));
+        Item item = mock(Item.class);
+        when(item.getTitle()).thenReturn("테스트 상품");
+        Auction auction = expiredAuction(mock(Shop.class), item);
         when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
 
         auctionService.closeExpired(1L);
