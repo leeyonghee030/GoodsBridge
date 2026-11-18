@@ -106,7 +106,9 @@ class ShopApprovalAndChainCodeTest {
         assertEquals(ShopStatus.REJECTED, shop.getStatus());
         verifyNoInteractions(itemRepository);
         verifyNoInteractions(subscriptionRepository);
-        verifyNoInteractions(eventPublisher);
+        // 신규 입점 신청 거절은 신청자에게 알림 이벤트만 발행한다 (구독 취소 이벤트는 없음)
+        verify(eventPublisher).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
+        verify(eventPublisher, never()).publishEvent(any(ShopSubscriptionCanceledEvent.class));
     }
 
     @Test

@@ -1,20 +1,23 @@
 package com.goodsbridge.purchase;
 
+import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.ForbiddenException;
+import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
+import com.goodsbridge.payment.PaymentRepository;
+import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.refund.RefundRepository;
+import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
-import com.goodsbridge.payment.PaymentService;
-import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.shop.ShopRepository;
-import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
-import com.goodsbridge._core.exception.ForbiddenException;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,11 +29,8 @@ import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import com.goodsbridge._core.exception.BadRequestException;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseServiceTest {
@@ -43,9 +43,10 @@ class PurchaseServiceTest {
     @Mock ShopRepository shopRepository;
     @Mock UserRepository userRepository;
     @Mock SettlementHistoryService settlementHistoryService;
-    @Mock com.goodsbridge.auction.AuctionRepository auctionRepository;
+    @Mock AuctionRepository auctionRepository;
     @InjectMocks PurchaseService purchaseService;
     @Mock ApplicationEventPublisher publisher;
+    @Mock RefundRepository refundRepository;
 
     @Test
     void findMine_returnsPurchaseDetailsFromRepository() {
@@ -80,7 +81,7 @@ class PurchaseServiceTest {
         Purchase purchase = Purchase.builder()
             .item(mock(Item.class)).user(buyer).paymentId("payment-1")
             .deliveryAddress("Seoul").build();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         assertThrows(ForbiddenException.class, () -> purchaseService.confirm(1L, 20L));
         verifyNoInteractions(paymentService, settlementHistoryService);
@@ -94,7 +95,7 @@ class PurchaseServiceTest {
         Purchase purchase = Purchase.builder()
             .item(item).user(mock(User.class)).paymentId("payment-1")
             .deliveryAddress("Seoul").build();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         PurchaseRequest.ShippingDto dto = new PurchaseRequest.ShippingDto();
         dto.setTrackingNumber("TRACK-1");
@@ -253,7 +254,7 @@ class PurchaseServiceTest {
         purchase.ship("TRACK-1");
         purchase.markDelivered();
         purchase.confirm();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         purchaseService.confirm(1L, 10L);
 
@@ -367,6 +368,19 @@ class PurchaseServiceTest {
     }
 
     @Test
+    void shipping_rejectsWhenRefundRequestIsPending() {
+        Purchase purchase = purchaseOwnedBySeller(10L);
+        when(refundRepository.existsPendingByPaymentId("payment-1")).thenReturn(true);
+
+        PurchaseRequest.ShippingDto dto = new PurchaseRequest.ShippingDto();
+        dto.setTrackingNumber("TRACK-1");
+
+        assertThrows(BadRequestException.class, () -> purchaseService.shipping(1L, 10L, dto));
+
+        assertEquals(DeliveryStatus.PREPARING, purchase.getDeliveryStatus());
+    }
+
+    @Test
     void shipping_cannotRevertDeliveredPurchaseByResendingTrackingNumber() {
         Purchase purchase = purchaseOwnedBySeller(10L);
         purchase.ship("TRACK-1");
@@ -411,7 +425,7 @@ class PurchaseServiceTest {
             .deliveryAddress("Seoul").build();
         purchase.ship("TRACK-1");
         purchase.markDelivered();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
 
         Shop shop = mock(Shop.class);
         when(shopRepository.findById(1L)).thenReturn(java.util.Optional.of(shop));
@@ -435,7 +449,7 @@ class PurchaseServiceTest {
         when(item.getSellerUserId()).thenReturn(sellerUserId);
         Purchase purchase = Purchase.builder().item(item).user(mock(User.class)).paymentId("payment-1")
             .deliveryAddress("Seoul").build();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
         return purchase;
     }
 
@@ -517,7 +531,7 @@ class PurchaseServiceTest {
     }
 
     @Test
-    void confirm_auctionPurchaseReleasesPaymentButDoesNotSettleAgain() {
+    void confirm_auctionPurchaseReleasesPaymentAndSettlesAfterDelivery() {
         User buyer = mock(User.class);
         when(buyer.getId()).thenReturn(10L);
         Item item = mock(Item.class);
@@ -525,13 +539,43 @@ class PurchaseServiceTest {
             .deliveryAddress("Seoul").source(PurchaseSource.AUCTION).amount(35_000).build();
         purchase.ship("TRACK-1");
         purchase.markDelivered();
-        when(purchaseRepository.findById(1L)).thenReturn(java.util.Optional.of(purchase));
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
+        com.goodsbridge.auction.Auction auction = mock(com.goodsbridge.auction.Auction.class);
+        when(auction.getShop()).thenReturn(mock(Shop.class));
+        when(auction.getAuctionSettlementAmount()).thenReturn(35_000);
+        when(auctionRepository.findByBalancePaymentId("balance-1")).thenReturn(java.util.Optional.of(auction));
+        Payment balancePayment = mock(Payment.class);
+        when(paymentRepository.findByPaymentId("balance-1")).thenReturn(java.util.Optional.of(balancePayment));
 
         purchaseService.confirm(1L, 10L);
 
         assertEquals(PurchaseStatus.CONFIRMED, purchase.getStatus());
         verify(paymentService).release("balance-1");
-        // 경매 정산(수수료 포함)은 잔금 결제 때 이미 기록했으므로 PURCHASE_FEE 를 또 만들지 않는다
-        verifyNoInteractions(settlementHistoryService);
+        verify(settlementHistoryService).calculate(
+            auction.getShop(), balancePayment, 35_000, SettlementHistoryType.AUCTION_SALE);
+    }
+
+    @Test
+    void confirm_auctionPurchaseAlsoReleasesWinnerDepositPayment() {
+        User buyer = mock(User.class);
+        when(buyer.getId()).thenReturn(10L);
+        Purchase purchase = Purchase.builder().item(mock(Item.class)).user(buyer).paymentId("balance-1")
+            .deliveryAddress("Seoul").source(PurchaseSource.AUCTION).amount(35_000).build();
+        purchase.ship("TRACK-1");
+        purchase.markDelivered();
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
+
+        com.goodsbridge.auction.Auction auction = mock(com.goodsbridge.auction.Auction.class);
+        when(auction.getWinningPaymentId()).thenReturn("deposit-1");
+        when(auctionRepository.findByBalancePaymentId("balance-1")).thenReturn(java.util.Optional.of(auction));
+        Payment deposit = mock(Payment.class);
+        when(deposit.isPaid()).thenReturn(true);
+        when(deposit.getPaymentId()).thenReturn("deposit-1");
+        when(paymentRepository.findByPaymentId("deposit-1")).thenReturn(java.util.Optional.of(deposit));
+
+        purchaseService.confirm(1L, 10L);
+
+        verify(paymentService).release("balance-1");
+        verify(paymentService).release("deposit-1");
     }
 }

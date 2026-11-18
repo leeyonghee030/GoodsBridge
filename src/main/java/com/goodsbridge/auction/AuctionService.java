@@ -33,13 +33,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.text.NumberFormat;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Locale;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class AuctionService {
+    private static final int ENDING_SOON_WINDOW_MINUTES = 60;
     private final AuctionRepository auctionRepository;
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
@@ -53,9 +57,43 @@ public class AuctionService {
     private final EntityManager entityManager;
     private final ApplicationEventPublisher publisher;
 
+    // 마감 임박 알림은 경매 행 잠금과 저장 플래그로 중복 발송을 막는다.
+    @Transactional
+    public void notifyEndingSoon(Long auctionId) {
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        LocalDateTime now = LocalDateTime.now();
+        if (auction.getStatus() != Status.ACTIVE
+            || auction.isEndingSoonNotified()
+            || auction.getDeadline() == null
+            || !auction.getDeadline().isAfter(now)
+            || auction.getDeadline().isAfter(now.plusMinutes(ENDING_SOON_WINDOW_MINUTES))) {
+            return;
+        }
+
+        String currentPrice = NumberFormat.getIntegerInstance(Locale.KOREA)
+            .format(auction.getCurrentPrice());
+        String content = "'" + auction.getItem().getTitle()
+            + "' 경매가 1시간 뒤 마감돼요 (현재가 " + currentPrice + "원)";
+        for (Long bidderUserId : bidRepository.findBidderUserIds(auctionId)) {
+            publisher.publishEvent(new NotificationEvent(
+                bidderUserId,
+                Notification.Type.AUCTION_ENDING_SOON,
+                "경매 마감 임박",
+                content,
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            ));
+        }
+        auction.markEndingSoonNotified();
+    }
+
     // 경매 개설
     @Transactional
     public AuctionResponse create(Long userId, Long shopId, AuctionRequest request) {
+        if (request == null) {
+            throw new BadRequestException("경매 등록 요청 값이 필요합니다.");
+        }
         request.validate(); // 유효성 검사
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
@@ -115,7 +153,7 @@ public class AuctionService {
 
     // 경매 목록 조회 + 페이징 처리
     public Page<AuctionResponse> findAll(int page, int size, Status status) {
-        int pageIndex = Math.max(0, page - 1);
+        int pageIndex = Math.max(0, page);
         int validSize = Math.max(1, Math.min(size, 50));
         Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
 
@@ -130,7 +168,7 @@ public class AuctionService {
 
     // 가게의 경매 목록 (가게 경매 관리 화면용, 상태는 선택)
     public Page<AuctionResponse> findAllByShop(int page, int size, Status status, Long shopId) {
-        int pageIndex = Math.max(0, page - 1);
+        int pageIndex = Math.max(0, page);
         int validSize = Math.max(1, Math.min(size, 50));
         Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
         return withBidCounts(auctionRepository.findAllByShop(shopId, status, pageable));
@@ -151,6 +189,9 @@ public class AuctionService {
     // 경매 수정: 가게 주인만, 입찰이 하나도 없을 때만 (시작가 · 마감 시간 · 보증금)
     @Transactional
     public AuctionResponse update(Long userId, Long auctionId, AuctionUpdateRequest request) {
+        if (request == null) {
+            throw new BadRequestException("경매 수정 요청 값이 필요합니다.");
+        }
         request.validate();
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -179,7 +220,7 @@ public class AuctionService {
         return new AuctionReceiptResponse(auction, bidCount, purchase);
     }
 
-    // 가게의 경매 정산 내역: 낙찰 정산(AUCTION_SALE) + 낙찰자 미결제로 받은 보증금(NO_SHOW_FEE 중 경매 건)
+    // 가게의 경매 정산 내역: 낙찰 정산 + 낙찰자 미결제로 받은 보증금
     @Transactional(readOnly = true)
     public java.util.List<AuctionSettlementResponse> getShopSettlements(Long userId, Long shopId) {
         Shop shop = shopRepository.findById(shopId)
@@ -188,14 +229,14 @@ public class AuctionService {
             throw new ForbiddenException("본인 가게의 정산 내역만 조회할 수 있습니다.");
         }
         java.util.List<AuctionSettlementResponse> result = new java.util.ArrayList<>();
-        for (SettlementHistory history : settlementHistoryRepository.findByAllShopId(shopId)) {
+        for (SettlementHistory history : settlementHistoryRepository.findAuctionSettlementsByShop(shopId)) {
             String paymentId = history.getPayment().getPaymentId();
             if (history.getType() == SettlementHistoryType.AUCTION_SALE) {
                 auctionRepository.findByBalancePaymentId(paymentId).ifPresent(a ->
                     result.add(new AuctionSettlementResponse(a, "AUCTION_SALE", history.getAmount(), history.getCreatedAt())));
-            } else if (history.getType() == SettlementHistoryType.NO_SHOW_FEE) {
+            } else if (history.getType() == SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT) {
                 auctionRepository.findByWinningPaymentId(paymentId).ifPresent(a ->
-                    result.add(new AuctionSettlementResponse(a, "NO_SHOW_FEE", history.getAmount(), history.getCreatedAt())));
+                    result.add(new AuctionSettlementResponse(a, "AUCTION_DEPOSIT_FORFEIT", history.getAmount(), history.getCreatedAt())));
             }
         }
         return result;
@@ -232,7 +273,7 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
-    // 경매 취소 - 가게 주인은 경매 입찰자가 없으면 취소한다.
+    // 경매 취소
     @Transactional
     public AuctionResponse cancel(Long userId, Long id) {
         Auction auction = auctionRepository.findByIdLock(id)
@@ -253,6 +294,22 @@ public class AuctionService {
         // 입찰이 있어도 가게 사정으로 취소할 수 있다. 취소하면 모든 입찰자의 보증금이 환불된다 (refundCancelled).
 
         auction.cancel();
+
+        List<Long> bidderUserIdList = bidRepository.findBidderUserIds(auction.getId());
+
+        for (Long bidderUserId : bidderUserIdList) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    bidderUserId,
+                    Notification.Type.AUCTION_WIN,
+                    "[경매 취소]",
+                    " '{" + auction.getItem().getTitle() + "}' 경매가 취소되었습니다. 보증금은 모두 환불됩니다",
+                    Notification.ReferenceType.AUCTION,
+                    auction.getId()
+                )
+            );
+        }
+
         return new AuctionResponse(auction);
     }
 
@@ -265,11 +322,29 @@ public class AuctionService {
         if (auction.getDeadline().isAfter(now)) {
             throw new BadRequestException("아직 마감 시간이 지나지 않았습니다.");
         }
-        // 낙찰이면 잔금 결제 기한이 정해진다. 수수료 정산은 잔금 결제가 끝난 뒤(payBalance)에 한다.
+        // 낙찰이면 잔금 결제 기한이 정해진다. 정산은 배송 완료 후 구매 확정 시 처리한다.
         // 패찰자 보증금 환불은 PortOne 호출이라 마감 트랜잭션과 분리해 스케줄러가 처리한다(refundLosers).
         auction.end();
 
-        if (auction.getStatus() == Status.ENDED_SUCCESS){
+        String title = auction.getCurrentWinner() != null ? "[상품 낙찰]" : "[상품 유찰]";
+        String content = auction.getCurrentWinner() != null ? auction.getItem().getTitle() + " 경매가 " +
+            auction.getCurrentPrice() + "원에 낙찰되었습니다"
+            : auction.getItem().getTitle() + " 경매가 유찰되었습니다";
+
+        // 가게 주인
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getShop().getOwnerUserId(),
+                Notification.Type.AUCTION_WIN,
+                title,
+                content,
+                Notification.ReferenceType.AUCTION,
+                auction.getId()
+            )
+        );
+
+        // 입찰자
+        if (auction.getStatus() == Status.ENDED_SUCCESS) {
             publisher.publishEvent(
                 new NotificationEvent(
                     auction.getCurrentWinner().getId(),
@@ -284,7 +359,6 @@ public class AuctionService {
                 )
             );
         }
-
     }
 
     // 스케줄러가 호출하는 단건 마감.
@@ -298,12 +372,23 @@ public class AuctionService {
         closeInternal(auction);
     }
 
-    // 낙찰자 잔금 결제
+    // 낙찰자 잔금 결제 (서버가 거절하면 이미 승인된 잔금 PortOne 결제를 자동 취소한다)
     @Transactional
     public AuctionResponse payBalance(Long userId, Long auctionId, BalancePayRequest request) {
         if (request == null || request.getPaymentId() == null || request.getPaymentId().isBlank()) {
             throw new BadRequestException("잔금 결제 ID가 필요합니다.");
         }
+        try {
+            return doPayBalance(userId, auctionId, request);
+        } catch (RuntimeException e) {
+            // 취소 실패는 로그만 남기고 원래 예외를 그대로 던진다 (이미 기록된 결제는 취소되지 않는다)
+            paymentService.cancelUnrecorded(request.getPaymentId(), "잔금 결제 처리 실패로 인한 자동 취소");
+            throw e;
+        }
+    }
+
+    // 잔금 결제 본 처리
+    private AuctionResponse doPayBalance(Long userId, Long auctionId, BalancePayRequest request) {
         // 마감/미납 처리 스케줄러와 겹치지 않도록 경매 행을 잠근다
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -328,7 +413,23 @@ public class AuctionService {
 
         String balancePaymentId = paymentService.verify(
             request.getPaymentId(), balance, PaymentPurpose.AUCTION_BALANCE, userId);
+        // 결제 검증에 성공했더라도 내부 결제 기록이 없으면 구매를 만들지 않는다.
+        paymentRepository.findByPaymentId(balancePaymentId)
+            .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
         auction.completeBalance(balancePaymentId);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getShop().getOwnerUserId(),
+                Notification.Type.AUCTION_PAID,
+                "[낙찰자 잔금 결제]",
+                "낙찰자가 " + auction.getItem().getTitle() +
+                    " 잔금을 결제했습니다. 배송을 준비해 주세요",
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            )
+        );
+
         auction.getItem().updateStatus(ItemStatus.SOLD);
 
         purchaseRepository.save(Purchase.builder()
@@ -340,16 +441,6 @@ public class AuctionService {
             .amount(auction.getCurrentPrice())
             .build());
 
-        // 가게 정산: 실제로 잔금 결제가 완료된 시점에 보증금 + 잔금인 낙찰가 전액을 기록한다.
-        Payment payment = paymentRepository.findByPaymentId(balancePaymentId)
-            .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
-        int auctionSettlementAmount = auction.getAuctionSettlementAmount();
-        settlementHistoryService.calculate(
-            auction.getShop(),
-            payment,
-            auctionSettlementAmount,
-            SettlementHistoryType.AUCTION_SALE
-        );
         return new AuctionResponse(auction);
     }
 
@@ -360,33 +451,68 @@ public class AuctionService {
         if (winnerId == null) {
             return;
         }
-        for (String paymentId : bidRepository.findLoserDepositPaymentIds(auctionId, winnerId)) {
-            refundDeposit(paymentId, "경매 패찰 보증금 환불");
-        }
+        // 실제로 환불이 된 건에만 패찰 알림을 보낸다 (환불 실패 후 재시도 때 이미 환불된 건에 알림이 또 가지 않도록)
+        refundDeposits(bidRepository.findLoserDepositPaymentIds(auctionId, winnerId), "경매 패찰 보증금 환불",
+            payment -> publisher.publishEvent(
+                new NotificationEvent(
+                    payment.getUser().getId(),
+                    Notification.Type.AUCTION_LOST,
+                    "[상품 패찰]",
+                    " 아쉽게 낙찰되지 않았습니다. 보증금은 환불됩니다",
+                    Notification.ReferenceType.AUCTION,
+                    auctionId
+                )
+            ));
     }
 
     // 취소된 경매의 보증금 환불
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void refundCancelled(Long auctionId) {
-        for (String paymentId : bidRepository.findAllDepositPaymentIds(auctionId)) {
-            refundDeposit(paymentId, "경매 취소 보증금 환불");
+        refundDeposits(bidRepository.findAllDepositPaymentIds(auctionId), "경매 취소 보증금 환불");
+    }
+
+    // 한 건이 실패해도 나머지 환불은 계속하고, 하나라도 실패했으면 첫 예외를 던져 스케줄러가 다음 주기에 재시도하게 한다
+    private void refundDeposits(java.util.Collection<String> paymentIds, String reason) {
+        refundDeposits(paymentIds, reason, null);
+    }
+
+    // onRefunded: 환불이 실제로 일어난 결제에 대해서만 호출된다 (이미 환불됐거나 건너뛴 건은 호출 안 됨)
+    private void refundDeposits(java.util.Collection<String> paymentIds, String reason,
+                                java.util.function.Consumer<Payment> onRefunded) {
+        RuntimeException firstFailure = null;
+        for (String paymentId : paymentIds) {
+            try {
+                Payment refunded = refundDeposit(paymentId, reason);
+                if (refunded != null && onRefunded != null) {
+                    onRefunded.accept(refunded);
+                }
+            } catch (RuntimeException e) {
+                log.error("경매 보증금 환불 실패 - paymentId={}", paymentId, e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
         }
     }
 
-    // 보증금 결제 1건 환불 (이미 환불됐거나 환불할 금액이 없으면 건너뜀)
-    private void refundDeposit(String paymentId, String reason) {
+    // 보증금 결제 1건 환불 (이미 환불됐거나 환불할 금액이 없으면 건너뜀). 실제로 환불했으면 그 결제를, 건너뛰었으면 null 을 돌려준다.
+    private Payment refundDeposit(String paymentId, String reason) {
         Payment payment = paymentRepository.findByPaymentId(paymentId).orElse(null);
         if (payment == null) {
-            return;
+            return null;
         }
         boolean refundable = payment.isPaid() || payment.getStatus() == PaymentStatus.PARTIAL_CANCELLED;
         if (!refundable || payment.getRefundableAmount() <= 0) {
-            return;
+            return null;
         }
         paymentService.refund(paymentId, payment.getRefundableAmount(), reason);
+        return payment;
     }
 
-    // 환불이 전부 끝난 경매 표시 (refundLosers 성공 뒤 스케줄러가 호출)
+    // 환불이 전부 끝난 경매 표시
     @Transactional
     public void markLosersRefunded(Long auctionId) {
         auctionRepository.findById(auctionId).ifPresent(Auction::markLosersRefunded);
@@ -406,6 +532,31 @@ public class AuctionService {
         }
         auction.forfeitUnpaid();
 
+        // 낙찰자
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getCurrentWinner().getId(),
+                Notification.Type.AUCTION_FORFEITED,
+                "[낙찰 취소]",
+                "잔금 기한이 지나 낙찰이 취소되었습니다",
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            )
+        );
+
+        // 가게
+        publisher.publishEvent(
+            new NotificationEvent(
+                auction.getShop().getOwnerUserId(),
+                Notification.Type.AUCTION_FORFEITED,
+                "[낙찰 취소]",
+                "낙찰자가 기간 내에 잔금을 지급하지 않았으므로, '{" +
+                 auction.getItem().getTitle() + "}' 경매는 무효 처리 됩니다",
+                Notification.ReferenceType.AUCTION,
+                auctionId
+            )
+        );
+
         if (auction.getWinningPaymentId() != null) {
             Payment deposit = paymentRepository.findByPaymentId(
                     auction.getWinningPaymentId()
@@ -416,7 +567,7 @@ public class AuctionService {
                 auction.getShop(),
                 deposit,
                 auction.getDepositAmount(),
-                SettlementHistoryType.NO_SHOW_FEE
+                SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT
             );
         }
     }

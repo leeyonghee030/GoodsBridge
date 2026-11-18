@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -34,14 +36,21 @@ class NotificationServiceTest {
         when(notificationRepository.save(any(Notification.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        notificationService.createNotification(
-            userId,
-            Notification.Type.EXCHANGE_APPROVED,
-            "교환 신청 승인",
-            "신청한 교환이 승인되었습니다.",
-            Notification.ReferenceType.EXCHANGE,
-            27L
-        );
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            notificationService.createNotification(
+                userId,
+                Notification.Type.EXCHANGE_APPROVED,
+                "교환 신청 승인",
+                "신청한 교환이 승인되었습니다.",
+                Notification.ReferenceType.EXCHANGE,
+                27L
+            );
+            TransactionSynchronizationManager.getSynchronizations()
+                .forEach(TransactionSynchronization::afterCommit);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
 
         ArgumentCaptor<Notification> notificationCaptor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(notificationCaptor.capture());
@@ -61,5 +70,32 @@ class NotificationServiceTest {
         assertEquals("교환 신청 승인", sentDto.title());
         assertEquals("신청한 교환이 승인되었습니다.", sentDto.content());
         assertFalse(sentDto.isRead());
+    }
+
+    @Test
+    void createNotification_sendsOverSseOnlyAfterTransactionCommit() {
+        Long userId = 14L;
+        when(userRepository.findById(userId)).thenReturn(Optional.of(new User()));
+        when(notificationRepository.save(any(Notification.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            notificationService.createNotification(
+                userId,
+                Notification.Type.EXCHANGE_APPROVED,
+                "교환 신청 승인",
+                "신청한 교환이 승인되었습니다.",
+                Notification.ReferenceType.EXCHANGE,
+                27L
+            );
+
+            org.mockito.Mockito.verifyNoInteractions(sseService);
+            TransactionSynchronizationManager.getSynchronizations()
+                .forEach(TransactionSynchronization::afterCommit);
+
+            verify(sseService).send(org.mockito.ArgumentMatchers.eq(userId), any());
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }

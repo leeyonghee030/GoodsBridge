@@ -1,5 +1,6 @@
 package com.goodsbridge.auction;
 
+import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -60,6 +61,7 @@ class AuctionPaymentServiceTest {
     @Mock Shop shop;
     @Mock Item item;
     @Mock Payment payment;
+    @Mock ApplicationEventPublisher publisher;
 
     @InjectMocks AuctionService auctionService;
 
@@ -78,10 +80,15 @@ class AuctionPaymentServiceTest {
         lenient().when(auction.getItem()).thenReturn(item);
     }
 
+    // 서버가 거절한 잔금 결제는 기록되지 않았으므로 자동 취소를 요청해야 한다
+    private void verifyBalanceCancelled() {
+        verify(paymentService).cancelUnrecorded("balance-1", "잔금 결제 처리 실패로 인한 자동 취소");
+    }
+
     // ===================== payBalance =====================
 
     @Test
-    void payBalance_verifiesPayment_marksItemSold_andRecordsTenPercentAuctionFee() {
+    void payBalance_verifiesPayment_marksItemSold_withoutSettlingBeforeDelivery() {
         when(paymentService.verify("balance-1", 9_000, PaymentPurpose.AUCTION_BALANCE, 2L))
             .thenReturn("balance-1");
         when(paymentRepository.findByPaymentId("balance-1")).thenReturn(Optional.of(payment));
@@ -96,18 +103,18 @@ class AuctionPaymentServiceTest {
                 && purchase.getAmount() == 10_000
                 && "서울시 마포구".equals(purchase.getDeliveryAddress())
                 && "balance-1".equals(purchase.getPaymentId())));
-        verify(settlementHistoryService).calculate(
-            shop, payment, 10_000, SettlementHistoryType.AUCTION_SALE);
+        verifyNoInteractions(settlementHistoryService);
     }
 
     @Test
-    void payBalance_rejectsOverdueAuctionBeforePortOneVerification() {
+    void payBalance_rejectsOverdueAuctionBeforePortOneVerificationAndCancelsPayment() {
         when(auction.isBalanceOverdue(any(LocalDateTime.class))).thenReturn(true);
 
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
         verifyNoInteractions(settlementHistoryService);
         verify(auction, never()).completeBalance(any());
     }
@@ -131,7 +138,8 @@ class AuctionPaymentServiceTest {
         assertThrows(NotFoundException.class,
             () -> auctionService.payBalance(2L, 99L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -141,7 +149,8 @@ class AuctionPaymentServiceTest {
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -149,7 +158,8 @@ class AuctionPaymentServiceTest {
         assertThrows(ForbiddenException.class,
             () -> auctionService.payBalance(3L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
         verifyNoInteractions(settlementHistoryService);
     }
 
@@ -160,7 +170,8 @@ class AuctionPaymentServiceTest {
         assertThrows(ForbiddenException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -170,7 +181,8 @@ class AuctionPaymentServiceTest {
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
         verifyNoInteractions(settlementHistoryService);
     }
 
@@ -181,7 +193,8 @@ class AuctionPaymentServiceTest {
         assertThrows(BadRequestException.class,
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyBalanceCancelled();
     }
 
     @Test
@@ -195,6 +208,7 @@ class AuctionPaymentServiceTest {
         verify(auction, never()).completeBalance(any());
         verify(item, never()).updateStatus(any());
         verifyNoInteractions(settlementHistoryService);
+        verify(paymentService).cancelUnrecorded("balance-1", "잔금 결제 처리 실패로 인한 자동 취소");
     }
 
     @Test
@@ -207,6 +221,13 @@ class AuctionPaymentServiceTest {
             () -> auctionService.payBalance(2L, 1L, new BalancePayRequest("balance-1", "서울시 마포구")));
 
         verifyNoInteractions(settlementHistoryService);
+        verify(paymentService).cancelUnrecorded("balance-1", "잔금 결제 처리 실패로 인한 자동 취소");
+    }
+
+    @Test
+    void update_rejectsNullRequest() {
+        assertThrows(BadRequestException.class, () -> auctionService.update(1L, 1L, null));
+        verifyNoInteractions(auctionRepository);
     }
 
     // ===================== refundLosers =====================
@@ -221,11 +242,17 @@ class AuctionPaymentServiceTest {
             .thenReturn(Optional.of(loserPayment));
         when(loserPayment.isPaid()).thenReturn(true);
         when(loserPayment.getRefundableAmount()).thenReturn(1_000);
+        User loser = mock(User.class);
+        when(loser.getId()).thenReturn(7L);
+        when(loserPayment.getUser()).thenReturn(loser);
 
         auctionService.refundLosers(1L);
 
         verify(paymentService).refund(
             "deposit-loser-1", 1_000, "경매 패찰 보증금 환불");
+        // 환불된 패찰자에게 패찰 알림이 간다
+        verify(publisher).publishEvent(argThat((Object e) ->
+            e instanceof com.goodsbridge.notification.NotificationEvent n && n.userId().equals(7L)));
     }
 
     @Test
@@ -257,11 +284,16 @@ class AuctionPaymentServiceTest {
         when(partial.isPaid()).thenReturn(false);
         when(partial.getStatus()).thenReturn(PaymentStatus.PARTIAL_CANCELLED);
         when(partial.getRefundableAmount()).thenReturn(500);
+        User partialUser = mock(User.class);
+        when(partialUser.getId()).thenReturn(8L);
+        when(partial.getUser()).thenReturn(partialUser);
 
         auctionService.refundLosers(1L);
 
         verify(paymentService, times(1)).refund(anyString(), anyInt(), anyString());
         verify(paymentService).refund("partial", 500, "경매 패찰 보증금 환불");
+        // 실제로 환불된 건에만 패찰 알림이 간다
+        verify(publisher, times(1)).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
     }
 
     @Test
@@ -276,8 +308,29 @@ class AuctionPaymentServiceTest {
             .refund("deposit-loser-1", 1_000, "경매 패찰 보증금 환불");
 
         assertThrows(RuntimeException.class, () -> auctionService.refundLosers(1L));
+        // 환불이 실패한 건에는 패찰 알림이 가지 않는다 (재시도 때 보낸다)
+        verify(publisher, never()).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
     }
 
+    @Test
+    void refundLosers_continuesWithOtherPaymentsWhenOneFails_thenPropagatesFailure() {
+        Payment first = mock(Payment.class);
+        Payment second = mock(Payment.class);
+        when(auctionRepository.findWinnerUserId(1L)).thenReturn(2L);
+        when(bidRepository.findLoserDepositPaymentIds(1L, 2L)).thenReturn(List.of("dep-1", "dep-2"));
+        when(paymentRepository.findByPaymentId("dep-1")).thenReturn(Optional.of(first));
+        when(paymentRepository.findByPaymentId("dep-2")).thenReturn(Optional.of(second));
+        when(first.isPaid()).thenReturn(true);
+        when(first.getRefundableAmount()).thenReturn(1_000);
+        when(second.isPaid()).thenReturn(true);
+        when(second.getRefundableAmount()).thenReturn(2_000);
+        doThrow(new RuntimeException("PortOne 오류")).when(paymentService)
+            .refund("dep-1", 1_000, "경매 패찰 보증금 환불");
+
+        assertThrows(RuntimeException.class, () -> auctionService.refundLosers(1L));
+
+        verify(paymentService).refund("dep-2", 2_000, "경매 패찰 보증금 환불");
+    }
     // ===================== markLosersRefunded =====================
 
     @Test
@@ -299,7 +352,7 @@ class AuctionPaymentServiceTest {
     // ===================== forfeitUnpaid =====================
 
     @Test
-    void forfeitUnpaid_changesStatus_andRecordsWinnerDepositAsNoShowFee() {
+    void forfeitUnpaid_changesStatus_andRecordsWinnerDepositAsDepositForfeit() {
         when(auction.isBalancePaid()).thenReturn(false);
         when(auction.isBalanceOverdue(any(LocalDateTime.class))).thenReturn(true);
         when(auction.getWinningPaymentId()).thenReturn("deposit-1");
@@ -310,7 +363,7 @@ class AuctionPaymentServiceTest {
 
         verify(auction).forfeitUnpaid();
         verify(settlementHistoryService).calculate(
-            shop, payment, 1_000, SettlementHistoryType.NO_SHOW_FEE);
+            shop, payment, 1_000, SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT);
     }
 
     @Test

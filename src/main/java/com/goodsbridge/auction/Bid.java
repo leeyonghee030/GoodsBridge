@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 public class Bid {
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -30,14 +30,14 @@ public class Bid {
     private User user;
 
     @Column(nullable = false)
-    private Integer bidAmount;
+    private Integer bidAmount;  // 입찰 금액
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false, nullable = false)
     private LocalDateTime createdAt;
 
     @Column(name = "deposit_payment_id", nullable = false)
-    private String depositPaymentId;
+    private String depositPaymentId;    // 입금 결제 식별
 
     @Builder
     public Bid(Auction auction, User user, Integer bidAmount, String depositPaymentId) {

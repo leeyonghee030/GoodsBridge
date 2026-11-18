@@ -10,6 +10,8 @@
 
   let unreadCount = 0;
   let loadedNotifications = [];
+  const receivedNotificationIds = new Set();
+  const liveNotificationsDuringLoad = new Map();
   let eventSource;
 
   function setUnreadCount(count) {
@@ -87,7 +89,12 @@
     try {
       const response = await apiFetch('/api/notifications/unread');
       if (!response.ok) throw new Error('알림을 불러오지 못했습니다. 다시 로그인해 주세요.');
-      loadedNotifications = await response.json();
+      const fetchedNotifications = await response.json();
+      fetchedNotifications.forEach((notification) => receivedNotificationIds.add(notification.id));
+      const byId = new Map(fetchedNotifications.map((notification) => [notification.id, notification]));
+      liveNotificationsDuringLoad.forEach((notification, id) => byId.set(id, notification));
+      liveNotificationsDuringLoad.clear();
+      loadedNotifications = [...byId.values()];
       renderNotifications();
       await refreshCount();
     } catch (error) {
@@ -144,10 +151,16 @@
       eventSource.addEventListener('notification', (event) => {
         try {
           const notification = JSON.parse(event.data);
-          if (!loadedNotifications.some((item) => item.id === notification.id)) {
+          const isNewNotification = !receivedNotificationIds.has(notification.id);
+          if (isNewNotification) {
+            receivedNotificationIds.add(notification.id);
+            if (receivedNotificationIds.size > 500) {
+              receivedNotificationIds.delete(receivedNotificationIds.values().next().value);
+            }
             loadedNotifications.unshift(notification);
+            if (!panel.hidden) liveNotificationsDuringLoad.set(notification.id, notification);
+            setUnreadCount(unreadCount + 1);
           }
-          setUnreadCount(unreadCount + 1);
           if (!panel.hidden) renderNotifications();
         } catch (error) {
           console.error('알림 데이터를 읽지 못했습니다.', error);

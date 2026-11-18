@@ -673,7 +673,7 @@ public class DemoDataService {
                 .build());
         }
 
-        // 8) 종료 · 낙찰자가 기한 안에 잔금을 내지 않음 → 낙찰 무효, 낙찰자의 보증금만 가게 정산 (NO_SHOW_FEE)
+        // 8) 종료 · 낙찰자가 기한 안에 잔금을 내지 않음 → 낙찰 무효, 낙찰자의 보증금만 가게 정산
         Auction forfeited = saveAuction(shopOwner, shop, c1, "(테스트) 캐릭터 아크릴 키링 (잔금 미결제)", "낙찰자가 기한 안에 잔금을 내지 않아 보증금만 정산된 시연용 경매입니다.",
             18000, 2700, now.minusDays(4), images.get(5 % images.size()));
         bid(forfeited, userA, 19000, null);
@@ -681,9 +681,9 @@ public class DemoDataService {
         finishAuction(forfeited, now.minusDays(2));
         forfeited.forfeitUnpaid();
         auctionRepository.save(forfeited);
-        recordFee(shop, forfeitedDeposit, forfeited.getDepositAmount(), SettlementHistoryType.NO_SHOW_FEE);
+        recordFee(shop, forfeitedDeposit, forfeited.getDepositAmount(), SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT);
         settlementHistoryRepository.flush();
-        jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'NO_SHOW_FEE'",
+        jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'AUCTION_DEPOSIT_FORFEIT'",
             Timestamp.valueOf(now.minusDays(2)), forfeitedDeposit.getId());
     }
 

@@ -1,6 +1,7 @@
 package com.goodsbridge.admin;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge.payment.PaymentStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,11 +11,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +24,7 @@ public class AdminService {
 
     private final AdminRepository adminRepository;
 
+    // 관리자 대시보드 통계 조회
     public AdminResponse getDashboard(String month) {
         YearMonth selected = parseMonth(month);
         List<AdminResponse.MonthlyDto> months = new ArrayList<>();
@@ -65,11 +63,14 @@ public class AdminService {
         }
 
         long total = payments.stream().mapToLong(AdminSubscriptionPaymentItem::getAmount).sum();
+        int paidCount = (int) payments.stream()
+            .filter(p -> p.getStatus() != PaymentStatus.CANCELLED).count();
         long refunded = payments.stream().mapToLong(AdminSubscriptionPaymentItem::getRefundedAmount).sum();
         return new AdminSubscriptionPaymentResponse(
-            selected.toString(), payments.size(), total, refunded, total - refunded, payments);
+            selected.toString(), paidCount, total, refunded, total - refunded, payments);
     }
 
+    // 해당 월의 가입, 구독 결제, 매출, 신규 입점 및 이탈 통계 조회
     private AdminResponse.MonthlyDto monthly(YearMonth month) {
         LocalDateTime startAt = month.atDay(1).atStartOfDay();
         LocalDateTime endAt = month.plusMonths(1).atDay(1).atStartOfDay();
@@ -84,6 +85,7 @@ public class AdminService {
         );
     }
 
+    // 조회 월을 YYYY-MM 형식으로 변환하고, 미입력 시 현재 월 반환
     private YearMonth parseMonth(String month) {
         if (month == null || month.isBlank())
             return YearMonth.now();

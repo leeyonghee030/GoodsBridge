@@ -28,6 +28,9 @@ public class AuctionUpdateRequest {
         if (deadline == null || !deadline.isAfter(LocalDateTime.now())) {
             throw new BadRequestException("마감 시간은 미래 시간이어야 합니다.");
         }
+        if (deadline.isAfter(LocalDateTime.now().plusDays(Auction.MAX_DURATION_DAYS))) {
+            throw new BadRequestException("경매 마감은 최대 " + Auction.MAX_DURATION_DAYS + "일 이내로 설정해주세요.");
+        }
         // 보증금은 시작가의 10% ~ 20% 범위 (경매 개설과 같은 규칙)
         long start = startPrice;
         long deposit = depositAmount;

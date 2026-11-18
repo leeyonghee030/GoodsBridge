@@ -1,5 +1,5 @@
-package com.goodsbridge.board;
 
+package com.goodsbridge.board;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -10,9 +10,15 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
@@ -21,51 +27,83 @@ public class BoardController {
 
     private final BoardService boardService;
 
+    // 게시글 작성
     @PostMapping("/boards")
     public ResponseEntity<Long> createBoard(
         @RequestBody @Valid BoardRequestDto requestDto,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        Long boardId = boardService.createBoard(requestDto, loginUserId);
+        Long boardId = boardService.createBoard(
+            requestDto,
+            loginUserId
+        );
+
         return ResponseEntity.status(HttpStatus.CREATED).body(boardId);
     }
 
-    // 게시글 목록 조회 (페이징 및 검색 지원)
-    // 요청 예시: GET /api/boards?page=0&size=10&sort=id,desc&keyword=공지
-    @GetMapping("/boards")
-    public ResponseEntity<Page<BoardResponseDto>> getBoards(
-        @RequestParam(required = false) String keyword,
-        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable
-    ) {
-        Page<BoardResponseDto> response = boardService.getBoards(keyword, pageable);
-        return ResponseEntity.ok(response);
-    }
-
+    // 게시글 상세 조회
     @GetMapping("/boards/{id}")
     public ResponseEntity<BoardResponseDto> getBoard(
         @PathVariable Long id,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        BoardResponseDto response = boardService.getBoard(id, loginUserId);
+        BoardResponseDto response =
+            boardService.getBoard(id, loginUserId);
+
         return ResponseEntity.ok(response);
     }
 
+    // 게시판 유형별 게시글 목록 조회 및 검색
+// GET /api/boards?boardType=COMMUNITY&page=0&size=10&sort=id,desc
+// GET /api/boards?boardType=PRODUCT_REVIEW&page=0&size=10
+// GET /api/boards?boardType=PRODUCT_INQUIRY&page=0&size=10
+// GET /api/boards?boardType=CUSTOMER_SERVICE&page=0&size=10
+    @GetMapping("/boards")
+    public ResponseEntity<Page<BoardResponseDto>> getBoards(
+        @RequestParam(defaultValue = "COMMUNITY") BoardType boardType,
+        @RequestParam(required = false) String keyword,
+        @PageableDefault(
+            size = 10,
+            sort = "id",
+            direction = Sort.Direction.DESC
+        ) Pageable pageable,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        Page<BoardResponseDto> response =
+            boardService.getBoards(
+                boardType,
+                keyword,
+                pageable,
+                loginUserId
+            );
+
+        return ResponseEntity.ok(response);
+    }
+
+    // 댓글 작성
     @PostMapping("/boards/{id}/replies")
     public ResponseEntity<Long> createReply(
         @PathVariable Long id,
         @RequestBody @Valid ReplyRequestDto requestDto,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        Long replyId = boardService.createReply(id, requestDto, loginUserId);
+        Long replyId = boardService.createReply(
+            id,
+            requestDto,
+            loginUserId
+        );
+
         return ResponseEntity.status(HttpStatus.CREATED).body(replyId);
     }
 
+    // 댓글 삭제
     @DeleteMapping("/replies/{id}")
     public ResponseEntity<Void> deleteReply(
         @PathVariable Long id,
         @AuthenticationPrincipal Long loginUserId
     ) {
         boardService.deleteReply(id, loginUserId);
+
         return ResponseEntity.noContent().build();
     }
 
@@ -73,10 +111,15 @@ public class BoardController {
     @PutMapping("/boards/{id}")
     public ResponseEntity<Void> updateBoard(
         @PathVariable Long id,
-        @RequestBody @Valid BoardRequestDto requestDto,
+        @RequestBody @Valid BoardUpdateRequestDto requestDto,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        boardService.updateBoard(id, requestDto, loginUserId);
+        boardService.updateBoard(
+            id,
+            requestDto,
+            loginUserId
+        );
+
         return ResponseEntity.ok().build();
     }
 
@@ -87,7 +130,7 @@ public class BoardController {
         @AuthenticationPrincipal Long loginUserId
     ) {
         boardService.deleteBoard(id, loginUserId);
+
         return ResponseEntity.noContent().build();
     }
-
 }

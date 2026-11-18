@@ -32,7 +32,7 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-mail'
 
-    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.18.0'
+    implementation("org.apache.commons:commons-lang3:3.18.0")
 
     // H2 Database (테스트용 내장 DB)
     runtimeOnly 'com.h2database:h2'

@@ -83,6 +83,7 @@ public class PortOneClient {
         return cancelPayment(paymentId, amount, "관리자 환불 승인");
     }
 
+    // 결제 취소
     public PaymentResponse.PortOneCancel cancelPayment(String paymentId, int amount, String reason) {
         if (paymentId == null || paymentId.isBlank() || amount <= 0) {
             throw new BadRequestException("결제 취소 요청 값이 올바르지 않습니다.");

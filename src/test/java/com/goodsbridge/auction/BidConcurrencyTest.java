@@ -7,6 +7,7 @@ import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -84,7 +85,8 @@ class BidConcurrencyTest {
         paymentService = mock(PaymentService.class);
         when(paymentService.verify(anyString(), anyInt(), any(), anyLong()))
             .thenAnswer(invocation -> invocation.getArgument(0));
-        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService, shopRepository);
+        bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
+            shopRepository, mock(ApplicationEventPublisher.class));
 
         auctionId = tx.execute(status -> auctionRepository.save(new Auction(
             shopRepository.findById(SHOP_ID).orElseThrow(),
@@ -196,8 +198,9 @@ class BidConcurrencyTest {
             Auction auction = auctionRepository.findById(auctionId).orElseThrow();
             List<Bid> bids = bidsOf(auctionId);
 
-            assertEquals(13_000, auction.getCurrentPrice());
-            // 같은 유저의 모든 입찰은 같은 보증금 결제 id 를 공유한다
+            assertEquals(1, bids.size());
+            assertEquals(bids.get(0).getBidAmount(), auction.getCurrentPrice());
+            // 같은 유저가 최초 입찰에 성공한 경우 보증금 결제 id를 공유한다
             assertTrue(bids.stream().allMatch(b -> ("deposit-" + userId).equals(b.getDepositPaymentId())));
         });
     }

@@ -90,8 +90,8 @@ class AuctionControllerTest {
         mockMvc.perform(get("/api/auctions").accept(MediaType.APPLICATION_JSON))
             .andExpect(status().isOk());
 
-        // 파라미터가 없으면 page=1, size=3, status=null(전체)
-        verify(auctionService).findAll(1, 3, null);
+        // 파라미터가 없으면 page=0, size=3, status=null(전체)
+        verify(auctionService).findAll(0, 3, null);
     }
 
     @Test

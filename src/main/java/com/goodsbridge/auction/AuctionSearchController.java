@@ -16,7 +16,7 @@ import java.util.Map;
 public class AuctionSearchController {
     private final AuctionSearchService auctionSearchService;
 
-    // 전체 경매 목록 (탭: ACTIVE / ENDED / MINE, 정렬: DEADLINE / NEWEST / PRICE_DESC / PRICE_ASC / BIDS)
+    // 전체 경매 목록
     @GetMapping("/api/auctions/search")
     public ResponseEntity<Page<AuctionResponse>> search(@RequestParam(defaultValue = "ACTIVE") String tab,
                                                         @RequestParam(required = false) String keyword,
@@ -28,7 +28,7 @@ public class AuctionSearchController {
         return ResponseEntity.ok(auctionSearchService.searchPublic(viewerId, tab, keyword, sort, shopId, page, size));
     }
 
-    // 내 경매 내역 (탭: BIDDING / WAIT / PAID / LOST / FORFEIT / CANCELLED)
+    // 내 경매 내역
     @GetMapping("/api/auctions/me/search")
     public ResponseEntity<Page<AuctionResponse>> searchMine(@RequestParam(defaultValue = "BIDDING") String tab,
                                                             @RequestParam(required = false) String keyword,
@@ -37,12 +37,13 @@ public class AuctionSearchController {
         return ResponseEntity.ok(auctionSearchService.searchMine(SecurityUtil.getCurrentUserId(), tab, keyword, page, size));
     }
 
+    // 로그인한 사용자의 경매 참여 현황별 건수 조회
     @GetMapping("/api/auctions/me/counts")
     public ResponseEntity<Map<String, Long>> mineCounts(@RequestParam(required = false) String keyword) {
         return ResponseEntity.ok(auctionSearchService.mineCounts(SecurityUtil.getCurrentUserId(), keyword));
     }
 
-    // 가게 경매 관리 (탭: ACTIVE / ENDED / CANCELLED, 종료 탭 분류 sub: ALL / WAITING / DONE / FORFEITED / FAIL)
+    // 가게 경매 관리
     @GetMapping("/api/shop-auctions/search")
     public ResponseEntity<Page<AuctionResponse>> searchShop(@RequestParam(defaultValue = "ACTIVE") String tab,
                                                             @RequestParam(defaultValue = "ALL") String sub,
@@ -52,7 +53,7 @@ public class AuctionSearchController {
         return ResponseEntity.ok(auctionSearchService.searchShop(SecurityUtil.getCurrentUserId(), tab, sub, keyword, page, size));
     }
 
-    // 가게가 등록한 경매 전용 상품 목록 (아직 팔리지 않은 것)
+    // 가게가 등록한 경매 전용 상품 목록
     @GetMapping("/api/shop-auctions/items")
     public ResponseEntity<Page<AuctionItemResponse>> shopItems(@RequestParam(required = false) String keyword,
                                                                @RequestParam(defaultValue = "0") int page,
@@ -60,6 +61,7 @@ public class AuctionSearchController {
         return ResponseEntity.ok(auctionSearchService.searchShopItems(SecurityUtil.getCurrentUserId(), keyword, page, size));
     }
 
+    // 로그인한 판매자의 등록 경매 현황별 건수 조회
     @GetMapping("/api/shop-auctions/counts")
     public ResponseEntity<Map<String, Object>> shopCounts(@RequestParam(required = false) String keyword) {
         return ResponseEntity.ok(auctionSearchService.shopCounts(SecurityUtil.getCurrentUserId(), keyword));

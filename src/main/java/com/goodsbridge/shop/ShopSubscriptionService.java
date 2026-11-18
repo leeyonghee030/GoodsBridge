@@ -4,6 +4,8 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.util.SecurityUtil;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.user.Role;
@@ -30,11 +32,13 @@ import java.util.List;
 public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
+    private final ShopSubscriptionPaymentRepository subscriptionPaymentRepository;
     private final ShopRepository shopRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopSubscriptionBatchService batchService;
+    private final ApplicationEventPublisher publisher;
 
     private static final int PRICE_PER_DAY = 1000;
     private static final int MAX_DAYS = 1095; // 한 번에 최대 3년(1095일) 제한
@@ -76,7 +80,8 @@ public class ShopSubscriptionService {
         }
 
         // [중복 결제 방어] DB 레벨 제약 및 exists 체크를 통한 이중 방어
-        if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
+        if (subscriptionRepository.existsByPaymentId(request.getPaymentId())
+            || subscriptionPaymentRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
 
@@ -116,6 +121,11 @@ public class ShopSubscriptionService {
             userId
         );
 
+        // 구독을 연장해도 이전 결제의 가게 귀속이 사라지지 않도록 결제별 이력을 보관한다.
+        subscriptionPaymentRepository.save(
+            new ShopSubscriptionPayment(shopId, request.getPaymentId())
+        );
+
         boolean setupFeePaid = true;
         LocalDate startDate;
         LocalDate endDate;
@@ -123,6 +133,9 @@ public class ShopSubscriptionService {
 
         if (isActive) {
             // 💡 2. 이미 활성화된 구독이 있는 경우에만 기존 구독 객체를 연장(Extend) 처리
+            // 이력 테이블 도입 전 생성된 구독도 첫 연장 시 기존 결제를 보존한다.
+            recordSubscriptionPaymentIfAbsent(shopId, activeSubscription.getPaymentId());
+
             LocalDate currentEndDate = activeSubscription.getEndDate() != null ? activeSubscription.getEndDate() : LocalDate.now();
             LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
 
@@ -156,6 +169,23 @@ public class ShopSubscriptionService {
 
         try {
             Long subscriptionId = subscriptionRepository.saveAndFlush(subscription).getId();
+
+            List<Long> adminIdList = userRepository.findIdsByRole(Role.ADMIN);
+
+            for (Long adminId : adminIdList) {
+                publisher.publishEvent(
+                    new NotificationEvent(
+                        adminId,
+                        Notification.Type.SUBSCRIPTION_PAID,
+                        "[구독 결제]",
+                        shop.getName() + "이 구독을 결제했습니다 (" +
+                            request.getDays() + "일, " +
+                            expectedAmount + "원)",
+                        Notification.ReferenceType.SHOP,
+                        shop.getId()
+                    )
+                );
+            }
 
             // 💡 4. 활성 구독이 아니었던 상태에서 새로 구독이 활성화되었으므로 이벤트 발행 (상품 부활)
             if (!isActive) {
@@ -258,7 +288,7 @@ public class ShopSubscriptionService {
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
 
         // 잠금 순서는 다른 구독 처리와 같이 Shop -> ShopSubscription
-        shopRepository.findByIdWithLock(shopId)
+        Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
         ShopSubscription subscription = subscriptionRepository.findByIdWithLock(subscriptionId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
@@ -269,6 +299,18 @@ public class ShopSubscriptionService {
 
         subscription.cancel();
         eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                shop.getOwnerUserId(),
+                Notification.Type.SUBSCRIPTION_CANCELLED,
+                "[구독 취소]",
+                " 관리자에 의해 구독이 취소되어, 판매 중인 상품이 중지됐습니다",
+                Notification.ReferenceType.SHOP,
+                shop.getId()
+            )
+        );
+
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -295,6 +337,14 @@ public class ShopSubscriptionService {
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
         if (user.getRole() != Role.ADMIN) {
             throw new ForbiddenException("관리자 권한이 없습니다.");
+        }
+    }
+
+    private void recordSubscriptionPaymentIfAbsent(Long shopId, String paymentId) {
+        if (paymentId != null
+            && !paymentId.isBlank()
+            && !subscriptionPaymentRepository.existsByPaymentId(paymentId)) {
+            subscriptionPaymentRepository.save(new ShopSubscriptionPayment(shopId, paymentId));
         }
     }
 }
