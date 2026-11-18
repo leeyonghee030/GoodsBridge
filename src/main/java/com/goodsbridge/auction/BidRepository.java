@@ -30,7 +30,15 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
 
     // 입찰자의 최초 입찰 1건 조회 (보증금 결제 ID 재사용용)
     // 파생 쿼리의 First는 LIMIT 1을 보장한다. 같은 유저의 입찰이 여러 건이어도 예외가 나지 않는다.
-    Optional<Bid> findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(Long auctionId, Long userId);
+    @Query("""
+        select b
+        from Bid b
+        where b.auction.id = :auctionId
+        and b.user.id = :userId
+        order by b.createdAt asc, b.id asc
+        """)
+    Optional<Bid> findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(@Param("auctionId") Long auctionId,
+                                                                        @Param("userId") Long userId);
 
     // 내가 참여한 경매 ID 목록
     @Query(value = """
@@ -56,6 +64,7 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
         """)
     List<String> findLoserDepositPaymentIds(@Param("auctionId") Long auctionId, @Param("winnerId") Long winnerId);
 
+    // 해당 경매에 참여한 입찰자들의 사용자 ID를 중복 없이 조회
     @Query("select distinct b.user.id from Bid b where b.auction.id = :auctionId")
     List<Long> findBidderUserIds(@Param("auctionId") Long auctionId);
 

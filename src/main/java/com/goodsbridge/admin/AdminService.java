@@ -24,6 +24,7 @@ public class AdminService {
 
     private final AdminRepository adminRepository;
 
+    // 관리자 대시보드 통계 조회
     public AdminResponse getDashboard(String month) {
         YearMonth selected = parseMonth(month);
         List<AdminResponse.MonthlyDto> months = new ArrayList<>();
@@ -69,6 +70,7 @@ public class AdminService {
             selected.toString(), paidCount, total, refunded, total - refunded, payments);
     }
 
+    // 해당 월의 가입, 구독 결제, 매출, 신규 입점 및 이탈 통계 조회
     private AdminResponse.MonthlyDto monthly(YearMonth month) {
         LocalDateTime startAt = month.atDay(1).atStartOfDay();
         LocalDateTime endAt = month.plusMonths(1).atDay(1).atStartOfDay();
@@ -83,6 +85,7 @@ public class AdminService {
         );
     }
 
+    // 조회 월을 YYYY-MM 형식으로 변환하고, 미입력 시 현재 월 반환
     private YearMonth parseMonth(String month) {
         if (month == null || month.isBlank())
             return YearMonth.now();

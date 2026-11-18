@@ -46,6 +46,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
     @Query("select a from Auction a where a.id = :id")
     Optional<Auction> findByIdLock(@Param("id") Long id);
 
+    // 낙찰 결제 ID로 해당 경매 조회
     @Query("""
         select a
         from Auction a

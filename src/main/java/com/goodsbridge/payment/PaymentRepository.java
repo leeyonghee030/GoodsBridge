@@ -30,6 +30,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
         """)
     List<Payment> findAllByUserIdOrderByIdDesc(@Param("userId") Long userId);
 
+    // 비관적 락
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select p from Payment p

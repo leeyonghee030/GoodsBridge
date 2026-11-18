@@ -17,12 +17,12 @@ import java.time.LocalDateTime;
 public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;    // 사용자 PK
+    private Long id;    // PK
 
     @Column(nullable = false, unique = true)
-    private String paymentId;   // PG 거래 식별자
+    private String paymentId; // 결제 id
 
-    private String pgTxId;  // PG id
+    private String pgTxId;  // PG 거래 식별자
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -65,10 +65,12 @@ public class Payment {
         return this.status == PaymentStatus.PAID;
     }
 
+    // 환불 금액
     public Integer getRefundableAmount() {
         return Math.max(0, amount - refundedAmount);
     }
 
+    // 환불
     public void refund(int refundAmount) {
         if (status == PaymentStatus.CANCELLED) {
             throw new BadRequestException("이미 전체 환불된 결제입니다.");

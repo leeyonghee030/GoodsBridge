@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class PaymentCancelRetryService {
-    private static final int MAX_ATTEMPTS = 5;
+    private static final int MAX_ATTEMPTS = 5; // 결제 취소 최대 횟수 제한
 
     private final PaymentCancelFailureRepository failureRepository;
     private final PaymentRepository paymentRepository;

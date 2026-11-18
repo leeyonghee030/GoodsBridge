@@ -49,6 +49,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         """)
     List<Purchase> findAllByShop(@Param("shopId") Long shopId, @Param("ds") DeliveryStatus ds);
 
+    // 결제 ID 조회
     @Query("""
         select p
         from Purchase p

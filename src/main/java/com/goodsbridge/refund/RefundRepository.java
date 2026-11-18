@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RefundRepository extends JpaRepository<Refund, Long> {
-
+    // 특정 사용자의 환불 내역을 결제 정보와 함께 조회
     @Query("""
         select r
         from Refund r
@@ -22,6 +22,7 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         """)
     List<Refund> findAllByUserIdOrderByIdDesc(@Param("userId") Long userId);
 
+    // 관리자 환불 목록을 상태 조건으로 필터링하여 페이징 조회
     @Query(value = """
         select r from Refund r
         join fetch r.payment
