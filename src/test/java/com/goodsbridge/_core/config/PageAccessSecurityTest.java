@@ -41,7 +41,7 @@ class PageAccessSecurityTest {
         for (String page : new String[]{"/my/purchases", "/my/exchange", "/test/admin", "/test/admin/shops", "/update"}) {
             mockMvc.perform(get(page).header(HttpHeaders.ACCEPT, MediaType.TEXT_HTML_VALUE))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "/?login=1"));
+                .andExpect(header().string(HttpHeaders.LOCATION, "/?login=open"));
         }
     }
 
