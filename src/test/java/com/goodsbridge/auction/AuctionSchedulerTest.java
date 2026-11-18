@@ -11,6 +11,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -123,6 +124,17 @@ class AuctionSchedulerTest {
         assertEquals(0, pageable.getPageNumber());
         assertEquals(100, pageable.getPageSize());
         assertEquals(Sort.Direction.ASC, pageable.getSort().getOrderFor("id").getDirection());
+    }
+
+    @Test
+    void autoCloseAuctions_continuesWhenAuctionRowVanishesWhileMarkingRefunded() {
+        when(auctionRepository.findIdsPendingLoserRefund(ENDED_STATUSES)).thenReturn(List.of(10L, 11L));
+        doThrow(new ObjectOptimisticLockingFailureException(Auction.class, 10L))
+            .when(auctionService).markLosersRefunded(10L);
+
+        auctionScheduler.autoCloseAuctions();
+
+        verify(auctionService).markLosersRefunded(11L);
     }
 
     // ===================== 2단계: 패찰자 보증금 환불 =====================

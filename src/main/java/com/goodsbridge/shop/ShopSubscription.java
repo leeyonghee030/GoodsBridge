@@ -1,5 +1,7 @@
+
 package com.goodsbridge.shop;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -65,7 +67,7 @@ public class ShopSubscription {
 
     /**
      * 소프트 삭제 일시
-     * <p>
+     *
      * null이면 정상 데이터
      * 값이 있으면 삭제된 데이터
      */
@@ -88,6 +90,8 @@ public class ShopSubscription {
         LocalDate endDate,
         ShopSubscriptionStatus status
     ) {
+        validateSubscriptionPeriod(startDate, endDate);
+
         this.id = id;
         this.shopId = shopId;
         this.paymentId = paymentId;
@@ -100,15 +104,34 @@ public class ShopSubscription {
     }
 
     /**
+     * 구독 기간 유효성 검증
+     */
+    private void validateSubscriptionPeriod(
+        LocalDate startDate,
+        LocalDate endDate
+    ) {
+        if (startDate == null || endDate == null) {
+            throw new BadRequestException(
+                "구독 시작일과 종료일은 필수입니다."
+            );
+        }
+
+        if (endDate.isBefore(startDate)) {
+            throw new BadRequestException(
+                "구독 종료일은 시작일보다 빠를 수 없습니다."
+            );
+        }
+    }
+
+    /**
      * 실제 구독 데이터 소프트 삭제
-     * <p>
+     *
      * 구독 취소나 만료 처리와는 별개입니다.
      * paymentId는 변경하지 않습니다.
      */
     public void delete() {
         this.deletedAt = LocalDateTime.now();
     }
-
 
     /**
      * 기존 구독 기간 연장
@@ -119,6 +142,8 @@ public class ShopSubscription {
         Boolean setupFeePaid,
         String paymentId
     ) {
+        validateSubscriptionPeriod(startDate, newEndDate);
+
         this.expiringReminderSent = false;
         this.startDate = startDate;
         this.endDate = newEndDate;
@@ -145,6 +170,8 @@ public class ShopSubscription {
         ShopSubscriptionStatus status,
         String paymentId
     ) {
+        validateSubscriptionPeriod(startDate, endDate);
+
         if (endDate != null && !endDate.equals(this.endDate)) {
             this.expiringReminderSent = false;
         }

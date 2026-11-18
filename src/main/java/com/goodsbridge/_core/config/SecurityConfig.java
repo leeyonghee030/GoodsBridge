@@ -62,7 +62,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**", "/api/categories/**").permitAll()
 
                 // 인증이 필요한 경로를 여기에 추가 (조회 외 나머지 메서드)
-                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**")
+                .requestMatchers("/api/shops/**", "/api/items/**", "/api/boards/**", "/api/exchange-items/**","/api/replies/**")
                 .authenticated()
 
                 .requestMatchers(HttpMethod.GET, "/api/auctions", "/api/auctions/**").permitAll()

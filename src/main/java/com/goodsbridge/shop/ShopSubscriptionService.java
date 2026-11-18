@@ -32,6 +32,7 @@ import java.util.List;
 public class ShopSubscriptionService {
 
     private final ShopSubscriptionRepository subscriptionRepository;
+    private final ShopSubscriptionPaymentRepository subscriptionPaymentRepository;
     private final ShopRepository shopRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final UserRepository userRepository;
@@ -79,7 +80,8 @@ public class ShopSubscriptionService {
         }
 
         // [중복 결제 방어] DB 레벨 제약 및 exists 체크를 통한 이중 방어
-        if (subscriptionRepository.existsByPaymentId(request.getPaymentId())) {
+        if (subscriptionRepository.existsByPaymentId(request.getPaymentId())
+            || subscriptionPaymentRepository.existsByPaymentId(request.getPaymentId())) {
             throw new BadRequestException("이미 처리된 결제 번호(paymentId)입니다. 중복 구독을 진행할 수 없습니다.");
         }
 
@@ -119,6 +121,11 @@ public class ShopSubscriptionService {
             userId
         );
 
+        // 구독을 연장해도 이전 결제의 가게 귀속이 사라지지 않도록 결제별 이력을 보관한다.
+        subscriptionPaymentRepository.save(
+            new ShopSubscriptionPayment(shopId, request.getPaymentId())
+        );
+
         boolean setupFeePaid = true;
         LocalDate startDate;
         LocalDate endDate;
@@ -126,6 +133,9 @@ public class ShopSubscriptionService {
 
         if (isActive) {
             // 💡 2. 이미 활성화된 구독이 있는 경우에만 기존 구독 객체를 연장(Extend) 처리
+            // 이력 테이블 도입 전 생성된 구독도 첫 연장 시 기존 결제를 보존한다.
+            recordSubscriptionPaymentIfAbsent(shopId, activeSubscription.getPaymentId());
+
             LocalDate currentEndDate = activeSubscription.getEndDate() != null ? activeSubscription.getEndDate() : LocalDate.now();
             LocalDate baseDate = currentEndDate.isAfter(LocalDate.now()) ? currentEndDate : LocalDate.now();
 
@@ -327,6 +337,14 @@ public class ShopSubscriptionService {
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
         if (user.getRole() != Role.ADMIN) {
             throw new ForbiddenException("관리자 권한이 없습니다.");
+        }
+    }
+
+    private void recordSubscriptionPaymentIfAbsent(Long shopId, String paymentId) {
+        if (paymentId != null
+            && !paymentId.isBlank()
+            && !subscriptionPaymentRepository.existsByPaymentId(paymentId)) {
+            subscriptionPaymentRepository.save(new ShopSubscriptionPayment(shopId, paymentId));
         }
     }
 }

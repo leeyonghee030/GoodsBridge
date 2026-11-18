@@ -19,15 +19,20 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class Auction {
     // 낙찰 후 잔금 결제 기한(일) - 기한 내 미결제 시 보증금은 가게가 가져간다
-    // 테스트에서는 분으로 테스트
-    public static final int BALANCE_DUE_MINUTES = 2;
+    public static final int BALANCE_DUE_DAYS = 1;
+
+    // 경매 마감 설정 최대 일수
+    public static final int MAX_DURATION_DAYS = 30;
+
+    // 경매 최소 인상 폭
+    public static final int MIN_BID_INCREMENT = 1000;
 
     // 기존 DB 스키마 호환용. 안티 스나이핑 연장 로직은 사용하지 않는다.
     @Column(name = "extension_count", nullable = false)
     private int extensionCount = 0;
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -60,7 +65,7 @@ public class Auction {
     private String balancePaymentId;    // 낙찰자 잔금(낙찰가 - 보증금) 결제 id, null이면 미결제
 
     @Column(name = "balance_due_at")
-    private LocalDateTime balanceDueAt; // 잔금 결제 기한 (마감 시점 + 분)
+    private LocalDateTime balanceDueAt; // 잔금 결제 기한 (마감 시점 + n일)
 
     @Column(name = "losers_refunded", nullable = false, columnDefinition = "boolean default false")
     private boolean losersRefunded = false; // 패찰자 보증금 환불 완료 여부
@@ -100,7 +105,7 @@ public class Auction {
         this.status = currentWinner == null
             ? Status.ENDED_FAIL : Status.ENDED_SUCCESS;
         if (this.status == Status.ENDED_SUCCESS) {
-            this.balanceDueAt = LocalDateTime.now().plusMinutes(BALANCE_DUE_MINUTES);
+            this.balanceDueAt = LocalDateTime.now().plusMinutes(BALANCE_DUE_DAYS);
         }
     }
 

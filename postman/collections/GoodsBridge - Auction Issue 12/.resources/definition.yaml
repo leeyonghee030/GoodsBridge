@@ -1,4 +1,0 @@
-$kind: collection
-description: "Auction CRUD smoke tests: create, list, detail, and close."
-variables:
-  auctionId: ""

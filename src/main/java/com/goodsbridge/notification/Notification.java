@@ -129,6 +129,7 @@ public class Notification {
 
         AUCTION_REMAINING_PAYMENT,  // 경매 잔금 납부 요청
         REFUND_REJECTED,            // 환불 거절
+        REFUND_APPROVED,            // 환불 승인
         REFUND_REQUESTED,           // 환불 신청
 
         SUBSCRIPTION_CANCELLED,     // 구독 취소

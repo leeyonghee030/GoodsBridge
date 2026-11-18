@@ -3,6 +3,7 @@ package com.goodsbridge.purchase;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.auction.Auction;
 import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
@@ -10,10 +11,8 @@ import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.item.SaleType;
 import com.goodsbridge.notification.Notification;
 import com.goodsbridge.notification.NotificationEvent;
-import com.goodsbridge.payment.Payment;
-import com.goodsbridge.payment.PaymentRepository;
-import com.goodsbridge.payment.PaymentPurpose;
-import com.goodsbridge.payment.PaymentService;
+import com.goodsbridge.payment.*;
+import com.goodsbridge.refund.RefundRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -46,7 +45,7 @@ public class PurchaseService {
     private final SettlementHistoryService settlementHistoryService;
     private final AuctionRepository auctionRepository;
     private final ApplicationEventPublisher publisher;
-
+    private final RefundRepository refundRepository;
 
     // 구매 (서버가 거절하면 이미 승인된 PortOne 결제를 자동 취소한다)
     @Transactional
@@ -142,7 +141,6 @@ public class PurchaseService {
             log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
                 itemId, userId, createDto.getPaymentId());
         } catch (DataIntegrityViolationException e) {
-            // 위 existsByItemId 검사를 동시에 통과한 경우: uk_purchase_item 제약이 마지막 방어선
             throw new BadRequestException("이미 판매된 상품입니다.");
         }
 
@@ -166,8 +164,11 @@ public class PurchaseService {
     // 배송
     @Transactional
     public void shipping(Long purchaseId, Long userId, PurchaseRequest.ShippingDto shippingDto) {
+        if (shippingDto == null) {
+            throw new BadRequestException("배송 요청 값이 필요합니다.");
+        }
         // 구매 내역 조회
-        Purchase purchase = purchaseRepository.findById(purchaseId)
+        Purchase purchase = purchaseRepository.findByIdLock(purchaseId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구매 내역입니다."));
 
         // 사용자가 구매한 상품인지 확인
@@ -189,6 +190,11 @@ public class PurchaseService {
         if (deliveryStatus == DeliveryStatus.PREPARING
             || (deliveryStatus == DeliveryStatus.SHIPPED && trackingNumber == null)) {
             throw new BadRequestException("지원하지 않는 배송 상태 변경입니다. 운송장 번호를 입력하면 배송중으로, DELIVERED 로 배송완료 처리됩니다.");
+        }
+        // 환불 요청이 대기 중인 구매는 발송하지 못하게 막는다 (먼저 승인/거절로 정리해야 한다)
+        if (purchase.getPaymentId() != null
+            && refundRepository.existsPendingByPaymentId(purchase.getPaymentId())) {
+            throw new BadRequestException("환불 요청이 대기 중인 구매는 배송 처리를 할 수 없습니다. 환불 요청을 먼저 승인하거나 거절해 주세요.");
         }
 
         // 운송 번호 입력 -> 배송중
@@ -253,7 +259,7 @@ public class PurchaseService {
     @Transactional
     public void confirm(Long id, Long userId) {
         // 구매 조회
-        Purchase purchase = purchaseRepository.findById(id)
+        Purchase purchase = purchaseRepository.findByIdLock(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구매 내역입니다."));
 
         // 권한 체크
@@ -263,6 +269,9 @@ public class PurchaseService {
         if (purchase.getStatus() == PurchaseStatus.CONFIRMED) return;
         purchase.confirm();
         paymentService.release(purchase.getPaymentId());
+        if (purchase.isAuction()) {
+            releaseWinnerDeposit(purchase.getPaymentId());
+        }
 
         // 경매 낙찰 구매는 잔금 결제 시점에 정산(수수료 포함)이 이미 기록되므로 여기서 다시 정산하지 않는다.
         if (!purchase.isAuction() && purchase.getItem().getShopId() != null) {
@@ -279,5 +288,14 @@ public class PurchaseService {
                 SettlementHistoryType.PURCHASE_FEE
             );
         }
+    }
+
+    // 낙찰자의 보증금 결제도 잔금과 함께 지급 완료(RELEASED)로 바꾼다. 이미 환불된 결제는 건드리지 않는다.
+    private void releaseWinnerDeposit(String balancePaymentId) {
+        auctionRepository.findByBalancePaymentId(balancePaymentId)
+            .map(Auction::getWinningPaymentId)
+            .flatMap(paymentRepository::findByPaymentId)
+            .filter(p -> p.isPaid() || p.getStatus() == PaymentStatus.PARTIAL_CANCELLED)
+            .ifPresent(p -> paymentService.release(p.getPaymentId()));
     }
 }
