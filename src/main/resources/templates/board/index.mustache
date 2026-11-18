@@ -62,6 +62,7 @@ const errorText = async (res, fallback) => {
 };
 
 (() => {
+    const boardType = '{{boardType}}';
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const statusLabels = { PENDING: '답변 대기', COMPLETED: '답변 완료' };
@@ -102,7 +103,7 @@ const errorText = async (res, fallback) => {
         if (loadingMore || currentPage >= totalPages) return;
         loadingMore = true;
         loadMoreStatus.hidden = false;
-        const query = new URLSearchParams({ page: currentPage, size: 10, sort: 'id,' + sortDirection });
+        const query = new URLSearchParams({ page: currentPage, size: 10, sort: 'id,' + sortDirection, boardType: boardType });
         if (currentKeyword) query.set('keyword', currentKeyword);
         const res = await pageFetch('/api/boards?' + query.toString());
         loadMoreStatus.hidden = true;
@@ -131,7 +132,7 @@ const errorText = async (res, fallback) => {
     // ===== 게시글 검색 (입력할 때마다 바로 조회, 엔터/버튼 불필요) =====
     async function runSearch(keyword) {
         currentKeyword = keyword;
-        const query = new URLSearchParams({ page: 0, size: 10, sort: 'id,' + sortDirection });
+        const query = new URLSearchParams({ page: 0, size: 10, sort: 'id,' + sortDirection, boardType: boardType });
         if (keyword) query.set('keyword', keyword);
         const res = await pageFetch('/api/boards?' + query.toString());
         if (!res.ok) return;
@@ -255,6 +256,7 @@ const errorText = async (res, fallback) => {
             title: document.getElementById('board-title').value.trim(),
             content: document.getElementById('board-content').value.trim(),
             itemId: itemIdValue ? Number(itemIdValue) : null,
+            boardType: boardType,
             isSecret: document.getElementById('board-secret').checked
         };
         const res = await pageFetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

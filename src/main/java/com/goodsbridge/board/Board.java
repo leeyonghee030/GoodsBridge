@@ -41,7 +41,8 @@ public class Board {
     private Long itemId; // 상품 문의 및 상품 리뷰 게시글에 연결된 상품 ID
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    // 기존 게시글(컬럼 추가 전)은 DB 기본값으로 LEGACY 가 된다. 새 글은 항상 boardType 을 직접 넣는다.
+    @Column(nullable = false, columnDefinition = "varchar(30) not null default 'LEGACY'")
     private BoardType boardType;
 
     @Column(nullable = false)
