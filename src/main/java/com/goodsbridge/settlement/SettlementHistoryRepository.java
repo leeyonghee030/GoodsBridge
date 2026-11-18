@@ -91,6 +91,7 @@ public interface SettlementHistoryRepository extends JpaRepository<SettlementHis
                                 @Param("fromAt") LocalDateTime fromAt,
                                 @Param("toAt") LocalDateTime toAt);
 
+    // 해당 결제의 정산 유형 기록 존재 확인
     @Query("""
         select case when count(s) > 0 then true else false end
         from SettlementHistory s

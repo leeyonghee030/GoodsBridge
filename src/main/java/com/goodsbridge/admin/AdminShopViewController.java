@@ -35,6 +35,7 @@ public class AdminShopViewController {
         return "admin/shops".equals(view) ? "admin/auctions" : view;
     }
 
+    // 관리자 권한 확인 후 입점 관리 페이지 접근 및 사용자 정보 전달
     private String render(Authentication authentication, Model model, boolean subscriptionsMode) {
         model.addAttribute("subscriptionsMode", subscriptionsMode);
         boolean admin = authentication != null && authentication.getAuthorities().stream()

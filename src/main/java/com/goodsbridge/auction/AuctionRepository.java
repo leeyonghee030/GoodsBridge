@@ -53,6 +53,7 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
         """)
     Optional<Auction> findByBalancePaymentId(@Param("balancePaymentId") String balancePaymentId);
 
+    // 낙찰 결제 ID로 해당 경매 조회
     @Query("""
         select a
         from Auction a
