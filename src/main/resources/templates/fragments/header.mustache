@@ -546,6 +546,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const message = document.getElementById('login-modal-message');
 
     loginTrigger.addEventListener('click', () => { modal.hidden = false; });
+    // 로그인이 필요한 화면에서 넘어온 경우(/?login=1) 로그인 창을 바로 연다
+    if (new URLSearchParams(location.search).get('login') === '1') {
+        modal.hidden = false;
+        history.replaceState(null, '', location.pathname);
+    }
     document.getElementById('login-modal-close').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
 

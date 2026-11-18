@@ -48,6 +48,12 @@ spring:
                     writetimeout: 5000        # 데이터를 보내는 데 걸리는 최대 시간 (밀리초)
 
 
+# 오류 응답(JSON)에 서버 코드 경로(스택트레이스)를 담지 않는다.
+# spring-boot-devtools 는 bootRun/IDE 실행에서 기본값을 always 로 바꾸는데, 이 명시 설정이 우선한다.
+server:
+    error:
+        include-stacktrace: never
+
 oauth2:
     kakao:
         client-id: ${KAKAO_CLIENT_ID}
