@@ -19,15 +19,20 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class Auction {
     // 낙찰 후 잔금 결제 기한(일) - 기한 내 미결제 시 보증금은 가게가 가져간다
-    // 테스트에서는 분으로 테스트
-    public static final int BALANCE_DUE_MINUTES = 2;
+    public static final int BALANCE_DUE_DAYS = 1;
+
+    // 경매 마감 설정 최대 일수
+    public static final int MAX_DURATION_DAYS = 30;
+
+    // 경매 최소 인상 폭
+    public static final int MIN_BID_INCREMENT = 1000;
 
     // 기존 DB 스키마 호환용. 안티 스나이핑 연장 로직은 사용하지 않는다.
     @Column(name = "extension_count", nullable = false)
     private int extensionCount = 0;
 
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -53,11 +58,14 @@ public class Auction {
 
     private Integer depositAmount;  // 보증금
 
+    @Column(length = 500)
+    private String description;     // 경매 설명 (상태, 구성품, 배송 안내 등). 비어 있으면 상품 설명을 보여준다
+
     @Column(name = "balance_payment_id")
     private String balancePaymentId;    // 낙찰자 잔금(낙찰가 - 보증금) 결제 id, null이면 미결제
 
     @Column(name = "balance_due_at")
-    private LocalDateTime balanceDueAt; // 잔금 결제 기한 (마감 시점 + 분)
+    private LocalDateTime balanceDueAt; // 잔금 결제 기한 (마감 시점 + n일)
 
     @Column(name = "losers_refunded", nullable = false, columnDefinition = "boolean default false")
     private boolean losersRefunded = false; // 패찰자 보증금 환불 완료 여부
@@ -94,8 +102,32 @@ public class Auction {
         this.status = currentWinner == null
             ? Status.ENDED_FAIL : Status.ENDED_SUCCESS;
         if (this.status == Status.ENDED_SUCCESS) {
-            this.balanceDueAt = LocalDateTime.now().plusMinutes(BALANCE_DUE_MINUTES);
+            this.balanceDueAt = LocalDateTime.now().plusMinutes(BALANCE_DUE_DAYS);
         }
+    }
+
+    // 입찰이 없는 진행 중 경매의 시작가 · 마감 시간 · 보증금 수정
+    public void updateBeforeBids(Integer startPrice, LocalDateTime deadline, Integer depositAmount, String description) {
+        if (status != Status.ACTIVE) {
+            throw new BadRequestException("진행 중인 경매만 수정할 수 있습니다.");
+        }
+        if (currentWinner != null) {
+            throw new BadRequestException("입찰이 있는 경매는 수정할 수 없습니다.");
+        }
+        this.startPrice = startPrice;
+        this.currentPrice = startPrice;
+        this.deadline = deadline;
+        this.depositAmount = depositAmount;
+        this.description = normalizeDescription(description);
+    }
+
+    // 경매 설명 (개설할 때 설정)
+    public void changeDescription(String description) {
+        this.description = normalizeDescription(description);
+    }
+
+    private static String normalizeDescription(String description) {
+        return description == null || description.isBlank() ? null : description.trim();
     }
 
     // 경매 취소 (진행 중인 경매만). 입찰자 보증금 환불은 스케줄러가 처리한다.

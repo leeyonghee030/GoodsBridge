@@ -13,7 +13,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Getter
-@Table(name = "purchase_tb", uniqueConstraints = @UniqueConstraint(name = "uk_purchase_item", columnNames = "item_id"))
+@Table(name = "purchase_tb", uniqueConstraints = @UniqueConstraint(
+    name = "uk_purchase_active_item", columnNames = "active_item_id"))
 @NoArgsConstructor
 public class Purchase {
     @Id
@@ -44,6 +45,9 @@ public class Purchase {
     @Column(nullable = false)
     private PurchaseStatus status;  // 구매 상태
 
+    @Column(name = "active_item_id")
+    private Long activeItemId;  //환불되지 않은 값 활성화
+
     // 구매 경로 (기존 행은 DB 기본값 SHOP)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20, columnDefinition = "varchar(20) default 'SHOP'")
@@ -66,6 +70,7 @@ public class Purchase {
         this.amount = amount;
         this.deliveryStatus = DeliveryStatus.PREPARING;
         this.status = PurchaseStatus.PAID;
+        this.activeItemId = item == null ? null : item.getId();
     }
 
     public boolean isAuction() {
@@ -94,8 +99,22 @@ public class Purchase {
 
     // 배송 상태
     public void markDelivered() {
-        if (deliveryStatus != DeliveryStatus.SHIPPED) throw new BadRequestException("배송중 상태에서만 배송완료로 변경할 수 있습니다.");
+        if (status != PurchaseStatus.PAID) {
+            throw new BadRequestException("결제 완료 상태에서만 배송완료로 변경할 수 있습니다.");
+        }
+        if (deliveryStatus != DeliveryStatus.SHIPPED) {
+            throw new BadRequestException("배송중 상태에서만 배송완료로 변경할 수 있습니다.");
+        }
         this.deliveryStatus = DeliveryStatus.DELIVERED;
+    }
+
+    // 전액 환불
+    public void refund() {
+        if (status == PurchaseStatus.REFUNDED) {
+            return;
+        }
+        this.status = PurchaseStatus.REFUNDED;
+        this.activeItemId = null;
     }
 
     // 수령확인

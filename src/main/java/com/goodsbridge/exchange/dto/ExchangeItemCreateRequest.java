@@ -10,10 +10,14 @@ import lombok.NoArgsConstructor;
 public class ExchangeItemCreateRequest {
 
     private Long itemId;           // 내가 가진 것 (본인 소유 Item id)
+    private String title;          // 게시글 제목 (선택, 비우면 상품 이름)
     private String wantDescription; // 원하는 것 (자유 텍스트)
     private Long shopId;           // 교환장소 (이름검색으로 선택한 Shop id)
 
     public void validate() {
+        if (title != null && title.length() > 100) {
+            throw new BadRequestException("제목은 100자 이내여야 합니다.");
+        }
         if (itemId == null) {
             throw new BadRequestException("아이템을 등록해주세요.");
         }

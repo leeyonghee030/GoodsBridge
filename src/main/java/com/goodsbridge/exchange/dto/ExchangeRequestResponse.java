@@ -29,7 +29,8 @@ public class ExchangeRequestResponse {
     // 마이페이지 교환 내역용 (내가 A인지 B인지, 상품명/사진, 만날 시간)
     private Long ownerUserId;
     private Long proposerUserId;
-    private String itemTitle;
+    private String exchangeItemTitle; // 신청을 받은 교환 게시글의 제목 (직접 적은 제목, 없으면 상품 이름)
+    private String itemTitle;          // 게시글에 올린 상품(A)의 이름
     private String itemImageUrl;
     private String itemBTitle;
     private String itemBImageUrl;
@@ -47,7 +48,8 @@ public class ExchangeRequestResponse {
                                     Long ownerUserId, Long proposerUserId, String itemTitle, String itemImageUrl,
                                     String itemBTitle, String itemBImageUrl, String shopName,
                                     LocalDateTime meetingAt, Long meetingProposerId, Boolean meetingConfirmed, Integer acceptDepositAmount,
-                                    LocalDateTime bothCheckedAt) {
+                                    LocalDateTime bothCheckedAt, String exchangeItemTitle) {
+        this.exchangeItemTitle = exchangeItemTitle != null ? exchangeItemTitle : itemTitle;
         this.id = id;
         this.exchangeItemAId = exchangeItemAId;
         this.itemBId = itemBId;
@@ -90,6 +92,7 @@ public class ExchangeRequestResponse {
             .createdAt(exchangeRequest.getCreatedAt())
             .ownerUserId(exchangeRequest.getExchangeItemA().getUser().getId())
             .proposerUserId(exchangeRequest.getItemB().getSellerUserId())
+            .exchangeItemTitle(exchangeRequest.getExchangeItemA().getDisplayTitle())
             .itemTitle(exchangeRequest.getExchangeItemA().getItem().getTitle())
             .itemImageUrl(exchangeRequest.getExchangeItemA().getItem().getImageUrl())
             .itemBTitle(exchangeRequest.getItemB().getTitle())

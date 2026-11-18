@@ -184,7 +184,7 @@ public class ExchangeViewController {
                                                                    @RequestBody ExchangeItemUpdateRequest request) {
         Long userId = SecurityUtil.getCurrentUserId();
         request.validate();
-        return ResponseEntity.ok(exchangeService.updateExchangeItem(id, userId, request.getWantDescription(), request.getShopId()));
+        return ResponseEntity.ok(exchangeService.updateExchangeItem(id, userId, request.getTitle(), request.getWantDescription(), request.getShopId()));
     }
 
     //교환 게시글 삭제

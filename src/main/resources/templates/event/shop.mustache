@@ -4,8 +4,9 @@
 .se-bar { display: flex; justify-content: space-between; align-items: center; gap: 0.8rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
 .se-bar .filter-chip-grid { margin: 0; }
 .se-bar .filter-chip small { margin-left: 0.3rem; opacity: 0.7; }
-.se-bar-right { display: flex; gap: 0.5rem; align-items: center; }
-.se-bar-right input { flex: none; width: 13rem; margin: 0; }
+/* 검색칸은 왼쪽(남는 폭을 채움), 버튼은 오른쪽 끝. 좁아서 줄이 바뀌어도 한 줄을 다 쓰고 버튼은 오른쪽에 붙는다 */
+.se-bar-right { flex: 1 1 22rem; min-width: 0; display: flex; gap: 0.5rem; align-items: center; }
+.se-bar-right input { flex: 1 1 auto; width: auto; min-width: 7rem; margin: 0; }
 .se-bar-right .write-link { flex: none; width: auto; white-space: nowrap; }
 .se-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
 .se-row { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem 0; border-bottom: 1px solid var(--color-border); }
@@ -149,6 +150,7 @@
 <div class="container my-card">
 <nav class="my-tabs">
     <a href="/update">내 정보</a>
+    <a href="/shop/dashboard">대시보드</a>
     <a href="/shop/exchange">가게 교환 관리</a>
     <a href="/shop/items">판매 상품 관리</a>
     <a href="/shop/events" class="active">이벤트 관리</a>

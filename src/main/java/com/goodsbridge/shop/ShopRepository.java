@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -104,6 +105,8 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
             WHERE (:name IS NULL OR s.name LIKE %:name%)
               AND (:region IS NULL OR s.region = :region)
               AND (:status IS NULL OR s.status = :status)
+              AND COALESCE(s.approvedAt, s.createdAt) >= :startAt
+              AND COALESCE(s.approvedAt, s.createdAt) < :endAt
               AND s.deleted = false
             """,
         countQuery = """
@@ -112,6 +115,8 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
             WHERE (:name IS NULL OR s.name LIKE %:name%)
               AND (:region IS NULL OR s.region = :region)
               AND (:status IS NULL OR s.status = :status)
+              AND COALESCE(s.approvedAt, s.createdAt) >= :startAt
+              AND COALESCE(s.approvedAt, s.createdAt) < :endAt
               AND s.deleted = false
             """
     )
@@ -119,6 +124,8 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
         @Param("name") String name,
         @Param("region") String region,
         @Param("status") ShopStatus status,
+        @Param("startAt") LocalDateTime startAt,
+        @Param("endAt") LocalDateTime endAt,
         Pageable pageable
     );
     /**

@@ -24,7 +24,7 @@ public class AuctionViewController {
 
     // 경매 목록
     @GetMapping("/api/auctions")
-    public ResponseEntity<Page<AuctionResponse>> findAll(@RequestParam(name = "page", defaultValue = "1") int page,
+    public ResponseEntity<Page<AuctionResponse>> findAll(@RequestParam(name = "page", defaultValue = "0") int page,
                                                          @RequestParam(name = "size", defaultValue = "3") int size,
                                                          @RequestParam(required = false) Status status,
                                                          @RequestParam(name = "shopId", required = false) Long shopId) {
@@ -32,6 +32,24 @@ public class AuctionViewController {
             return ResponseEntity.ok(auctionService.findAllByShop(page, size, status, shopId));
         }
         return ResponseEntity.ok(auctionService.findAll(page, size, status));
+    }
+
+    // 입찰 전 경매 수정 (가게 주인만)
+    @PatchMapping("/api/auctions/{id}")
+    public ResponseEntity<AuctionResponse> update(@PathVariable Long id, @RequestBody AuctionUpdateRequest request) {
+        return ResponseEntity.ok(auctionService.update(SecurityUtil.getCurrentUserId(), id, request));
+    }
+
+    // 가게 경매 영수증 (가게 주인과 낙찰자 본인만)
+    @GetMapping("/api/auctions/{id}/receipt")
+    public ResponseEntity<AuctionReceiptResponse> receipt(@PathVariable Long id) {
+        return ResponseEntity.ok(auctionService.getReceipt(SecurityUtil.getCurrentUserId(), id));
+    }
+
+    // 가게 경매 정산 내역 (가게 주인만)
+    @GetMapping("/api/shops/{id}/auction-settlements")
+    public ResponseEntity<java.util.List<AuctionSettlementResponse>> shopSettlements(@PathVariable Long id) {
+        return ResponseEntity.ok(auctionService.getShopSettlements(SecurityUtil.getCurrentUserId(), id));
     }
 
     // 경매 상세
@@ -48,7 +66,7 @@ public class AuctionViewController {
         return ResponseEntity.ok(auctionResponse);
     }
 
-    // 경매 취소 (가게 주인: 입찰 없는 경매만 / 관리자: 입찰이 있어도 가능)
+    // 경매 취소 (가게 주인: 입찰이 있어도 가능, 입찰자 보증금은 전액 환불 / 관리자도 가능)
     @PatchMapping("/api/auctions/{id}/cancel")
     public ResponseEntity<AuctionResponse> cancelAuction(@PathVariable Long id) {
         Long userId = SecurityUtil.getCurrentUserId();

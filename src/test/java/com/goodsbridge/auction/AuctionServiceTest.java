@@ -106,6 +106,15 @@ class AuctionServiceTest {
     }
 
     @Test
+    void create_rejectsNormalSaleItem() {
+        // 상품 1은 가게 1의 일반 판매 상품 → 경매 전에 다른 사람이 살 수 있어서 경매 전용 상품만 올릴 수 있다
+        assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
+            request(1L, 50_000, 5_000, 10)))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("경매 전용");
+    }
+
+    @Test
     void create_rejectsInvalidStartPriceDepositAndDeadline() {
         // startPrice > 0
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
@@ -167,7 +176,7 @@ class AuctionServiceTest {
     void findAll_filtersByStatusAndFindByIdRejectsMissingAuction() {
         auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, 10));
 
-        Page<AuctionResponse> active = auctionService.findAll(1, 10, Status.ACTIVE);
+        Page<AuctionResponse> active = auctionService.findAll(0, 10, Status.ACTIVE);
 
         assertThat(active.getContent()).isNotEmpty();
         assertThat(active.getContent()).allMatch(auction -> auction.getStatus() == Status.ACTIVE);
@@ -181,7 +190,7 @@ class AuctionServiceTest {
         Auction expired = saveExpiredAuction();
         auctionService.close(OWNER_ID, expired.getId());   // ENDED_FAIL
 
-        Page<AuctionResponse> all = auctionService.findAll(1, 10, null);
+        Page<AuctionResponse> all = auctionService.findAll(0, 10, null);
 
         assertThat(all.getContent()).extracting(AuctionResponse::getStatus)
             .contains(Status.ACTIVE, Status.ENDED_FAIL);
@@ -192,7 +201,7 @@ class AuctionServiceTest {
         Auction expired = saveExpiredAuction();
         auctionService.close(OWNER_ID, expired.getId());
 
-        Page<AuctionResponse> ended = auctionService.findAll(1, 10, Status.ENDED_FAIL);
+        Page<AuctionResponse> ended = auctionService.findAll(0, 10, Status.ENDED_FAIL);
 
         assertThat(ended.getContent()).extracting(AuctionResponse::getId).contains(expired.getId());
         assertThat(ended.getContent()).allMatch(auction -> auction.getStatus() == Status.ENDED_FAIL);
@@ -200,9 +209,9 @@ class AuctionServiceTest {
 
     @Test
     void findAll_normalizesInvalidPageAndSize() {
-        // page는 1부터 시작(0 이하는 첫 페이지), size는 1~50으로 보정된다.
-        assertThat(auctionService.findAll(0, 1_000, null).getSize()).isEqualTo(50);
-        assertThat(auctionService.findAll(1, 0, null).getSize()).isEqualTo(1);
+        // page는 0부터 시작(음수는 첫 페이지), size는 1~50으로 보정된다.
+        assertThat(auctionService.findAll(-1, 1_000, null).getSize()).isEqualTo(50);
+        assertThat(auctionService.findAll(0, 0, null).getSize()).isEqualTo(1);
     }
 
     @Test
@@ -335,14 +344,14 @@ class AuctionServiceTest {
         AuctionResponse created = auctionService.create(OWNER_ID, SHOP_ID,
             request(SHOP_ITEM_ID, 50_000, 5_000, 10));
 
-        Page<AuctionResponse> mine = auctionService.findAllByShop(1, 20, null, SHOP_ID);
+        Page<AuctionResponse> mine = auctionService.findAllByShop(0, 20, null, SHOP_ID);
         assertThat(mine.getContent()).extracting(AuctionResponse::getId).contains(created.getId());
         assertThat(mine.getContent()).allMatch(a -> a.getShopId().equals(SHOP_ID));
 
-        Page<AuctionResponse> other = auctionService.findAllByShop(1, 20, null, OTHER_SHOP_ID);
+        Page<AuctionResponse> other = auctionService.findAllByShop(0, 20, null, OTHER_SHOP_ID);
         assertThat(other.getContent()).extracting(AuctionResponse::getId).doesNotContain(created.getId());
 
-        Page<AuctionResponse> cancelledOnly = auctionService.findAllByShop(1, 20, Status.CANCELLED, SHOP_ID);
+        Page<AuctionResponse> cancelledOnly = auctionService.findAllByShop(0, 20, Status.CANCELLED, SHOP_ID);
         assertThat(cancelledOnly.getContent()).extracting(AuctionResponse::getId).doesNotContain(created.getId());
     }
 }

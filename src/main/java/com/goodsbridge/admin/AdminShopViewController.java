@@ -5,7 +5,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-// 관리자: 입점 신청 승인 / 구독 현황 화면 (데이터는 기존 /api/admin/shops/*, /api/admin/subscriptions 를 사용)
+// 관리자: 입점 신청 승인 / 구독 현황 / 환불 관리 화면
 @Controller
 public class AdminShopViewController {
 
@@ -19,6 +19,13 @@ public class AdminShopViewController {
     @GetMapping("/test/admin/subscriptions")
     public String subscriptions(Authentication authentication, Model model) {
         return render(authentication, model, true);
+    }
+
+    // 구독 결제 내역 (월별 결제 목록과 매출 합계, 데이터는 /api/admin/subscription-payments)
+    @GetMapping("/test/admin/subscription-payments")
+    public String subscriptionPayments(Authentication authentication, Model model) {
+        String view = render(authentication, model, true);
+        return "admin/shops".equals(view) ? "admin/subscription-payments" : view;
     }
 
     private String render(Authentication authentication, Model model, boolean subscriptionsMode) {

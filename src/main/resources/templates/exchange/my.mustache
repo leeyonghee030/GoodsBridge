@@ -254,7 +254,8 @@
                 ${p.status === 'OPEN' ? gbPostActions.kebabHtml() : ''}
                 <span class="card-tag">■ ${esc(POST_STATUS[p.status] || p.status)}${pending ? ` · 받은 신청 ${pending}` : ''}</span>
                 ${img(p.itemImageUrl, p.itemTitle)}
-                <p class="card-title">${esc(p.itemTitle)}</p>
+                <p class="card-title">${esc(p.title || p.itemTitle)}</p>
+                <p class="card-meta">상품: ${esc(p.itemTitle)}</p>
                 <p class="card-meta">원하는 것: ${esc(p.wantDescription)}</p>
                 <p class="card-meta">교환장소: ${esc(p.shopName)}</p>
             </div>`;
@@ -412,7 +413,8 @@
                 <header class="my-group-head">
                     <div class="my-thumb">${thumb(first.itemImageUrl, first.itemTitle)}</div>
                     <div class="my-group-title">
-                        <strong>${esc(first.itemTitle)}</strong>
+                        <strong>${esc(first.exchangeItemTitle || first.itemTitle)}</strong>
+                        <small>상품: ${esc(first.itemTitle)}</small>
                         <small>받은 신청 ${rows.length}건${pending ? ` · 대기 중 ${pending}건` : ''}</small>
                     </div>
                     <a class="my-group-link" href="/exchange/${postId}">게시글 보기</a>

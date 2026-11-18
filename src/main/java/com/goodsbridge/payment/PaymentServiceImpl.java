@@ -20,9 +20,17 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class PaymentServiceImpl implements PaymentService {
+
+    // PortOne 결제 상태값
+    private static final String PORTONE_PAID = "PAID";
+    private static final String PORTONE_PARTIAL_CANCELLED = "PARTIAL_CANCELLED";
+    private static final String PORTONE_CANCELLED = "CANCELLED";
+    private static final String PORTONE_CANCEL_SUCCEEDED = "SUCCEEDED";
+
     private final PaymentRepository paymentRepository;
     private final PortOnePaymentService portOnePaymentService;
     private final EntityManager entityManager;
+    private final PaymentCancelFailureRepository paymentCancelFailureRepository;
 
     // 결제
     @Override
@@ -51,7 +59,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         // 결제 상태 확인
-        if (!"PAID".equals(portOnePayment.getStatus())) {
+        if (!PORTONE_PAID.equals(portOnePayment.getStatus())) {
             throw new BadRequestException("결제가 승인된 상태가 아닙니다.");
         }
 
@@ -98,23 +106,56 @@ public class PaymentServiceImpl implements PaymentService {
         if (paymentId == null || paymentId.isBlank() || amount <= 0) {
             throw new BadRequestException("환불 요청 값이 올바르지 않습니다.");
         }
-        // 같은 결제를 동시에 환불/지급하지 못하도록 행 잠금 후 한도를 다시 검증한다.
+
+        // 같은 결제를 동시에 환불/지급하지 못하도록 행 잠금
         Payment payment = paymentRepository.findByPaymentIdLock(paymentId)
             .orElseThrow(() -> new BadRequestException("결제 내역을 찾을 수 없습니다."));
+
         if (!payment.isPaid() && payment.getStatus() != PaymentStatus.PARTIAL_CANCELLED) {
             throw new BadRequestException("환불 가능한 결제 상태가 아닙니다.");
         }
+
         if (amount > payment.getRefundableAmount()) {
             throw new BadRequestException("환불 가능 금액을 초과했습니다.");
         }
+
+        // PortOne의 실제 결제 상태를 먼저 확인한다.
+        PaymentResponse.PortOnePayment portOnePayment =
+            portOnePaymentService.getPayment(paymentId);
+
+        if (portOnePayment == null) {
+            throw new BadRequestException("PortOne에서 결제 내역을 찾을 수 없습니다.");
+        }
+
+        // 이전 환불 시 PortOne 취소는 성공했지만 DB가 롤백된 경우
+        // 이미 전체 취소된 결제라면 중복 취소하지 않고 DB 상태만 반영한다.
+        if (PORTONE_CANCELLED.equals(portOnePayment.getStatus())) {
+            if (amount != payment.getRefundableAmount()) {
+                throw new BadRequestException("이미 전체 취소된 결제의 환불 금액이 일치하지 않습니다.");
+            }
+
+            payment.refund(amount);
+            log.info("이미 취소된 PortOne 결제의 DB 상태 복구 - paymentId={}, amount={}",
+                paymentId, amount);
+            return;
+        }
+
+        if (!PORTONE_PAID.equals(portOnePayment.getStatus())
+            && !PORTONE_PARTIAL_CANCELLED.equals(portOnePayment.getStatus())) {
+            throw new BadRequestException("PortOne 결제가 환불 가능한 상태가 아닙니다.");
+        }
+
         PaymentResponse.PortOneCancel result =
             portOnePaymentService.cancelPayment(paymentId, amount, reason);
+
         if (result == null || result.getCancellation() == null
-            || !"SUCCEEDED".equals(result.getCancellation().getStatus())) {
+            || !PORTONE_CANCEL_SUCCEEDED.equals(result.getCancellation().getStatus())) {
             throw new BadRequestException("결제 취소가 완료되지 않았습니다.");
         }
+
         payment.refund(amount);
     }
+
 
     // 수령 확인 후 판매자에게 지급 처리
     @Override
@@ -140,8 +181,15 @@ public class PaymentServiceImpl implements PaymentService {
             if (paymentRepository.existsByPaymentId(paymentId)) {
                 return;
             }
-            PaymentResponse.PortOnePayment portOnePayment = portOnePaymentService.getPayment(paymentId);
-            if (portOnePayment == null || !"PAID".equals(portOnePayment.getStatus())
+            PaymentResponse.PortOnePayment portOnePayment;
+            try {
+                portOnePayment = portOnePaymentService.getPayment(paymentId);
+            } catch (BadRequestException e) {
+                // 형식이 잘못됐거나 PortOne에 없는 paymentId: 취소할 결제가 없으니 재시도 기록을 남기지 않는다
+                log.warn("자동 취소 대상 결제를 찾을 수 없습니다 - paymentId={}", paymentId);
+                return;
+            }
+            if (portOnePayment == null || !PORTONE_PAID.equals(portOnePayment.getStatus())
                 || portOnePayment.getAmount() == null
                 || portOnePayment.getAmount().getTotal() == null
                 || portOnePayment.getAmount().getTotal() <= 0) {
@@ -150,14 +198,27 @@ public class PaymentServiceImpl implements PaymentService {
             PaymentResponse.PortOneCancel result = portOnePaymentService
                 .cancelPayment(paymentId, portOnePayment.getAmount().getTotal(), reason);
             if (result == null || result.getCancellation() == null
-                || !"SUCCEEDED".equals(result.getCancellation().getStatus())) {
-                log.error("자동 취소 미완료 - 수동 취소 필요 paymentId={}", paymentId);
+                || !PORTONE_CANCEL_SUCCEEDED.equals(result.getCancellation().getStatus())) {
+                log.error("자동 취소 미완료 - 재시도 대기 paymentId={}", paymentId);
+                recordCancelFailure(paymentId, reason, "취소 응답이 SUCCEEDED가 아닙니다.");
                 return;
             }
             log.info("서버 거절로 결제 자동 취소 완료 - paymentId={}, amount={}",
                 paymentId, portOnePayment.getAmount().getTotal());
         } catch (RuntimeException e) {
-            log.error("자동 취소 실패 - 수동 취소 필요 paymentId={}", paymentId, e);
+            log.error("자동 취소 실패 - 재시도 대기 paymentId={}", paymentId, e);
+            recordCancelFailure(paymentId, reason, e.getMessage());
+        }
+    }
+
+    // 자동 취소 실패를 기록
+    private void recordCancelFailure(String paymentId, String reason, String error) {
+        try {
+            if (!paymentCancelFailureRepository.existsByPaymentId(paymentId)) {
+                paymentCancelFailureRepository.save(new PaymentCancelFailure(paymentId, reason, error));
+            }
+        } catch (RuntimeException e) {
+            log.error("자동 취소 실패 기록 저장 실패 paymentId={}", paymentId, e);
         }
     }
 }

@@ -46,6 +46,11 @@ public class Refund {
     @Column(length = 500)
     private String rejectReason;    // 관리자 거절 사유
 
+    // 거절한 주체 (REJECTED 상태일 때만 의미가 있다. 이전에 거절된 데이터는 null)
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private RejectedBy rejectedBy;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private RequestedBy requestedBy;    // 유저/가게 환불 신청 구분
@@ -71,30 +76,60 @@ public class Refund {
         return this.status == Status.REQUESTED;
     }
 
+    // 가게가 거절한 요청인지 (가게는 이 경우에만 재승인/사유 수정이 가능하다)
+    public boolean isRejectedByShop() {
+        return this.status == Status.REJECTED && this.rejectedBy == RejectedBy.SHOP;
+    }
+
     // 승인
     public void approve() {
         if (status == Status.APPROVED) {
             throw new BadRequestException("이미 승인된 환불 요청입니다.");
         }
-        if (status != Status.REQUESTED) {
-            throw new BadRequestException("처리 대기 중인 환불만 승인할 수 있습니다.");
+        if (status != Status.REQUESTED && status != Status.REJECTED) {
+            throw new BadRequestException("처리 대기 중이거나 거절된 환불만 승인할 수 있습니다.");
         }
+        this.rejectReason = null;
+        this.rejectedBy = null;
         this.status = Status.APPROVED;
         this.updatedAt = new Timestamp(System.currentTimeMillis());
     }
 
-    // 거절
-    public void reject(String rejectReason) {
-        if (status != Status.REQUESTED) {
-            throw new BadRequestException("처리 대기 중인 환불만 거절할 수 있습니다.");
+    // 거절 사유 수정 (이미 거절한 환불)
+    public void changeRejectReason(String rejectReason) {
+        if (status != Status.REJECTED) {
+            throw new BadRequestException("거절된 환불만 거절 사유를 수정할 수 있습니다.");
         }
+        validateRejectReason(rejectReason);
+        this.rejectReason = rejectReason;
+        this.updatedAt = new Timestamp(System.currentTimeMillis());
+    }
+
+    private void validateRejectReason(String rejectReason) {
         if (rejectReason == null || rejectReason.isBlank()) {
             throw new BadRequestException("거절 사유는 필수입니다.");
         }
         if (rejectReason.length() > 500) {
             throw new BadRequestException("거절 사유는 500자 이하로 입력해주세요.");
         }
+    }
+
+    // 관리자 거절 (거절 주체를 따로 넘기지 않는 기존 호출은 관리자 거절로 취급한다)
+    public void reject(String rejectReason) {
+        reject(rejectReason, RejectedBy.ADMIN);
+    }
+
+    // 거절
+    public void reject(String rejectReason, RejectedBy rejectedBy) {
+        if (status != Status.REQUESTED) {
+            throw new BadRequestException("처리 대기 중인 환불만 거절할 수 있습니다.");
+        }
+        if (rejectedBy == null) {
+            throw new BadRequestException("거절 주체가 필요합니다.");
+        }
+        validateRejectReason(rejectReason);
         this.rejectReason = rejectReason;
+        this.rejectedBy = rejectedBy;
         this.status = Status.REJECTED;
         this.updatedAt = new Timestamp(System.currentTimeMillis());
     }

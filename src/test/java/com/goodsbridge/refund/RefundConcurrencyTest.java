@@ -3,6 +3,7 @@ package com.goodsbridge.refund;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentStatus;
+import com.goodsbridge._core.exception.BadRequestException;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,7 +29,7 @@ class RefundConcurrencyTest {
         Payment payment = newPayment();
 
         payment.refund(6_000);
-        assertThrows(RuntimeException.class, () -> payment.refund(5_000));
+        assertThrows(BadRequestException.class, () -> payment.refund(5_000));
         assertEquals(4_000, payment.getRefundableAmount());
     }
 
@@ -51,7 +52,7 @@ class RefundConcurrencyTest {
 
         assertEquals(PaymentStatus.CANCELLED, payment.getStatus());
         assertEquals(0, payment.getRefundableAmount());
-        assertThrows(RuntimeException.class, () -> payment.refund(1));
+        assertThrows(BadRequestException.class, () -> payment.refund(1));
     }
 
     @Test
@@ -59,7 +60,7 @@ class RefundConcurrencyTest {
         Payment payment = newPayment();
         payment.release();
 
-        assertThrows(RuntimeException.class, () -> payment.refund(1_000));
+        assertThrows(BadRequestException.class, () -> payment.refund(1_000));
         assertEquals(0, payment.getRefundedAmount());
     }
 }

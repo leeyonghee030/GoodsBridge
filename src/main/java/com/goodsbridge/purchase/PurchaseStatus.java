@@ -1,7 +1,7 @@
 package com.goodsbridge.purchase;
 
 public enum PurchaseStatus {
-    PAID,   // 완료
-    CONFIRMED,  // 확인
-    REFUNDED    // 거절
+    PAID,   // 구매 완료
+    CONFIRMED,  // 수령 확인
+    REFUNDED    // 환불
 }

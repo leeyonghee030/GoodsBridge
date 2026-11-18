@@ -26,6 +26,7 @@ import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.shop.ShopStatus;
 import com.goodsbridge.shop.ShopSubscriptionService;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.Status;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -104,6 +105,10 @@ public class EventService {
         // 가게 계정은 다른 가게 이벤트에도 참가할 수 없다
         if (shopRepository.existsByOwnerUserIdAndDeletedFalse(userid)) {
             throw new ForbiddenException("가게 계정은 이벤트에 참가할 수 없습니다");
+        }
+        // 관리자 계정은 관리만 하고 참가하지 않는다
+        if (user.getRole() == Role.ADMIN) {
+            throw new ForbiddenException("관리자 계정은 이벤트에 참가할 수 없습니다");
         }
         // 이미 참가한 이벤트면 추가 구매 (같은 번호표에 구매 건을 하나 더 쌓는다)
         List<EventParticipation> mine = eventParticipationRepository.findJoinedByUserIdAndShopEventId(userid, id);

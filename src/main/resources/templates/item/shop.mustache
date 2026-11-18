@@ -46,6 +46,20 @@
 .si-subtabs button:hover { background: none; color: var(--color-text); }
 .si-subtabs button.active, .si-subtabs button.active:hover { background: none; color: var(--color-text); font-weight: 700; }
 .si-subtabs button small { margin-left: 0.25rem; font-size: 0.72rem; opacity: 0.6; }
+.si-kind { display: inline-block; margin-right: 0.35rem; padding: 0.05rem 0.45rem; border-radius: 4px; font-size: 0.68rem; font-weight: 600; background: var(--color-surface); color: var(--color-muted); vertical-align: 1px; }
+.si-kind.is-auction { background: #FFF1D6; color: #9A5B00; }
+.si-kinds { display: flex; gap: 0.4rem; margin: 0 0 0.6rem; }
+.si-kinds[hidden] { display: none; }
+.si-kinds button { width: auto; padding: 0.3rem 0.8rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg); font: inherit; font-size: 0.8rem; color: var(--color-muted); cursor: pointer; }
+.si-kinds button:hover { background: var(--color-surface); color: var(--color-text); }
+.si-kinds button.active, .si-kinds button.active:hover { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.si-kinds button small { margin-left: 0.3rem; opacity: 0.7; }
+.si-row-actions { flex: none; display: flex; gap: 0.3rem; margin-left: 0.5rem; }
+.si-row-actions button, .si-refund-actions button { width: auto; padding: 0.25rem 0.7rem; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: var(--color-text); font: inherit; font-size: 0.74rem; white-space: nowrap; cursor: pointer; }
+.si-row-actions button:hover, .si-refund-actions button:hover { background: var(--color-surface); color: var(--color-text); }
+.si-row-actions button.is-primary, .si-refund-actions button.is-primary { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.si-row-actions button.is-primary:hover, .si-refund-actions button.is-primary:hover { background: var(--color-dark-hover, #333); color: #fff; }
+.si-refund-actions { display: flex; gap: 0.4rem; margin-top: 0.5rem; }
 .si-badge.is-ok { background: #EAF5EE; color: #2E7D4F; }
 /* 판매 정산 (가게 교환 관리의 수수료 수익 패널과 같은 모양) */
 .si-fee[hidden] { display: none; }
@@ -130,6 +144,7 @@
 <div class="container my-card">
 <nav class="my-tabs">
     <a href="/update">내 정보</a>
+    <a href="/shop/dashboard">대시보드</a>
     <a href="/shop/exchange">가게 교환 관리</a>
     <a href="/shop/items" class="active">판매 상품 관리</a>
     <a href="/shop/events">이벤트 관리</a>
@@ -176,6 +191,7 @@
             <button type="button" class="write-link" id="si-open-create">상품 등록</button>
         </div>
     </div>
+    <div class="si-kinds" id="si-kinds" hidden></div>
     <div class="si-subtabs" id="si-subtabs" hidden></div>
     <section class="si-fee" id="si-fee" hidden>
         <div class="si-fee-note">구매자가 구매 확정한 상품의 판매 금액이에요. 구매 확정 전 판매는 정산 예정 금액으로 따로 보여요.</div>
@@ -211,7 +227,7 @@
 <div class="modal-backdrop" id="si-create-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" data-close>✕</button>
-        <h1>상품 등록</h1>
+        <h1 id="si-modal-title">상품 등록</h1>
         <form id="si-form">
             <p>
                 <label for="si-shop" class="sr-only">가게</label>
@@ -295,6 +311,17 @@
 
     // ===== 목록 =====
     const latestRefund = s => s.refunds[0] || null;
+    // 가게 주인이 하는 환불 처리 버튼: 요청중 → 승인/거절, 거절한 건 → 승인으로 변경(재검토) / 거절 사유 수정
+    const refundButtons = (s, rf, cls) => {
+        const attrs = `data-refund-id="${rf.id}"`;
+        if (rf.status === 'REQUESTED') {
+            return `<span class="${cls}"><button type="button" class="is-primary" data-refund-action="approve" ${attrs}>승인</button><button type="button" data-refund-action="reject" ${attrs}>거절</button></span>`;
+        }
+        if (rf.status === 'REJECTED' && s.refunds[0] === rf) {
+            return `<span class="${cls}"><button type="button" data-refund-action="reapprove" ${attrs}>승인으로 변경</button><button type="button" data-refund-action="editreason" ${attrs}>거절 사유 수정</button></span>`;
+        }
+        return '';
+    };
     // 판매완료 상태: 환불 요청중 > 구매 확정 > 배송 단계, 구매 내역이 없으면(경매 등) 기타
     const SALE_STATES = [
         ['ALL', '전체'], ['PREPARING', '배송 준비중'], ['SHIPPED', '배송중'], ['DELIVERED', '배송 완료'],
@@ -314,6 +341,17 @@
         REFUND_REQUESTED: '<span class="si-badge is-warn">환불 요청중</span>'
     };
     let saleSub = 'ALL';
+    // 환불 탭 분류: 가장 최근 환불 요청의 상태 기준 (판매가보다 적게 환불된 승인 건은 부분 환불)
+    let refundSub = 'ALL';
+    const REFUND_STATES = [['ALL', '전체'], ['REQUESTED', '환불 요청중'], ['DONE', '환불 완료'], ['PARTIAL', '부분 환불'], ['REJECTED', '환불 거절']];
+    const refundState = x => {
+        const rf = latestRefund(x);
+        if (!rf) return 'DONE';
+        return rf.status === 'REQUESTED' ? 'REQUESTED' : rf.status === 'REJECTED' ? 'REJECTED' : rf.amount < x.price ? 'PARTIAL' : 'DONE';
+    };
+    let saleKind = 'ALL';   // ALL / SHOP(일반 판매) / AUCTION(경매 낙찰)
+    const KINDS = [['ALL', '전체'], ['SHOP', '상품 판매'], ['AUCTION', '경매 낙찰']];
+    const kindTag = x => x.source === 'AUCTION' ? '<span class="si-kind is-auction">경매 낙찰</span>' : '<span class="si-kind">상품 판매</span>';
     let saleFees = [];   // 상품 판매 정산 (SettlementHistory 중 PURCHASE_FEE)
 
     // 기간 기준 날짜: 판매완료는 구매일, 환불은 최근 환불 요청일 (구매 내역이 없는 판매완료 상품은 날짜 없음)
@@ -333,7 +371,9 @@
     };
     const rowsFor = t => {
         let rows = periodRows(t);
+        if (t === 'SOLD' && saleKind !== 'ALL') rows = rows.filter(x => (x.source || 'SHOP') === saleKind);
         if (t === 'SOLD' && saleSub !== 'ALL') rows = rows.filter(x => saleState(x) === saleSub);
+        if (t === 'REFUND' && refundSub !== 'ALL') rows = rows.filter(x => refundState(x) === refundSub);
         return rows.sort(byLatest(t));
     };
     // 카테고리만 적용한 목록 (달력의 월별 건수 계산에도 사용)
@@ -363,6 +403,7 @@
         if (isFee) {
             periodBox.hidden = true;
             document.getElementById('si-subtabs').hidden = true;
+            document.getElementById('si-kinds').hidden = true;
             renderFee();
             return;
         }
@@ -371,21 +412,26 @@
         renderSubtabs();
         const rows = rowsFor(tab);
         if (rows.length === 0) {
-            const msg = { ON_SALE: '판매 중인 상품이 없어요. 오른쪽 위 상품 등록으로 올려 보세요.', SOLD: saleSub === 'ALL' ? '판매 완료된 상품이 없어요.' : `${SALE_STATES.find(x => x[0] === saleSub)[1]} 상태인 판매가 없어요.`, REFUND: '환불 내역이 없어요.' }[tab]
+            const msg = { ON_SALE: '판매 중인 상품이 없어요. 오른쪽 위 상품 등록으로 올려 보세요.', SOLD: saleSub === 'ALL' ? '판매 완료된 상품이 없어요.' : `${SALE_STATES.find(x => x[0] === saleSub)[1]} 상태인 판매가 없어요.`, REFUND: refundSub === 'ALL' ? '환불 내역이 없어요.' : `${REFUND_STATES.find(x => x[0] === refundSub)[1]} 건이 없어요.` }[tab]
                 .replace('없어요', tab !== 'ON_SALE' && period.from ? period.label + '에는 없어요' : '없어요');
             listEl.innerHTML = `<p class="empty">${msg}</p>`;
             return;
         }
         if (tab === 'ON_SALE') {
+            // 행을 누르면 상품 상세, 오른쪽 버튼으로 수정 · 삭제 (경매 중인 경매 전용 상품은 이 목록에 없다)
             listEl.innerHTML = rows.map(i => `
-                <a class="related-item-link" href="/test/item/${i.id}">
+                <div class="related-item-link" data-open="/test/item/${i.id}">
                     ${thumb(i.imageUrl)}
                     <span class="related-item-text">
                         <small>${esc(i.categoryName)}${shopLabel(i.shopId)}</small>
                         <strong>${esc(i.title)}</strong>
                         <small>${money(i.price)}</small>
                     </span>
-                </a>`).join('');
+                    <span class="si-row-actions">
+                        <button type="button" data-item-edit="${i.id}">수정</button>
+                        <button type="button" data-item-delete="${i.id}">삭제</button>
+                    </span>
+                </div>`).join('');
             return;
         }
         listEl.innerHTML = rows.map(s => {
@@ -402,7 +448,7 @@
             }
             const r = latestRefund(s);
             const badge = tab === 'REFUND'
-                ? `<span class="si-badge ${r.status === 'REQUESTED' ? 'is-warn' : ''}">${refundLabel(r, s)}</span>`
+                ? `<span class="si-badge ${{ REQUESTED: 'is-warn', DONE: 'is-ok', PARTIAL: 'is-dark', REJECTED: '' }[refundState(s)]}">${refundLabel(r, s)}</span>`
                 : STATE_BADGE[saleState(s)];
             const sub = tab === 'REFUND'
                 ? `${BY[r.requestedBy]} 요청 · ${money(r.amount)} · ${date(r.requestedAt)}`
@@ -411,30 +457,51 @@
                 <div class="related-item-link" data-purchase="${s.purchaseId}">
                     ${thumb(s.imageUrl)}
                     <span class="related-item-text">
-                        <small>${esc(s.categoryName)}${shopLabel(s.shopId)}</small>
+                        <small>${kindTag(s)}${esc(s.categoryName)}${shopLabel(s.shopId)}</small>
                         <strong>${esc(s.itemTitle)}</strong>
-                        <small>${money(s.price)} · ${sub}</small>
+                        <small>${s.source === 'AUCTION' ? '낙찰가 ' : ''}${money(s.price)} · ${sub}</small>
                     </span>
                     ${badge}
+                    ${tab === 'REFUND' ? refundButtons(s, r, 'si-row-actions') : ''}
                 </div>`;
         }).join('');
     }
 
     function renderSubtabs() {
         const box = document.getElementById('si-subtabs');
-        box.hidden = tab !== 'SOLD';
+        const kindBox = document.getElementById('si-kinds');
+        box.hidden = tab !== 'SOLD' && tab !== 'REFUND';
+        // 상품 판매/경매 낙찰 구분은 판매완료 탭에서만 보인다
+        if (tab !== 'SOLD') kindBox.hidden = true;
         if (box.hidden) return;
-        const rows = periodRows('SOLD');
+        if (tab === 'REFUND') {
+            const refunds = periodRows('REFUND');
+            const cnt = key => key === 'ALL' ? refunds.length : refunds.filter(x => refundState(x) === key).length;
+            box.innerHTML = REFUND_STATES.map(([key, label]) => `<button type="button" data-sub="${key}" class="${refundSub === key ? 'active' : ''}">${label}<small>${cnt(key)}</small></button>`).join('');
+            return;
+        }
+        const all = periodRows('SOLD');
+        const kindCount = k => k === 'ALL' ? all.length : all.filter(x => (x.source || 'SHOP') === k).length;
+        // 경매 낙찰이 하나도 없으면 구분 버튼은 숨긴다
+        kindBox.hidden = kindCount('AUCTION') === 0;
+        kindBox.innerHTML = KINDS.map(([k, label]) => `<button type="button" data-kind="${k}" class="${saleKind === k ? 'active' : ''}">${label}<small>${kindCount(k)}</small></button>`).join('');
+        const rows = saleKind === 'ALL' ? all : all.filter(x => (x.source || 'SHOP') === saleKind);
         const count = key => key === 'ALL' ? rows.length : rows.filter(x => saleState(x) === key).length;
         // 기타 판매는 있을 때만 보여준다
         box.innerHTML = SALE_STATES.filter(([key]) => key !== 'OTHER' || count(key) > 0)
             .map(([key, label]) => `<button type="button" data-sub="${key}" class="${saleSub === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`)
             .join('');
     }
+    document.getElementById('si-kinds').addEventListener('click', ev => {
+        const b = ev.target.closest('[data-kind]');
+        if (!b) return;
+        saleKind = b.dataset.kind;
+        render();
+    });
     document.getElementById('si-subtabs').addEventListener('click', ev => {
         const b = ev.target.closest('[data-sub]');
         if (!b) return;
-        saleSub = b.dataset.sub;
+        if (tab === 'REFUND') refundSub = b.dataset.sub; else saleSub = b.dataset.sub;
         render();
     });
 
@@ -447,7 +514,7 @@
         document.getElementById('si-fee-today').textContent = money(sum(between(today, new Date(y, m, now.getDate() + 1))));
         document.getElementById('si-fee-month').textContent = money(sum(month));
         document.getElementById('si-fee-last').textContent = money(sum(between(new Date(y, m - 1, 1), new Date(y, m, 1))));
-        const pending = sales.filter(x => x.purchaseStatus === 'PAID');
+        const pending = sales.filter(x => x.purchaseStatus === 'PAID' && x.source !== 'AUCTION');   // 경매는 잔금 결제 때 이미 정산돼요
         document.getElementById('si-fee-pending').textContent = `${pending.length}건 · ${money(pending.reduce((acc, x) => acc + (x.refundableAmount || 0), 0))}`;
 
         // ----- 달력: 보고 있는 달의 날짜별 정산 금액 -----
@@ -518,7 +585,7 @@
         const [itemRes, saleRes] = await Promise.all([pageFetch('/api/items/me'), pageFetch('/api/items/shop-sales')]);
         if (!itemRes.ok || !saleRes.ok) { listEl.innerHTML = '<p class="empty">상품을 불러오지 못했어요.</p>'; return; }
         // 선착순 이벤트 상품은 이벤트 관리 화면에서 다룬다
-        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT').sort((a, b) => b.id - a.id);
+        items = (await itemRes.json()).filter(i => shopIds.has(i.shopId) && i.saleType !== 'EVENT' && i.saleType !== 'AUCTION').sort((a, b) => b.id - a.id);   // 이벤트·경매 상품은 각 관리 화면에서 다룬다
         sales = await saleRes.json();
         const salesByPayment = Object.fromEntries(sales.map(x => [x.paymentId, x]));
         const lists = await Promise.all([...shopIds].map(id =>
@@ -658,6 +725,13 @@
     const message = document.getElementById('si-message');
     const fail = text => { message.textContent = text; message.className = 'form-message error'; };
 
+    let editingItem = null;   // 수정 중인 상품 (null 이면 새 상품 등록)
+    function setItemMode(item) {
+        editingItem = item;
+        document.getElementById('si-modal-title').textContent = item ? '상품 수정' : '상품 등록';
+        document.getElementById('si-submit').textContent = item ? '수정 저장' : '등록';
+        shopSelect.closest('p').hidden = !!item || !multiShop;
+    }
     function resetForm() {
         const keepShop = shopSelect.value;
         form.reset();
@@ -665,6 +739,22 @@
         categoryId = null;
         imageName.textContent = '선택된 이미지 없음';
         message.textContent = '';
+        setItemMode(null);
+    }
+    // 판매중 상품 수정: 현재 값을 채워 같은 창을 연다 (이미지는 새로 고르지 않으면 그대로 유지)
+    function openItemEdit(item) {
+        resetForm();
+        setItemMode(item);
+        shopSelect.value = String(item.shopId);
+        document.getElementById('si-title').value = item.title;
+        catInput.value = item.categoryName;
+        const cat = categories.find(c => c.name === item.categoryName);
+        categoryId = cat ? cat.id : null;
+        priceInput.value = Number(item.price).toLocaleString('ko-KR');
+        document.getElementById('si-description').value = item.description || '';
+        imageName.textContent = item.imageUrl ? '현재 이미지 유지 (새로 고르면 교체)' : '선택된 이미지 없음';
+        createModal.hidden = false;
+        document.getElementById('si-title').focus();
     }
     document.getElementById('si-open-create').addEventListener('click', () => {
         resetForm();
@@ -698,17 +788,20 @@
                 imageUrl = (await up.json()).imageUrl;
             }
             const body = {
-                shopId: Number(shopSelect.value),
+                shopId: editingItem ? editingItem.shopId : Number(shopSelect.value),
                 categoryId: categoryId,
                 title: document.getElementById('si-title').value.trim(),
                 description: document.getElementById('si-description').value.trim() || null,
                 price: price,
                 saleType: 'NORMAL',
-                imageUrl: imageUrl
+                imageUrl: editingItem ? (imageUrl || editingItem.imageUrl || null) : imageUrl
             };
-            const res = await pageFetch('/api/items', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(body) });
-            if (!res.ok) { fail(await errorText(res, '등록에 실패했습니다.')); return; }
-            message.textContent = '상품이 등록되었습니다.';
+            if (editingItem) body.status = 'ON_SALE';
+            const res = editingItem
+                ? await pageFetch(`/api/items/${editingItem.id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify(body) })
+                : await pageFetch('/api/items', { method: 'POST', headers: jsonHeaders, body: JSON.stringify(body) });
+            if (!res.ok) { fail(await errorText(res, editingItem ? '수정에 실패했습니다.' : '등록에 실패했습니다.')); return; }
+            message.textContent = editingItem ? '상품이 수정되었습니다.' : '상품이 등록되었습니다.';
             message.className = 'form-message';
             tab = 'ON_SALE';
             document.querySelectorAll('#si-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === 'ON_SALE'));
@@ -717,6 +810,30 @@
         } finally {
             submit.disabled = false;
         }
+    });
+
+    // 판매중 목록: 행을 누르면 상세, 수정 · 삭제 버튼
+    listEl.addEventListener('click', async ev => {
+        const editBtn = ev.target.closest('[data-item-edit]');
+        if (editBtn) {
+            ev.stopPropagation();
+            const item = items.find(i => i.id === Number(editBtn.dataset.itemEdit));
+            if (item) openItemEdit(item);
+            return;
+        }
+        const delBtn = ev.target.closest('[data-item-delete]');
+        if (delBtn) {
+            ev.stopPropagation();
+            const item = items.find(i => i.id === Number(delBtn.dataset.itemDelete));
+            if (!item) return;
+            if (!(await gbConfirm(`'${item.title}' 상품을 삭제할까요?\n삭제하면 판매 목록에서 사라지고 되돌릴 수 없어요.`))) return;
+            const res = await pageFetch(`/api/items/${item.id}`, { method: 'DELETE' });
+            if (!res.ok) { await alert(await errorText(res, '삭제에 실패했습니다.')); return; }
+            await load();
+            return;
+        }
+        const row = ev.target.closest('[data-open]');
+        if (row) location.href = row.dataset.open;
     });
 
     // ===== 판매 상세 창: 구매자/배송지, 송장 입력, 환불 내역/신청 =====
@@ -758,16 +875,17 @@
                 <div class="si-refund-row">
                     <strong>${refundLabel(r, s)}</strong> · ${money(r.amount)} <small>(${BY[r.requestedBy]} 요청 · ${date(r.requestedAt)})</small><br>
                     <small>사유: ${esc(r.reason)}${r.rejectReason ? ' / 거절 사유: ' + esc(r.rejectReason) : ''}</small>
+                    ${refundButtons(s, r, 'si-refund-actions')}
                 </div>`).join('') : '<p class="si-note">환불 내역이 없어요.</p>'}
             ${canRefund ? `
             <form id="si-refund-form" style="margin-top:0.8rem;">
                 <span class="price-input">
-                    <input id="si-refund-amount" type="text" inputmode="numeric" value="${Number(s.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" required>
+                    <input id="si-refund-amount" type="text" inputmode="numeric" value="${Number(s.refundableAmount).toLocaleString('ko-KR')}" autocomplete="off" ${s.source === 'AUCTION' ? 'readonly' : ''} required>
                     <span class="price-input-unit">원</span>
                 </span>
                 <textarea id="si-refund-reason" rows="2" maxlength="500" placeholder="환불 사유 (예: 재고 부족, 상품 하자)" required></textarea>
                 <button type="submit">환불 신청</button>
-                <p class="si-note">환불 가능 금액 ${money(s.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.</p>
+                <p class="si-note">환불 가능 금액 ${money(s.refundableAmount)} · 관리자가 승인하면 결제가 취소돼요.${s.source === 'AUCTION' ? '<br>경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있어요. 환불하면 가게 정산도 함께 취소돼요.' : ''}</p>
             </form>` : (pending ? '<p class="si-note">처리 대기 중인 환불 요청이 있어요.</p>' : '')}
             <p id="si-detail-message" class="form-message"></p>`;
     }
@@ -835,6 +953,56 @@
             btn.disabled = false;
         }
     });
+
+    // ===== 가게 주인의 환불 승인 / 거절 / 재검토 =====
+    // 목록 줄을 눌러 상세가 열리는 동작보다 먼저 받도록 캡처 단계에서 처리한다
+    document.addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-refund-action]');
+        if (!b) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        const id = Number(b.dataset.refundId);
+        const found = sales.flatMap(x => x.refunds.map(rf => ({ s: x, rf }))).find(o => o.rf.id === id);
+        if (!found) return;
+        const { s, rf } = found;
+        const act = b.dataset.refundAction;
+        let url;
+        if (act === 'approve' || act === 'reapprove') {
+            const msg = act === 'approve'
+                ? `${money(rf.amount)} 환불을 승인할까요?\n승인하면 결제가 바로 취소되고 되돌릴 수 없어요.`
+                : `거절했던 환불을 승인으로 바꿀까요?\n${money(rf.amount)}이 환불되고 결제가 바로 취소되며 되돌릴 수 없어요.`;
+            if (!(await gbConfirm(msg))) return;
+            url = `/api/shops/${s.shopId}/refunds/${id}/approve`;
+        } else {
+            const reason = await gbPrompt(act === 'reject' ? '거절 사유를 입력해 주세요.' : '거절 사유를 수정해 주세요.', act === 'editreason' ? (rf.rejectReason || '') : '', { multiline: true });
+            if (reason === null) return;
+            if (!reason.trim()) { await alert('거절 사유를 입력해 주세요.'); return; }
+            url = `/api/shops/${s.shopId}/refunds/${id}/reject?rejectReason=${encodeURIComponent(reason.trim())}`;
+        }
+        b.disabled = true;
+        const res = await pageFetch(url, { method: 'PATCH' });
+        if (!res.ok) await alert(await errorText(res, '환불 처리에 실패했습니다.'));
+        if (!detailModal.hidden && current) {
+            current = { purchaseId: s.purchaseId };
+            await refreshDetail();
+        } else {
+            await load();
+        }
+    }, true);
+
+    // 가게 대시보드 등에서 ?tab=SOLD&sub=PREPARING 처럼 열면 그 탭과 분류로 시작한다
+    (() => {
+        const q = new URLSearchParams(location.search);
+        const t = q.get('tab'), s = q.get('sub');
+        if (!['ON_SALE', 'SOLD', 'REFUND', 'FEE'].includes(t)) return;
+        tab = t;
+        document.querySelectorAll('#si-tabs [data-tab]').forEach(el => el.classList.toggle('active', el.dataset.tab === t));
+        if (t === 'REFUND' && REFUND_STATES.some(x => x[0] === s)) refundSub = s;
+        if (t === 'SOLD' && SALE_STATES.some(x => x[0] === s)) saleSub = s;
+        // ?month=YYYY-MM 이면 판매완료·환불 탭의 기간을 그 달로 맞춘다 (대시보드의 월 지표에서 넘어올 때)
+        const mm = /^(\d{4})-(\d{2})$/.exec(q.get('month') || '');
+        if (mm && Number(mm[2]) >= 1 && Number(mm[2]) <= 12) { setMonth(Number(mm[1]), Number(mm[2]) - 1); viewYear = Number(mm[1]); }
+    })();
 
     load();
 })();

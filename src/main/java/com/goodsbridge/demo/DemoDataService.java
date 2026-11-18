@@ -74,14 +74,13 @@ public class DemoDataService {
     static final String SHOP_B_EMAIL = "demo-shop-b@goodsbridge.demo";
     static final String ADMIN_EMAIL = "demo-admin@goodsbridge.demo";
 
-    private static final String FALLBACK_IMAGE = "/img/nav-shop.jpg";
-    // 새 DB 에는 카테고리가 하나도 없어서(카테고리는 API 로만 만들어진다) 시연 데이터가 비지 않게 기본 카테고리를 만든다
-    private static final List<String> DEFAULT_CATEGORIES = List.of(
-        "포토카드", "앨범", "피규어", "응원봉", "포스터", "스티커", "키링", "포카홀더", "엽서", "포토북", "인형");
-    // 업로드 폴더(/images/seed_photo_*)는 git 에 없어서 다른 컴퓨터에는 없다. 그럴 땐 저장소에 들어 있는 사진을 돌려 쓴다.
-    private static final List<String> REPO_IMAGES = List.of(
-        "/img/event-plush-short.jpg", "/img/event-plush-long.jpg", "/img/event-figure.jpg", "/img/event-manga.jpg",
-        "/img/auction-figure-box.jpg", "/img/auction-plush.jpg", "/img/event-kuji.jpg", "/img/nav-shop.jpg", "/img/nav-exchange.jpg");
+    // 시연 데이터는 어느 컴퓨터에서 만들어도 똑같이 나오게, 카테고리와 사진을 이름으로 고정한다.
+    // (카테고리는 API 로만 만들어져서 컴퓨터마다 DB 에 있는 카테고리가 다르면 시연 상품이 달라졌다)
+    private static final List<String> DEMO_CATEGORIES = List.of(
+        "포토카드", "앨범", "피규어", "응원봉", "포스터", "스티커", "키링", "포카홀더", "엽서", "포토북", "인형", "패션");
+    // 시연 상품 사진: 저장소의 static/img/demo 에 들어 있다 (업로드 폴더는 git 에 없어서 다른 컴퓨터에는 없다)
+    private static final List<String> DEMO_PHOTOS = List.of(
+        "/img/demo/seed_photo_1.jpg", "/img/demo/seed_photo_11.jpg", "/img/demo/seed_photo_12.jpg", "/img/demo/seed_photo_13.jpg", "/img/demo/seed_photo_14.jpg", "/img/demo/seed_photo_15.jpg", "/img/demo/seed_photo_16.jpg", "/img/demo/seed_photo_19.jpg", "/img/demo/seed_photo_2.jpg", "/img/demo/seed_photo_20.jpg", "/img/demo/seed_photo_21.jpg", "/img/demo/seed_photo_22.jpg", "/img/demo/seed_photo_23.jpg", "/img/demo/seed_photo_24.jpg", "/img/demo/seed_photo_27.jpg", "/img/demo/seed_photo_28.jpg", "/img/demo/seed_photo_29.jpg", "/img/demo/seed_photo_30.jpg", "/img/demo/seed_photo_34.jpg", "/img/demo/seed_photo_35.jpg", "/img/demo/seed_photo_36.jpg", "/img/demo/seed_photo_37.jpg", "/img/demo/seed_photo_38.jpg", "/img/demo/seed_photo_39.jpg", "/img/demo/seed_photo_40.jpg", "/img/demo/seed_photo_41.jpg", "/img/demo/seed_photo_42.jpg", "/img/demo/seed_photo_43.jpg", "/img/demo/seed_photo_44.jpg", "/img/demo/seed_photo_45.jpg", "/img/demo/seed_photo_47.jpg", "/img/demo/seed_photo_48.jpg", "/img/demo/seed_photo_51.jpg", "/img/demo/seed_photo_53.jpg", "/img/demo/seed_photo_7.jpg", "/img/demo/seed_photo_9.jpg");
 
     private final UserRepository userRepository;
     private final ShopRepository shopRepository;
@@ -101,6 +100,7 @@ public class DemoDataService {
     private final ExchangeMessageRepository exchangeMessageRepository;
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
+    private final DemoSampleDataService demoSampleDataService;
 
     @Transactional
     public void reset() {
@@ -124,8 +124,36 @@ public class DemoDataService {
         // 이전 시연(또는 테스트)에서 쌓인 데모 가게의 수수료 기록도 초기화해서 수익 요약이 시드 데이터와 맞게 한다
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shop.getId());
         deleteDemoData(List.of(userA.getId(), userB.getId(), shopOwner.getId()));
+        deleteDemoPayments();
         seed(userA, userB, shopOwner, shop);
         seedBranches();
+        seedSubscriptionPayments();
+        // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
+        demoSampleDataService.seed();
+        spreadAccountDates();
+    }
+
+    // 시연 계정과 시연 가게의 가입일·입점일을 과거로 흩어 놓는다 (샘플 데이터와 같은 이유: 대시보드 차트가 DB마다 같은 모양이 되게)
+    private void spreadAccountDates() {
+        Object[][] accounts = {
+            { ADMIN_EMAIL, 165 }, { SHOP_EMAIL, 150 }, { USER_A_EMAIL, 130 }, { USER_B_EMAIL, 110 }, { SHOP_B_EMAIL, 70 },
+        };
+        for (Object[] a : accounts) {
+            jdbcTemplate.update("update user_tb set created_at = ? where email = ?", daysAgoAt10((int) a[1]), a[0]);
+        }
+        for (int n = 1; n <= 6; n++) {
+            jdbcTemplate.update("update user_tb set created_at = ? where email = ?", daysAgoAt10(100 - n * 10),
+                "demo-branch-" + n + "@goodsbridge.demo");
+        }
+        // 데모 굿즈샵과 B는 새 DB에서는 승인 시각이 '지금'으로 찍히므로 고정된 과거로 맞춘다
+        jdbcTemplate.update("update shop_tb set approved_at = ?, created_at = ? where owner_user_id = (select id from user_tb where email = ?) and status = 'APPROVED' and deleted = 0",
+            daysAgoAt10(95), daysAgoAt10(96), SHOP_EMAIL);
+        jdbcTemplate.update("update shop_tb set approved_at = ?, created_at = ? where owner_user_id = (select id from user_tb where email = ?) and status = 'APPROVED' and deleted = 0",
+            daysAgoAt10(45), daysAgoAt10(46), SHOP_B_EMAIL);
+    }
+
+    private Timestamp daysAgoAt10(int days) {
+        return Timestamp.valueOf(LocalDate.now().minusDays(days).atTime(10, 0));
     }
 
     private User findOrCreateUser(String email, String nickname) {
@@ -190,6 +218,12 @@ public class DemoDataService {
             shopRepository.flush();
             jdbcTemplate.update("update shop_tb set created_at = ? where id = ?",
                 Timestamp.valueOf(LocalDateTime.now().minusDays(Integer.parseInt(b[5]) > 0 ? Math.min(Integer.parseInt(b[5]), 30) : 0).minusHours(n + 1)), branch.getId());
+            // 승인된 지점은 입점 승인일을 신청 며칠 전(승인 하루 전 신청)으로 과거에 흩어 놓아서, 입점 관리 달력으로 월별 조회를 시연할 수 있게 한다
+            if ("APPROVED".equals(b[3])) {
+                LocalDateTime approvedAt = LocalDateTime.now().minusDays(Integer.parseInt(b[5])).minusHours(n + 1);
+                jdbcTemplate.update("update shop_tb set created_at = ?, approved_at = ? where id = ?",
+                    Timestamp.valueOf(approvedAt.minusDays(1)), Timestamp.valueOf(approvedAt), branch.getId());
+            }
 
             LocalDate start;
             LocalDate end;
@@ -206,7 +240,69 @@ public class DemoDataService {
         }
     }
 
+    // 구독 요금 (기획서 3.1: 1일 1,000원)
+    private static final int SUBSCRIPTION_FEE_PER_DAY = 1_000;
+
+    // 관리자 대시보드의 구독 매출·결제 건수를 시연할 수 있게 구독 결제 기록(SHOP_SUBSCRIPTION)을 만든다.
+    // 시연 구독마다 시작일에 결제한 것으로 기록하고, 최근 몇 달에 걸친 연장 결제 이력도 함께 넣는다.
+    // 결제 번호가 demo- 로 시작해서 초기화할 때마다 deleteDemoPayments()가 지우고 다시 만든다.
+    private void seedSubscriptionPayments() {
+        // 1) 시연 구독(데모 가게, 지점들)의 최초 결제: 구독 기간 길이만큼, 시작일에 결제
+        jdbcTemplate.query(
+            "select sub.payment_id, sub.start_date, sub.end_date, s.owner_user_id "
+                + "from shop_subscription_tb sub join shop_tb s on s.id = sub.shop_id "
+                + "where sub.payment_id like 'demo-subscription-%'",
+            rs -> {
+                long days = java.time.temporal.ChronoUnit.DAYS.between(
+                    rs.getDate("start_date").toLocalDate(), rs.getDate("end_date").toLocalDate());
+                insertSubscriptionPayment(rs.getString("payment_id"), rs.getLong("owner_user_id"),
+                    (int) days * SUBSCRIPTION_FEE_PER_DAY, rs.getDate("start_date").toLocalDate());
+            });
+
+        // 2) 최근 몇 달의 연장 결제 이력 { 시연 계정, 몇 달 전, 일, 구독 일수 }
+        User shopOwner = findOrCreateUser(SHOP_EMAIL, "데모가게");
+        Object[][] history = {
+            { "demo-branch-4@goodsbridge.demo", 5, 8, 30 },
+            { "demo-branch-4@goodsbridge.demo", 4, 8, 30 },
+            { "demo-branch-4@goodsbridge.demo", 3, 8, 60 },
+            { "demo-branch-5@goodsbridge.demo", 5, 15, 90 },
+            { "demo-branch-5@goodsbridge.demo", 2, 15, 90 },
+            { "demo-branch-6@goodsbridge.demo", 5, 20, 180 },
+            { "demo-branch-6@goodsbridge.demo", 0, 2, 60 },
+            { SHOP_EMAIL, 4, 22, 60 },
+            { SHOP_EMAIL, 1, 5, 30 },
+        };
+        LocalDate today = LocalDate.now();
+        for (Object[] h : history) {
+            Long ownerId = h[0].equals(SHOP_EMAIL) ? shopOwner.getId()
+                : userRepository.findByEmail((String) h[0]).map(User::getId).orElse(null);
+            if (ownerId == null) continue;
+            java.time.YearMonth month = java.time.YearMonth.from(today).minusMonths((int) h[1]);
+            LocalDate paidOn = month.atDay(Math.min((int) h[2], month.lengthOfMonth()));
+            if (paidOn.isAfter(today)) paidOn = today;   // 이번 달 결제가 미래 날짜가 되지 않게
+            insertSubscriptionPayment("demo-subscription-history-" + UUID.randomUUID(), ownerId,
+                (int) h[3] * SUBSCRIPTION_FEE_PER_DAY, paidOn);
+        }
+    }
+
+    // JPA의 @CreationTimestamp는 결제일을 지금으로 덮어쓰므로, 과거 날짜로 넣으려고 JDBC로 직접 넣는다.
+    private void insertSubscriptionPayment(String paymentId, Long userId, int amount, LocalDate paidOn) {
+        jdbcTemplate.update(
+            "insert into payment_tb (payment_id, pg_tx_id, user_id, amount, refunded_amount, purpose, status, created_at) "
+                + "values (?, ?, ?, ?, 0, 'SHOP_SUBSCRIPTION', 'PAID', ?)",
+            paymentId, "demo-tx-" + paymentId, userId, amount, Timestamp.valueOf(paidOn.atTime(10, 0)));
+    }
+
     // 시연 계정이 만든 상품/교환글과 거기에 딸린 데이터를 외래키 순서대로 지운다.
+    // 시연 결제(demo- 로 시작)는 초기화할 때마다 새로 만들어지는데 지워지지 않아 결제 기록이 계속 쌓였다.
+    // 위에서 시연 구매·참가·신청을 지웠으니 남은 시연 결제와, 그 결제를 가리키는 환불·정산 기록을 함께 지운다. (실제 PortOne 결제는 건드리지 않는다)
+    private void deleteDemoPayments() {
+        String demoPayments = "(select id from payment_tb where payment_id like 'demo-%')";
+        jdbcTemplate.update("delete from refund_tb where payment_id in " + demoPayments);
+        jdbcTemplate.update("delete from settlement_history_tb where payment_id in " + demoPayments);
+        jdbcTemplate.update("delete from payment_tb where payment_id like 'demo-%'");
+    }
+
     private void deleteDemoData(List<Long> userIds) {
         String u = "(" + String.join(",", userIds.stream().map(String::valueOf).toList()) + ")";
         String items = "(select id from item_tb where seller_user_id in " + u + ")";
@@ -227,14 +323,13 @@ public class DemoDataService {
     }
 
     private void seed(User userA, User userB, User shopOwner, Shop shop) {
-        List<Category> categories = categoryRepository.findAll();
-        if (categories.isEmpty()) {
-            categories = categoryRepository.saveAll(DEFAULT_CATEGORIES.stream().map(n -> Category.builder().name(n).build()).toList());
-        }
-        // 기존 시드 상품 사진(/images/seed_photo_*.jpg)을 돌려가며 써서 시연 상품마다 사진이 다르게 보이게 한다
-        List<String> images = jdbcTemplate.queryForList(
-            "select distinct image_url from item_tb where image_url like '/images/%' order by image_url", String.class);
-        if (images.isEmpty()) images = REPO_IMAGES;
+        // 시연 카테고리는 이름으로 찾고, 없으면 만든다 (DB 에 다른 카테고리가 있어도 시연 데이터는 같게 나온다)
+        List<Category> existing = categoryRepository.findAll();
+        List<Category> categories = DEMO_CATEGORIES.stream()
+            .map(name -> existing.stream().filter(c -> name.equals(c.getName())).findFirst()
+                .orElseGet(() -> categoryRepository.save(Category.builder().name(name).build())))
+            .toList();
+        List<String> images = DEMO_PHOTOS;
         int[] cursor = {0};
         List<Long> pinnedItemIds = new ArrayList<>();
         List<Long> pinnedExchangeIds = new ArrayList<>();
@@ -417,7 +512,7 @@ public class DemoDataService {
 
         // 3) 진행중 · 입찰 없음 (가게가 취소할 수 있음)
         saveAuction(shopOwner, shop, c2, "(테스트) 사인 포토카드 세트 (입찰 전)", "시연용 경매입니다. 아직 입찰이 없어서 가게가 취소할 수 있어요.",
-            20000, 3000, now.plusDays(5), images.get(0));
+            20000, 3000, now.plusDays(5), "/img/auction-figure-box-2.jpg");
 
         // 4) 종료 · 낙찰 → 데모신청B 가 잔금을 결제해야 함 (결제 기한은 하루 뒤)
         Auction won = saveAuction(shopOwner, shop, c0, "(테스트) 한정판 아크릴 스탠드 세트", "낙찰 후 잔금 결제를 기다리는 시연용 경매입니다.",
@@ -426,13 +521,13 @@ public class DemoDataService {
         bid(won, userB, 41000, null);
         finishAuction(won, now.plusDays(1));
 
-        // 5) 종료 · 낙찰 → 데모교환A 가 잔금까지 결제 완료 (구매 내역·정산 기록 포함)
+        // 5) 종료 · 낙찰 → 데모신청B 가 잔금까지 결제 완료 (구매 내역·정산 기록 포함, B 로 배송·구매확정까지 시연)
         Auction paid = saveAuction(shopOwner, shop, c1, "(테스트) 일러스트 포스터 세트", "잔금 결제까지 끝난 시연용 경매입니다.",
             28000, 4200, now.minusDays(2), images.get(2 % images.size()));
-        bid(paid, userB, 30000, null);
-        bid(paid, userA, 38000, null);
+        bid(paid, userA, 30000, null);   // A 는 패찰 (보증금 환불)
+        bid(paid, userB, 38000, null);
         finishAuction(paid, now.minusDays(1));
-        payAuctionBalance(paid, userA, now.minusDays(2).plusHours(5));
+        payAuctionBalance(paid, userB, now.minusDays(2).plusHours(5));
 
         // 6) 종료 · 유찰 (입찰 없음)
         Auction failed = saveAuction(shopOwner, shop, c2, "(테스트) 응원봉 키링 (유찰)", "입찰이 없어서 유찰된 시연용 경매입니다.",
@@ -445,6 +540,58 @@ public class DemoDataService {
             22000, 3300, now.plusDays(1), images.get(4 % images.size()));
         cancelled.cancel();
         auctionRepository.save(cancelled);
+
+        // 9) 종료 · 데모신청B 는 패찰 (데모교환A 가 낙찰해 잔금까지 결제, B 의 보증금은 환불)
+        Auction lost = saveAuction(shopOwner, shop, c0, "(테스트) 아크릴 홀더 세트 (패찰)", "데모신청B 가 패찰한 시연용 경매입니다.",
+            20000, 3000, now.minusDays(5), images.get(6 % images.size()));
+        bid(lost, userB, 22000, null);
+        bid(lost, userA, 27000, null);
+        finishAuction(lost, now.minusDays(4));
+        payAuctionBalance(lost, userA, now.minusDays(4).plusHours(3));
+
+        // 10~14) 종료 · 데모신청B 가 낙찰해 잔금까지 결제한 경매의 배송 · 구매 확정 · 환불 단계별 시연
+        // (가게 '판매 상품 관리'의 판매완료와 B 의 '구매 내역'에 경매 낙찰로 보인다)
+        String[][] orders = {
+            {"(테스트) 한정판 키링 세트 (배송중)", "SHIPPED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 캐릭터 엽서 박스 (배송 완료)", "DELIVERED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 일러스트 아트북 (구매 확정)", "CONFIRMED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 한정판 포카 바인더 (환불 요청중)", "REFUND_REQUESTED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 아크릴 무드등 (환불 완료)", "REFUNDED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 캐릭터 머그컵 (환불 요청중)", "REFUND_REQUESTED", "서울시 마포구 데모로 12, 101호"},
+            {"(테스트) 한정판 스티커 팩 (환불 거절)", "REFUND_REJECTED", "서울시 마포구 데모로 12, 101호"},
+        };
+        for (int i = 0; i < orders.length; i++) {
+            Auction order = saveAuction(shopOwner, shop, categories.get((i + 3) % categories.size()), orders[i][0], "낙찰 후 잔금까지 결제한 시연용 경매입니다. (" + orders[i][1] + ")",
+                24000 + i * 2000, 3600 + i * 300, now.minusDays(6 + i), images.get((7 + i) % images.size()));
+            bid(order, userA, 25000 + i * 2000, null);
+            bid(order, userB, 30000 + i * 2500, null);
+            finishAuction(order, now.minusDays(5 + i));
+            seedAuctionOrder(order, userB, now.minusDays(5 + i).plusHours(2), orders[i][1], "CJ" + (700100200300L + i), orders[i][2]);
+        }
+
+        // 경매 전용으로 등록만 해 두고 아직 경매에 올리지 않은 상품 2개 ('경매 열기'에서 고를 수 있다)
+        String[][] spare = {{"(테스트) 한정판 아크릴 인형 (경매 대기)", "28000"}, {"(테스트) 캐릭터 일러스트 액자 (경매 대기)", "35000"}};
+        for (int i = 0; i < spare.length; i++) {
+            itemRepository.save(Item.builder()
+                .sellerUserId(shopOwner.getId()).shopId(shop.getId()).category(categories.get((i + 5) % categories.size()))
+                .title(spare[i][0]).description("경매 전용으로 등록해 둔 상품입니다. 경매 열기에서 골라 경매로 올릴 수 있어요.")
+                .price(Integer.parseInt(spare[i][1])).saleType(SaleType.AUCTION).status(ItemStatus.ON_SALE)
+                .imageUrl(images.get((12 + i) % images.size()))
+                .build());
+        }
+
+        // 8) 종료 · 낙찰자가 기한 안에 잔금을 내지 않음 → 낙찰 무효, 낙찰자의 보증금만 가게 정산
+        Auction forfeited = saveAuction(shopOwner, shop, c1, "(테스트) 캐릭터 아크릴 키링 (잔금 미결제)", "낙찰자가 기한 안에 잔금을 내지 않아 보증금만 정산된 시연용 경매입니다.",
+            18000, 2700, now.minusDays(4), images.get(5 % images.size()));
+        bid(forfeited, userA, 19000, null);
+        Payment forfeitedDeposit = bid(forfeited, userB, 24000, null);
+        finishAuction(forfeited, now.minusDays(2));
+        forfeited.forfeitUnpaid();
+        auctionRepository.save(forfeited);
+        recordFee(shop, forfeitedDeposit, forfeited.getDepositAmount(), SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT);
+        settlementHistoryRepository.flush();
+        jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'AUCTION_DEPOSIT_FORFEIT'",
+            Timestamp.valueOf(now.minusDays(2)), forfeitedDeposit.getId());
     }
 
     private Auction saveAuction(User shopOwner, Shop shop, Category category, String title, String description,
@@ -503,6 +650,35 @@ public class DemoDataService {
         settlementHistoryRepository.flush();
         jdbcTemplate.update("update settlement_history_tb set created_at = ? where payment_id = ? and type = 'AUCTION_SALE'",
             Timestamp.valueOf(paidAt), balance.getId());
+    }
+
+    // 낙찰자가 잔금까지 결제한 뒤의 단계: SHIPPED / DELIVERED / CONFIRMED / REFUND_REQUESTED / REFUNDED
+    private void seedAuctionOrder(Auction auction, User winner, LocalDateTime paidAt, String state, String tracking, String address) {
+        payAuctionBalance(auction, winner, paidAt);
+        Purchase purchase = purchaseRepository.findByPaymentId(auction.getBalancePaymentId()).orElseThrow();
+        purchase.ship(tracking);
+        if (!state.equals("SHIPPED")) purchase.markDelivered();
+        if (state.equals("CONFIRMED")) purchase.confirm();
+        purchaseRepository.save(purchase);
+        Payment balance = paymentRepository.findByPaymentId(auction.getBalancePaymentId()).orElseThrow();
+        if (state.equals("REFUND_REQUESTED")) {
+            // 경매 낙찰 상품은 낙찰가 전액(보증금 포함)만 환불할 수 있다
+            demoRefund(balance, winner, auction.getCurrentPrice(), "배송된 상품의 포장이 심하게 파손되어 환불 요청합니다", RequestedBy.USER, Status.REQUESTED);
+        }
+        if (state.equals("REFUND_REJECTED")) {
+            // 구매자가 환불을 요청했지만 가게가 상품 상태를 확인하고 거절한 경우 (가게 화면에서 '승인으로 변경'으로 재검토 가능)
+            demoRefund(balance, winner, auction.getCurrentPrice(), "상품이 마음에 들지 않아 환불 요청합니다", RequestedBy.USER, Status.REQUESTED)
+                .reject("상품 상태에 이상이 없고 단순 변심은 낙찰 상품 환불 대상이 아니라 거절합니다");
+        }
+        if (state.equals("REFUNDED")) {
+            Refund refund = demoRefund(balance, winner, auction.getCurrentPrice(), "배송 중 분실되어 상품을 받지 못했어요", RequestedBy.USER, Status.REQUESTED);
+            refund.approve();
+            balance.refund(balance.getRefundableAmount());
+            paymentRepository.findByPaymentId(auction.getWinningPaymentId()).ifPresent(d -> d.refund(d.getRefundableAmount()));
+            settlementHistoryRepository.flush();
+            // 전액 환불이라 가게 정산(낙찰가 전액)도 취소된 상태
+            settlementHistoryRepository.deleteByPaymentAndType(balance, SettlementHistoryType.AUCTION_SALE);
+        }
     }
 
     private Item saveEventItem(User shopOwner, Shop shop, Category category, String title, String description, int price, String imageUrl) {

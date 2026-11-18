@@ -5,6 +5,8 @@
 .au-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
 .au-price small { margin-right: 0.35rem; font-size: 0.72rem; font-weight: 500; color: var(--color-muted); }
 .au-hot { color: #C0392B; }
+.au-more { padding: 1.6rem 0 2.4rem; text-align: center; font-size: 0.82rem; color: var(--color-muted); }
+.au-more[hidden] { display: none; }
 /* 정렬 메뉴는 글자가 두 줄로 꺾이지 않게 메뉴 폭을 내용에 맞춘다 */
 #sort-menu { min-width: 100%; width: max-content; left: auto; right: 0; }
 #sort-menu .scope-menu-item { white-space: nowrap; }
@@ -41,6 +43,7 @@
 
 <div class="card-grid" id="item-grid"></div>
 <p class="empty-state" id="empty-state">경매를 불러오는 중...</p>
+<div id="more-sentinel" class="au-more" hidden>더 불러오는 중...</div>
 
 <script>
 (() => {
@@ -52,10 +55,13 @@
     const grid = document.getElementById('item-grid');
     const emptyEl = document.getElementById('empty-state');
     const keywordInput = document.getElementById('keyword-input');
+    const sentinel = document.getElementById('more-sentinel');
     const TAB_LABELS = { ACTIVE: '진행중', MINE: '내 입찰', ENDED: '종료' };
     const SORT_LABELS = { DEADLINE: '마감 임박순', NEWEST: '최근 등록순', PRICE_DESC: '현재가 높은순', PRICE_ASC: '현재가 낮은순', BIDS: '입찰 많은순' };
-    let auctions = [];
-    let mine = new Set();      // 내가 입찰한 경매 id
+    // 탭 · 검색 · 정렬은 서버에서 처리하고, 한 번에 12개씩만 가져온다 (맨 아래로 내리면 다음 12개)
+    const STEP = 12;
+    let auctions = [];           // 지금까지 가져온 경매 (현재 탭/검색/정렬 기준)
+    let page = 0, hasMore = false, loading = false, firstLoadDone = false, requestSeq = 0;
     let tab = 'ACTIVE';
     let sortKey = 'DEADLINE';
 
@@ -81,34 +87,13 @@
     // 헤더의 '전체 매장' 선택을 교환 게시판처럼 따른다
     const selectedShopId = () => { try { return localStorage.getItem('gb_shop_id') || ''; } catch (e) { return ''; } };
 
-    function sortList(list) {
-        const by = {
-            DEADLINE: (a, b) => (isLive(b) - isLive(a)) || (isLive(a) ? deadlineOf(a) - deadlineOf(b) : deadlineOf(b) - deadlineOf(a)),
-            NEWEST: (a, b) => b.id - a.id,
-            PRICE_DESC: (a, b) => b.currentPrice - a.currentPrice,
-            PRICE_ASC: (a, b) => a.currentPrice - b.currentPrice,
-            BIDS: (a, b) => b.bidCount - a.bidCount || deadlineOf(a) - deadlineOf(b)
-        }[sortKey];
-        return [...list].sort(by);
-    }
-
-    function rows() {
-        const kw = keywordInput.value.trim().toLowerCase();
-        const shopId = selectedShopId();
-        return sortList(auctions)
-            .filter(a => tab === 'MINE' ? mine.has(a.id) : tab === 'ENDED' ? !isLive(a) : isLive(a))
-            .filter(a => !shopId || String(a.shopId) === shopId)
-            .filter(a => !kw || `${a.itemTitle} ${a.shopName}`.toLowerCase().includes(kw));
-    }
-
     function myTag(a) {
-        if (!mine.has(a.id)) return '';
+        if (!a.participated) return '';
         return a.currentWinnerUserId === userId ? ' · 내가 최고가' : ' · 내 입찰';
     }
 
     function render() {
-        const list = rows();
-        grid.innerHTML = list.map(a => `
+        grid.innerHTML = auctions.map(a => `
             <a class="card" href="/test/auction/${a.id}">
                 <span class="card-tag">■ ${statusLabel(a)}${myTag(a)}</span>
                 <div class="card-image">${a.itemImageUrl ? `<img src="${esc(a.itemImageUrl)}" alt="${esc(a.itemTitle)}">` : '이미지 없음'}</div>
@@ -118,25 +103,60 @@
                 <p class="card-meta au-line">${esc(a.shopName)}</p>
             </a>`).join('');
         const msg = { ACTIVE: '지금 진행 중인 경매가 없어요.', MINE: userId === null ? '로그인하면 내가 입찰한 경매를 볼 수 있어요.' : '입찰한 경매가 없어요.', ENDED: '종료된 경매가 없어요.' }[tab];
-        emptyEl.textContent = keywordInput.value.trim() ? '검색 결과가 없어요.' : msg;
-        emptyEl.hidden = list.length > 0;
+        emptyEl.textContent = !firstLoadDone ? '경매를 불러오는 중...' : keywordInput.value.trim() ? '검색 결과가 없어요.' : msg;
+        emptyEl.hidden = auctions.length > 0 || (!firstLoadDone);
+        if (!firstLoadDone) emptyEl.hidden = false;
+        sentinel.hidden = !hasMore;
+        // 그린 직후에도 맨 아래가 화면 근처에 있으면(목록이 짧을 때) 이어서 불러온다
+        requestAnimationFrame(checkMore);
     }
 
-    async function load() {
+    // reset 이면 처음(0페이지)부터 다시, 아니면 다음 페이지를 이어서 가져온다.
+    // 그 사이 탭/검색/정렬이 바뀌어 늦게 도착한 응답은 버린다.
+    async function loadPage(reset) {
+        if (reset) {
+            requestSeq++;
+            auctions = [];
+            page = 0;
+            hasMore = false;
+            firstLoadDone = false;
+            render();
+        } else if (loading || !hasMore) {
+            return;
+        }
+        const seq = requestSeq;
+        loading = true;
         try {
-            const res = await pageFetch('/api/auctions?page=1&size=50');
+            const params = new URLSearchParams({ tab, sort: sortKey, page, size: STEP });
+            const kw = keywordInput.value.trim();
+            if (kw) params.set('keyword', kw);
+            const shopId = selectedShopId();
+            if (shopId) params.set('shopId', shopId);
+            const res = await pageFetch('/api/auctions/search?' + params);
+            if (seq !== requestSeq) return;
             if (!res.ok) throw new Error('경매를 불러오지 못했어요.');
-            auctions = (await res.json()).content || [];
-            if (userId !== null) {
-                const meRes = await pageFetch('/api/auctions/me?page=0&size=50');
-                if (meRes.ok) mine = new Set(((await meRes.json()).content || []).map(a => a.id));
-            }
+            const data = await res.json();
+            auctions = auctions.concat(data.content || []);
+            hasMore = !data.last;
+            page++;
+            firstLoadDone = true;
+            loading = false;
             render();
         } catch (e) {
+            if (seq !== requestSeq) return;
+            loading = false;
+            hasMore = false;
+            firstLoadDone = true;
             emptyEl.textContent = e.message;
             emptyEl.hidden = false;
         }
     }
+
+    // 맨 아래 감시 영역이 화면 아래 300px 안으로 들어오면 다음 12개를 가져온다 (스크롤할 때와 그릴 때마다 확인)
+    function checkMore() {
+        if (!sentinel.hidden && !loading && hasMore && sentinel.getBoundingClientRect().top < window.innerHeight + 300) loadPage(false);
+    }
+    window.addEventListener('scroll', checkMore, { passive: true });
 
     // 남은 시간만 1초마다 갱신
     setInterval(() => {
@@ -162,7 +182,7 @@
         document.getElementById('toolbar-label').textContent = TAB_LABELS[tab];
         scopeMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
         scopeMenu.hidden = true;
-        render();
+        loadPage(true);
     });
     document.getElementById('sort-dropdown').addEventListener('click', ev => {
         ev.stopPropagation();
@@ -174,10 +194,15 @@
         sortTrigger.textContent = SORT_LABELS[sortKey];
         sortMenu.querySelectorAll('.scope-menu-item').forEach(el => el.classList.toggle('active', el === item));
         sortMenu.hidden = true;
-        render();
+        loadPage(true);
     });
     document.addEventListener('click', () => { scopeMenu.hidden = true; sortMenu.hidden = true; });
-    keywordInput.addEventListener('input', render);
+    // 검색어: 입력을 멈추고 0.3초 뒤에 현재 탭 안에서만 서버에 검색한다
+    let searchTimer;
+    keywordInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => loadPage(true), 300);
+    });
 
     // 헤더에서 매장을 고르면 안내 문구를 보여준다
     const shopInfo = document.getElementById('shop-filter-info');
@@ -189,7 +214,7 @@
             shopInfo.hidden = false;
         });
     }
-    load();
+    loadPage(true);
 })();
 </script>
 

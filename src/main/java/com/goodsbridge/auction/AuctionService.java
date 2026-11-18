@@ -11,6 +11,8 @@ import com.goodsbridge.payment.*;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.purchase.PurchaseSource;
+import com.goodsbridge.settlement.SettlementHistory;
+import com.goodsbridge.settlement.SettlementHistoryRepository;
 import com.goodsbridge.settlement.SettlementHistoryService;
 import com.goodsbridge.settlement.SettlementHistoryType;
 import com.goodsbridge.shop.Shop;
@@ -46,17 +48,26 @@ public class AuctionService {
     private final BidRepository bidRepository;
     private final PurchaseRepository purchaseRepository;
     private final SettlementHistoryService settlementHistoryService;
+    private final SettlementHistoryRepository settlementHistoryRepository;
+    private final com.goodsbridge.shop.ShopSubscriptionService shopSubscriptionService;
     private final EntityManager entityManager;
     private final ApplicationEventPublisher publisher;
 
     // 경매 개설
     @Transactional
     public AuctionResponse create(Long userId, Long shopId, AuctionRequest request) {
+        if (request == null) {
+            throw new BadRequestException("경매 등록 요청 값이 필요합니다.");
+        }
         request.validate(); // 유효성 검사
         Shop shop = shopRepository.findById(shopId)
             .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
         if (!shop.isOwner(userId)) {
             throw new ForbiddenException("가게의 주인만 경매를 열 수 있습니다.");
+        }
+        // 상품 등록·수정과 같이 구독이 활성화된 가게만 경매를 열 수 있다
+        if (!shopSubscriptionService.isSubscriptionActive(shopId)) {
+            throw new ForbiddenException("구독이 활성화된 가게만 경매를 열 수 있습니다.");
         }
         // 상품 행을 잠가 같은 상품의 동시 경매 개설을 직렬화한다.
         Item item = entityManager.find(
@@ -75,6 +86,11 @@ public class AuctionService {
             throw new ForbiddenException("해당 가게의 상품만 경매에 등록할 수 있습니다.");
         }
 
+        // 일반 판매 상품은 경매 전에 다른 사람이 살 수 있으므로, 경매 전용(AUCTION)으로 등록한 상품만 경매에 올릴 수 있다.
+        if (item.getSaleType() != com.goodsbridge.item.SaleType.AUCTION) {
+            throw new BadRequestException("경매 전용으로 등록한 상품만 경매에 올릴 수 있습니다. '경매 상품 등록'으로 먼저 등록해 주세요.");
+        }
+
         // 이미 팔렸거나(SOLD) 판매 중지(CLOSED)된 상품, 삭제된 상품은 경매에 올릴 수 없다.
         if (item.isDeleted() || item.getStatus() != ItemStatus.ON_SALE) {
             throw new BadRequestException("판매 중인 상품만 경매에 등록할 수 있습니다.");
@@ -84,6 +100,9 @@ public class AuctionService {
         if (auctionRepository.existsByItemIdAndStatus(item.getId(), Status.ACTIVE)) {
             throw new BadRequestException("이미 진행 중인 경매가 있는 상품입니다.");
         }
+        if (auctionRepository.existsUnpaidWinnerByItemId(item.getId())) {
+            throw new BadRequestException("낙찰자의 잔금 결제를 기다리는 상품은 경매에 올릴 수 없습니다.");
+        }
 
         Auction auction = Auction.builder()
             .shop(shop)
@@ -92,13 +111,14 @@ public class AuctionService {
             .deadline(request.getDeadline())
             .depositAmount(request.getDepositAmount())
             .build();
+        auction.changeDescription(request.getDescription());
         Auction savedAuction = auctionRepository.save(auction);
         return new AuctionResponse(savedAuction);
     }
 
     // 경매 목록 조회 + 페이징 처리
     public Page<AuctionResponse> findAll(int page, int size, Status status) {
-        int pageIndex = Math.max(0, page - 1);
+        int pageIndex = Math.max(0, page);
         int validSize = Math.max(1, Math.min(size, 50));
         Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
 
@@ -113,7 +133,7 @@ public class AuctionService {
 
     // 가게의 경매 목록 (가게 경매 관리 화면용, 상태는 선택)
     public Page<AuctionResponse> findAllByShop(int page, int size, Status status, Long shopId) {
-        int pageIndex = Math.max(0, page - 1);
+        int pageIndex = Math.max(0, page);
         int validSize = Math.max(1, Math.min(size, 50));
         Pageable pageable = PageRequest.of(pageIndex, validSize, Sort.by(Sort.Direction.DESC, "id"));
         return withBidCounts(auctionRepository.findAllByShop(shopId, status, pageable));
@@ -129,6 +149,62 @@ public class AuctionService {
             }
         }
         return auctionPage.map(a -> new AuctionResponse(a).withBidCount(counts.getOrDefault(a.getId(), 0L)));
+    }
+
+    // 경매 수정: 가게 주인만, 입찰이 하나도 없을 때만 (시작가 · 마감 시간 · 보증금)
+    @Transactional
+    public AuctionResponse update(Long userId, Long auctionId, AuctionUpdateRequest request) {
+        if (request == null) {
+            throw new BadRequestException("경매 수정 요청 값이 필요합니다.");
+        }
+        request.validate();
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        if (!auction.getShop().isOwner(userId)) {
+            throw new ForbiddenException("가게의 주인만 경매를 수정할 수 있습니다.");
+        }
+        auction.updateBeforeBids(request.getStartPrice(), request.getDeadline(), request.getDepositAmount(), request.getDescription());
+        return new AuctionResponse(auction);
+    }
+
+    // 경매 영수증 (낙찰가·낙찰자·결제/배송 정보): 가게 주인, 그리고 그 경매의 낙찰자 본인만 볼 수 있다
+    @Transactional(readOnly = true)
+    public AuctionReceiptResponse getReceipt(Long userId, Long auctionId) {
+        Auction auction = auctionRepository.findById(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        boolean isWinner = auction.getCurrentWinner() != null && auction.getCurrentWinner().getId().equals(userId);
+        if (!auction.getShop().isOwner(userId) && !isWinner) {
+            throw new ForbiddenException("가게 주인 또는 낙찰자만 영수증을 볼 수 있습니다.");
+        }
+        long bidCount = 0;
+        for (Object[] row : bidRepository.countBidsByAuctionIds(java.util.List.of(auctionId))) {
+            bidCount = ((Number) row[1]).longValue();
+        }
+        Purchase purchase = auction.getBalancePaymentId() == null ? null
+            : purchaseRepository.findByPaymentId(auction.getBalancePaymentId()).orElse(null);
+        return new AuctionReceiptResponse(auction, bidCount, purchase);
+    }
+
+    // 가게의 경매 정산 내역: 낙찰 정산 + 낙찰자 미결제로 받은 보증금
+    @Transactional(readOnly = true)
+    public java.util.List<AuctionSettlementResponse> getShopSettlements(Long userId, Long shopId) {
+        Shop shop = shopRepository.findById(shopId)
+            .orElseThrow(() -> new NotFoundException("가게를 찾을 수 없습니다."));
+        if (!shop.isOwner(userId)) {
+            throw new ForbiddenException("본인 가게의 정산 내역만 조회할 수 있습니다.");
+        }
+        java.util.List<AuctionSettlementResponse> result = new java.util.ArrayList<>();
+        for (SettlementHistory history : settlementHistoryRepository.findAuctionSettlementsByShop(shopId)) {
+            String paymentId = history.getPayment().getPaymentId();
+            if (history.getType() == SettlementHistoryType.AUCTION_SALE) {
+                auctionRepository.findByBalancePaymentId(paymentId).ifPresent(a ->
+                    result.add(new AuctionSettlementResponse(a, "AUCTION_SALE", history.getAmount(), history.getCreatedAt())));
+            } else if (history.getType() == SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT) {
+                auctionRepository.findByWinningPaymentId(paymentId).ifPresent(a ->
+                    result.add(new AuctionSettlementResponse(a, "AUCTION_DEPOSIT_FORFEIT", history.getAmount(), history.getCreatedAt())));
+            }
+        }
+        return result;
     }
 
     // 경매 상세 조회
@@ -162,7 +238,7 @@ public class AuctionService {
         return new AuctionResponse(auction);
     }
 
-    // 경매 취소 - 가게 주인은 경매 입찰자가 없으면 취소한다.
+    // 경매 취소
     @Transactional
     public AuctionResponse cancel(Long userId, Long id) {
         Auction auction = auctionRepository.findByIdLock(id)
@@ -180,10 +256,7 @@ public class AuctionService {
         if (auction.getStatus() != Status.ACTIVE) {
             throw new BadRequestException("진행 중인 경매만 취소할 수 있습니다.");
         }
-        // 입찰이 있는 경우 가게 주인은 경매를 취소할 수 없고, 관리자만 권한이 있다.
-        if (!isAdmin && auction.getCurrentWinner() != null) {
-            throw new BadRequestException("입찰이 있는 경매는 관리자만 취소할 수 있습니다.");
-        }
+        // 입찰이 있어도 가게 사정으로 취소할 수 있다. 취소하면 모든 입찰자의 보증금이 환불된다 (refundCancelled).
 
         auction.cancel();
         return new AuctionResponse(auction);
@@ -231,12 +304,23 @@ public class AuctionService {
         closeInternal(auction);
     }
 
-    // 낙찰자 잔금 결제
+    // 낙찰자 잔금 결제 (서버가 거절하면 이미 승인된 잔금 PortOne 결제를 자동 취소한다)
     @Transactional
     public AuctionResponse payBalance(Long userId, Long auctionId, BalancePayRequest request) {
         if (request == null || request.getPaymentId() == null || request.getPaymentId().isBlank()) {
             throw new BadRequestException("잔금 결제 ID가 필요합니다.");
         }
+        try {
+            return doPayBalance(userId, auctionId, request);
+        } catch (RuntimeException e) {
+            // 취소 실패는 로그만 남기고 원래 예외를 그대로 던진다 (이미 기록된 결제는 취소되지 않는다)
+            paymentService.cancelUnrecorded(request.getPaymentId(), "잔금 결제 처리 실패로 인한 자동 취소");
+            throw e;
+        }
+    }
+
+    // 잔금 결제 본 처리
+    private AuctionResponse doPayBalance(Long userId, Long auctionId, BalancePayRequest request) {
         // 마감/미납 처리 스케줄러와 겹치지 않도록 경매 행을 잠근다
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -276,11 +360,10 @@ public class AuctionService {
         // 가게 정산: 실제로 잔금 결제가 완료된 시점에 보증금 + 잔금인 낙찰가 전액을 기록한다.
         Payment payment = paymentRepository.findByPaymentId(balancePaymentId)
             .orElseThrow(() -> new NotFoundException("잔금 결제를 찾을 수 없습니다."));
-        int auctionSettlementAmount = auction.getAuctionSettlementAmount();
         settlementHistoryService.calculate(
             auction.getShop(),
             payment,
-            auctionSettlementAmount,
+            auction.getAuctionSettlementAmount(),
             SettlementHistoryType.AUCTION_SALE
         );
         return new AuctionResponse(auction);
@@ -293,16 +376,30 @@ public class AuctionService {
         if (winnerId == null) {
             return;
         }
-        for (String paymentId : bidRepository.findLoserDepositPaymentIds(auctionId, winnerId)) {
-            refundDeposit(paymentId, "경매 패찰 보증금 환불");
-        }
+        refundDeposits(bidRepository.findLoserDepositPaymentIds(auctionId, winnerId), "경매 패찰 보증금 환불");
     }
 
     // 취소된 경매의 보증금 환불
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void refundCancelled(Long auctionId) {
-        for (String paymentId : bidRepository.findAllDepositPaymentIds(auctionId)) {
-            refundDeposit(paymentId, "경매 취소 보증금 환불");
+        refundDeposits(bidRepository.findAllDepositPaymentIds(auctionId), "경매 취소 보증금 환불");
+    }
+
+    // 한 건이 실패해도 나머지 환불은 계속하고, 하나라도 실패했으면 첫 예외를 던져 스케줄러가 다음 주기에 재시도하게 한다
+    private void refundDeposits(java.util.Collection<String> paymentIds, String reason) {
+        RuntimeException firstFailure = null;
+        for (String paymentId : paymentIds) {
+            try {
+                refundDeposit(paymentId, reason);
+            } catch (RuntimeException e) {
+                log.error("경매 보증금 환불 실패 - paymentId={}", paymentId, e);
+                if (firstFailure == null) {
+                    firstFailure = e;
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
         }
     }
 
@@ -319,7 +416,7 @@ public class AuctionService {
         paymentService.refund(paymentId, payment.getRefundableAmount(), reason);
     }
 
-    // 환불이 전부 끝난 경매 표시 (refundLosers 성공 뒤 스케줄러가 호출)
+    // 환불이 전부 끝난 경매 표시
     @Transactional
     public void markLosersRefunded(Long auctionId) {
         auctionRepository.findById(auctionId).ifPresent(Auction::markLosersRefunded);
@@ -349,7 +446,7 @@ public class AuctionService {
                 auction.getShop(),
                 deposit,
                 auction.getDepositAmount(),
-                SettlementHistoryType.NO_SHOW_FEE
+                SettlementHistoryType.AUCTION_DEPOSIT_FORFEIT
             );
         }
     }

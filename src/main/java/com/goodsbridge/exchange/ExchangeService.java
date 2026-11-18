@@ -132,6 +132,10 @@ public class ExchangeService {
         if (isShopOwner(userId)) {
             throw new ForbiddenException("가게 계정은 교환에 참여할 수 없습니다.");
         }
+        // 관리자 계정은 관리만 하고 교환에 참여하지 않는다
+        if (userRepository.existsByIdAndRole(userId, Role.ADMIN)) {
+            throw new ForbiddenException("관리자 계정은 교환에 참여할 수 없습니다.");
+        }
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 사용자입니다."));
         Shop shop = shopRepository.findById(request.getShopId())
@@ -144,12 +148,26 @@ public class ExchangeService {
         if (!item.getSellerUserId().equals(userId)) {
             throw new ForbiddenException("본인 소유의 상품으로만 게시글을 등록할 수 있습니다.");
         }
+        if (item.isDeleted()) {
+            throw new NotFoundException("삭제된 상품은 교환 게시글로 올릴 수 없습니다.");
+        }
+        // 다른 교환 신청(대기·확정)에 쓰이고 있는 상품은 게시글로 올릴 수 없다
+        if (exchangeRequestRepository.existsByItemBAndStatusIn(item.getId(),
+            java.util.List.of(ExchangeRequestStatus.PENDING, ExchangeRequestStatus.CONFIRMED))) {
+            throw new BadRequestException("다른 교환 신청에 쓰이고 있는 상품은 게시글로 올릴 수 없어요.");
+        }
+        // 같은 상품으로 모집중이거나 매칭 중인 게시글이 이미 있으면 또 올릴 수 없다
+        if (exchangeItemRepository.existsByItem_IdAndStatusIn(item.getId(),
+            java.util.List.of(ExchangeItemStatus.OPEN, ExchangeItemStatus.MATCHED))) {
+            throw new BadRequestException("이미 교환 게시글로 올린 상품이에요.");
+        }
 
         ExchangeItem exchangeItem = ExchangeItem.builder()
             .user(user)
             .item(item)
             .shop(shop)
             .wantDescription(request.getWantDescription())
+            .title(request.getTitle())
             .build();
         exchangeItemRepository.save(exchangeItem);
         exchangeItemRepository.flush();
@@ -199,6 +217,12 @@ public class ExchangeService {
     //교환 게시글 수정 (원하는 것, 교환 장소) - 주인만, 모집중일 때만
     @Transactional
     public ExchangeItemResponse updateExchangeItem(Long id, Long userId, String wantDescription, Long shopId) {
+        return updateExchangeItem(id, userId, null, wantDescription, shopId);
+    }
+
+    // 게시글 제목(title)만 바꾸고 올린 상품의 이름은 그대로 둔다. 제목을 비우면 상품 이름이 제목으로 보인다
+    @Transactional
+    public ExchangeItemResponse updateExchangeItem(Long id, Long userId, String title, String wantDescription, Long shopId) {
         ExchangeItem exchangeItem = exchangeItemRepository.findById(id)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 게시글입니다."));
         if (!exchangeItem.isOwner(userId)) {
@@ -216,6 +240,7 @@ public class ExchangeService {
             throw new BadRequestException("입점 승인된 가게만 교환장소로 지정할 수 있습니다.");
         }
         exchangeItem.update(wantDescription.trim(), shop);
+        exchangeItem.changeTitle(title);
         return ExchangeItemResponse.from(exchangeItem);
     }
 
@@ -270,6 +295,9 @@ public class ExchangeService {
         if (isShopOwner(userId)) {
             throw new ForbiddenException("가게 계정은 교환에 참여할 수 없습니다.");
         }
+        if (userRepository.existsByIdAndRole(userId, Role.ADMIN)) {
+            throw new ForbiddenException("관리자 계정은 교환에 참여할 수 없습니다.");
+        }
         Item item = itemRepository.findById(itemBId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 상품입니다."));
         //1. 로그인한사람이랑 아이템 주인 같은지
@@ -289,6 +317,11 @@ public class ExchangeService {
         //4. 판매중인(삭제/교환완료되지 않은) 상품만 제안 가능
         if (item.isDeleted() || item.getStatus() != ItemStatus.ON_SALE) {
             throw new BadRequestException("판매 중인 상품만 교환 제안에 쓸 수 있습니다.");
+        }
+        // 내가 교환 게시글로 올려 둔 상품은 다른 사람 게시글에 제안하는 데 쓸 수 없다 (같은 상품으로 두 교환이 동시에 진행되는 것을 막는다)
+        if (exchangeItemRepository.existsByItem_IdAndStatusIn(itemBId,
+            java.util.List.of(ExchangeItemStatus.OPEN, ExchangeItemStatus.MATCHED))) {
+            throw new BadRequestException("이미 교환 게시글로 올린 상품은 다른 교환 제안에 쓸 수 없어요.");
         }
         //5. 이 아이템이 다른 PENDING/CONFIRMED 제안에 이미 쓰이고 있으면 중복 제안 불가 (한 게시글에 서로 다른 상품으로 여러 번 신청하는 것은 가능)
         List<ExchangeRequestStatus> statuses = new ArrayList<>();

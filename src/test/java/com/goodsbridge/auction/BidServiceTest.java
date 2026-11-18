@@ -7,6 +7,7 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.shop.Shop;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +88,41 @@ class BidServiceTest {
     }
 
     @Test
+    void placeBid_rejectsAdminAccount() {
+        when(user.getRole()).thenReturn(Role.ADMIN);
+
+        assertThrows(com.goodsbridge._core.exception.ForbiddenException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1")));
+
+        verify(bidRepository, never()).save(any());
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
+    }
+
+    @Test
+    void placeBid_firstBidEqualToStartPriceIsAllowed() {
+        // 입찰이 아직 없으면(현재 1위 없음) 시작가와 같은 금액으로 첫 입찰할 수 있다
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
+        when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L))
+            .thenReturn("payment-1");
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BidResponse response = bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1"));
+
+        assertEquals(10_000, response.getBidAmount());
+        verify(auction).updateCurrentBid(10_000, user);
+    }
+
+    @Test
+    void placeBid_firstBidBelowStartPriceIsRejectedWithStartPriceMessage() {
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(9_999, "payment-1")));
+
+        assertEquals("첫 입찰은 시작가(10,000원) 이상이어야 합니다.", exception.getMessage());
+        verify(bidRepository, never()).save(any());
+    }
+
+    @Test
     void placeBid_doesNotExtendDeadlineWhenBidIsNearDeadline() {
         when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
         when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L))
@@ -132,6 +168,34 @@ class BidServiceTest {
     // ===================== 거부 케이스 =====================
 
     @Test
+    void placeBid_rejectsWhenCurrentWinnerTriesToBidAgain() {
+        when(auction.getCurrentWinner()).thenReturn(user);
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(20_000, "payment-1")));
+
+        assertEquals("현재 최고 입찰자는 다시 입찰할 수 없습니다.", exception.getMessage());
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
+        verify(bidRepository, never()).save(any());
+    }
+
+    @Test
+    void placeBid_rejectsRaiseSmallerThanMinimumIncrement() {
+        User otherWinner = mock(User.class);
+        when(otherWinner.getId()).thenReturn(99L);
+        lenient().when(auction.getCurrentWinner()).thenReturn(otherWinner);
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(10_500, "payment-1")));
+
+        assertEquals("입찰가는 현재가보다 최소 " + String.format("%,d", Auction.MIN_BID_INCREMENT)
+                + "원 높아야 합니다.", exception.getMessage());
+
+        verifyDepositCancelled();
+    }
+
+    @Test
     void placeBid_rejectsNullRequest() {
         BadRequestException exception = assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, null));
@@ -147,7 +211,8 @@ class BidServiceTest {
         assertThrows(NotFoundException.class,
             () -> bidService.placeBid(99L, 2L, new BidRequest(12_000, "payment-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
     }
 
     @Test
@@ -157,7 +222,8 @@ class BidServiceTest {
         assertThrows(NotFoundException.class,
             () -> bidService.placeBid(1L, 3L, new BidRequest(12_000, "payment-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
         verify(bidRepository, never()).save(any());
     }
 
@@ -168,7 +234,8 @@ class BidServiceTest {
         assertThrows(ForbiddenException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
         verify(bidRepository, never()).save(any());
     }
 
@@ -179,7 +246,8 @@ class BidServiceTest {
         assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
         verify(bidRepository, never()).save(any());
     }
 
@@ -191,17 +259,23 @@ class BidServiceTest {
         assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1")));
 
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
         verify(bidRepository, never()).save(any());
     }
 
     @Test
     void placeBid_rejectsBidAtOrBelowCurrentPrice() {
+        // 이미 입찰이 있는 경매(현재 1위가 있음)에서는 현재가와 같은 금액도 안 된다
+        User otherWinner = mock(User.class);
+        when(otherWinner.getId()).thenReturn(99L);
+        lenient().when(auction.getCurrentWinner()).thenReturn(otherWinner);
         BadRequestException exception = assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1")));
 
         assertEquals("입찰가는 현재가보다 높아야 합니다.", exception.getMessage());
-        verifyNoInteractions(paymentService);
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verifyDepositCancelled();
         verify(bidRepository, never()).save(any());
     }
 
@@ -211,6 +285,7 @@ class BidServiceTest {
             () -> bidService.placeBid(1L, 2L, new BidRequest(9_999, "payment-1")));
 
         verify(bidRepository, never()).save(any());
+        verifyDepositCancelled();
     }
 
     @Test
@@ -220,6 +295,7 @@ class BidServiceTest {
 
         assertEquals("입찰가는 현재가보다 높아야 합니다.", exception.getMessage());
         verify(bidRepository, never()).save(any());
+        verifyDepositCancelled();
     }
 
     @Test
@@ -305,6 +381,11 @@ class BidServiceTest {
 
         assertEquals(List.of(5L, 3L), result.getContent().stream().map(AuctionResponse::getId).toList());
         assertEquals(2, result.getTotalElements());
+    }
+
+    // 서버가 거절한 입찰의 보증금 결제는 기록되지 않았으므로 자동 취소를 요청해야 한다
+    private void verifyDepositCancelled() {
+        verify(paymentService).cancelUnrecorded("payment-1", "입찰 처리 실패로 인한 자동 취소");
     }
 
     private Auction auctionWithId(Long id) {
