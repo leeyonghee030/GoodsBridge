@@ -6,6 +6,7 @@ import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.HandlerMethod;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.io.IOException;
@@ -48,6 +50,36 @@ public class GlobalExceptionHandler {
             .orElse("요청 값이 올바르지 않습니다.");
 
         BadRequestException exception = new BadRequestException(message);
+
+        return ResponseEntity
+            .status(exception.getErrorCode().getStatus())
+            .body(ErrorResponse.of(
+                exception.getErrorCode(),
+                exception.getMessage()
+            ));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(
+        MethodArgumentTypeMismatchException e
+    ) {
+        BadRequestException exception =
+            new BadRequestException("요청 파라미터 값이 올바르지 않습니다.");
+
+        return ResponseEntity
+            .status(exception.getErrorCode().getStatus())
+            .body(ErrorResponse.of(
+                exception.getErrorCode(),
+                exception.getMessage()
+            ));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+        HttpMessageNotReadableException e
+    ) {
+        BadRequestException exception =
+            new BadRequestException("요청 데이터 형식이 올바르지 않습니다.");
 
         return ResponseEntity
             .status(exception.getErrorCode().getStatus())

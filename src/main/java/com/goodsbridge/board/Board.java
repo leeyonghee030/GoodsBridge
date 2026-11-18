@@ -38,7 +38,7 @@ public class Board {
     private Long authorId;
 
     @Column(name = "item_id")
-    private Long itemId; // 상품 문의 및 상품 판매 게시글에 연결된 상품 ID
+    private Long itemId; // 상품 문의 및 상품 리뷰 게시글에 연결된 상품 ID
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -80,10 +80,9 @@ public class Board {
         this.itemId = itemId;
         this.boardType = boardType;
         // 상품 리뷰는 항상 공개 게시글
-        // 상품 리뷰와 판매 게시글은 항상 공개 게시글
         this.isSecret =
-            boardType == BoardType.PRODUCT_REVIEW
-                || boardType == BoardType.MARKET
+            (boardType == BoardType.COMMUNITY
+                || boardType == BoardType.PRODUCT_REVIEW)
                 ? false
                 : (isSecret != null ? isSecret : false);
         this.status = BoardStatus.PENDING;
@@ -100,8 +99,8 @@ public class Board {
         this.title = title;
         this.content = content;
 
-        if (this.boardType == BoardType.PRODUCT_REVIEW
-            || this.boardType == BoardType.MARKET) {
+        if (this.boardType == BoardType.COMMUNITY
+            || this.boardType == BoardType.PRODUCT_REVIEW) {
             this.isSecret = false;
             return;
         }
@@ -156,28 +155,16 @@ public class Board {
                 }
             }
 
-            case MARKET -> {
-                if (itemId == null) {
+            case CUSTOMER_SERVICE, COMMUNITY -> {
+                if (itemId != null) {
                     throw new BadRequestException(
-                        "상품 판매 게시글은 판매 대상 상품 ID(itemId)가 필수입니다."
+                        "해당 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
                     );
                 }
             }
 
-            case CUSTOMER_SERVICE -> {
-                if (itemId != null) {
-                    throw new BadRequestException(
-                        "고객센터 문의 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
-                    );
-                }
-            }
-
-            case COMMUNITY -> {
-                if (itemId != null) {
-                    throw new BadRequestException(
-                        "커뮤니티 게시글에는 상품 ID(itemId)를 지정할 수 없습니다."
-                    );
-                }
+            case LEGACY -> {
+                // 기존 게시글이므로 상품 ID 유무를 제한하지 않음
             }
         }
     }

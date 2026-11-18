@@ -20,6 +20,7 @@ public class BoardViewController {
 
     @GetMapping("/test/board")
     public String index(
+        @RequestParam(defaultValue = "COMMUNITY") BoardType boardType,
         @RequestParam(required = false) String keyword,
         Model model
     ) {
@@ -32,11 +33,12 @@ public class BoardViewController {
         Long userId = SecurityUtil.getCurrentUserIdOrNull();
 
         Page<BoardResponseDto> page =
-            boardService.getBoards(keyword, pageable, userId);
+            boardService.getBoards(boardType, keyword, pageable, userId);
 
         model.addAttribute("boards", page.getContent());
         model.addAttribute("totalPages", page.getTotalPages());
         model.addAttribute("keyword", keyword == null ? "" : keyword);
+        model.addAttribute("boardType", boardType);
         model.addAttribute("userId", userId);
 
         return "board/index";

@@ -10,7 +10,15 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
@@ -45,10 +53,14 @@ public class BoardController {
         return ResponseEntity.ok(response);
     }
 
-    // 공개 게시글 목록 조회 및 검색
-    // GET /api/boards?page=0&size=10&sort=id,desc&keyword=공지
+    // 게시판 유형별 게시글 목록 조회 및 검색
+// GET /api/boards?boardType=COMMUNITY&page=0&size=10&sort=id,desc
+// GET /api/boards?boardType=PRODUCT_REVIEW&page=0&size=10
+// GET /api/boards?boardType=PRODUCT_INQUIRY&page=0&size=10
+// GET /api/boards?boardType=CUSTOMER_SERVICE&page=0&size=10
     @GetMapping("/boards")
     public ResponseEntity<Page<BoardResponseDto>> getBoards(
+        @RequestParam(defaultValue = "COMMUNITY") BoardType boardType,
         @RequestParam(required = false) String keyword,
         @PageableDefault(
             size = 10,
@@ -59,88 +71,11 @@ public class BoardController {
     ) {
         Page<BoardResponseDto> response =
             boardService.getBoards(
+                boardType,
                 keyword,
                 pageable,
                 loginUserId
             );
-
-        return ResponseEntity.ok(response);
-    }
-
-    // 특정 상품의 문의 게시글 목록 조회
-    // GET /api/items/100/inquiries?page=0&size=10&sort=id,desc
-    @GetMapping("/items/{itemId}/inquiries")
-    public ResponseEntity<Page<BoardResponseDto>> getProductInquiries(
-        @PathVariable Long itemId,
-        @PageableDefault(
-            size = 10,
-            sort = "id",
-            direction = Sort.Direction.DESC
-        ) Pageable pageable,
-        @AuthenticationPrincipal Long loginUserId
-    ) {
-        Page<BoardResponseDto> response =
-            boardService.getProductInquiries(
-                itemId,
-                pageable,
-                loginUserId
-            );
-
-        return ResponseEntity.ok(response);
-    }
-
-    // 특정 상품의 문의 게시글 목록 조회: 상품 판매자 전용
-    // GET /api/items/100/seller-inquiries?page=0&size=10&sort=id,desc
-    @GetMapping("/items/{itemId}/seller-inquiries")
-    public ResponseEntity<Page<BoardResponseDto>> getSellerProductInquiries(
-        @PathVariable Long itemId,
-        @PageableDefault(
-            size = 10,
-            sort = "id",
-            direction = Sort.Direction.DESC
-        ) Pageable pageable,
-        @AuthenticationPrincipal Long loginUserId
-    ) {
-        Page<BoardResponseDto> response =
-            boardService.getSellerProductInquiries(
-                itemId,
-                pageable,
-                loginUserId
-            );
-
-        return ResponseEntity.ok(response);
-    }
-
-    // 내가 작성한 고객센터 문의 목록
-    @GetMapping("/customer-inquiries")
-    public ResponseEntity<Page<BoardResponseDto>> getMyCustomerInquiries(
-        @PageableDefault(
-            size = 10,
-            sort = "id",
-            direction = Sort.Direction.DESC
-        ) Pageable pageable,
-        @AuthenticationPrincipal Long loginUserId
-    ) {
-        Page<BoardResponseDto> response =
-            boardService.getMyCustomerServiceInquiries(
-                pageable,
-                loginUserId
-            );
-
-        return ResponseEntity.ok(response);
-    }
-
-    // 관리자 전용: 전체 고객센터 문의 목록
-    @GetMapping("/admin/boards/customer-service")
-    public ResponseEntity<Page<BoardResponseDto>> getAllCustomerServiceInquiries(
-        @PageableDefault(
-            size = 10,
-            sort = "id",
-            direction = Sort.Direction.DESC
-        ) Pageable pageable
-    ) {
-        Page<BoardResponseDto> response =
-            boardService.getAllCustomerServiceInquiries(pageable);
 
         return ResponseEntity.ok(response);
     }

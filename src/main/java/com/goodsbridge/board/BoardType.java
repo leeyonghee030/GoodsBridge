@@ -5,5 +5,5 @@ public enum BoardType {
     PRODUCT_REVIEW,   // 상품 리뷰
     CUSTOMER_SERVICE, // 고객센터
     COMMUNITY,        // 커뮤니티
-    MARKET            // 상품 판매 게시판
+    LEGACY            // 기존 게시글
 }
