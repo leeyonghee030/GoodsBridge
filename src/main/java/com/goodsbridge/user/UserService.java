@@ -144,17 +144,13 @@ public class UserService {
                 .address(updateDto.getAddress())
                 .detailAddress(updateDto.getDetailAddress())
                 .build());
-            log.info("Address : {}", user.getAddress());
         }
 
         if (updateDto.hasPhoneNumber()){
             user.updatePhoneNumber(updateDto.getPhonePrefix() + "-" +
                 updateDto.getPhoneMiddle() + "-" +
                 updateDto.getPhoneLast());
-            log.info("PhoneNumber : {}", user.getPhoneNumber());
         }
-        log.info("password : {}", user.getPassword());
-
     }
 
     @Transactional

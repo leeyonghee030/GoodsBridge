@@ -80,7 +80,10 @@ public class UserRequest {
                 throw new BadRequestException("변경할 데이터를 입력해주세요");
             }
 
-            if (!hasPhoneNumber()) {
+            // 화면의 국번 select 는 항상 값이 있으므로, 가운데/끝자리 중 하나라도 적었을 때만 전부 입력했는지 확인한다.
+            boolean phoneStarted = (phoneMiddle != null && !phoneMiddle.isBlank())
+                || (phoneLast != null && !phoneLast.isBlank());
+            if (phoneStarted && !hasPhoneNumber()) {
                 throw new BadRequestException("휴대전화 번호를 모두 입력해주세요.");
             }
 

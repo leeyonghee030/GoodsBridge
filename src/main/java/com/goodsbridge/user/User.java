@@ -64,6 +64,11 @@ public class User {
     @Column(name = "refresh_token_hash", length = 64)
     private String refreshTokenHash;
 
+    // 주소·전화번호 없이 만드는 기존 호출부(테스트 등)를 위해 유지한다
+    public User(String email, String password, String nickname, LoginType loginType, String profileImage) {
+        this(email, password, nickname, loginType, profileImage, null, null);
+    }
+
     @Builder
     public User(String email, String password, String nickname, LoginType loginType, String profileImage, Address address, String phoneNumber) {
         this.email = email;

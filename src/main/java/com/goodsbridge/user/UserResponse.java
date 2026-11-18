@@ -77,9 +77,12 @@ public class UserResponse {
             this.email = user.getEmail();
             this.profileImage = user.getProfilePath();
 
-            this.postalCode = user.getAddress().getPostalCode();
-            this.address = user.getAddress().getAddress();
-            this.detailAddress = user.getAddress().getDetailAddress();
+            // 주소를 저장한 적 없는 사용자는 address 가 null 이다
+            if (user.getAddress() != null) {
+                this.postalCode = user.getAddress().getPostalCode();
+                this.address = user.getAddress().getAddress();
+                this.detailAddress = user.getAddress().getDetailAddress();
+            }
 
             String phoneNumber = user.getPhoneNumber();
 
