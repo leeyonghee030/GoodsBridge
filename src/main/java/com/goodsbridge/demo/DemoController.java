@@ -1,5 +1,6 @@
 package com.goodsbridge.demo;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.util.SecurityUtil;
@@ -56,6 +57,10 @@ public class DemoController {
         }
         var user = userRepository.findByEmail(email)
             .orElseThrow(() -> new NotFoundException("데모 계정이 아직 생성되지 않았습니다."));
+        // 탈퇴한 계정은 일반 로그인처럼 막는다. 시연 초기화(/reset)를 하면 다시 쓸 수 있다.
+        if (!user.isActive()) {
+            throw new BadRequestException("탈퇴한 데모 계정입니다. 데모 초기화 후 다시 이용해 주세요.");
+        }
         authService.addAuthCookies(response, authService.login(user));
     }
 
