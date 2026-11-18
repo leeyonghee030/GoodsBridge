@@ -38,6 +38,7 @@ class ShopServiceDeleteGuardTest {
     @Mock AuctionRepository auctionRepository;
     @Mock PurchaseRepository purchaseRepository;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock ApplicationEventPublisher publisher;
 
     ShopService shopService;
     Shop shop;
@@ -46,7 +47,7 @@ class ShopServiceDeleteGuardTest {
     void setUp() {
         shopService = new ShopService(shopRepository, userRepository, itemRepository,
             subscriptionRepository, shopEventRepository, exchangeRequestRepository,
-            auctionRepository, purchaseRepository, eventPublisher);
+            auctionRepository, purchaseRepository, eventPublisher, publisher);
         shop = Shop.builder().ownerUserId(OWNER_ID).name("가게").region("서울").address("주소")
             .status(ShopStatus.APPROVED).build();
         when(shopRepository.findByIdWithLock(SHOP_ID)).thenReturn(Optional.of(shop));

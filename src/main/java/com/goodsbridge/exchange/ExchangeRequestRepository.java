@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest,Long> {
@@ -139,5 +140,20 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
         Long getRequestCount();
     }
 
+    @Query("""
+    select e from ExchangeRequest e
+    join fetch e.exchangeItemA ea
+    join fetch ea.user
+    join fetch e.itemB
+    join fetch e.shop
+    where e.status = :status
+      and e.deadline >= :from
+      and e.deadline < :to
+    """)
+    List<ExchangeRequest> findConfirmedWithDeadlineOn(
+        @Param("status") ExchangeRequestStatus status,
+        @Param("from") LocalDateTime from,
+        @Param("to") LocalDateTime to
+    );
 
 }

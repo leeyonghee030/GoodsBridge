@@ -9,6 +9,8 @@ import com.goodsbridge.exchange.ExchangeRequestRepository;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
@@ -40,6 +42,7 @@ public class ShopService {
     private final AuctionRepository auctionRepository;
     private final PurchaseRepository purchaseRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ApplicationEventPublisher publisher;
 
     @Value("${app.chain-code}")
     private String chainCode;
@@ -62,6 +65,21 @@ public class ShopService {
             .address(requestDto.getAddress())
             .status(ShopStatus.PENDING)
             .build();
+
+        List<Long> adminList =  userRepository.findIdsByRole(Role.ADMIN);
+
+        for (Long adminId : adminList){
+            publisher.publishEvent(
+                new NotificationEvent(
+                    adminId,
+                    Notification.Type.SHOP_APPLIED,
+                    "[입점 신청]",
+                    "새 입점 신청이 있습니다: {" + shop.getName() + "}",
+                    Notification.ReferenceType.SHOP,
+                    shop.getId()
+                )
+            );
+        }
 
         return new ShopResponse(shopRepository.save(shop));
     }
@@ -206,6 +224,17 @@ public class ShopService {
         }
 
         shop.updateStatus(ShopStatus.APPROVED);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                shop.getOwnerUserId(),
+                Notification.Type.SHOP_APPLIED,
+                "[입점 승인]",
+                " 입점이 승인됐습니다. 구독을 시작하면 상품을 올릴 수 있습니다",
+                Notification.ReferenceType.SHOP,
+                shop.getId()
+            )
+        );
     }
 
     /**
@@ -221,9 +250,21 @@ public class ShopService {
 
         shop.updateStatus(ShopStatus.REJECTED);
 
+        if (wasApproved) {
+            // 기존 입점 승인 취소
+            publisher.publishEvent(
+                new NotificationEvent(
+                    shop.getOwnerUserId(),
+                    Notification.Type.SHOP_APPROVAL_CANCELED,
+                    "[입점 승인 취소]",
+                    "입점 승인이 취소되어 구독과 판매 중인 상품이 중지되었습니다.",
+                    Notification.ReferenceType.SHOP,
+                    shop.getId()
+                )
+            );
+
         // 승인된 가게의 승인을 취소하면 활성 구독도 취소한다.
         // 판매중 상품 판매 중지는 구독 취소 이벤트 리스너가 처리 (판매완료 상품은 배송/환불 처리를 위해 유지)
-        if (wasApproved) {
             List<ShopSubscription> activeSubscriptions = subscriptionRepository.findActiveByShopIdWithLock(
                 shopId,
                 ShopSubscriptionStatus.ACTIVE,
@@ -233,6 +274,18 @@ public class ShopService {
             if (!activeSubscriptions.isEmpty()) {
                 eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
             }
+        } else {
+            // 신규 입점 신청 거절
+            publisher.publishEvent(
+                new NotificationEvent(
+                    shop.getOwnerUserId(),
+                    Notification.Type.SHOP_REJECTED,
+                    "[입점 신청 거절]",
+                    "입점 신청이 거절되었습니다. 자세한 내용은 입점 신청 내역을 확인해주세요.",
+                    Notification.ReferenceType.SHOP,
+                    shop.getId()
+                )
+            );
         }
     }
 
@@ -247,6 +300,17 @@ public class ShopService {
         Shop shop = findActiveShopEntity(shopId);
 
         shop.updateStatus(ShopStatus.CLOSED);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                shop.getOwnerUserId(),
+                Notification.Type.SHOP_CLOSED,
+                "[가게 폐점]",
+                "가게가 폐점 처리되었습니다",
+                Notification.ReferenceType.SHOP,
+                shop.getId()
+            )
+        );
     }
 
     /**

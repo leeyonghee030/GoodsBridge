@@ -17,12 +17,12 @@ import java.time.LocalDateTime;
 public class Payment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;    // 사용자 PK
+    private Long id;    // PK
 
     @Column(nullable = false, unique = true)
-    private String paymentId;   // PG 거래 식별자
+    private String paymentId;   // 결제 ID
 
-    private String pgTxId;  // PG id
+    private String pgTxId;  // PG 거래 식별자
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -63,17 +63,6 @@ public class Payment {
     // 이미 처리된 결제인지 확인
     public boolean isPaid(){
         return this.status == PaymentStatus.PAID;
-    }
-
-    // 검증 통과 후 결제 완료로 변경 처리
-    public void markPaid(String pgTxId) {
-        this.status = PaymentStatus.PAID;
-        this.pgTxId = pgTxId;
-    }
-
-    // 취소 처리
-    public void markCancelled(){
-        this.status = PaymentStatus.CANCELLED;
     }
 
     public Integer getRefundableAmount() {

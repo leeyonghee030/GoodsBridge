@@ -5,22 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 
 public class PaymentResponse {
-    // 결제 창 띄우기
-    @Data
-    public static class PrepareDto{
-        private String paymentId;
-        private int amount;
-        private String storeId;
-        private String channelKey;
-
-        @Builder
-        public PrepareDto(String paymentId, int amount, String storeId, String channelKey) {
-            this.paymentId = paymentId;
-            this.amount = amount;
-            this.storeId = storeId;
-            this.channelKey = channelKey;
-        }
-    }
 
     // PortOne V2 결제 단건 조회 응답
     @Data

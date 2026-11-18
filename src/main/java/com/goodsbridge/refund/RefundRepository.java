@@ -1,6 +1,8 @@
 package com.goodsbridge.refund;
 
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -10,7 +12,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RefundRepository extends JpaRepository<Refund, Long> {
-
+    // 특정 사용자의 환불 내역을 결제 정보와 함께 조회
     @Query("""
         select r
         from Refund r
@@ -20,21 +22,15 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
         """)
     List<Refund> findAllByUserIdOrderByIdDesc(@Param("userId") Long userId);
 
-    // 관리자 - 승인할 환불 요청 1건 조회
-    @Query("""
-        select r from Refund r
-        join fetch r.user
-        join fetch r.payment
-        where r.id  = :id
-        """)
-    Optional<Refund> findByIdJoinUserAndPayment(@Param("id") Long id);
-
-    @Query("""
+    // 관리자 환불 목록을 상태 조건으로 필터링하여 페이징 조회
+    @Query(value = """
         select r from Refund r
         join fetch r.payment
+         where (:status is null or r.status = :status)
         order by r.id desc
-        """)
-    List<Refund> findAllByOrderByIdDesc();
+        """,
+         countQuery = "select count(r) from Refund r where (:status is null or r.status = :status)")
+    Page<Refund> findAllAdminPage(@Param("status") Status status, Pageable pageable);
 
     // 중복 환불 요청 방지
     @Query("""

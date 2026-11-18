@@ -1,6 +1,8 @@
 package com.goodsbridge.purchase;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,6 +16,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         select case when count(p) > 0 then true else false end
         from Purchase p
         where p.user.id = :userId and p.item.id = :itemId
+          and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
         """)
     boolean existsByUserIdAndItemId(@Param("userId") Long userId, @Param("itemId") Long itemId);
 
@@ -22,6 +25,7 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         select case when count(p) > 0 then true else false end
         from Purchase p
         where p.item.id = :itemId
+          and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
         """)
     boolean existsByItemId(@Param("itemId") Long itemId);
 
@@ -39,11 +43,13 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     @Query("""
             select p from Purchase p join fetch p.item i
             where i.shopId = :shopId
+              and p.status <> com.goodsbridge.purchase.PurchaseStatus.REFUNDED
               and (:ds is null or p.deliveryStatus = :ds)
             order by p.id desc
         """)
     List<Purchase> findAllByShop(@Param("shopId") Long shopId, @Param("ds") DeliveryStatus ds);
 
+    // 결제 ID 조회
     @Query("""
         select p
         from Purchase p
@@ -70,4 +76,9 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
                                    com.goodsbridge.purchase.DeliveryStatus.SHIPPED)
         """)
     boolean existsUndeliveredByUserId(@Param("userId") Long userId);
+
+    // 배송 상태 변경용 잠금 조회
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from Purchase p where p.id = :id")
+    Optional<Purchase> findByIdLock(@Param("id") Long id);
 }

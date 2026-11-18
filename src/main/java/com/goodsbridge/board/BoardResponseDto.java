@@ -1,6 +1,10 @@
+
 package com.goodsbridge.board;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
@@ -13,6 +17,7 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @NoArgsConstructor
 public class BoardResponseDto {
+
     private Long id;
     private String title;
     private String content;
@@ -22,13 +27,18 @@ public class BoardResponseDto {
     private Boolean isSecret;
     private BoardStatus status;
     private LocalDateTime createdAt;
-    private List<ReplyResponseDto> replies; // 댓글 목록 포함
+    private List<ReplyResponseDto> replies;
 
-    public static BoardResponseDto from(Board board, Map<Long, String> nicknames) {
-        List<ReplyResponseDto> replyDtos = board.getReplies().stream()
-            .sorted(Comparator.comparing(Reply::getCreatedAt).reversed()) // 최신 댓글이 먼저 보이도록
-            .map(reply -> ReplyResponseDto.from(reply, nicknames))
-            .collect(Collectors.toList());
+    // 게시글 상세 조회
+    public static BoardResponseDto from(
+        Board board,
+        Map<Long, String> nicknames
+    ) {
+        List<ReplyResponseDto> replyDtos =
+            board.getReplies().stream()
+                .sorted(Comparator.comparing(Reply::getCreatedAt).reversed())
+                .map(reply -> ReplyResponseDto.from(reply, nicknames))
+                .collect(Collectors.toList());
 
         return new BoardResponseDto(
             board.getId(),
@@ -38,10 +48,57 @@ public class BoardResponseDto {
             nicknames.getOrDefault(board.getAuthorId(), "알 수 없음"),
             board.getItemId(),
             board.getIsSecret(),
-            board.getStatus(),
+            getReplyStatus(board),
             board.getCreatedAt(),
             replyDtos
         );
     }
 
+    // 게시글 목록 조회
+    // 권한이 없는 상품 문의 및 고객센터 게시글은 제목만 노출
+    public static BoardResponseDto fromForList(
+        Board board,
+        Map<Long, String> nicknames,
+        boolean canRead
+    ) {
+        // 권한이 없는 게시글은 제목 외의 정보를 반환하지 않는다.
+        if (!canRead) {
+            return new BoardResponseDto(
+                board.getId(),
+                "비밀글입니다.",
+                null,
+                null,
+                null,
+                null,
+                true,
+                null,
+                null,
+                List.of()
+            );
+        }
+
+        return new BoardResponseDto(
+            board.getId(),
+            board.getTitle(),
+            board.getContent(),
+            board.getAuthorId(),
+            nicknames.getOrDefault(board.getAuthorId(), "알 수 없음"),
+            board.getItemId(),
+            board.getIsSecret(),
+            getReplyStatus(board),
+            board.getCreatedAt(),
+            List.of()
+        );
+    }
+
+    // 답변 상태를 관리하는 게시판인지 확인
+    private static BoardStatus getReplyStatus(Board board) {
+
+        if (board.getBoardType() == BoardType.PRODUCT_INQUIRY
+            || board.getBoardType() == BoardType.CUSTOMER_SERVICE) {
+            return board.getStatus();
+        }
+
+        return null;
+    }
 }

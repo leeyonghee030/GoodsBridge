@@ -1,5 +1,6 @@
 package com.goodsbridge.payment;
 
+import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -67,7 +68,7 @@ class PaymentTest {
             .build();
         payment.refund(10_000);
 
-        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, payment::release);
+        org.junit.jupiter.api.Assertions.assertThrows(BadRequestException.class, payment::release);
         assertEquals(PaymentStatus.CANCELLED, payment.getStatus());
     }
 }

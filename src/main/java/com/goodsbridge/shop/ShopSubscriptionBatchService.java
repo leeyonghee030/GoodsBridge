@@ -90,4 +90,27 @@ public class ShopSubscriptionBatchService {
 
         return totalProcessedCount;
     }
+
+    /** D-3 만료 예정 구독에 가게 주인 알림을 보낸다. */
+    public int sendExpiringSubscriptionReminders() {
+        LocalDate targetDate = LocalDate.now().plusDays(3);
+        List<Long> subscriptionIds = subscriptionRepository.findActiveSubscriptionIdsEndingOn(
+            targetDate,
+            ShopSubscriptionStatus.ACTIVE
+        );
+
+        int sentCount = 0;
+        for (Long subscriptionId : subscriptionIds) {
+            try {
+                if (subscriptionProcessor.sendExpiringReminderById(subscriptionId, targetDate)) {
+                    sentCount++;
+                }
+            } catch (Exception e) {
+                log.error("[D-3 구독 알림 실패] subscriptionId={}", subscriptionId, e);
+            }
+        }
+
+        log.info("[D-3 구독 알림 완료] 대상={}건, 발송={}건", subscriptionIds.size(), sentCount);
+        return sentCount;
+    }
 }

@@ -5,7 +5,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
-// 관리자: 입점 신청 승인 / 구독 현황 화면 (데이터는 기존 /api/admin/shops/*, /api/admin/subscriptions 를 사용)
+// 관리자: 입점 신청 승인 / 구독 현황 / 환불 관리 화면
 @Controller
 public class AdminShopViewController {
 
@@ -28,6 +28,14 @@ public class AdminShopViewController {
         return "admin/shops".equals(view) ? "admin/subscription-payments" : view;
     }
 
+    // 경매 관리 (전체 경매 목록과 취소, 데이터는 /api/auctions, 취소는 /api/admin/auctions/{id}/cancel)
+    @GetMapping("/test/admin/auctions")
+    public String auctions(Authentication authentication, Model model) {
+        String view = render(authentication, model, true);
+        return "admin/shops".equals(view) ? "admin/auctions" : view;
+    }
+
+    // 관리자 권한 확인 후 입점 관리 페이지 접근 및 사용자 정보 전달
     private String render(Authentication authentication, Model model, boolean subscriptionsMode) {
         model.addAttribute("subscriptionsMode", subscriptionsMode);
         boolean admin = authentication != null && authentication.getAuthorities().stream()

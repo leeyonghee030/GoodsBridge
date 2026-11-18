@@ -58,7 +58,7 @@ class AuctionTest {
 
         assertEquals(Status.ENDED_SUCCESS, auction.getStatus());
         assertNotNull(auction.getBalanceDueAt());
-        assertFalse(auction.getBalanceDueAt().isBefore(before.plusMinutes(Auction.BALANCE_DUE_MINUTES)));
+        assertFalse(auction.getBalanceDueAt().isBefore(before.plusDays(Auction.BALANCE_DUE_DAYS)));
     }
 
     // ---------- 잔금 ----------
@@ -135,5 +135,16 @@ class AuctionTest {
         auction.markLosersRefunded();
 
         assertTrue(auction.isLosersRefunded());
+    }
+
+    @Test
+    void markEndingSoonNotified_setsFlag() {
+        Auction auction = new Auction(null, null, 10_000, LocalDateTime.now().plusHours(1), 1_000);
+
+        assertFalse(auction.isEndingSoonNotified());
+
+        auction.markEndingSoonNotified();
+
+        assertTrue(auction.isEndingSoonNotified());
     }
 }

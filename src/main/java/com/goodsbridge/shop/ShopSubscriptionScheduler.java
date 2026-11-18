@@ -30,4 +30,15 @@ public class ShopSubscriptionScheduler {
             log.error("[스케줄러 오류] 만료 구독 일괄 처리 실패", e);
         }
     }
+
+    @Scheduled(cron = "${scheduler.subscription.expiring-cron:0 0 9 * * *}")
+    public void runExpiringReminderScheduler() {
+        log.info("[스케줄러 시작] D-3 구독 만료 임박 알림 검사");
+        try {
+            int sentCount = batchService.sendExpiringSubscriptionReminders();
+            log.info("[스케줄러 완료] D-3 구독 알림 {}건 발송", sentCount);
+        } catch (Exception e) {
+            log.error("[스케줄러 오류] D-3 구독 알림 처리 실패", e);
+        }
+    }
 }

@@ -16,6 +16,7 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.ItemStatus;
 import com.goodsbridge.item.SaleType;
+import com.goodsbridge.notification.Notification;
 import com.goodsbridge.payment.Payment;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
@@ -32,11 +33,14 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.notification.Notification;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,7 +52,7 @@ public class EventService {
 
     private final ShopRepository shopRepository;
     private final ItemRepository itemRepository;
-    private  final  ShopEventRepository shopEventRepository;
+    private final ShopEventRepository shopEventRepository;
     private final EntityManager entityManager;
     private final EventParticipationRepository eventParticipationRepository;
     private final UserRepository userRepository;
@@ -58,6 +62,7 @@ public class EventService {
     private final TransactionTemplate transactionTemplate;
     private final ShopSubscriptionService shopSubscriptionService;
     private final CategoryJpaRepository categoryRepository;
+    private final ApplicationEventPublisher publisher;
 
     /// ---------EventParticipation service
 
@@ -75,15 +80,17 @@ public class EventService {
 
     private EventParticipationResponse doSaveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
         //조회
-         ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(()->{
-                throw new NotFoundException("존재하지 않는 이벤트입니다");}
-         );
+        ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(() -> {
+                throw new NotFoundException("존재하지 않는 이벤트입니다");
+            }
+        );
 
-        User user = userRepository.findById(userid).orElseThrow(()->{
-            throw new NotFoundException("존재하지 않는 사용자 입니다");}
+        User user = userRepository.findById(userid).orElseThrow(() -> {
+                throw new NotFoundException("존재하지 않는 사용자 입니다");
+            }
         );
         // 이벤트 상태확인
-        if (shopEvent.getStatus() != ShopEventStatus.OPEN){
+        if (shopEvent.getStatus() != ShopEventStatus.OPEN) {
             throw new ForbiddenException("진행중인 이벤트에 참여가능합니다");
         }
         // 마감시간 확인 (스케줄러가 1분마다 돌아서 상태만으로는 마감 직후를 못 막는다)
@@ -95,7 +102,7 @@ public class EventService {
             throw new BadRequestException("가게 구독이 종료되어 참가할 수 없는 이벤트입니다");
         }
         //유저 상태확인
-        if (user.getStatus() != Status.ACTIVE){
+        if (user.getStatus() != Status.ACTIVE) {
             throw new ForbiddenException("활성화된 사용자만 참여 가능합니다");
         }
         // 가게 주인은 자기 가게 이벤트에 참가할 수 없다 (상품 구매와 같은 규칙)
@@ -116,7 +123,7 @@ public class EventService {
 
         //이벤트 남은 수량 확인
         int quantity = request.getQuantity();
-        if (shopEvent.getCurrentCount() >= shopEvent.getCapacity()){
+        if (shopEvent.getCurrentCount() >= shopEvent.getCapacity()) {
             shopEvent.updateStatus(ShopEventStatus.CLOSED);
             throw new BadRequestException("정원 초과로 이벤트 참가 불가능합니다");
         }
@@ -144,8 +151,9 @@ public class EventService {
             .paymentId(paymentId)
             .build();
 
-        if (shopEvent.getCurrentCount() >= shopEvent.getCapacity()){
-            shopEvent.updateStatus(ShopEventStatus.CLOSED);}
+        if (shopEvent.getCurrentCount() >= shopEvent.getCapacity()) {
+            shopEvent.updateStatus(ShopEventStatus.CLOSED);
+        }
 
         eventParticipationRepository.save(eventParticipation);
         eventParticipationRepository.flush();
@@ -157,15 +165,17 @@ public class EventService {
     @Transactional
     public void cancelEventParticipation(Long id, Long userid, Long participationId) {
         //조회 (참가 신청과 동시에 인원수를 바꾸므로 같은 잠금을 건다)
-        ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(()->{
-            throw new NotFoundException("존재하지 않는 이벤트입니다");}
+        ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(() -> {
+                throw new NotFoundException("존재하지 않는 이벤트입니다");
+            }
         );
 
-        User user = userRepository.findById(userid).orElseThrow(()->{
-            throw new NotFoundException("존재하지 않는 사용자 입니다");}
+        User user = userRepository.findById(userid).orElseThrow(() -> {
+                throw new NotFoundException("존재하지 않는 사용자 입니다");
+            }
         );
         //유저 상태확인
-        if (user.getStatus() != Status.ACTIVE){
+        if (user.getStatus() != Status.ACTIVE) {
             throw new ForbiddenException("활성화된 사용자만 참여 가능합니다");
         }
         // 취소된 이벤트는 가게 취소 때 이미 전원 환불됐고, 마감 후에는 환불하지 않는다
@@ -200,11 +210,37 @@ public class EventService {
                 if (payment != null) {
                     settlementHistoryService.calculate(shopEvent.getShop(), payment, shopEvent.getFeeAmount() * participation.getQuantity(), SettlementHistoryType.EVENT_FEE);
                 }
+
+                publisher.publishEvent(
+                    new NotificationEvent(
+                        participation.getUser().getId(),
+                        Notification.Type.EVENT_CLOSED,
+                        "[이벤트 인원 마감]",
+                        "'{" + shopEvent.getItem().getTitle() + "}' 이벤트의 모집이 마감되었습니다. 번호표" +
+                            participation.getTicketNumber() + "로 " +
+                            shopEvent.getShop().getName() +"에 방문해 주세요",
+                        Notification.ReferenceType.EVENT,
+                        shopEvent.getId()
+                    )
+                );
+
             }
+
+            publisher.publishEvent(
+                new NotificationEvent(
+                    shopEvent.getShop().getOwnerUserId(),
+                    Notification.Type.EVENT_CLOSED,
+                    "[이벤트 인원 마감]",
+                    "'{" + shopEvent.getItem().getTitle() + "}' 이벤트의 모집이 마감되었습니다. (인원 : " +
+                        + shopEvent.getCapacity() +"명)",
+                    Notification.ReferenceType.EVENT,
+                    shopEvent.getId()
+                )
+            );
+
             shopEvent.markSettled();
         }
     }
-
 
 
     /// ---------EventParticipation service
@@ -214,15 +250,15 @@ public class EventService {
     @Transactional
     public ShopEventResponse save(Long id, Long userId, ShopEventRequest request) {
         //shop 조회
-        Shop shop = shopRepository.findById(id).orElseThrow(()->{
+        Shop shop = shopRepository.findById(id).orElseThrow(() -> {
             throw new NotFoundException("존재하지 않는 가게입니다");
         });
 
         //로그인 유저가 가게 id 맞는지
-        if (!shop.getOwnerUserId().equals(userId)){
+        if (!shop.getOwnerUserId().equals(userId)) {
             throw new ForbiddenException("본인 가게의 이벤트만 생성할수있습니다");
         }
-        if (shop.getStatus() != ShopStatus.APPROVED){
+        if (shop.getStatus() != ShopStatus.APPROVED) {
             throw new BadRequestException("입점 승인된 가게만 이벤트를 할수있습니다.");
         }
         // 상품 등록과 같이 구독 중인 가게만 이벤트를 열 수 있다
@@ -230,7 +266,7 @@ public class EventService {
             throw new ForbiddenException("구독 중인 가게만 이벤트를 열 수 있습니다.");
         }
         // 이벤트 상품은 이벤트를 열면서 새로 등록한다 (판매유형 EVENT — SHOP 목록/일반 구매에서는 빠진다)
-        Category category = categoryRepository.findById(request.getCategoryId()).orElseThrow(()->{
+        Category category = categoryRepository.findById(request.getCategoryId()).orElseThrow(() -> {
             throw new NotFoundException("존재하지 않는 카테고리입니다");
         });
         Item item = itemRepository.save(Item.builder()
@@ -352,14 +388,14 @@ public class EventService {
     @Transactional
     public void cancelShopEvent(Long id, Long userId) {
         //가게id랑 userid 같은지 가게 주인인지 (참가 신청/취소와 동시에 처리되지 않도록 잠금)
-         ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(()->{
+        ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(() -> {
             throw new NotFoundException("존재하지 않는 이벤트입니다");
         });
-        if (!shopEvent.isShop(userId)){
+        if (!shopEvent.isShop(userId)) {
             throw new ForbiddenException("본인 가게이벤트만 삭제할수있습니다");
         }
         // 마감시간 전이면 취소 가능 (정원이 차서 CLOSED 된 이벤트도 포함). 마감 후에는 이미 진행/정산된 이벤트
-        if (shopEvent.getStatus() == ShopEventStatus.CANCELLED || !shopEvent.isBeforeDeadline(LocalDateTime.now())){
+        if (shopEvent.getStatus() == ShopEventStatus.CANCELLED || !shopEvent.isBeforeDeadline(LocalDateTime.now())) {
             throw new ForbiddenException("이벤트가 진행중일떄 삭제 가능합니다");
         }
 
@@ -367,6 +403,20 @@ public class EventService {
         for (EventParticipation participation : eventParticipationRepository.findJoinedByShopEventId(id)) {
             paymentService.refund(participation.getPaymentId(), shopEvent.getFeeAmount() * participation.getQuantity(), "가게 이벤트 취소");
             participation.refund();
+
+            publisher.publishEvent(
+                new NotificationEvent(
+                    participation.getUser().getId(),
+                    Notification.Type.EVENT_CANCELLED,
+                    "[이벤트 취소]",
+                    "'{" + shopEvent.getItem().getTitle() + "}' 이벤트가 가게 사정으로 취소됐어요. 참가비 " +
+                        shopEvent.getFeeAmount() + "원은 환불돼요",
+                    Notification.ReferenceType.EVENT,
+
+                    shopEvent.getId()
+                )
+            );
+
         }
         //상태 업데이트
         shopEvent.updateStatus(ShopEventStatus.CANCELLED);
@@ -384,7 +434,7 @@ public class EventService {
     }
 
     public List<EventParticipationResponse> getEventParticipationList(Long userid) {
-    List<EventParticipation> eventParticipationList = eventParticipationRepository.findByUserId(userid);
+        List<EventParticipation> eventParticipationList = eventParticipationRepository.findByUserId(userid);
         return eventParticipationList.stream()
             .map(EventParticipationResponse::new).toList();
     }
