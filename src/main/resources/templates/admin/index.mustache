@@ -1,106 +1,106 @@
 {{> fragments/header}}
 
 {{^isAdmin}}
-    <div class="container my-card">
-        <p style="padding:3rem 0;text-align:center;color:var(--color-muted)">관리자만 이용할 수 있는 페이지입니다. <a href="/">홈으로 돌아가기</a></p>
-    </div>
+<div class="container my-card">
+    <p style="padding:3rem 0;text-align:center;color:var(--color-muted)">관리자만 이용할 수 있는 페이지입니다. <a href="/">홈으로 돌아가기</a></p>
+</div>
 {{/isAdmin}}
 
 {{#isAdmin}}
-    <div class="container my-card">
-        <nav class="my-tabs">
-            <a href="/test/admin" class="active">대시보드</a>
-            <a href="/test/admin/shops">입점 관리</a>
-            <a href="/test/admin/subscriptions">구독 관리</a>
-            <a href="/test/admin/subscription-payments">구독 결제 내역</a>
-            <a href="/test/admin/auctions">경매 관리</a>
-        </nav>
-        <div class="dash">
-            <div class="dash-head">
-                <div>
-                    <h1>관리자 대시보드</h1>
-                    <p id="selected-month">통계를 불러오는 중입니다.</p>
-                </div>
-                <form id="dashboard-form" class="dash-filter">
-                    <input id="month" type="month" required>
-                    <button type="submit">조회</button>
-                </form>
-            </div>
-
-            <section class="dash-panel">
-                <div class="dash-title"><h2>입점·구독 현황</h2><small>월과 무관한 현재 값</small></div>
-                <div id="status-cards" class="stat-row cols5"></div>
-            </section>
-
-            <section class="dash-panel">
-                <div class="dash-title"><h2>월 구독 지표</h2><small id="compare-label">지난달 대비</small></div>
-                <div id="month-cards" class="stat-row cols3"></div>
-                <p class="dash-note" style="margin-top:.8rem">플랫폼 매출은 가게가 낸 구독료(환불 제외)만 집계합니다. 가게의 판매·정산은 각 가게 대시보드에서 봅니다.</p>
-            </section>
-
-            <section class="dash-panel">
-                <div class="dash-title"><h2>최근 6개월 추이</h2></div>
-                <div class="chart-grid cols2">
-                    <div class="chart-box"><h3>구독 매출</h3><div class="chart-canvas"><canvas id="revenue-chart"></canvas></div></div>
-                    <div class="chart-box"><h3>구독 결제 건수</h3><div class="chart-canvas"><canvas id="subscription-chart"></canvas></div></div>
-                    <div class="chart-box"><h3>가입자 수</h3><div class="chart-canvas"><canvas id="signup-chart"></canvas></div></div>
-                    <div class="chart-box"><h3>입점·구독 이탈</h3><div class="chart-canvas"><canvas id="shop-chart"></canvas></div></div>
-                </div>
-            </section>
-
-            <p id="dashboard-message" class="dash-note">통계를 불러오는 중입니다.</p>
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/test/admin" class="active">대시보드</a>
+    <a href="/test/admin/shops">입점 관리</a>
+    <a href="/test/admin/subscriptions">구독 관리</a>
+    <a href="/test/admin/subscription-payments">구독 결제 내역</a>
+    <a href="/test/admin/auctions">경매 관리</a>
+</nav>
+<div class="dash">
+    <div class="dash-head">
+        <div>
+            <h1>관리자 대시보드</h1>
+            <p id="selected-month">통계를 불러오는 중입니다.</p>
         </div>
+        <form id="dashboard-form" class="dash-filter">
+            <input id="month" type="month" required>
+            <button type="submit">조회</button>
+        </form>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
-    <script src="/js/dashboard.js"></script>
-    <script>
-        (() => {
-            const { fmt, addStat, delta, drawChart, monthLabels } = Dash;
+    <section class="dash-panel">
+        <div class="dash-title"><h2>입점·구독 현황</h2><small>월과 무관한 현재 값</small></div>
+        <div id="status-cards" class="stat-row cols5"></div>
+    </section>
 
-            function render(data) {
-                const status = document.getElementById('status-cards');
-                const monthly = document.getElementById('month-cards');
-                status.replaceChildren();
-                monthly.replaceChildren();
+    <section class="dash-panel">
+        <div class="dash-title"><h2>월 구독 지표</h2><small id="compare-label">지난달 대비</small></div>
+        <div id="month-cards" class="stat-row cols3"></div>
+        <p class="dash-note" style="margin-top:.8rem">플랫폼 매출은 가게가 낸 구독료(환불 제외)만 집계합니다. 가게의 판매·정산은 각 가게 대시보드에서 봅니다.</p>
+    </section>
 
-                addStat(status, '입점 신청 대기', fmt.shop(data.pendingShopCount), data.pendingShopCount > 0 ? '승인하러 가기' : '',
-                    { todo: data.pendingShopCount > 0, href: '/test/admin/shops' });
-                addStat(status, '만료 임박', fmt.shop(data.expiringSoonCount), data.expiringSoonCount > 0 ? '7일 안에 만료' : '',
-                    { todo: data.expiringSoonCount > 0, href: '/test/admin/subscriptions' });
-                addStat(status, '구독 중 가게', fmt.shop(data.activeSubscriptionCount), '');
-                addStat(status, '구독 전환율', data.subscriptionRatePercent + '%', data.activeSubscriptionCount + ' / ' + data.approvedShopCount + '곳');
-                addStat(status, '입점 승인 가게', fmt.shop(data.approvedShopCount), '누적');
+    <section class="dash-panel">
+        <div class="dash-title"><h2>최근 6개월 추이</h2></div>
+        <div class="chart-grid cols2">
+            <div class="chart-box"><h3>구독 매출</h3><div class="chart-canvas"><canvas id="revenue-chart"></canvas></div></div>
+            <div class="chart-box"><h3>구독 결제 건수</h3><div class="chart-canvas"><canvas id="subscription-chart"></canvas></div></div>
+            <div class="chart-box"><h3>가입자 수</h3><div class="chart-canvas"><canvas id="signup-chart"></canvas></div></div>
+            <div class="chart-box"><h3>입점·구독 이탈</h3><div class="chart-canvas"><canvas id="shop-chart"></canvas></div></div>
+        </div>
+    </section>
 
-                // 마지막 원소가 조회한 달, 그 앞이 지난달이다.
-                const months = data.months;
-                const m = months[months.length - 1];
-                const p = months.length > 1 ? months[months.length - 2] : {};
-                document.getElementById('compare-label').textContent = (p.month || '지난달') + ' 대비';
-                // 구독 매출을 누르면 조회한 달의 구독 결제 내역으로 간다
-                addStat(monthly, '구독 매출', fmt.won(m.subscriptionRevenue), delta(m.subscriptionRevenue, p.subscriptionRevenue),
-                    { href: '/test/admin/subscription-payments?month=' + encodeURIComponent(m.month) });
-                addStat(monthly, '구독 결제', fmt.count(m.subscriptionCount), delta(m.subscriptionCount, p.subscriptionCount),
-                    { href: '/test/admin/subscription-payments?month=' + encodeURIComponent(m.month) });
-                addStat(monthly, '가입자', fmt.person(m.signupCount), delta(m.signupCount, p.signupCount));
-                addStat(monthly, '신규 입점', fmt.shop(m.newShopCount), delta(m.newShopCount, p.newShopCount),
-                    { href: '/test/admin/shops' });
-                addStat(monthly, '구독 이탈', fmt.shop(m.churnCount), delta(m.churnCount, p.churnCount),
-                    { todo: m.churnCount > 0, href: '/test/admin/subscriptions' });
+    <p id="dashboard-message" class="dash-note">통계를 불러오는 중입니다.</p>
+</div>
+</div>
 
-                const labels = monthLabels(months);
-                drawChart('revenue-chart', labels, [{ label: '구독 매출', data: months.map(x => x.subscriptionRevenue) }], fmt.won);
-                drawChart('subscription-chart', labels, [{ label: '구독 결제', data: months.map(x => x.subscriptionCount) }], fmt.count);
-                drawChart('signup-chart', labels, [{ label: '가입자', data: months.map(x => x.signupCount) }], fmt.person);
-                drawChart('shop-chart', labels, [
-                    { label: '신규 입점', data: months.map(x => x.newShopCount) },
-                    { label: '구독 이탈', data: months.map(x => x.churnCount), light: true }
-                ], fmt.shop);
-            }
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="/js/dashboard.js"></script>
+<script>
+(() => {
+    const { fmt, addStat, delta, drawChart, monthLabels } = Dash;
 
-            Dash.start({ api: '/api/admin/dashboard', render: render });
-        })();
-    </script>
+    function render(data) {
+        const status = document.getElementById('status-cards');
+        const monthly = document.getElementById('month-cards');
+        status.replaceChildren();
+        monthly.replaceChildren();
+
+        addStat(status, '입점 신청 대기', fmt.shop(data.pendingShopCount), data.pendingShopCount > 0 ? '승인하러 가기' : '',
+            { todo: data.pendingShopCount > 0, href: '/test/admin/shops' });
+        addStat(status, '만료 임박', fmt.shop(data.expiringSoonCount), data.expiringSoonCount > 0 ? '7일 안에 만료' : '',
+            { todo: data.expiringSoonCount > 0, href: '/test/admin/subscriptions' });
+        addStat(status, '구독 중 가게', fmt.shop(data.activeSubscriptionCount), '');
+        addStat(status, '구독 전환율', data.subscriptionRatePercent + '%', data.activeSubscriptionCount + ' / ' + data.approvedShopCount + '곳');
+        addStat(status, '입점 승인 가게', fmt.shop(data.approvedShopCount), '누적');
+
+        // 마지막 원소가 조회한 달, 그 앞이 지난달이다.
+        const months = data.months;
+        const m = months[months.length - 1];
+        const p = months.length > 1 ? months[months.length - 2] : {};
+        document.getElementById('compare-label').textContent = (p.month || '지난달') + ' 대비';
+        // 구독 매출을 누르면 조회한 달의 구독 결제 내역으로 간다
+        addStat(monthly, '구독 매출', fmt.won(m.subscriptionRevenue), delta(m.subscriptionRevenue, p.subscriptionRevenue),
+            { href: '/test/admin/subscription-payments?month=' + encodeURIComponent(m.month) });
+        addStat(monthly, '구독 결제', fmt.count(m.subscriptionCount), delta(m.subscriptionCount, p.subscriptionCount),
+            { href: '/test/admin/subscription-payments?month=' + encodeURIComponent(m.month) });
+        addStat(monthly, '가입자', fmt.person(m.signupCount), delta(m.signupCount, p.signupCount));
+        addStat(monthly, '신규 입점', fmt.shop(m.newShopCount), delta(m.newShopCount, p.newShopCount),
+            { href: '/test/admin/shops' });
+        addStat(monthly, '구독 이탈', fmt.shop(m.churnCount), delta(m.churnCount, p.churnCount),
+            { todo: m.churnCount > 0, href: '/test/admin/subscriptions' });
+
+        const labels = monthLabels(months);
+        drawChart('revenue-chart', labels, [{ label: '구독 매출', data: months.map(x => x.subscriptionRevenue) }], fmt.won);
+        drawChart('subscription-chart', labels, [{ label: '구독 결제', data: months.map(x => x.subscriptionCount) }], fmt.count);
+        drawChart('signup-chart', labels, [{ label: '가입자', data: months.map(x => x.signupCount) }], fmt.person);
+        drawChart('shop-chart', labels, [
+            { label: '신규 입점', data: months.map(x => x.newShopCount) },
+            { label: '구독 이탈', data: months.map(x => x.churnCount), light: true }
+        ], fmt.shop);
+    }
+
+    Dash.start({ api: '/api/admin/dashboard', render: render });
+})();
+</script>
 {{/isAdmin}}
 
 {{> fragments/footer}}
