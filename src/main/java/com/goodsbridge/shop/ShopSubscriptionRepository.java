@@ -35,6 +35,18 @@ public interface ShopSubscriptionRepository extends JpaRepository<ShopSubscripti
         Pageable pageable
     );
 
+    @Query("""
+        SELECT s.id FROM ShopSubscription s
+        WHERE s.endDate = :endDate
+          AND s.status = :status
+          AND s.expiringReminderSent = false
+        ORDER BY s.id ASC
+        """)
+    List<Long> findActiveSubscriptionIdsEndingOn(
+        @Param("endDate") LocalDate endDate,
+        @Param("status") ShopSubscriptionStatus status
+    );
+
     // 💡 [추가] 구독 ID 기반 비관적 락(Pessimistic Write) 조회 (만료 프로세서 직렬화용)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM ShopSubscription s WHERE s.id = :id")

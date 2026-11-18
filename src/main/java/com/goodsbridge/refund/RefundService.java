@@ -99,6 +99,23 @@ public class RefundService {
             .status(Status.REQUESTED).requestedBy(RequestedBy.USER)
             .type(RefundType.PURCHASE)
             .build();
+
+        List<Long> receiveList = userRepository.findIdsByRole(Role.ADMIN);
+        receiveList.add(refund.getUser().getId());
+
+        for (Long receiveId : receiveList){
+            publisher.publishEvent(
+                new NotificationEvent(
+                    receiveId,
+                    Notification.Type.REFUND_REQUESTED,
+                    "[환불 요청]",
+                    "환불 요청이 왔습니다 {" + request.getRequestedAmount() + "}원",
+                    Notification.ReferenceType.REFUND,
+                    refund.getId()
+                )
+            );
+        }
+
         return new RefundResponse.ListDto(refundRepository.save(refund));
     }
 
@@ -216,6 +233,18 @@ public class RefundService {
             reopenItemIfFullyRefunded(payment, fullRefund);
             paymentService.refund(payment.getPaymentId(), refund.getRequestedAmount(), refund.getReason());
         }
+
+        // 환불 승인 알림은 환불 처리(DB 변경과 PortOne 취소)가 끝난 뒤 발행한다
+        publisher.publishEvent(
+            new NotificationEvent(
+                refund.getUser().getId(),
+                Notification.Type.REFUND_APPROVED,
+                "[환불 승인]",
+                "환불 승인이 되었습니다",
+                Notification.ReferenceType.REFUND,
+                refund.getId()
+            )
+        );
     }
 
     // 배송 중(SHIPPED)인 구매는 환불을 처리할 수 없다 (REFUNDABLE_DELIVERY_STATUSES 기준).
@@ -435,6 +464,18 @@ public class RefundService {
             reopenItemIfFullyRefunded(payment, fullRefund);
             paymentService.refund(payment.getPaymentId(), shopRefundRequest.getRequestedAmount(), shopRefundRequest.getReason());
         }
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                purchase.getUser().getId(),
+                Notification.Type.PURCHASE_CANCELLED_BY_SHOP,
+                "[환불]",
+                "가게 사정으로 '" + purchase.getItem().getTitle()
+                    + "' 주문이 환불됐습니다 (" + refund.getRequestedAmount() + "원)",
+                Notification.ReferenceType.REFUND,
+                refund.getId()
+            )
+        );
         return new RefundResponse.ListDto(refund);
     }
 

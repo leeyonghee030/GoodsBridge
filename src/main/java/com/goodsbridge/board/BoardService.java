@@ -4,11 +4,14 @@ package com.goodsbridge.board;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -28,6 +31,7 @@ public class BoardService {
     private final BoardRepository boardRepository;
     private final ReplyRepository replyRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher publisher;
     private final PurchaseRepository purchaseRepository;
     private final ItemRepository itemRepository;
 
@@ -230,6 +234,20 @@ public class BoardService {
         board.addReply(reply);
 
         Long replyId = replyRepository.save(reply).getId();
+
+        // 작성자 본인이 단 댓글이 아니면 게시글 작성자에게 알린다
+        if (!board.getAuthorId().equals(loginUserId)) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    board.getAuthorId(),
+                    Notification.Type.BOARD_REPLY,
+                    "[새로운 댓글]",
+                    "{" + board.getTitle() + "}에 새로운 댓글이 달렸습니다",
+                    Notification.ReferenceType.BOARD,
+                    board.getId()
+                )
+            );
+        }
 
         // 게시판 유형과 댓글 작성자에 따라 게시글 상태 변경
         if (board.getBoardType() == BoardType.PRODUCT_INQUIRY

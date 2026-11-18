@@ -5,7 +5,10 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.exchange.dto.ExchangeMessageResponse;
 import com.goodsbridge.exchange.dto.ExchangeRequestResponse;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +25,7 @@ public class ExchangeChatService {
 
     private final ExchangeRequestRepository exchangeRequestRepository;
     private final ExchangeMessageRepository exchangeMessageRepository;
+    private final ApplicationEventPublisher publisher;
 
     // WebSocket 구독 권한 확인용
     public boolean isParticipant(Long requestId, Long userId) {
@@ -54,6 +58,22 @@ public class ExchangeChatService {
             .senderUserId(userId)
             .content(trimmed)
             .build());
+
+        Long receiverUserId = request.isOwner(userId)
+            ? request.getItemB().getSellerUserId()
+            : request.getExchangeItemA().getUser().getId();
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                receiverUserId,
+                Notification.Type.EXCHANGE_MESSAGE,
+                "[교환 상대 메시지]",
+                trimmed.substring(0, Math.min(trimmed.length(), 30)),
+                Notification.ReferenceType.EXCHANGE,
+                request.getId()
+            )
+        );
+
         return ExchangeMessageResponse.from(saved);
     }
 
@@ -69,6 +89,18 @@ public class ExchangeChatService {
             throw new BadRequestException("방문 기한(" + request.getDeadline().toLocalDate() + ") 안의 시간만 정할 수 있습니다.");
         }
         request.proposeMeeting(userId, meetingAt);
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                requestId,
+                Notification.Type.EXCHANGE_MEETING_PROPOSED,
+                "[교환 약속 신청]",
+                "상대가 " + meetingAt + "에 만자자고 제안했어요",
+                Notification.ReferenceType.EXCHANGE,
+                request.getId()
+            )
+        );
+
         return ExchangeRequestResponse.from(request);
     }
 
@@ -83,7 +115,33 @@ public class ExchangeChatService {
         if (userId.equals(request.getMeetingProposerId())) {
             throw new BadRequestException("상대방이 제안한 시간만 확정할 수 있습니다.");
         }
-        request.confirmMeeting();
+
+        // 제안 대상에게 알림
+        publisher.publishEvent(
+            new NotificationEvent(
+                request.getMeetingProposerId(),
+                Notification.Type.EXCHANGE_MEETING_CONFIRMED,
+                "[교환 약속 승락됨]",
+                request.getMeetingAt() + "에 약속이 확정되었습니다",
+                Notification.ReferenceType.EXCHANGE,
+                request.getId()
+            )
+        );
+
+        // 약속 장소의 가게 알림
+        publisher.publishEvent(
+            new NotificationEvent(
+                request.getShop().getOwnerUserId(),
+                Notification.Type.EXCHANGE_MEETING_CONFIRMED,
+                "[교환 약속 체결]",
+                request.getExchangeItemA().getUser().getId() + "님과 " +
+                    request.getItemB().getSellerUserId() + "님의 약속이 " +
+                    request.getMeetingAt() + "에 약속이 확정되었습니다",
+                Notification.ReferenceType.EXCHANGE,
+                request.getId()
+            )
+        );
+
         return ExchangeRequestResponse.from(request);
     }
 

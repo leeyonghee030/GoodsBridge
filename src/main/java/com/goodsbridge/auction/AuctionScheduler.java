@@ -32,9 +32,22 @@ public class AuctionScheduler {
     @Scheduled(fixedDelay = 60000)
     public void autoCloseAuctions() {
         runStep("경매 자동 마감", this::closeExpiredAuctions);
+        runStep("경매 마감 임박 알림", this::notifyEndingSoonAuctions);
         runStep("패찰자 보증금 환불", this::refundLosers);
         runStep("잔금 미납 처리", this::forfeitUnpaidWinners);
         runStep("취소 경매 보증금 환불", this::refundCancelledAuctions);
+    }
+
+    private void notifyEndingSoonAuctions() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> ids = auctionRepository.findIdsEndingSoon(Status.ACTIVE, now, now.plusHours(1));
+        for (Long id : ids) {
+            try {
+                auctionService.notifyEndingSoon(id);
+            } catch (RuntimeException e) {
+                log.error("경매 마감 임박 알림 실패 - auctionId={}", id, e);
+            }
+        }
     }
 
     // 한 단계가 통째로 실패해도 다음 단계는 계속 돈다

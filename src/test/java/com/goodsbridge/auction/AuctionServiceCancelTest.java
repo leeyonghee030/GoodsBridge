@@ -1,5 +1,6 @@
 package com.goodsbridge.auction;
 
+import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -40,6 +41,8 @@ class AuctionServiceCancelTest {
     @Mock UserRepository userRepository;
     @Mock PaymentRepository paymentRepository;
     @Mock SettlementHistoryService settlementHistoryService;
+    @Mock com.goodsbridge.auction.BidRepository bidRepository;
+    @Mock ApplicationEventPublisher publisher;
     @InjectMocks AuctionService auctionService;
 
     private Auction activeAuction(Shop shop) {

@@ -1,5 +1,6 @@
 package com.goodsbridge.auction;
 
+import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -60,6 +61,7 @@ class AuctionPaymentServiceTest {
     @Mock Shop shop;
     @Mock Item item;
     @Mock Payment payment;
+    @Mock ApplicationEventPublisher publisher;
 
     @InjectMocks AuctionService auctionService;
 
@@ -241,11 +243,17 @@ class AuctionPaymentServiceTest {
             .thenReturn(Optional.of(loserPayment));
         when(loserPayment.isPaid()).thenReturn(true);
         when(loserPayment.getRefundableAmount()).thenReturn(1_000);
+        User loser = mock(User.class);
+        when(loser.getId()).thenReturn(7L);
+        when(loserPayment.getUser()).thenReturn(loser);
 
         auctionService.refundLosers(1L);
 
         verify(paymentService).refund(
             "deposit-loser-1", 1_000, "경매 패찰 보증금 환불");
+        // 환불된 패찰자에게 패찰 알림이 간다
+        verify(publisher).publishEvent(argThat((Object e) ->
+            e instanceof com.goodsbridge.notification.NotificationEvent n && n.userId().equals(7L)));
     }
 
     @Test
@@ -277,11 +285,16 @@ class AuctionPaymentServiceTest {
         when(partial.isPaid()).thenReturn(false);
         when(partial.getStatus()).thenReturn(PaymentStatus.PARTIAL_CANCELLED);
         when(partial.getRefundableAmount()).thenReturn(500);
+        User partialUser = mock(User.class);
+        when(partialUser.getId()).thenReturn(8L);
+        when(partial.getUser()).thenReturn(partialUser);
 
         auctionService.refundLosers(1L);
 
         verify(paymentService, times(1)).refund(anyString(), anyInt(), anyString());
         verify(paymentService).refund("partial", 500, "경매 패찰 보증금 환불");
+        // 실제로 환불된 건에만 패찰 알림이 간다
+        verify(publisher, times(1)).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
     }
 
     @Test
@@ -296,6 +309,8 @@ class AuctionPaymentServiceTest {
             .refund("deposit-loser-1", 1_000, "경매 패찰 보증금 환불");
 
         assertThrows(RuntimeException.class, () -> auctionService.refundLosers(1L));
+        // 환불이 실패한 건에는 패찰 알림이 가지 않는다 (재시도 때 보낸다)
+        verify(publisher, never()).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
     }
 
     @Test

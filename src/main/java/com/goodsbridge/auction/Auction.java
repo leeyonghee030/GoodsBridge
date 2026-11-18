@@ -70,6 +70,9 @@ public class Auction {
     @Column(name = "losers_refunded", nullable = false, columnDefinition = "boolean default false")
     private boolean losersRefunded = false; // 패찰자 보증금 환불 완료 여부
 
+    @Column(name = "ending_soon_notified", nullable = false, columnDefinition = "boolean default false")
+    private boolean endingSoonNotified = false; // 마감 임박 알림 발송 여부
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status;  // 경매 상태(낙찰, 취소, 실패, 진행 등)
@@ -168,5 +171,9 @@ public class Auction {
 
     public void markLosersRefunded() {
         this.losersRefunded = true;
+    }
+
+    public void markEndingSoonNotified() {
+        this.endingSoonNotified = true;
     }
 }

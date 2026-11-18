@@ -181,6 +181,10 @@ class RefundServiceTest {
         refundService.approve(1L, 7L);
 
         verify(paymentService).refund("p-1", 3_000, "환불");
+        // 승인 알림은 "환불 거절"이 아니라 REFUND_APPROVED 이고, 눌렀을 때 구매 내역(REFUND)으로 간다
+        verify(publisher).publishEvent(argThat((Object e) -> e instanceof com.goodsbridge.notification.NotificationEvent n
+            && n.type() == com.goodsbridge.notification.Notification.Type.REFUND_APPROVED
+            && n.referenceType() == com.goodsbridge.notification.Notification.ReferenceType.REFUND));
     }
 
     @Test
@@ -579,7 +583,7 @@ class RefundServiceTest {
         when(auctionRepository.findByBalancePaymentId("p-1")).thenReturn(Optional.of(auction));
         Item item = mock(Item.class);
         when(item.getShopId()).thenReturn(10L);
-        Purchase purchase = Purchase.builder().item(item).paymentId("p-1").deliveryAddress("Seoul")
+        Purchase purchase = Purchase.builder().item(item).paymentId("p-1").user(mock(User.class)).deliveryAddress("Seoul")
             .source(com.goodsbridge.purchase.PurchaseSource.AUCTION).amount(10_000).build();
         when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
         when(refundRepository.save(any(Refund.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -606,7 +610,7 @@ class RefundServiceTest {
         when(paymentRepository.findByPaymentIdLock("p-1")).thenReturn(Optional.of(payment));
         Item item = mock(Item.class);
         when(item.getShopId()).thenReturn(10L);
-        Purchase purchase = Purchase.builder().item(item).paymentId("p-1").deliveryAddress("Seoul")
+        Purchase purchase = Purchase.builder().item(item).paymentId("p-1").user(mock(User.class)).deliveryAddress("Seoul")
             .source(com.goodsbridge.purchase.PurchaseSource.AUCTION).amount(10_000).build();
         when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
 
@@ -635,7 +639,7 @@ class RefundServiceTest {
         Item item = mock(Item.class);
         when(item.getShopId()).thenReturn(10L);
         Purchase purchase = Purchase.builder().item(item).paymentId("p-1")
-            .deliveryAddress("Seoul").build();
+            .user(mock(User.class)).deliveryAddress("Seoul").build();
         when(purchaseRepository.findByPaymentId("p-1")).thenReturn(Optional.of(purchase));
         when(refundRepository.save(any(Refund.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doAnswer(invocation -> {
@@ -654,6 +658,10 @@ class RefundServiceTest {
         assertEquals(7_000, payment.getRefundableAmount());
         verify(paymentService).refund("p-1", 3_000, "상품 하자");
         verifyNoInteractions(settlementHistoryService);
+        // 구매자에게 가게 사유 환불 알림이 가고, 이동 경로는 환불(구매 내역)이다
+        verify(publisher).publishEvent(argThat((Object e) -> e instanceof com.goodsbridge.notification.NotificationEvent n
+            && n.type() == com.goodsbridge.notification.Notification.Type.PURCHASE_CANCELLED_BY_SHOP
+            && n.referenceType() == com.goodsbridge.notification.Notification.ReferenceType.REFUND));
     }
 
     @Test
