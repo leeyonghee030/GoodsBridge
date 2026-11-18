@@ -4,6 +4,8 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.util.SecurityUtil;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.user.Role;
@@ -36,6 +38,7 @@ public class ShopSubscriptionService {
     private final UserRepository userRepository;
     private final PaymentService paymentService;
     private final ShopSubscriptionBatchService batchService;
+    private final ApplicationEventPublisher publisher;
 
     private static final int PRICE_PER_DAY = 1000;
     private static final int MAX_DAYS = 1095; // 한 번에 최대 3년(1095일) 제한
@@ -167,6 +170,23 @@ public class ShopSubscriptionService {
         try {
             Long subscriptionId = subscriptionRepository.saveAndFlush(subscription).getId();
 
+            List<Long> adminIdList = userRepository.findIdsByRole(Role.ADMIN);
+
+            for (Long adminId : adminIdList) {
+                publisher.publishEvent(
+                    new NotificationEvent(
+                        adminId,
+                        Notification.Type.SUBSCRIPTION_PAID,
+                        "[구독 결제]",
+                        shop.getName() + "이 구독을 결제했습니다 (" +
+                            request.getDays() + "일, " +
+                            expectedAmount + "원)",
+                        Notification.ReferenceType.SHOP,
+                        shop.getId()
+                    )
+                );
+            }
+
             // 💡 4. 활성 구독이 아니었던 상태에서 새로 구독이 활성화되었으므로 이벤트 발행 (상품 부활)
             if (!isActive) {
                 eventPublisher.publishEvent(new ShopSubscriptionActivatedEvent(shopId));
@@ -268,7 +288,7 @@ public class ShopSubscriptionService {
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
 
         // 잠금 순서는 다른 구독 처리와 같이 Shop -> ShopSubscription
-        shopRepository.findByIdWithLock(shopId)
+        Shop shop = shopRepository.findByIdWithLock(shopId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 가게입니다."));
         ShopSubscription subscription = subscriptionRepository.findByIdWithLock(subscriptionId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 구독입니다."));
@@ -279,6 +299,18 @@ public class ShopSubscriptionService {
 
         subscription.cancel();
         eventPublisher.publishEvent(new ShopSubscriptionCanceledEvent(shopId));
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                shop.getOwnerUserId(),
+                Notification.Type.SUBSCRIPTION_CANCELLED,
+                "[구독 취소]",
+                " 관리자에 의해 구독이 취소되어, 판매 중인 상품이 중지됐습니다",
+                Notification.ReferenceType.SHOP,
+                shop.getId()
+            )
+        );
+
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

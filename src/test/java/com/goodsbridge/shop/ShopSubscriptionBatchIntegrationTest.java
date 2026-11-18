@@ -39,8 +39,13 @@ class ShopSubscriptionBatchIntegrationTest {
     private CategoryJpaRepository categoryRepository;
 
     // 테스트 종료 후 데이터 정리
+    @Autowired
+    com.goodsbridge.notification.NotificationRepository notificationRepository;
+
     @AfterEach
     void tearDown() {
+        // 알림이 유저를 참조하므로 유저보다 먼저 지운다
+        notificationRepository.deleteAllInBatch();
         subscriptionRepository.deleteAllInBatch();
         itemRepository.deleteAllInBatch();
         shopRepository.deleteAllInBatch();

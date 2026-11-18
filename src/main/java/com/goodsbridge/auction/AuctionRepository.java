@@ -41,6 +41,19 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
                                                 @Param("deadline") LocalDateTime deadline,
                                                 Pageable pageable);
 
+    // 마감 1시간 이내이며 임박 알림을 아직 보내지 않은 진행 중 경매
+    @Query("""
+        select a.id from Auction a
+        where a.status = :status
+          and a.endingSoonNotified = false
+          and a.deadline > :now
+          and a.deadline <= :limit
+        order by a.deadline asc
+        """)
+    List<Long> findIdsEndingSoon(@Param("status") Status status,
+                                 @Param("now") LocalDateTime now,
+                                 @Param("limit") LocalDateTime limit);
+
     // 동시 마감 막기
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Auction a where a.id = :id")

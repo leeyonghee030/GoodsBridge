@@ -136,4 +136,15 @@ class AuctionTest {
 
         assertTrue(auction.isLosersRefunded());
     }
+
+    @Test
+    void markEndingSoonNotified_setsFlag() {
+        Auction auction = new Auction(null, null, 10_000, LocalDateTime.now().plusHours(1), 1_000);
+
+        assertFalse(auction.isEndingSoonNotified());
+
+        auction.markEndingSoonNotified();
+
+        assertTrue(auction.isEndingSoonNotified());
+    }
 }

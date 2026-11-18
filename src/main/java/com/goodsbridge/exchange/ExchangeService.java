@@ -28,9 +28,11 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -53,6 +55,41 @@ public class ExchangeService {
     private final SettlementHistoryService settlementHistoryService;
     private final ApplicationEventPublisher publisher;
 
+    @Component
+    @RequiredArgsConstructor
+    public class ExchangeVisitReminderScheduler {
+
+        @Scheduled(cron = "${scheduler.exchange-visit-reminder.cron:0 0 9 * * *}")
+        @Transactional(readOnly = true)
+        public void sendVisitReminders() {
+            LocalDate tomorrow = LocalDate.now().plusDays(1);
+
+            List<ExchangeRequest> requests = exchangeRequestRepository.findConfirmedWithDeadlineOn(
+                ExchangeRequestStatus.CONFIRMED,
+                tomorrow.atStartOfDay(),
+                tomorrow.plusDays(1).atStartOfDay()
+            );
+            for (ExchangeRequest request : requests) {
+                String content = "내일까지 " + request.getShop().getName()
+                    + "에 방문하셔야 합니다. 그러지 않으실 보증금을 잃게 됩니다";
+
+                publish(request.getExchangeItemA().getUser().getId(), request, content);
+                publish(request.getItemB().getSellerUserId(), request, content);
+            }
+        }
+
+        private void publish(Long userId, ExchangeRequest request, String content) {
+            publisher.publishEvent(new NotificationEvent(
+                userId,
+                Notification.Type.EXCHANGE_VISIT_REMINDER,
+                "방문 기한 리마인더",
+                content,
+                Notification.ReferenceType.EXCHANGE,
+                request.getId()
+            ));
+        }
+    }
+
     //교환 댓글 service--------------
     @Transactional
     public ExchangeCommentResponse saveComment(Long id, Long userId, ExchangeCommentRequest request) {
@@ -72,6 +109,20 @@ public class ExchangeService {
             .content(request.getContent())
             .build();
         exchangeCommentRepository.save(exchangeComment);
+
+        if (!exchangeItem.isOwner(userId)){
+            publisher.publishEvent(
+                new NotificationEvent(
+                    userId,
+                    Notification.Type.EXCHANGE_COMMENT,
+                    "[댓글]",
+                    "'{" + exchangeItem.getItem().getTitle() + "}' 글에 댓글이 달렸습니다",
+                    Notification.ReferenceType.EXCHANGE,
+                    id
+                )
+            );
+        }
+
         exchangeCommentRepository.flush();
         entityManager.refresh(exchangeComment);
         return new ExchangeCommentResponse(exchangeComment);
@@ -115,6 +166,21 @@ public class ExchangeService {
         if (!exchangeComment.getUser().getId().equals(userId) && user.getRole() != Role.ADMIN) {
             throw new ForbiddenException("작성자 또는 관리자만 삭제할수있습니다");
         }
+
+        if (user.getRole() == Role.ADMIN &&
+            !exchangeComment.getUser().getId().equals(userId)) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    exchangeComment.getUser().getId(),
+                    Notification.Type.COMMENT_DELETED_BY_ADMIN,
+                    "[댓글 삭제]",
+                    "운영 정책에 따라 내 댓글이 삭제되었습니다",
+                    Notification.ReferenceType.EXCHANGE,
+                    id
+                )
+            );
+        }
+
         exchangeCommentRepository.delete(exchangeComment);
     }
 
@@ -671,6 +737,18 @@ public class ExchangeService {
                 paymentService.refund(e.getPaymentIdB(), e.getDepositAmountB()
                     , "제안 응답 기한 초과");
                 e.updateStatus(ExchangeRequestStatus.PROPOSAL_EXPIRED);
+
+                publisher.publishEvent(
+                    new NotificationEvent(
+                        e.getItemB().getSellerUserId(),
+                        Notification.Type.EXCHANGE_EXPIRED,
+                        "[교환 신청 만료]",
+                        "응답 기한이 지나 교환 신청이 취소됐습니다 보증금은 전액 환불됩니다",
+                        Notification.ReferenceType.EXCHANGE,
+                        e.getId()
+                    )
+                );
+
             } else {
                 e.isUserShowed();
                 settle(e);
@@ -718,6 +796,34 @@ public class ExchangeService {
             e.getItemB().updateStatus(ItemStatus.ON_SALE);
         }
         e.getExchangeItemA().updateStatus(ExchangeItemStatus.CLOSED);
+
+        String title = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "[교환 완료]" :"[교환 실패]";
+
+        String contentA = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "교환이 완료됐어요. 보증금 " + refundA + "원이 환불돼요" :"노쇼로 보증금이 환불되지 않았어요";
+        String contentB = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "교환이 완료됐어요. 보증금 " + refundB + "원이 환불돼요" :"노쇼로 보증금이 환불되지 않았어요";
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                e.getExchangeItemA().getUser().getId(),
+                Notification.Type.EXCHANGE_SETTLED,
+                title,
+                contentA,
+                Notification.ReferenceType.EXCHANGE,
+                e.getId()
+            )
+        );
+
+        publisher.publishEvent(
+            new NotificationEvent(
+                e.getItemB().getSellerUserId(),
+                Notification.Type.EXCHANGE_SETTLED,
+                title,
+                contentB,
+                Notification.ReferenceType.EXCHANGE,
+                e.getId()
+            )
+        );
+
     }
 
     // -------------------------
