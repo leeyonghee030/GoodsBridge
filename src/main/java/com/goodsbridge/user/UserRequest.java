@@ -40,9 +40,12 @@ public class UserRequest {
 
         private String postalCode;      // 우편 번호
         private String address;         // 기본 주소
-        private String detailAddress;   // 상세 주소
+        private String detailAddress;   // 상세 주소 (선택 입력)
 
-        private String phoneNumber;
+        // 휴대폰
+        private String phonePrefix;
+        private String phoneMiddle;
+        private String phoneLast;
 
         public boolean hasPassword() {
             return password != null && !password.isBlank();
@@ -58,12 +61,13 @@ public class UserRequest {
 
         public boolean hasAddress() {
             return postalCode != null && !postalCode.isBlank() &&
-                address != null && !address.isBlank() &&
-                detailAddress != null && !detailAddress.isBlank();
+                address != null && !address.isBlank();
         }
 
         public boolean hasPhoneNumber() {
-            return phoneNumber != null && !phoneNumber.isBlank();
+            return phonePrefix != null && !phonePrefix.isBlank()
+                && phoneMiddle != null && !phoneMiddle.isBlank()
+                && phoneLast != null && !phoneLast.isBlank();
         }
 
         public void validate() {
@@ -74,6 +78,17 @@ public class UserRequest {
                 !hasPhoneNumber())
             {
                 throw new BadRequestException("변경할 데이터를 입력해주세요");
+            }
+
+            if (!hasPhoneNumber()) {
+                throw new BadRequestException("휴대전화 번호를 모두 입력해주세요.");
+            }
+
+            boolean hasPostalCode = postalCode != null && !postalCode.isBlank();
+            boolean hasBaseAddress = address != null && !address.isBlank();
+
+            if (hasPostalCode != hasBaseAddress) {
+                throw new BadRequestException("우편번호와 기본 주소를 모두 입력해 주세요.");
             }
 
             if (hasPassword() && password.length() < 8) {

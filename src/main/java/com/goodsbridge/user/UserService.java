@@ -125,8 +125,10 @@ public class UserService {
             user.updatePassword(passwordEncoder.encode(updateDto.getPassword()));
         }
 
-        if (updateDto.hasNickname()) {
+        if (updateDto.hasNickname()
+            && !user.getNickname().equals(updateDto.getNickname())) {
             user.updateNickname(updateDto.getNickname());
+            log.info("Nickname : {}", user.getNickname());
         }
 
         if (updateDto.hasProfileImage()) {
@@ -137,17 +139,22 @@ public class UserService {
         }
 
         if (updateDto.hasAddress()){
-            user.updateAddress(new Address());
+            user.updateAddress(Address.builder()
+                .postalCode(updateDto.getPostalCode())
+                .address(updateDto.getAddress())
+                .detailAddress(updateDto.getDetailAddress())
+                .build());
+            log.info("Address : {}", user.getAddress());
         }
 
         if (updateDto.hasPhoneNumber()){
-            user.updatePhoneNumber(updateDto.getPhoneNumber());
+            user.updatePhoneNumber(updateDto.getPhonePrefix() + "-" +
+                updateDto.getPhoneMiddle() + "-" +
+                updateDto.getPhoneLast());
+            log.info("PhoneNumber : {}", user.getPhoneNumber());
         }
-        // TODO - update fix 확인용
         log.info("password : {}", user.getPassword());
-        log.info("Nickname : {}", user.getNickname());
-        log.info("Address : {}", user.getAddress());
-        log.info("PhoneNumber : {}", user.getPhoneNumber());
+
     }
 
     @Transactional

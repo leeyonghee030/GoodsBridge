@@ -133,18 +133,18 @@
             <div class="profile-field-row">
                 <label for="phone-num1">휴대전화</label>
                 <div class="phone-row">
-                    <select id="phone-prefix">
-                        <option value="010">010</option>
-                        <option value="011">011</option>
-                        <option value="016">016</option>
-                        <option value="017">017</option>
-                        <option value="018">018</option>
-                        <option value="019">019</option>
+                    <select id="phone-prefix" name="phonePrefix">
+                        <option value="010" {{#phone010}}selected{{/phone010}}>010</option>
+                        <option value="011" {{#phone011}}selected{{/phone011}}>011</option>
+                        <option value="016" {{#phone016}}selected{{/phone016}}>016</option>
+                        <option value="017" {{#phone017}}selected{{/phone017}}>017</option>
+                        <option value="018" {{#phone018}}selected{{/phone018}}>018</option>
+                        <option value="019" {{#phone019}}selected{{/phone019}}>019</option>
                     </select>
                     <span class="field-dash">-</span>
-                    <input id="phone-num1" type="text" maxlength="4" placeholder="0000">
+                    <input id="phone-num1" type="text" name="phoneMiddle" maxlength="4" placeholder="0000" value="{{#user.phoneMiddle}}{{user.phoneMiddle}}{{/user.phoneMiddle}}">
                     <span class="field-dash">-</span>
-                    <input id="phone-num2" type="text" maxlength="4" placeholder="0000">
+                    <input id="phone-num2" type="text" name="phoneLast" maxlength="4" placeholder="0000" value="{{#user.phoneLast}}{{user.phoneLast}}{{/user.phoneLast}}">
                 </div>
             </div>
 
@@ -161,12 +161,12 @@
             <div class="profile-field-row profile-field-full">
                 <label for="postcode">주소</label>
                 <div class="address-postcode-row">
-                    <input id="postcode" type="text" placeholder="우편번호" readonly>
+                    <input id="postcode" type="text" name="postalCode" value="{{#user.postalCode}}{{user.postalCode}}{{/user.postalCode}}" placeholder="우편번호" readonly>
                     <button type="button" onclick="execDaumPostcode()">주소검색</button>
                 </div>
                 <div class="address-base-row">
-                    <input id="address-base" type="text" placeholder="기본주소" readonly>
-                    <input id="address-detail" type="text" placeholder="상세주소 (선택 입력 가능)">
+                    <input id="address-base" type="text" name="address" value="{{#user.address}}{{user.address}}{{/user.address}}" placeholder="기본주소" readonly>
+                    <input id="address-detail" type="text" name="detailAddress" value="{{#user.detailAddress}}{{user.detailAddress}}{{/user.detailAddress}}" placeholder="상세주소 (선택 입력 가능)">
                 </div>
             </div>
         </div>
@@ -186,7 +186,7 @@
 </div>
 
 <script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
-
+<script src="/js/api.js"></script>
 <script>
 
     // 주소 입력 api
@@ -216,9 +216,11 @@
                         extraAddr += (extraAddr !== '' ? ', ' + data.buildingName : data.buildingName);
                     }
                     // 표시할 참고항목이 있을 경우, 괄호까지 추가한 최종 문자열을 만든다.
-                    if(extraAddr !== ''){
+                    if (extraAddr !== '') {
                         extraAddr = ' (' + extraAddr + ')';
                     }
+
+                    addr += extraAddr;
                 } else {
                 // 사용자가 지번 주소를 선택했을 경우(J)
                         addr = data.jibunAddress;

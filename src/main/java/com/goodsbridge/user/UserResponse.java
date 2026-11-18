@@ -61,11 +61,37 @@ public class UserResponse {
         private String email;
         private String profileImage;
 
+        // 휴대폰
+        private String phonePrefix;
+        private String phoneMiddle;
+        private String phoneLast;
+
+        // 주소
+        private String postalCode;      // 우편 번호
+        private String address;         // 기본 주소
+        private String detailAddress;   // 상세 주소 (선택 입력)
+
         public UpdateFormDto(User user) {
             this.id = user.getId();
             this.nickname = user.getNickname();
             this.email = user.getEmail();
             this.profileImage = user.getProfilePath();
+
+            this.postalCode = user.getAddress().getPostalCode();
+            this.address = user.getAddress().getAddress();
+            this.detailAddress = user.getAddress().getDetailAddress();
+
+            String phoneNumber = user.getPhoneNumber();
+
+            if (phoneNumber != null && !phoneNumber.isBlank()) {
+                String[] phoneParts = phoneNumber.split("-");
+
+                if (phoneParts.length == 3) {
+                    this.phonePrefix = phoneParts[0];
+                    this.phoneMiddle = phoneParts[1];
+                    this.phoneLast = phoneParts[2];
+                }
+            }
         }
     }
 }

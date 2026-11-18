@@ -9,10 +9,15 @@ import lombok.NoArgsConstructor;
 @Embeddable
 @Getter
 @NoArgsConstructor
-@AllArgsConstructor
-@Builder
 public class Address {
     private String postalCode;
     private String address;
     private String detailAddress;
+
+    @Builder
+    public Address(String postalCode, String address, String detailAddress) {
+        this.postalCode = postalCode;
+        this.address = address;
+        this.detailAddress = detailAddress;
+    }
 }

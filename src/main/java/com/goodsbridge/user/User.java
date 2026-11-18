@@ -31,6 +31,7 @@ public class User {
     @Column(unique = true)
     private String nickname;
 
+    @Embedded
     private Address address; // 배송 주소
 
     private String phoneNumber;
