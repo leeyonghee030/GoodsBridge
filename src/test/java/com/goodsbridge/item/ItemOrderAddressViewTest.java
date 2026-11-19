@@ -69,6 +69,9 @@ class ItemOrderAddressViewTest {
             .andExpect(content().string(containsString("id=\"da-base\"")))
             .andExpect(content().string(containsString("id=\"da-detail\"")))
             .andExpect(content().string(containsString("postcode.v2.js")))
+            // 구매할 때 상세주소는 필수 (기본 주소에서도 고칠 수 있게 readOnly 로 막지 않는다)
+            .andExpect(content().string(containsString("상세주소(동·호수 등)를 입력해 주세요.")))
+            .andExpect(content().string(not(containsString("readOnly"))))
             .andExpect(content().string(not(containsString("id=\"order-address\""))));
     }
 

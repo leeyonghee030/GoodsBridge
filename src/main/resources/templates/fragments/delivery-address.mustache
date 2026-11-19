@@ -2,9 +2,9 @@
   배송지 주소 입력 (내 정보의 주소 입력과 같은 방식: 우편번호 검색 + 기본주소 + 상세주소).
   상품 구매 창, 경매 낙찰 잔금 결제 창(경매 상세 / 내 경매)이 함께 쓴다. 한 화면에 하나만 둔다.
   모델: defaultAddress {postalCode, address, detailAddress} 가 있으면 "기본 주소 / 새로운 주소"를 고를 수 있고 기본 주소로 시작한다.
-  스크립트: window.deliveryAddress.text()  → "(우편번호) 기본주소 상세주소" (주소가 없으면 '')
+  스크립트: window.deliveryAddress.error() → 입력이 덜 됐으면 안내 문구 (주소검색 안 함 / 상세주소 비어 있음), 다 됐으면 null. 포커스도 옮긴다
+            window.deliveryAddress.text()  → "(우편번호) 기본주소 상세주소" (주소가 없으면 '')
             window.deliveryAddress.reset() → 창을 열 때 처음 상태로 (기본 주소가 있으면 기본 주소)
-            window.deliveryAddress.focus() → 입력할 곳으로 포커스
 -->
 {{#defaultAddress}}
 <div class="da-modes" id="da-modes"
@@ -19,7 +19,7 @@
 </div>
 <div class="address-base-row">
     <input id="da-base" type="text" placeholder="기본주소" readonly>
-    <input id="da-detail" type="text" maxlength="60" placeholder="상세주소 (선택 입력 가능)" autocomplete="address-line2">
+    <input id="da-detail" type="text" maxlength="60" placeholder="상세주소 (동·호수 등)" autocomplete="address-line2" required>
 </div>
 
 <script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
@@ -35,7 +35,7 @@
         $('da-detail').value = detail || '';
     }
 
-    // 기본 주소: 내 정보의 주소를 채우고 그대로 쓴다 / 새로운 주소: 비우고 주소검색으로 입력한다
+    // 기본 주소: 내 정보의 주소를 채운다 (상세주소는 고칠 수 있다) / 새로운 주소: 비우고 주소검색으로 입력한다
     function setMode(mode) {
         if (!modes) return;
         const useDefault = mode === 'default';
@@ -43,7 +43,6 @@
         if (useDefault) fill(modes.dataset.postalCode, modes.dataset.address, modes.dataset.detailAddress);
         else fill('', '', '');
         search.hidden = useDefault;
-        $('da-detail').readOnly = useDefault;
     }
 
     // 내 정보 화면과 같은 규칙: 도로명이면 참고항목(법정동, 공동주택 이름)을 붙이고, 지번이면 지번 주소
@@ -78,6 +77,12 @@
     $('da-base').addEventListener('click', openSearch);
 
     window.deliveryAddress = {
+        // 구매할 때는 주소검색으로 고른 주소와 상세주소가 모두 있어야 한다
+        error() {
+            if (!$('da-base').value.trim()) { search.hidden = false; search.focus(); return '주소검색으로 주소를 입력해 주세요.'; }
+            if (!$('da-detail').value.trim()) { $('da-detail').focus(); return '상세주소(동·호수 등)를 입력해 주세요.'; }
+            return null;
+        },
         text() {
             const postcode = $('da-postcode').value.trim();
             const base = $('da-base').value.trim();
@@ -86,9 +91,6 @@
         },
         reset() {
             if (modes) setMode('default'); else fill('', '', '');
-        },
-        focus() {
-            if (!$('da-base').value.trim()) search.focus(); else $('da-detail').focus();
         }
     };
     window.deliveryAddress.reset();

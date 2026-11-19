@@ -215,7 +215,9 @@ const errorText = async (res, fallback) => {
         const req = $('order-request').value === 'custom' ? $('order-request-custom').value.trim() : $('order-request').value;
         if (!name) return { error: '받는 사람을 입력해 주세요.', focus: 'order-name' };
         if (phone.replace(/\D/g, '').length < 10) return { error: '휴대폰번호를 정확히 입력해 주세요.', focus: 'order-phone' };
-        if (!address) return { error: '주소검색으로 주소를 입력해 주세요.', focus: 'da-search' };
+        // 주소는 주소검색으로 고른 주소와 상세주소가 모두 필요하다 (안내와 함께 그 칸으로 포커스를 옮긴다)
+        const addressError = window.deliveryAddress.error();
+        if (addressError) return { error: addressError };
         let text = `${name} / ${phone} / ${address}`;
         if (req) text += ` / 요청: ${req}`;
         if (text.length > 250) return { error: '배송지 정보가 너무 길어요. 상세주소나 요청사항을 줄여 주세요.', focus: 'da-detail' };
@@ -242,7 +244,7 @@ const errorText = async (res, fallback) => {
     const payButton = $('order-pay-button');
     payButton.addEventListener('click', async () => {
         const delivery = deliveryText();
-        if (delivery.error) { fail(delivery.error); $(delivery.focus).focus(); return; }
+        if (delivery.error) { fail(delivery.error); if (delivery.focus) $(delivery.focus).focus(); return; }
         if (!skipPayment && !window.PortOne) { fail('포트원 SDK를 불러오지 못했습니다.'); return; }
 
         payButton.disabled = true;

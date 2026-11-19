@@ -383,8 +383,9 @@
     $('au-close').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
     $('au-pay').addEventListener('click', async () => {
+        const addressError = window.deliveryAddress.error();
+        if (addressError) { await alert(addressError); return; }
         const address = window.deliveryAddress.text();
-        if (!address) { await alert('주소검색으로 배송지를 입력해 주세요.'); window.deliveryAddress.focus(); return; }
         const btn = $('au-pay');
         btn.disabled = true;
         try {
