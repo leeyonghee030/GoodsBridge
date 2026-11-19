@@ -18,8 +18,8 @@ public class KakaoLoginService {
     private final KakaoApiClient kakaoApiClient;
     private final UserService userService;
 
-    public String getAuthorizeUrl() {
-        return kakaoApiClient.getAuthorizeUrl();
+    public String getAuthorizeUrl(String prompt) {
+        return kakaoApiClient.getAuthorizeUrl(prompt);
     }
 
     public User login(String code) {

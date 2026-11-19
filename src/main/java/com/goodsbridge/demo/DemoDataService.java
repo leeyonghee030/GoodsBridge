@@ -116,7 +116,8 @@ public class DemoDataService {
 
         // 가게B: 입점 승인만 받은 상태로 구독을 처음 시작하는 시연용 가게 (구독/상품 없음)
         User shopOwnerB = findOrCreateUser(SHOP_B_EMAIL, "데모가게B");
-        // 시연 중 탈퇴한 데모 계정도 초기화하면 다시 로그인할 수 있게 되살린다 (User 엔티티에 복구 메서드가 없어 직접 갱신)
+        // 이메일이 익명화되기 전에 탈퇴해서 이메일이 그대로 남은 옛 데모 계정은 초기화할 때 되살린다 (User 엔티티에 복구 메서드가 없어 직접 갱신).
+        // 지금은 탈퇴하면 이메일이 바뀌어 위 findOrCreateUser 가 새 데모 계정을 만들므로 이 갱신은 옛 데이터에만 해당한다.
         jdbcTemplate.update("update user_tb set status = 'ACTIVE' where email in (?, ?, ?, ?, ?)",
             USER_A_EMAIL, USER_B_EMAIL, SHOP_EMAIL, SHOP_B_EMAIL, ADMIN_EMAIL);
         Shop shopB = findOrCreateShop(shopOwnerB, "데모 굿즈샵B", "부산", "부산시 해운대구 데모로 2");
