@@ -37,4 +37,14 @@ public interface ShopEventRepository extends JpaRepository<ShopEvent, Long> {
 """)
     List<ShopEvent> findSettleTargets(@Param("now") LocalDateTime now);
 
+    // 가게 삭제 차단용: 취소되지 않았고 아직 정산이 끝나지 않은 이벤트가 있는지
+    // (마감시간이 지났어도 정산 전이면 참가자 처리가 남아 있으므로 진행 중으로 본다)
+    @Query("""
+    select count(s) > 0 from ShopEvent s
+    where s.shop.id = :shopId
+      and s.status <> com.goodsbridge.event.ShopEventStatus.CANCELLED
+      and s.settled = false
+""")
+    boolean existsOngoingByShopId(@Param("shopId") Long shopId);
+
 }

@@ -376,6 +376,10 @@ public class ExchangeService {
         if (exchangeItem.getUser().getId().equals(userId)) {
             throw new ForbiddenException("자기 자신의 게시글에는 제안할 수 없습니다.");
         }
+        // 탈퇴한 회원의 게시글에는 제안할 수 없다 (받아 줄 사람이 없어 보증금과 상품이 묶인다)
+        if (!exchangeItem.getUser().isActive()) {
+            throw new BadRequestException("탈퇴한 회원의 게시글에는 교환을 제안할 수 없습니다.");
+        }
         //3. 아직 교환신정 가능한지
         if (!exchangeItem.isOpen()) {
             throw new BadRequestException("이미 매칭되었거나 마감된 게시글입니다.");

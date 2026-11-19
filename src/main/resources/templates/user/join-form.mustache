@@ -1,24 +1,49 @@
 {{> fragments/header}}
 
-<div class="container">
+<style>
+    /* 회원가입 카드: 로그인 카드(360px)보다 넓게 */
+    .container.join-card { max-width: 520px; padding: 2.5rem 2.5rem 2rem; }
+    .join-card h1 { text-align: center; margin: 0 0 1.75rem; }
+    .join-card label { display: block; margin-bottom: 0.35rem; font-size: 0.85rem; color: var(--color-muted); }
+    .join-card .join-field,
+    .join-card form p { margin: 0 0 1.1rem; }
+    .join-card .email-verify-row { flex-wrap: nowrap; gap: 0.5rem; }
+    .join-card .email-verify-row input { min-width: 0; }
+    .join-card .email-verify-row button[type="button"] { padding: 0.75rem 1rem; font-size: 0.85rem; }
+    .join-card #code-box { margin: 0 0 1.1rem; }
+    .join-card .input-group { display: flex; gap: 0.5rem; }
+    .join-card .input-group input { flex: 1; min-width: 0; }
+    .join-card .input-group button[type="button"] { width: auto; white-space: nowrap; padding: 0.75rem 1.1rem; font-size: 0.85rem; }
+    .join-card .form-text { margin-top: 0.4rem; font-size: 0.8rem; }
+    .join-card #join-submit-btn { margin-top: 0.75rem; }
+    .join-card .join-footer { margin: 1.5rem 0 0; text-align: center; font-size: 0.85rem; color: var(--color-muted); }
+    @media (max-width: 640px) {
+        .container.join-card { padding: 1.5rem 1.25rem; }
+        .join-card .email-verify-row { flex-wrap: wrap; }
+        .join-card .email-verify-row button[type="button"] { width: 100%; }
+    }
+</style>
+
+<div class="container join-card">
 <h1>회원가입</h1>
 
 <form action="/api/join" method="post" onsubmit="return checkVerify()">
-    <div class="email-verify-row">
-        <label for="email-id">이메일 아이디</label>
-        <input id="email-id" type="text" required>
-        <span class="email-at">@</span>
-        <label for="email-domain">도메인</label>
-        <input id="email-domain" type="text" list="email-domain-list" placeholder="도메인 (gmail.com)" required>
-        <datalist id="email-domain-list">
-            <option value="naver.com">
-            <option value="gmail.com">
-            <option value="daum.net">
-        </datalist>
-        <input type="hidden" id="email" name="email">
-        <button type="button" class="btn btn-outline-secondary" id="send-btn" onclick="sendCode()">
-            인증 번호 전송
-        </button>
+    <div class="join-field">
+        <label for="email-id">이메일</label>
+        <div class="email-verify-row">
+            <input id="email-id" type="text" placeholder="이메일 아이디" aria-label="이메일 아이디" required>
+            <span class="email-at">@</span>
+            <input id="email-domain" type="text" list="email-domain-list" placeholder="gmail.com" aria-label="도메인" required>
+            <datalist id="email-domain-list">
+                <option value="naver.com">
+                <option value="gmail.com">
+                <option value="daum.net">
+            </datalist>
+            <input type="hidden" id="email" name="email">
+            <button type="button" class="btn btn-outline-secondary" id="send-btn" onclick="sendCode()">
+                인증번호 전송
+            </button>
+        </div>
     </div>
 
     <div class="mb-3" id="code-box" style="display: none">
@@ -55,7 +80,7 @@
     <button type="submit" id="join-submit-btn">가입하기</button>
 </form>
 
-<p><a href="/login">로그인</a></p>
+<p class="join-footer">이미 계정이 있나요? <a href="/login">로그인</a></p>
 </div>
 
 <script>

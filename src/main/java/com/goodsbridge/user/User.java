@@ -104,8 +104,13 @@ public class User {
     }
 
     // 회원 탈퇴
+    // 계정 행은 과거 구매·교환·정산 기록 때문에 남겨 두되, 같은 이메일·카카오 계정·닉네임으로 다시 가입할 수 있도록
+    // unique 컬럼(이메일, 닉네임)을 익명 값으로 바꾸고 프로필 사진을 지운다. 비밀번호로는 이메일이 없어 로그인할 수 없다.
     public void withdraw() {
         this.status = Status.WITHDRAWN;
+        this.email = "withdrawn-" + this.id + "@withdrawn.invalid";
+        this.nickname = "탈퇴회원" + this.id;
+        this.profileImage = null;
     }
 
     // 활동중인 계정인지 확인

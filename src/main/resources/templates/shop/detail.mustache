@@ -49,6 +49,10 @@
     </div>
 </div>
 
+<div class="container detail-container profile-danger-zone" id="shop-danger-zone" hidden>
+    <button type="button" id="delete-shop" class="secondary">가게 삭제</button>
+</div>
+
 <script>
 // 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
 const errorText = async (res, fallback) => {
@@ -147,6 +151,22 @@ const errorText = async (res, fallback) => {
             document.getElementById('item-create-form').reset();
             await loadShopItems();
             setTimeout(() => { itemCreateModal.hidden = true; }, 800);
+        });
+
+        // ===== 가게 삭제 (가게 사장님 본인만) =====
+        // 진행 중인 이벤트·교환·경매가 있으면 서버가 거절하고 이유를 알려준다.
+        document.getElementById('shop-danger-zone').hidden = false;
+        document.getElementById('delete-shop').addEventListener('click', async event => {
+            const button = event.currentTarget;
+            if (!(await gbConfirm('정말 가게를 삭제할까요?\n등록한 상품과 구독도 함께 정리되고, 되돌릴 수 없어요.'))) return;
+            button.disabled = true;
+            const res = await pageFetch('/api/shops/' + shopId, { method: 'DELETE' });
+            if (!res.ok) {
+                button.disabled = false;
+                await alert(await errorText(res, '가게 삭제에 실패했습니다.'));
+                return;
+            }
+            location.href = '/test/shop';
         });
     }
 })();

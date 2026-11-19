@@ -57,7 +57,8 @@ public class DemoController {
         }
         var user = userRepository.findByEmail(email)
             .orElseThrow(() -> new NotFoundException("데모 계정이 아직 생성되지 않았습니다."));
-        // 탈퇴한 계정은 일반 로그인처럼 막는다. 시연 초기화(/reset)를 하면 다시 쓸 수 있다.
+        // 이메일이 남은 옛 탈퇴 계정은 일반 로그인처럼 막는다 (지금 탈퇴하면 이메일이 바뀌어 위에서 "아직 생성되지 않았다"가 된다).
+        // 시연 초기화(/reset)를 하면 다시 쓸 수 있다.
         if (!user.isActive()) {
             throw new BadRequestException("탈퇴한 데모 계정입니다. 데모 초기화 후 다시 이용해 주세요.");
         }

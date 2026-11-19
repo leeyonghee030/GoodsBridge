@@ -69,4 +69,13 @@ public interface EventParticipationRepository extends JpaRepository<EventPartici
     @Query("select e from EventParticipation e where e.shopEvent.id = :shopEventId and e.status = 'JOINED'")
     List<EventParticipation> findJoinedByShopEventId(@Param("shopEventId") Long shopEventId);
 
+    // 회원 탈퇴 차단용: 취소되지 않았고 아직 정산 전인 이벤트에 참가 중인지
+    @Query("""
+    select count(e) > 0 from EventParticipation e
+    where e.user.id = :userId and e.status = 'JOINED'
+      and e.shopEvent.status <> com.goodsbridge.event.ShopEventStatus.CANCELLED
+      and e.shopEvent.settled = false
+""")
+    boolean existsOngoingByUserId(@Param("userId") Long userId);
+
 }
