@@ -33,4 +33,23 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     ORDER BY n.createdAt DESC
     """)
     List<Notification> findByReceiverIdAndReadStatusOrderByCreatedAtDesc(Long userId, Notification.ReadStatus readStatus);
+
+    // 내 알림 전체 (읽은 것 포함, 최신순)
+    @Query("""
+    SELECT n
+    FROM Notification n
+    WHERE n.receiver.id = :userId
+    ORDER BY n.createdAt DESC, n.id DESC
+    """)
+    org.springframework.data.domain.Page<Notification> findAllMine(Long userId, org.springframework.data.domain.Pageable pageable);
+
+    // 내 안 읽은 알림을 모두 읽음으로
+    @org.springframework.data.jpa.repository.Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE Notification n
+    SET n.readStatus = :read
+    WHERE n.receiver.id = :userId
+      AND n.readStatus = :unread
+    """)
+    int markAllAsRead(Long userId, Notification.ReadStatus unread, Notification.ReadStatus read);
 }

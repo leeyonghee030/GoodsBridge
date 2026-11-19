@@ -1,5 +1,7 @@
 package com.goodsbridge.purchase;
 
+import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.notification.Notification;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge.auction.AuctionRepository;
@@ -242,6 +244,58 @@ class PurchaseServiceTest {
         assertEquals("이미 판매된 상품입니다.", e.getMessage());
         // 결제 검증은 통과했지만 저장에 실패했으므로 PortOne 결제를 자동 취소한다.
         verify(paymentService).cancelUnrecorded(eq("payment-1"), anyString());
+    }
+
+    @Test
+    void purchase_notifiesBuyerOrderCompleteAndSellerNewOrder() {
+        Item item = mock(Item.class);
+        when(item.getSellerUserId()).thenReturn(99L);
+        when(item.getPrice()).thenReturn(10_000);
+        when(item.getStatus()).thenReturn(ItemStatus.ON_SALE);
+        when(item.getTitle()).thenReturn("포토카드");
+        when(itemRepository.findById(7L)).thenReturn(java.util.Optional.of(item));
+        User buyer = mock(User.class);
+        when(buyer.getId()).thenReturn(3L);
+        when(entityManager.getReference(User.class, 3L)).thenReturn(buyer);
+        PurchaseRequest.CreateDto dto = new PurchaseRequest.CreateDto();
+        dto.setPaymentId("payment-1");
+        dto.setDeliveryAddress("Seoul");
+        Purchase saved = Purchase.builder().item(item).user(buyer).paymentId("payment-1").deliveryAddress("Seoul").build();
+        when(purchaseRepository.save(any(Purchase.class))).thenReturn(saved);
+
+        purchaseService.purchase(7L, 3L, dto);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(publisher, times(2)).publishEvent(captor.capture());
+        NotificationEvent toBuyer = captor.getAllValues().get(0);
+        NotificationEvent toSeller = captor.getAllValues().get(1);
+        assertEquals(3L, toBuyer.userId());
+        assertEquals("'{포토카드}' 주문이 완료됐어요. 가게에서 배송을 준비하고 있어요", toBuyer.content());
+        assertEquals(99L, toSeller.userId());
+        assertEquals("[새 주문]", toSeller.title());
+        assertEquals(Notification.ReferenceType.SHOP_SALES, toSeller.referenceType());
+    }
+
+    @Test
+    void confirm_notifiesSeller() {
+        Item item = mock(Item.class);
+        when(item.getSellerUserId()).thenReturn(99L);
+        when(item.getTitle()).thenReturn("포토카드");
+        when(item.getShopId()).thenReturn(null); // 가게 없는 개인 판매 (정산 기록 없음)
+        User buyer = mock(User.class);
+        when(buyer.getId()).thenReturn(10L);
+        Purchase purchase = Purchase.builder().item(item).user(buyer).paymentId("payment-1").deliveryAddress("Seoul").build();
+        purchase.ship("TRACK-1");
+        purchase.markDelivered();
+        when(purchaseRepository.findByIdLock(1L)).thenReturn(java.util.Optional.of(purchase));
+
+        purchaseService.confirm(1L, 10L);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(publisher).publishEvent(captor.capture());
+        assertEquals(99L, captor.getValue().userId());
+        assertEquals(Notification.Type.PURCHASE_CONFIRMED, captor.getValue().type());
+        assertEquals(Notification.ReferenceType.SHOP_SALES, captor.getValue().referenceType());
     }
 
     @Test

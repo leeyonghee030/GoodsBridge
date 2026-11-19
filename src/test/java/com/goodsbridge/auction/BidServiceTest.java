@@ -68,6 +68,12 @@ class BidServiceTest {
         lenient().when(auction.getDeadline()).thenReturn(LocalDateTime.now().plusMinutes(10));
         lenient().when(auction.getCurrentPrice()).thenReturn(10_000);
         lenient().when(auction.getDepositAmount()).thenReturn(1_000);
+        // 입찰하면 가게에 새 입찰 알림을 보낸다 (알림 문구에 상품 이름이 들어간다)
+        com.goodsbridge.item.Item auctionItem = mock(com.goodsbridge.item.Item.class);
+        lenient().when(auctionItem.getTitle()).thenReturn("경매 상품");
+        lenient().when(auction.getItem()).thenReturn(auctionItem);
+        // 가게 주인은 기본으로 없음 (Mockito 는 Long 을 0 으로 돌려준다). 새 입찰 알림을 보는 테스트에서만 지정한다
+        lenient().when(shop.getOwnerUserId()).thenReturn(null);
     }
 
     // ===================== 정상 입찰 =====================
@@ -168,6 +174,26 @@ class BidServiceTest {
 
         verify(auction).setWinningPaymentId("payment-a");
         verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void placeBid_notifiesTheShopOfANewBid() {
+        when(shop.getOwnerUserId()).thenReturn(50L);
+        com.goodsbridge.item.Item item = mock(com.goodsbridge.item.Item.class);
+        when(item.getTitle()).thenReturn("한정 포토카드");
+        when(auction.getItem()).thenReturn(item);
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
+        when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L)).thenReturn("payment-1");
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1"));
+
+        org.mockito.ArgumentCaptor<com.goodsbridge.notification.NotificationEvent> captor =
+            org.mockito.ArgumentCaptor.forClass(com.goodsbridge.notification.NotificationEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(50L, captor.getValue().userId());
+        assertEquals(com.goodsbridge.notification.Notification.Type.AUCTION_BID, captor.getValue().type());
+        assertEquals("'한정 포토카드' 경매에 12,000원 입찰이 들어왔어요", captor.getValue().content());
     }
 
     // ===================== 거부 케이스 =====================

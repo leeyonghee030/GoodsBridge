@@ -158,6 +158,31 @@ public class EventService {
         eventParticipationRepository.save(eventParticipation);
         eventParticipationRepository.flush();
         entityManager.refresh(eventParticipation);
+
+        String itemTitle = shopEvent.getItem().getTitle();
+        // 참가자: 참가 완료와 번호표, 수령(방문) 기한
+        publisher.publishEvent(new NotificationEvent(
+            userid,
+            Notification.Type.EVENT_JOINED,
+            "[이벤트 참가 완료]",
+            "'" + itemTitle + "' 이벤트에 참가했어요. 번호표 " + ticketNumber + "번, "
+                + shopEvent.getVisitUntil() + "까지 가게에 방문해 받아 가세요",
+            Notification.ReferenceType.EVENT,
+            shopEvent.getId()
+        ));
+        // 가게: 새 참가
+        Long ownerId = shopEvent.getShop().getOwnerUserId();
+        if (ownerId != null) {
+            publisher.publishEvent(new NotificationEvent(
+                ownerId,
+                Notification.Type.EVENT_JOINED,
+                "[이벤트 새 참가]",
+                "'" + itemTitle + "' 이벤트에 " + user.getNickname() + "님이 " + quantity + "개 참가했어요 ("
+                    + shopEvent.getCurrentCount() + "/" + shopEvent.getCapacity() + ")",
+                Notification.ReferenceType.SHOP_EVENTS,
+                shopEvent.getId()
+            ));
+        }
         return new EventParticipationResponse(eventParticipation);
     }
 
@@ -194,6 +219,20 @@ public class EventService {
         eventParticipation.cancel();
         // 수량 반납 (정원이 차서 마감됐던 이벤트는 다시 모집중)
         shopEvent.decreaseCurrentCount(eventParticipation.getQuantity());
+
+        // 가게: 참가 취소
+        Long ownerId = shopEvent.getShop().getOwnerUserId();
+        if (ownerId != null) {
+            publisher.publishEvent(new NotificationEvent(
+                ownerId,
+                Notification.Type.EVENT_PARTICIPATION_CANCELLED,
+                "[이벤트 참가 취소]",
+                "'" + shopEvent.getItem().getTitle() + "' 이벤트에서 " + user.getNickname() + "님이 "
+                    + eventParticipation.getQuantity() + "개 참가를 취소했어요",
+                Notification.ReferenceType.SHOP_EVENTS,
+                shopEvent.getId()
+            ));
+        }
     }
 
 

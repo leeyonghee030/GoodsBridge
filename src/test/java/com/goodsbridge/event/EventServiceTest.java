@@ -1,5 +1,7 @@
 package com.goodsbridge.event;
 
+import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.notification.Notification;
 import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
@@ -54,6 +56,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -638,6 +641,64 @@ class EventServiceTest {
             () -> eventService.cancelEventParticipation(EVENT_ID, USER_ID, 300L));
 
         verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
+    }
+
+    // ---------- 알림: 참가 완료(참가자), 새 참가 / 참가 취소(가게)
+
+    private ShopEvent eventOfShop(Long ownerId) {
+        Shop shop = mock(Shop.class);
+        lenient().when(shop.getOwnerUserId()).thenReturn(ownerId);
+        Item item = mock(Item.class);
+        lenient().when(item.getTitle()).thenReturn("한정 굿즈");
+        ShopEvent shopEvent = ShopEvent.builder()
+            .shop(shop).item(item).capacity(10).feeAmount(FEE).deadline(LocalDateTime.now().plusDays(1)).maxPerUser(3)
+            .visitUntil(java.time.LocalDate.now().plusDays(5))
+            .build();
+        ReflectionTestUtils.setField(shopEvent, "id", EVENT_ID);
+        return shopEvent;
+    }
+
+    @Test
+    @DisplayName("참가하면 참가자에게 번호표·수령 기한을, 가게에 새 참가를 알린다")
+    void join_notifiesParticipantAndShop() {
+        ShopEvent shopEvent = eventOfShop(50L);
+        joinable(shopEvent);
+        when(paymentService.verify(anyString(), anyInt(), any(), anyLong())).thenReturn("pay-1");
+        EventParticipationRequest req = request("pay-1");
+        ReflectionTestUtils.setField(req, "quantity", 2);
+
+        eventService.saveEventParticipation(EVENT_ID, USER_ID, req);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(publisher, times(2)).publishEvent(captor.capture());
+        NotificationEvent toUser = captor.getAllValues().get(0);
+        NotificationEvent toShop = captor.getAllValues().get(1);
+        assertEquals(USER_ID, toUser.userId());
+        assertEquals(Notification.Type.EVENT_JOINED, toUser.type());
+        assertTrue(toUser.content().contains("번호표 1번"), toUser.content());
+        assertTrue(toUser.content().contains(shopEvent.getVisitUntil().toString()), toUser.content());
+        assertEquals(50L, toShop.userId());
+        assertEquals(Notification.ReferenceType.SHOP_EVENTS, toShop.referenceType());
+        assertTrue(toShop.content().contains("2개 참가") && toShop.content().contains("(2/10)"), toShop.content());
+    }
+
+    @Test
+    @DisplayName("참가를 취소하면 가게에 알린다")
+    void cancelJoin_notifiesShop() {
+        ShopEvent shopEvent = eventOfShop(50L);
+        shopEvent.increaseCurrentCount(1);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        User me = activeUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(me));
+        EventParticipation joined = participation(shopEvent, "pay-1");
+        when(eventParticipationRepository.findById(100L)).thenReturn(Optional.of(joined));
+
+        eventService.cancelEventParticipation(EVENT_ID, USER_ID, 100L);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(publisher).publishEvent(captor.capture());
+        assertEquals(50L, captor.getValue().userId());
+        assertEquals(Notification.Type.EVENT_PARTICIPATION_CANCELLED, captor.getValue().type());
     }
 
     // ---------- C, D. 참가 취소

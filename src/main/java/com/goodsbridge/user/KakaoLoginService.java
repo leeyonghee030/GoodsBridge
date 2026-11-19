@@ -24,9 +24,6 @@ public class KakaoLoginService {
 
     public User login(String code) {
 
-        // TODO - 문제 해결시 삭제
-        log.info("code : {}", code);
-
         if (code == null || code.isBlank()) {
             throw new BadRequestException(
                 "카카오 인가 코드가 전달되지 않았습니다."

@@ -9,6 +9,17 @@
   if (!trigger || !panel || !closeButton || !badge || !unreadLabel || !list) return;
 
   let unreadCount = 0;
+
+  // "모두 읽음" 버튼: 안 읽은 알림이 있을 때만 보인다
+  const readAllButton = document.createElement('button');
+  readAllButton.type = 'button';
+  readAllButton.className = 'notification-read-all';
+  readAllButton.textContent = '모두 읽음';
+  readAllButton.hidden = true;
+  const unreadGroup = document.createElement('span');
+  unreadGroup.className = 'notification-unread-group';
+  unreadLabel.replaceWith(unreadGroup);
+  unreadGroup.append(unreadLabel, readAllButton);
   let loadedNotifications = [];
   const receivedNotificationIds = new Set();
   const liveNotificationsDuringLoad = new Map();
@@ -19,6 +30,7 @@
     badge.hidden = unreadCount === 0;
     badge.textContent = unreadCount > 99 ? '99+' : String(unreadCount);
     unreadLabel.textContent = unreadCount ? `읽지 않은 알림 ${unreadCount}개` : '모두 확인했어요';
+    readAllButton.hidden = unreadCount === 0;
   }
 
   function relativeTime(value) {
@@ -116,6 +128,21 @@
       showState(error.message || '읽음 처리에 실패했습니다.');
     }
   }
+
+  readAllButton.addEventListener('click', async () => {
+    readAllButton.disabled = true;
+    try {
+      const response = await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
+      if (!response.ok) throw new Error('모두 읽음 처리에 실패했습니다.');
+      loadedNotifications = [];
+      renderNotifications();
+      await refreshCount();
+    } catch (error) {
+      showState(error.message || '모두 읽음 처리에 실패했습니다.');
+    } finally {
+      readAllButton.disabled = false;
+    }
+  });
 
   function openPanel() {
     panel.hidden = false;
