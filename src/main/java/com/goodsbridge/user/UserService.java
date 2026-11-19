@@ -138,8 +138,10 @@ public class UserService {
             user.updatePassword(passwordEncoder.encode(updateDto.getPassword()));
         }
 
-        if (updateDto.hasNickname()) {
+        if (updateDto.hasNickname()
+            && !user.getNickname().equals(updateDto.getNickname())) {
             user.updateNickname(updateDto.getNickname());
+            log.info("Nickname : {}", user.getNickname());
         }
 
         if (updateDto.hasProfileImage()) {
@@ -147,6 +149,20 @@ public class UserService {
             String oldImage = user.getProfileImage();
             user.updateProfileImage(newImage); // DB에는 새 파일 이름 (변경 감지)
             FileUtil.deleteFile(oldImage);
+        }
+
+        if (updateDto.hasAddress()){
+            user.updateAddress(Address.builder()
+                .postalCode(updateDto.getPostalCode())
+                .address(updateDto.getAddress())
+                .detailAddress(updateDto.getDetailAddress())
+                .build());
+        }
+
+        if (updateDto.hasPhoneNumber()){
+            user.updatePhoneNumber(updateDto.getPhonePrefix() + "-" +
+                updateDto.getPhoneMiddle() + "-" +
+                updateDto.getPhoneLast());
         }
     }
 

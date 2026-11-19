@@ -118,10 +118,21 @@ public class UserController {
             .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
             return "redirect:/test/admin/shops";
         }
-        model.addAttribute("user", userService.findUpdateForm(userId));
+        UserResponse.UpdateFormDto user =  userService.findUpdateForm(userId);
+        model.addAttribute("user",user);
         model.addAttribute("portoneStoreId", portoneStoreId);
         model.addAttribute("portoneChannelKey", portoneChannelKey);
         model.addAttribute("skipPayment", skipPayment);
+
+        String prefix = user.getPhonePrefix();
+
+        model.addAttribute("phone010", "010".equals(prefix));
+        model.addAttribute("phone011", "011".equals(prefix));
+        model.addAttribute("phone016", "016".equals(prefix));
+        model.addAttribute("phone017", "017".equals(prefix));
+        model.addAttribute("phone018", "018".equals(prefix));
+        model.addAttribute("phone019", "019".equals(prefix));
+
         return "user/update-form";
     }
 
