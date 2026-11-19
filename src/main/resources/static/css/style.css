@@ -2072,6 +2072,10 @@ textarea.gb-dialog-input { display: block; min-height: 8rem; line-height: 1.6; t
 .notification-panel .notification-close:hover { background: #f1f3f5; }
 .notification-panel-subheading { display: flex; justify-content: space-between; align-items: center; padding: 0 20px 13px; color: #666d78; font-size: 13px; }
 .notification-unread-label { color: #2878d0; font-weight: 600; }
+.notification-unread-group { display: inline-flex; align-items: center; gap: 8px; }
+.notification-panel button.notification-read-all { width: auto; height: auto; margin: 0; padding: 2px 8px; border: 1px solid var(--color-border); border-radius: 999px; background: #fff; color: #666d78; font-family: var(--font-sans); font-size: 12px; font-weight: 500; line-height: 1.5; cursor: pointer; }
+.notification-panel button.notification-read-all:hover { background: #f1f3f5; color: var(--color-text); }
+.notification-panel button.notification-read-all[hidden] { display: none; }
 .notification-list { max-height: min(490px, calc(100vh - 190px)); overflow: auto; border-top: 1px solid #eef0f2; }
 .notification-panel .notification-card { display: block; width: 100%; padding: 16px 20px; border: 0; border-bottom: 1px solid #eef0f2; border-radius: 0; background: #fff; color: inherit; font-weight: var(--fw-regular); text-align: left; cursor: pointer; }
 .notification-panel .notification-card:hover { background: #f7f9fc; }

@@ -143,6 +143,22 @@ public class BidService {
 
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);
+
+        // 가게: 새 입찰
+        Long ownerId = auction.getShop().getOwnerUserId();
+        if (ownerId != null) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    ownerId,
+                    Notification.Type.AUCTION_BID,
+                    "[새 입찰]",
+                    "'" + auction.getItem().getTitle() + "' 경매에 " + String.format("%,d", request.getBidAmount())
+                        + "원 입찰이 들어왔어요",
+                    Notification.ReferenceType.AUCTION,
+                    auction.getId()
+                )
+            );
+        }
         return BidResponse.from(bid);
     }
 

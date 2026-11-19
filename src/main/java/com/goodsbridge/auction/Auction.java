@@ -73,6 +73,9 @@ public class Auction {
     @Column(name = "ending_soon_notified", nullable = false, columnDefinition = "boolean default false")
     private boolean endingSoonNotified = false; // 마감 임박 알림 발송 여부
 
+    @Column(name = "balance_reminder_notified", nullable = false, columnDefinition = "boolean default false")
+    private boolean balanceReminderNotified = false; // 잔금 결제 기한 임박 알림 발송 여부
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status;  // 경매 상태(낙찰, 취소, 실패, 진행 등)
@@ -171,6 +174,10 @@ public class Auction {
 
     public void markLosersRefunded() {
         this.losersRefunded = true;
+    }
+
+    public void markBalanceReminderNotified() {
+        this.balanceReminderNotified = true;
     }
 
     public void markEndingSoonNotified() {

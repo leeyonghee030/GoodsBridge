@@ -54,6 +54,20 @@ public interface AuctionRepository extends JpaRepository<Auction, Long> {
                                  @Param("now") LocalDateTime now,
                                  @Param("limit") LocalDateTime limit);
 
+    // 잔금 결제 기한이 곧 끝나는(아직 안 낸) 낙찰 경매. 기한 임박 알림을 한 번만 보낸다
+    @Query("""
+        select a.id from Auction a
+        where a.status = :status
+          and a.balancePaymentId is null
+          and a.balanceReminderNotified = false
+          and a.balanceDueAt > :now
+          and a.balanceDueAt <= :limit
+        order by a.balanceDueAt asc
+        """)
+    List<Long> findIdsBalanceDueSoon(@Param("status") Status status,
+                                     @Param("now") LocalDateTime now,
+                                     @Param("limit") LocalDateTime limit);
+
     // 동시 마감 막기
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from Auction a where a.id = :id")

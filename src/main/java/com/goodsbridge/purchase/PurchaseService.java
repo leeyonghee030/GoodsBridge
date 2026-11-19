@@ -147,18 +147,40 @@ public class PurchaseService {
         log.info("구매 저장 완료 - itemId={}, userId={}, paymentId={}",
             itemId, userId, createDto.getPaymentId());
 
+        // 구매자: 주문 완료 안내 (예전에는 판매자용 문구 "주문이 들어왔어요. 배송을 준비해 주세요"가 구매자에게 갔다)
         publisher.publishEvent(
             new NotificationEvent(
                 purchase.getUser().getId(),
                 Notification.Type.PURCHASE_ORDERED,
                 "[배송 준비중]",
-                "'{" + purchase.getItem().getTitle() + "}' 주문이 들어왔어요. 배송을 준비해 주세요",
+                "'" + purchase.getItem().getTitle() + "' 주문이 완료됐어요. 가게에서 배송을 준비하고 있어요",
                 Notification.ReferenceType.DELIVERY,
                 purchase.getId()
             )
         );
+        // 판매자: 새 주문 (가게 상품이면 판매 상품 관리의 판매완료 탭으로 간다. 가게 없는 개인 판매자는 그 화면을 열 수 없어 링크를 두지 않는다)
+        Long sellerId = purchase.getItem().getSellerUserId();
+        if (sellerId != null) {
+            publisher.publishEvent(
+                new NotificationEvent(
+                    sellerId,
+                    Notification.Type.PURCHASE_ORDERED,
+                    "[새 주문]",
+                    "'" + purchase.getItem().getTitle() + "' 주문이 들어왔어요. 배송을 준비해 주세요",
+                    sellerLinkType(purchase.getItem()),
+                    purchase.getId()
+                )
+            );
+        }
 
         return new PurchaseResponse.DetailDto(purchase);
+    }
+
+    // 판매자 알림의 이동 위치: 가게 상품이면 판매 상품 관리, 개인 판매자는 열 수 있는 가게 화면이 없어 링크 없음
+    private Notification.ReferenceType sellerLinkType(Item item) {
+        return item.getShopId() != null
+            ? Notification.ReferenceType.SHOP_SALES
+            : Notification.ReferenceType.SHOP;
     }
 
     // 배송
@@ -269,6 +291,22 @@ public class PurchaseService {
         if (purchase.getStatus() == PurchaseStatus.CONFIRMED) return;
         purchase.confirm();
         paymentService.release(purchase.getPaymentId());
+        // 판매자: 구매 확정 (가게 상품은 이 시점에 정산된다. 개인 판매는 정산하지 않으므로 그 문장과 가게 화면 링크를 뺀다)
+        Long sellerId = purchase.getItem().getSellerUserId();
+        if (sellerId != null) {
+            boolean shopItem = purchase.getItem().getShopId() != null;
+            publisher.publishEvent(
+                new NotificationEvent(
+                    sellerId,
+                    Notification.Type.PURCHASE_CONFIRMED,
+                    "[구매 확정]",
+                    "'" + purchase.getItem().getTitle() + "' 구매가 확정됐어요."
+                        + (shopItem ? " 정산 내역에 반영돼요" : ""),
+                    sellerLinkType(purchase.getItem()),
+                    purchase.getId()
+                )
+            );
+        }
         if (purchase.isAuction()) {
             releaseWinnerDeposit(purchase.getPaymentId());
             // 잔금 결제만으로는 상품이 인도되지 않았으므로 정산하지 않는다.

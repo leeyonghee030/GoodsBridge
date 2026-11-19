@@ -5,6 +5,9 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 
 public interface NotificationRepository extends JpaRepository<Notification, Long> {
 
@@ -33,4 +36,23 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     ORDER BY n.createdAt DESC
     """)
     List<Notification> findByReceiverIdAndReadStatusOrderByCreatedAtDesc(Long userId, Notification.ReadStatus readStatus);
+
+    // 내 알림 전체 (읽은 것 포함, 최신순)
+    @Query("""
+    SELECT n
+    FROM Notification n
+    WHERE n.receiver.id = :userId
+    ORDER BY n.createdAt DESC, n.id DESC
+    """)
+    Page<Notification> findAllMine(Long userId, Pageable pageable);
+
+    // 내 안 읽은 알림을 모두 읽음으로
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+    UPDATE Notification n
+    SET n.readStatus = :read
+    WHERE n.receiver.id = :userId
+      AND n.readStatus = :unread
+    """)
+    int markAllAsRead(Long userId, Notification.ReadStatus unread, Notification.ReadStatus read);
 }

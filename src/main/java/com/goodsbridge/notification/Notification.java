@@ -112,6 +112,8 @@ public class Notification {
 
         EVENT_CANCELLED,        // 이벤트 취소
         EVENT_CLOSED,           // 이벤트 인원 마감
+        EVENT_JOINED,           // 이벤트 참가 (참가자에게 참가 완료, 가게에 새 참가)
+        EVENT_PARTICIPATION_CANCELLED, // 이벤트 참가 취소 (가게에게)
 
         AUCTION_BID,            // 경매 입찰
         AUCTION_WIN,            // 경매 낙찰
@@ -124,6 +126,7 @@ public class Notification {
         PAYMENT_COMPLETED,      // 결제 완료 (배송 준비중)
         DELIVERY_STARTED,       // 배송 시작 (배송중)
         DELIVERY_COMPLETED,     // 배송 완료
+        PURCHASE_CONFIRMED,     // 구매 확정 (판매자에게)
 
         SHOP_APPLIED,           // 가게 입점 신청
         SHOP_REJECTED,          // 가게 입점 거절
@@ -159,6 +162,8 @@ public class Notification {
         SHOP(null),
         SHOP_UPDATE("/update"),                     // 가게 업데이트
         SHOP_ADMIN("/test/admin/shops"),            // 관리자 가게
+        SHOP_SALES("/shop/items?tab=SOLD"),         // 판매자: 판매 상품 관리의 판매완료 탭 (새 주문, 구매 확정)
+        SHOP_EVENTS("/shop/events"),                // 가게: 이벤트 관리 (새 참가, 참가 취소)
         SUBSCRIPTION_SHOP(null),
         SUBSCRIPTION_ADMIN("/test/admin/subscriptions"), // 관리자 구독
         BOARD("/test/board/{id}"),                  // 게시글 상세
