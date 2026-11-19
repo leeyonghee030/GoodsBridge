@@ -2,6 +2,11 @@ package com.goodsbridge.demo;
 
 import com.goodsbridge.exchange.ExchangeItem;
 import com.goodsbridge.auction.Auction;
+import com.goodsbridge.board.Board;
+import com.goodsbridge.board.BoardRepository;
+import com.goodsbridge.board.BoardType;
+import com.goodsbridge.board.InquiryTargetType;
+import com.goodsbridge.board.Reply;
 import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.auction.Bid;
 import com.goodsbridge.auction.BidRepository;
@@ -31,6 +36,7 @@ import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseSource;
+import com.goodsbridge.purchase.PurchaseStatus;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.notification.Notification;
 import com.goodsbridge.notification.NotificationRepository;
@@ -99,6 +105,7 @@ public class DemoDataService {
     private final PurchaseRepository purchaseRepository;
     private final RefundRepository refundRepository;
     private final NotificationRepository notificationRepository;
+    private final BoardRepository boardRepository;
     private final SettlementHistoryRepository settlementHistoryRepository;
     private final ExchangeMessageRepository exchangeMessageRepository;
     private final PasswordEncoder passwordEncoder;
@@ -141,7 +148,110 @@ public class DemoDataService {
         // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
         demoSampleDataService.seed();
         spreadAccountDates();
+        seedBoards(userA, userB, shopOwner, shop);
         seedNotifications(userA, userB, shopOwner, shop);
+    }
+
+
+    /**
+     * 문의·리뷰 시연 데이터. 방금 만든 시연 구매·상품·이벤트·경매를 가리키게 만들어서
+     * 상세 화면의 문의/리뷰 탭, 마이페이지 "내 문의", 판매자 "문의 관리"·"리뷰 관리"를 바로 볼 수 있다.
+     * - 리뷰: 시연 구매자(B)의 구매확정 구매마다 1개 (구매 1건당 1개). 마지막 하나는 판매자가 비공개로 바꾼 상태
+     * - 문의: 상품·이벤트·경매에 각각 남기고, 일부는 판매자가 답변해서 답변 대기/완료가 섞이게 한다
+     * 초기화할 때 deleteDemoData 가 상품에 달린 문의·리뷰를 함께 지우므로 매번 새로 만든다.
+     */
+    private void seedBoards(User userA, User userB, User shopOwner, Shop shop) {
+        Long sellerId = shopOwner.getId();
+        List<Item> onSale = itemRepository.findAll().stream()
+            .filter(i -> sellerId.equals(i.getSellerUserId()) && i.getStatus() == ItemStatus.ON_SALE)
+            .limit(4).toList();
+        List<ShopEvent> events = shopEventRepository.findAll().stream()
+            .filter(e -> e.getShop() != null && shop.getId().equals(e.getShop().getId())).limit(2).toList();
+        List<Auction> auctions = auctionRepository.findAll().stream()
+            .filter(a -> a.getShop() != null && shop.getId().equals(a.getShop().getId()) && a.getItem() != null).limit(2).toList();
+
+        // ----- 리뷰 (구매확정한 구매 1건당 1개) -----
+        String[][] reviews = {
+            {"포장이 꼼꼼해서 좋았어요", "상품 상태가 설명 그대로였고 박스도 단단하게 포장돼 왔어요."},
+            {"배송이 빨랐어요", "주문 다음 날 도착했어요. 실물이 사진보다 더 예뻐요."},
+            {"기대 이상이에요", "퀄리티가 좋아서 만족해요. 다음에도 이 가게에서 구매할 예정이에요."},
+            {"구성품 모두 확인했어요", "구성품이 전부 들어 있었고 상태도 깨끗했어요. 추천합니다."}
+        };
+        List<Purchase> confirmed = purchaseRepository.findAll().stream()
+            .filter(p -> p.getStatus() == PurchaseStatus.CONFIRMED && p.getUser().getId().equals(userB.getId())
+                && sellerId.equals(p.getItem().getSellerUserId()))
+            .limit(reviews.length).toList();
+        for (int n = 0; n < confirmed.size(); n++) {
+            Purchase purchase = confirmed.get(n);
+            Board review = boardRepository.save(Board.builder()
+                .title(reviews[n][0]).content(reviews[n][1]).authorId(userB.getId())
+                .itemId(purchase.getItem().getId()).boardType(BoardType.PRODUCT_REVIEW).isSecret(false)
+                .purchaseId(purchase.getId()).build());
+            // 판매자가 비공개로 바꾼 리뷰도 하나 보이게 한다 (리뷰 관리의 "비공개" 표시, 작성자에게만 보이는 모습)
+            if (n == reviews.length - 1 && confirmed.size() > 1) review.hideBySeller();
+            setBoardDate(review, n + 1, 3);
+        }
+
+        // ----- 문의: 상품 -----
+        String sellerReply = "안녕하세요, 데모 굿즈샵입니다. 문의 감사합니다! ";
+        if (onSale.size() > 0) answer(inquiry(userA, onSale.get(0), InquiryTargetType.ITEM, onSale.get(0).getId(), "재고가 더 있나요?",
+            "같은 상품을 하나 더 구매하고 싶은데 재고가 있을까요?", 2), shopOwner, sellerReply + "현재 1개 더 있어요. 편하게 주문해 주세요.");
+        if (onSale.size() > 1) inquiry(userA, onSale.get(1), InquiryTargetType.ITEM, onSale.get(1).getId(), "직거래도 가능한가요?",
+            "매장에 방문해서 직접 받아갈 수 있을까요?", 1);
+        if (onSale.size() > 2) inquiry(userB, onSale.get(2), InquiryTargetType.ITEM, onSale.get(2).getId(), "포장은 어떻게 해서 보내주시나요?",
+            "선물용이라 파손 없이 포장해서 보내주실 수 있는지 궁금해요.", 1);
+        if (onSale.size() > 3) answer(inquiry(userB, onSale.get(3), InquiryTargetType.ITEM, onSale.get(3).getId(), "실물 사진을 받아볼 수 있을까요?",
+            "구매 전에 실물 사진을 한 장만 받아볼 수 있을까요?", 3), shopOwner, sellerReply + "상세 이미지 아래에 실물 사진을 추가해 두었어요.");
+
+        // ----- 문의: 이벤트 -----
+        if (events.size() > 0) {
+            ShopEvent event = events.get(0);
+            answer(inquiry(userA, event.getItem(), InquiryTargetType.EVENT, event.getId(), "당첨 후 수령은 어떻게 하나요?",
+                "이벤트에 참가하면 상품은 매장에서 바로 받아가는 건가요?", 2), shopOwner, sellerReply + "방문 날짜에 번호표를 보여주시면 현장에서 바로 드려요.");
+            inquiry(userB, event.getItem(), InquiryTargetType.EVENT, event.getId(), "방문 날짜를 바꿀 수 있나요?",
+                "그날 일정이 있어서 하루 뒤에 방문해도 되는지 궁금해요.", 1);
+        }
+        if (events.size() > 1) {
+            ShopEvent event = events.get(1);
+            inquiry(userB, event.getItem(), InquiryTargetType.EVENT, event.getId(), "정원이 차면 취소 대기가 되나요?",
+                "마감 후에 취소하는 분이 생기면 대기 순번으로 참가할 수 있는지 궁금해요.", 1);
+        }
+
+        // ----- 문의: 경매 -----
+        if (auctions.size() > 0) {
+            Auction auction = auctions.get(0);
+            answer(inquiry(userA, auction.getItem(), InquiryTargetType.AUCTION, auction.getId(), "입찰을 취소할 수 있나요?",
+                "실수로 높게 입찰했는데 취소할 수 있는지 알고 싶어요.", 2), shopOwner, sellerReply + "입찰은 취소할 수 없어요. 입찰 전에 금액을 꼭 확인해 주세요.");
+            inquiry(userB, auction.getItem(), InquiryTargetType.AUCTION, auction.getId(), "보증금은 낙찰되지 않으면 바로 환불되나요?",
+                "낙찰이 안 되면 보증금이 언제 환불되는지 궁금해요.", 1);
+        }
+        if (auctions.size() > 1) {
+            Auction auction = auctions.get(1);
+            inquiry(userA, auction.getItem(), InquiryTargetType.AUCTION, auction.getId(), "배송비는 따로 있나요?",
+                "낙찰가 외에 배송비가 따로 붙는지 궁금해요.", 1);
+        }
+    }
+
+    private Board inquiry(User author, Item item, InquiryTargetType type, Long targetId, String title, String content, int daysAgo) {
+        Board board = boardRepository.save(Board.builder()
+            .title(title).content(content).authorId(author.getId()).itemId(item.getId())
+            .boardType(BoardType.PRODUCT_INQUIRY).isSecret(true).targetType(type).targetId(targetId).build());
+        setBoardDate(board, daysAgo, 5);
+        return board;
+    }
+
+    // 판매자가 답변하면 문의는 답변 완료가 된다 (BoardService.createReply 와 같은 결과)
+    private void answer(Board board, User seller, String content) {
+        board.addReply(Reply.builder().board(board).content(content).authorId(seller.getId()).build());
+        board.complete();
+        boardRepository.save(board);
+    }
+
+    // 목록의 날짜가 오늘 하루에 몰리지 않도록 며칠 전 날짜로 돌려놓는다
+    private void setBoardDate(Board board, int daysAgo, int hoursAgo) {
+        boardRepository.flush();
+        jdbcTemplate.update("update board_tb set created_at = ? where id = ?",
+            java.sql.Timestamp.valueOf(LocalDateTime.now().minusDays(daysAgo).minusHours(hoursAgo)), board.getId());
     }
 
     /**
