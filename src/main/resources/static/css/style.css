@@ -1801,6 +1801,49 @@ button.link-button:hover { background: none; color: var(--color-text); }
 .category-photo.has-image .category-photo-overlay strong,
 .category-photo.has-image .category-photo-overlay span { color: #fff; }
 
+
+.verify-code-inputs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin: 16px 0;
+}
+
+.verify-digit {
+    width: 48px;
+    height: 58px;
+    border: 2px solid #1a1a1a;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    background: #fff;
+    color: #1a1a1a;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.verify-digit:focus {
+    border-color: #888;
+}
+
+.verify-digit:disabled {
+    background: #f3f3f3;
+}
+
+@media (max-width: 480px) {
+    .verify-code-inputs {
+        gap: 6px;
+    }
+
+    .verify-digit {
+        width: 40px;
+        height: 50px;
+        font-size: 18px;
+    }
+}
+
+
 .promo-strip {
     width: 95%;
     max-width: 1400px;
