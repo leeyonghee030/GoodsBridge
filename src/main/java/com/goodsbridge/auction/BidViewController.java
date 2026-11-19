@@ -23,6 +23,12 @@ public class BidViewController {
         return ResponseEntity.status(201).body(bidService.placeBid(id, userId, request));
     }
 
+    // 이 경매에 내 입찰이 있는지 (화면이 첫 입찰 = 보증금 결제 여부를 정한다). 비로그인은 false
+    @GetMapping("/api/auctions/{id}/my-bid")
+    public ResponseEntity<java.util.Map<String, Boolean>> myBid(@PathVariable Long id) {
+        return ResponseEntity.ok(java.util.Map.of("hasBid", bidService.hasMyBid(id, SecurityUtil.getCurrentUserIdOrNull())));
+    }
+
     // 입찰 내역
     @GetMapping("/api/auctions/{id}/bids")
     public ResponseEntity<Page<BidResponse>> bidsList(@PathVariable Long id, Pageable pageable){

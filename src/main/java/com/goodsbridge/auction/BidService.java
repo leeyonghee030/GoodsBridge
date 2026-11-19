@@ -76,10 +76,7 @@ public class BidService {
             throw new BadRequestException("진행 중이며 마감되지 않은 경매만 입찰할 수 있습니다.");
         }
 
-        if (auction.getCurrentWinner() != null
-            && auction.getCurrentWinner().getId().equals(userId)) {
-            throw new BadRequestException("현재 최고 입찰자는 다시 입찰할 수 없습니다.");
-        }
+        // 현재 최고 입찰자도 금액을 올려 다시 입찰할 수 있다 (보증금은 처음 낸 것을 그대로 쓰고, 나에게 상위 입찰 알림은 보내지 않는다)
 
         // 4. 현재가 검증: 아직 입찰이 없으면(현재가 = 시작가) 시작가 이상, 이미 입찰이 있으면 현재가보다 높아야 한다
         Integer bidAmount = request.getBidAmount();
@@ -112,6 +109,11 @@ public class BidService {
             Bid previousBid = bidRepository.findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(auctionId, userId)
                 .orElseThrow(() -> new NotFoundException("기존 입찰 보증금을 찾을 수 없습니다."));
             depositPaymentId = previousBid.getDepositPaymentId();
+            // 이미 보증금을 낸 경매인데 화면이 첫 입찰로 잘못 알고 보증금을 또 결제해 보냈다면, 그 결제는 기록하지 않고 바로 취소한다
+            String extraPaymentId = request.getPaymentId();
+            if (extraPaymentId != null && !extraPaymentId.isBlank() && !extraPaymentId.equals(depositPaymentId)) {
+                paymentService.cancelUnrecorded(extraPaymentId, "이미 보증금을 낸 경매의 중복 보증금 결제 취소");
+            }
         }
 
         // 6. 저장 및 현재가 갱신
@@ -142,6 +144,11 @@ public class BidService {
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);
         return BidResponse.from(bid);
+    }
+
+    // 이 경매에 내가 입찰한 적이 있는지 (있으면 보증금을 이미 냈으므로 다음 입찰은 보증금 결제 없이 한다)
+    public boolean hasMyBid(Long auctionId, Long userId) {
+        return userId != null && bidRepository.existsByAuctionIdAndUserId(auctionId, userId);
     }
 
     // 입찰 내역 조회

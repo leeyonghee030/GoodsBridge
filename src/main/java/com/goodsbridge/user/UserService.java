@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -35,6 +36,22 @@ public class UserService {
     private final AuctionRepository auctionRepository;
     private final EventParticipationRepository eventParticipationRepository;
     private final PurchaseRepository purchaseRepository;
+
+    // 구매·낙찰 잔금 결제 화면의 배송지에 미리 채울 "내 기본 주소" (내 정보에 저장한 주소).
+    // 화면 조각 fragments/delivery-address 가 모델의 defaultAddress 로 쓴다. 주소가 없으면 null.
+    public Map<String, String> findDefaultAddress(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId)
+            .map(User::getAddress)
+            .filter(address -> address != null && address.getAddress() != null && !address.getAddress().isBlank())
+            .map(address -> Map.of(
+                "postalCode", address.getPostalCode() == null ? "" : address.getPostalCode(),
+                "address", address.getAddress(),
+                "detailAddress", address.getDetailAddress() == null ? "" : address.getDetailAddress()))
+            .orElse(null);
+    }
 
     @Transactional
     public UserResponse.JoinDto join(UserRequest.JoinDto joinDto, String  verifiedEmail) {
