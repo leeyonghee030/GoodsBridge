@@ -12,6 +12,8 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.authentication.Http403ForbiddenEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -53,6 +55,11 @@ public class SecurityConfig {
                 // 💡 [필수 추가] 관리자 전용 경로는 ROLE_ADMIN만 접근 가능하도록 최상단에 배치
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
 
+                // 관리자 화면과 마이페이지 화면도 로그인(관리자 화면은 ADMIN)이 있어야 연다.
+                // 아래 permitAll 보다 먼저 와야 한다 (먼저 일치하는 규칙이 적용되므로, permitAll 목록에 /my/** 가 있어도 여기가 이긴다)
+                .requestMatchers("/test/admin/**").hasRole("ADMIN")
+                .requestMatchers("/my/**").authenticated()
+
                 .requestMatchers(
                     "/", "/error", "/api/kakao-login",
                     "/oauth2/**", "/login/**", "/api/join", "/join", "/api/login",
@@ -81,6 +88,10 @@ public class SecurityConfig {
                 .anyRequest().authenticated()
             )
 
+            // 로그인이 필요한 화면을 비로그인 브라우저가 열면 빈 403 대신 홈으로 보내 로그인 창을 띄운다.
+            // API 요청이나 브라우저가 아닌 요청은 기존처럼 403 을 돌려준다.
+            .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(loginRedirectEntryPoint()))
+
             // JWT 필터 등록
             .addFilterBefore(
                 jwtAuthenticationFilter(),
@@ -90,5 +101,21 @@ public class SecurityConfig {
 
 
         return http.build();
+    }
+
+    private AuthenticationEntryPoint loginRedirectEntryPoint() {
+        AuthenticationEntryPoint forbidden = new Http403ForbiddenEntryPoint();
+        return (request, response, authException) -> {
+            String accept = request.getHeader("Accept");
+            boolean browserPage = "GET".equals(request.getMethod())
+                && !request.getRequestURI().startsWith("/api/")
+                && accept != null && accept.contains("text/html");
+            if (browserPage) {
+                // 헤더가 ?login=open 이면 로그인 창을 자동으로 연다
+                response.sendRedirect("/?login=open");
+            } else {
+                forbidden.commence(request, response, authException);
+            }
+        };
     }
 }
