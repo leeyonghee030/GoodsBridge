@@ -206,7 +206,7 @@ class BidServiceTest {
     @Test
     void placeBid_rejectsRaiseSmallerThanMinimumIncrement() {
         User otherWinner = mock(User.class);
-        when(otherWinner.getId()).thenReturn(99L);
+        lenient().when(otherWinner.getId()).thenReturn(99L);
         lenient().when(auction.getCurrentWinner()).thenReturn(otherWinner);
 
         BadRequestException exception = assertThrows(BadRequestException.class,
@@ -291,7 +291,7 @@ class BidServiceTest {
     void placeBid_rejectsBidAtOrBelowCurrentPrice() {
         // 이미 입찰이 있는 경매(현재 1위가 있음)에서는 현재가와 같은 금액도 안 된다
         User otherWinner = mock(User.class);
-        when(otherWinner.getId()).thenReturn(99L);
+        lenient().when(otherWinner.getId()).thenReturn(99L);
         lenient().when(auction.getCurrentWinner()).thenReturn(otherWinner);
         BadRequestException exception = assertThrows(BadRequestException.class,
             () -> bidService.placeBid(1L, 2L, new BidRequest(10_000, "payment-1")));
