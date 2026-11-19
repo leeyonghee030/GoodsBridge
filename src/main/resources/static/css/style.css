@@ -2005,9 +2005,9 @@ textarea.gb-dialog-input { display: block; min-height: 8rem; line-height: 1.6; t
 @keyframes gb-pop { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* ===== 마이페이지 상단 탭 (내 정보 / 교환 내역) ===== */
-.my-tabs { display: flex; gap: 1.25rem; margin: 0 0 1.25rem; border-bottom: 1px solid var(--color-border); }
+.my-tabs { display: flex; flex-wrap: wrap; gap: 0 1.25rem; margin: 0 0 1.25rem; border-bottom: 1px solid var(--color-border); }
 .my-tabs.my-tabs-page { margin: 0 1.5rem 1.25rem; }
-.my-tabs a { padding: 0.6rem 0.1rem; font-size: 0.95rem; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.my-tabs a { white-space: nowrap; padding: 0.6rem 0.1rem; font-size: 0.95rem; color: var(--color-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .my-tabs a.active { color: var(--color-text); font-weight: var(--fw-bold); border-bottom-color: var(--color-dark); }
 
 /* ===== 내 교환 게시글 카드 오른쪽 위 ⋯ 메뉴 (fragments/exchange-post-actions) ===== */
@@ -2295,3 +2295,39 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .item-detail-info.tabbed { height: auto; min-height: 450px; }
 .item-detail-info.tabbed .info-list { max-height: 340px; }
 @media (max-width: 760px) { .info-pane { flex: none; } .info-list { overflow: visible; } }
+
+/* 마이페이지 "내 문의", 판매자 "문의 관리"·"리뷰 관리" 목록 */
+.mb-subtabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 0.6rem; }
+.mb-subtabs button { width: auto; padding: 0.35rem 0.85rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg); color: var(--color-text); font: inherit; font-size: 0.82rem; font-weight: 500; cursor: pointer; }
+.mb-subtabs button:hover { background: var(--color-surface); color: var(--color-text); }
+.mb-subtabs button.active, .mb-subtabs button.active:hover { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
+.mb-subtabs button small { margin-left: 0.3rem; font-size: 0.74rem; opacity: 0.7; }
+.mb-subtabs button small:empty { display: none; }
+.mb-note { margin: 0 0 0.7rem; font-size: 0.8rem; color: var(--color-muted); }
+.mb-panel { border: 1px solid var(--color-border); border-radius: 14px; background: #fff; padding: 0.4rem 1rem; }
+.mb-list { min-height: 160px; }
+.mb-row { display: flex; align-items: center; gap: 0.8rem; padding: 0.85rem 0; border-bottom: 1px solid var(--color-border); text-decoration: none; color: inherit; }
+.mb-row:last-child { border-bottom: 0; }
+.mb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.mb-main strong { font-size: 0.95rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mb-main small { color: var(--color-muted); font-size: 0.78rem; }
+.mb-main small a { color: inherit; text-decoration: underline; }
+.mb-main .mb-content { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; color: var(--color-text); }
+.mb-kind { flex: none; min-width: 3rem; text-align: center; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: var(--color-surface); color: var(--color-muted); }
+.mb-kind.is-event { background: #E8F0FE; color: #1F4FB4; }
+.mb-kind.is-auction { background: #FFF1D6; color: #9A5B00; }
+.mb-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.mb-badge.is-wait { background: #FDECEA; color: #C0392B; }
+.mb-badge.is-done { background: #EAF5EE; color: #2E7D4F; }
+.mb-badge.is-hidden { background: var(--color-dark); color: #fff; }
+.mb-actions { flex: none; display: flex; gap: 0.4rem; }
+.mb-actions button { width: auto; padding: 0.38rem 0.75rem; font-size: 0.76rem; }
+.mb-actions button.secondary { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); }
+.mb-actions button.secondary:hover { background: var(--color-surface); color: var(--color-text); }
+.mb-actions button.danger { background: #fff; border: 1px solid #E6B8B3; color: #C0392B; }
+.mb-actions button.danger:hover { background: #FDECEA; color: #C0392B; }
+.mb-empty { margin: 0; padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.88rem; }
+.mb-more { margin-top: 0.6rem; }
+@media (max-width: 640px) { .mb-row { flex-wrap: wrap; } .mb-actions { width: 100%; } }
+/* 판매자가 비공개로 바꾼 리뷰를 작성자에게 알리는 표시 */
+.rv-hidden-note { display: inline-block; margin-top: 0.25rem; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.72rem; background: var(--color-dark); color: #fff; }

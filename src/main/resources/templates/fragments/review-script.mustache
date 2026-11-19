@@ -27,6 +27,7 @@
                 <strong>${esc(board.title)}</strong>
                 <small>${esc(preview(board.content))}</small>
                 <small>${esc(board.authorNickname)}</small>
+                ${board.hiddenBySeller ? '<span class="rv-hidden-note">판매자가 비공개로 바꿈 · 나에게만 보여요</span>' : ''}
             </div>
             <small class="board-meta">${day(board.createdAt)}</small>
         </a>`;

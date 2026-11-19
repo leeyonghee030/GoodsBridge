@@ -1,0 +1,106 @@
+<!--
+  마이페이지 "내 문의"와 판매자 "문의 관리"가 함께 쓰는 문의 목록.
+  모델: inquiryScope = mine(내가 쓴 문의) / seller(내 상품·이벤트·경매에 온 문의)
+  위쪽 버튼으로 상품/이벤트/경매를 나눠 보고, 답변 상태로 걸러 본다. 글을 누르면 상세에서 답변을 확인/작성한다.
+-->
+<div class="mb-subtabs" id="mb-kinds"></div>
+<div class="mb-subtabs" id="mb-status"></div>
+<section class="mb-panel">
+    <div id="mb-list" class="mb-list"></div>
+    <p id="mb-empty" class="mb-empty" hidden></p>
+    <button type="button" id="mb-more" class="mb-more" hidden>더 보기</button>
+</section>
+
+<script>
+(() => {
+    const SCOPE = '{{inquiryScope}}';
+    const SELLER = SCOPE === 'seller';
+    const LIST_API = SELLER ? '/api/boards/seller/inquiries' : '/api/boards/my-inquiries';
+    const KINDS = [['ALL', '전체'], ['ITEM', '상품'], ['EVENT', '이벤트'], ['AUCTION', '경매']];
+    const KIND_LABEL = { ITEM: '상품', EVENT: '이벤트', AUCTION: '경매' };
+    const STATUS = [['ALL', '전체'], ['PENDING', '답변 대기'], ['COMPLETED', '답변 완료']];
+
+    const listEl = document.getElementById('mb-list');
+    const emptyEl = document.getElementById('mb-empty');
+    const moreEl = document.getElementById('mb-more');
+    let kind = 'ALL';
+    let status = 'ALL';
+    let nextPage = 0;
+    let last = true;
+    let rows = [];
+    let counts = {};
+
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
+
+    function renderTabs() {
+        document.getElementById('mb-kinds').innerHTML = KINDS.map(([key, label]) =>
+            `<button type="button" data-kind="${key}" class="${kind === key ? 'active' : ''}">${label}<small>${counts[key] ?? ''}</small></button>`).join('');
+        document.getElementById('mb-status').innerHTML = STATUS.map(([key, label]) =>
+            `<button type="button" data-status="${key}" class="${status === key ? 'active' : ''}">${label}</button>`).join('');
+    }
+
+    function rowHtml(r) {
+        const target = r.targetType || 'ITEM';
+        const wait = r.status === 'PENDING';
+        const meta = [r.itemTitle, SELLER ? r.authorNickname : null, day(r.createdAt)].filter(Boolean).map(esc).join(' · ');
+        return `<a class="mb-row" href="/test/board/${r.id}">
+            <span class="mb-kind is-${target.toLowerCase()}">${KIND_LABEL[target] || '상품'}</span>
+            <span class="mb-main"><strong>${esc(r.title)}</strong><small>${meta}</small></span>
+            <span class="mb-badge ${wait ? 'is-wait' : 'is-done'}">${wait ? '답변 대기' : '답변 완료'}</span>
+        </a>`;
+    }
+
+    function render() {
+        const shown = status === 'ALL' ? rows : rows.filter(r => r.status === status);
+        listEl.innerHTML = shown.map(rowHtml).join('');
+        const none = shown.length === 0;
+        emptyEl.hidden = !none;
+        if (none) {
+            emptyEl.textContent = rows.length
+                ? '이 상태의 문의가 없어요.'
+                : (SELLER ? '아직 받은 문의가 없어요.' : '아직 남긴 문의가 없어요. 상품·이벤트·경매 상세 화면에서 문의할 수 있어요.');
+        }
+        moreEl.hidden = last;
+    }
+
+    async function load(reset) {
+        if (reset) { nextPage = 0; rows = []; }
+        const query = new URLSearchParams({ page: nextPage, size: 10, sort: 'id,desc' });
+        if (kind !== 'ALL') query.set('targetType', kind);
+        const res = await fetch(LIST_API + '?' + query.toString(), { credentials: 'same-origin' });
+        if (!res.ok) { emptyEl.textContent = '문의를 불러오지 못했어요.'; emptyEl.hidden = false; return; }
+        const page = await res.json();
+        rows = rows.concat(page.content || []);
+        last = !!page.last;
+        nextPage += 1;
+        render();
+    }
+
+    async function loadCounts() {
+        const res = await fetch('/api/boards/inquiry-counts?scope=' + (SELLER ? 'seller' : 'mine'), { credentials: 'same-origin' });
+        if (res.ok) counts = await res.json();
+        renderTabs();
+    }
+
+    document.getElementById('mb-kinds').addEventListener('click', event => {
+        const button = event.target.closest('[data-kind]');
+        if (!button) return;
+        kind = button.dataset.kind;
+        renderTabs();
+        load(true);
+    });
+    document.getElementById('mb-status').addEventListener('click', event => {
+        const button = event.target.closest('[data-status]');
+        if (!button) return;
+        status = button.dataset.status;
+        renderTabs();
+        render();
+    });
+    moreEl.addEventListener('click', () => load(false));
+
+    renderTabs();
+    loadCounts();
+    load(true);
+})();
+</script>

@@ -1,0 +1,133 @@
+{{> fragments/header}}
+
+<!-- 판매자: 내 상품의 리뷰 관리 (비공개로 바꾸기 / 다시 공개 / 삭제) -->
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/shop/dashboard">대시보드</a>
+    <a href="/shop/exchange">가게 교환 관리</a>
+    <a href="/shop/items">판매 상품 관리</a>
+    <a href="/shop/events">이벤트 관리</a>
+    <a href="/shop/auctions">경매 관리</a>
+    <a href="/shop/inquiries">문의 관리</a>
+    <a href="/shop/reviews" class="active">리뷰 관리</a>
+</nav>
+
+<div class="mb-subtabs" id="mb-status"></div>
+<p class="mb-note">비공개로 바꾼 리뷰는 작성자 본인에게만 보이고, 언제든 다시 공개할 수 있어요. 삭제하면 되돌릴 수 없어요.</p>
+<section class="mb-panel">
+    <div id="mb-list" class="mb-list"></div>
+    <p id="mb-empty" class="mb-empty" hidden></p>
+    <button type="button" id="mb-more" class="mb-more" hidden>더 보기</button>
+</section>
+</div>
+
+<script>
+(() => {
+    const STATUS = [['ALL', '전체'], ['PUBLIC', '공개'], ['HIDDEN', '비공개']];
+    const listEl = document.getElementById('mb-list');
+    const emptyEl = document.getElementById('mb-empty');
+    const moreEl = document.getElementById('mb-more');
+    let status = 'ALL';
+    let nextPage = 0;
+    let last = true;
+    let rows = [];
+
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+
+    const count = key => key === 'ALL' ? rows.length
+        : rows.filter(r => key === 'HIDDEN' ? r.hiddenBySeller : !r.hiddenBySeller).length;
+
+    function renderTabs() {
+        document.getElementById('mb-status').innerHTML = STATUS.map(([key, label]) =>
+            `<button type="button" data-status="${key}" class="${status === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
+    }
+
+    function rowHtml(r) {
+        const hidden = r.hiddenBySeller;
+        const meta = [`<a href="/test/item/${r.itemId}#review">${esc(r.itemTitle || '상품')}</a>`, esc(r.authorNickname), day(r.createdAt)].join(' · ');
+        return `<div class="mb-row mb-review" data-id="${r.id}">
+            <span class="mb-main">
+                <strong>${esc(r.title)}</strong>
+                <small class="mb-content">${esc(r.content)}</small>
+                <small>${meta}</small>
+            </span>
+            <span class="mb-badge ${hidden ? 'is-hidden' : 'is-done'}">${hidden ? '비공개' : '공개'}</span>
+            <span class="mb-actions">
+                <button type="button" class="secondary" data-act="toggle">${hidden ? '다시 공개' : '비공개로 바꾸기'}</button>
+                <button type="button" class="danger" data-act="delete">삭제</button>
+            </span>
+        </div>`;
+    }
+
+    function render() {
+        renderTabs();
+        const shown = status === 'ALL' ? rows : rows.filter(r => status === 'HIDDEN' ? r.hiddenBySeller : !r.hiddenBySeller);
+        listEl.innerHTML = shown.map(rowHtml).join('');
+        emptyEl.hidden = shown.length > 0;
+        if (shown.length === 0) {
+            emptyEl.textContent = rows.length ? '이 상태의 리뷰가 없어요.' : '내 상품에 달린 리뷰가 아직 없어요.';
+        }
+        moreEl.hidden = last;
+    }
+
+    async function load(reset) {
+        if (reset) { nextPage = 0; rows = []; }
+        const query = new URLSearchParams({ page: nextPage, size: 10, sort: 'id,desc' });
+        const res = await fetch('/api/boards/seller/reviews?' + query.toString(), { credentials: 'same-origin' });
+        if (!res.ok) { emptyEl.textContent = '리뷰를 불러오지 못했어요.'; emptyEl.hidden = false; return; }
+        const page = await res.json();
+        rows = rows.concat(page.content || []);
+        last = !!page.last;
+        nextPage += 1;
+        render();
+    }
+
+    document.getElementById('mb-status').addEventListener('click', event => {
+        const button = event.target.closest('[data-status]');
+        if (!button) return;
+        status = button.dataset.status;
+        render();
+    });
+    moreEl.addEventListener('click', () => load(false));
+
+    listEl.addEventListener('click', async event => {
+        const button = event.target.closest('[data-act]');
+        if (!button) return;
+        const row = button.closest('[data-id]');
+        const review = rows.find(r => r.id === Number(row.dataset.id));
+        if (!review) return;
+        button.disabled = true;
+        try {
+            if (button.dataset.act === 'toggle') {
+                const res = await fetch(`/api/boards/${review.id}/hidden`, {
+                    method: 'PATCH', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hidden: !review.hiddenBySeller })
+                });
+                if (!res.ok) { await alert(await errorText(res, '처리에 실패했습니다.')); return; }
+                review.hiddenBySeller = !review.hiddenBySeller;
+                render();
+            } else {
+                if (!(await gbConfirm('이 리뷰를 삭제할까요?\n삭제하면 되돌릴 수 없어요.'))) return;
+                const res = await fetch(`/api/boards/${review.id}`, { method: 'DELETE', credentials: 'same-origin' });
+                if (!res.ok) { await alert(await errorText(res, '삭제에 실패했습니다.')); return; }
+                rows = rows.filter(r => r.id !== review.id);
+                render();
+            }
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    render();
+    load(true);
+})();
+</script>
+
+{{> fragments/footer}}

@@ -1,6 +1,7 @@
 package com.goodsbridge.board;
 
 import com.goodsbridge._core.util.SecurityUtil;
+import com.goodsbridge.shop.ShopRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -20,6 +21,7 @@ import java.util.Map;
 public class BoardViewController {
 
     private final BoardService boardService;
+    private final ShopRepository shopRepository;
 
     @GetMapping("/test/board")
     public String index(
@@ -71,6 +73,41 @@ public class BoardViewController {
             board.getBoardType() != BoardType.COMMUNITY && board.getBoardType() != BoardType.PRODUCT_REVIEW);
         model.addAttribute("userId", userId);
         return "board/detail";
+    }
+
+    // 마이페이지 "내 문의": 내가 쓴 상품·이벤트·경매 문의
+    @GetMapping("/my/inquiries")
+    public String myInquiries(Model model) {
+        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
+        model.addAttribute("inquiryScope", "mine");
+        return "board/my-inquiries";
+    }
+
+    // 판매자 "문의 관리": 내 상품·이벤트·경매에 온 문의 (가게 사장님이 아니면 내 정보로 보낸다)
+    @GetMapping("/shop/inquiries")
+    public String shopInquiries(Model model) {
+        Long userId = SecurityUtil.getCurrentUserIdOrNull();
+        if (!isShopOwner(userId)) {
+            return "redirect:/update";
+        }
+        model.addAttribute("userId", userId);
+        model.addAttribute("inquiryScope", "seller");
+        return "board/shop-inquiries";
+    }
+
+    // 판매자 "리뷰 관리": 내 상품의 리뷰를 비공개로 바꾸거나 삭제
+    @GetMapping("/shop/reviews")
+    public String shopReviews(Model model) {
+        Long userId = SecurityUtil.getCurrentUserIdOrNull();
+        if (!isShopOwner(userId)) {
+            return "redirect:/update";
+        }
+        model.addAttribute("userId", userId);
+        return "board/shop-reviews";
+    }
+
+    private boolean isShopOwner(Long userId) {
+        return userId != null && shopRepository.existsByOwnerUserIdAndDeletedFalse(userId);
     }
 
     // 화면에서 고를 수 있는 게시판 유형 (LEGACY 는 기존 글 보존용이라 제외)
