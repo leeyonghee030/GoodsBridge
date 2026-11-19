@@ -40,7 +40,7 @@ public class UserRequest {
 
         private String postalCode;      // 우편 번호
         private String address;         // 기본 주소
-        private String detailAddress;   // 상세 주소 (선택 입력)
+        private String detailAddress;   // 상세 주소 (주소를 입력하면 필수, 60자 이내)
 
         // 휴대폰
         private String phonePrefix;
@@ -92,6 +92,15 @@ public class UserRequest {
 
             if (hasPostalCode != hasBaseAddress) {
                 throw new BadRequestException("우편번호와 기본 주소를 모두 입력해 주세요.");
+            }
+
+            // 주소는 안 적어도 되지만, 적었다면 상세주소(동·호수 등)까지 적어야 한다 (구매 시 배송지와 같은 규칙)
+            boolean hasDetailAddress = detailAddress != null && !detailAddress.isBlank();
+            if (hasBaseAddress && !hasDetailAddress) {
+                throw new BadRequestException("상세주소(동·호수 등)를 입력해 주세요.");
+            }
+            if (hasDetailAddress && detailAddress.trim().length() > 60) {
+                throw new BadRequestException("상세주소는 60자 이내로 입력해 주세요.");
             }
 
             if (hasPassword() && password.length() < 8) {

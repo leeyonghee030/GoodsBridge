@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class UserUpdateFormTest {
 
@@ -56,6 +57,36 @@ class UserUpdateFormTest {
         dto.setPhoneLast("5678");
 
         assertDoesNotThrow(dto::validate);
+    }
+
+    // ===== 주소: 안 적어도 되지만, 적었다면 상세주소까지 필수 =====
+
+    private static UserRequest.UpdateDto address(String postalCode, String base, String detail) {
+        UserRequest.UpdateDto dto = new UserRequest.UpdateDto();
+        dto.setNickname("닉");
+        dto.setPostalCode(postalCode);
+        dto.setAddress(base);
+        dto.setDetailAddress(detail);
+        return dto;
+    }
+
+    @Test
+    void validate_allowsNoAddressAtAll() {
+        assertDoesNotThrow(address(null, null, null)::validate);
+        assertDoesNotThrow(address("", "", "")::validate);
+    }
+
+    @Test
+    void validate_requiresDetailAddressWhenAddressIsEntered() {
+        BadRequestException e = assertThrows(BadRequestException.class, address("04420", "서울 용산구 유엔빌리지길 1", " ")::validate);
+        assertEquals("상세주소(동·호수 등)를 입력해 주세요.", e.getMessage());
+        assertDoesNotThrow(address("04420", "서울 용산구 유엔빌리지길 1", "101동 202호")::validate);
+    }
+
+    @Test
+    void validate_rejectsTooLongDetailAddress() {
+        assertThrows(BadRequestException.class, address("04420", "서울 용산구 유엔빌리지길 1", "가".repeat(61))::validate);
+        assertDoesNotThrow(address("04420", "서울 용산구 유엔빌리지길 1", "가".repeat(60))::validate);
     }
 
     @Test

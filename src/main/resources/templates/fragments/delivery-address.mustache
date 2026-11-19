@@ -22,7 +22,8 @@
     <input id="da-detail" type="text" maxlength="60" placeholder="상세주소 (동·호수 등)" autocomplete="address-line2" required>
 </div>
 
-<script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<!-- 주소검색은 누를 때만 필요하므로 페이지 로딩(입찰 화면 등)을 막지 않게 비동기로 불러온다 -->
+<script async src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
 (() => {
     const $ = id => document.getElementById(id);
@@ -81,6 +82,9 @@
         error() {
             if (!$('da-base').value.trim()) { search.hidden = false; search.focus(); return '주소검색으로 주소를 입력해 주세요.'; }
             if (!$('da-detail').value.trim()) { $('da-detail').focus(); return '상세주소(동·호수 등)를 입력해 주세요.'; }
+            // 서버의 배송지 길이 제한(255자)을 결제 전에 지킨다. 저장된 기본 주소는 입력칸의 maxlength 를 거치지 않으므로 여기서 본다
+            if ($('da-detail').value.trim().length > 60) { $('da-detail').focus(); return '상세주소는 60자 이내로 입력해 주세요.'; }
+            if (this.text().length > 200) { $('da-detail').focus(); return '주소가 너무 길어요. 상세주소를 줄여 주세요.'; }
             return null;
         },
         text() {

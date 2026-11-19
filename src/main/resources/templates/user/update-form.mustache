@@ -171,7 +171,7 @@
                 </div>
                 <div class="address-base-row">
                     <input id="address-base" type="text" name="address" value="{{#user.address}}{{user.address}}{{/user.address}}" placeholder="기본주소" readonly>
-                    <input id="address-detail" type="text" name="detailAddress" value="{{#user.detailAddress}}{{user.detailAddress}}{{/user.detailAddress}}" placeholder="상세주소 (선택 입력 가능)">
+                    <input id="address-detail" type="text" name="detailAddress" value="{{#user.detailAddress}}{{user.detailAddress}}{{/user.detailAddress}}" placeholder="상세주소 (동·호수 등)" maxlength="60">
                 </div>
             </div>
         </div>
@@ -190,6 +190,16 @@
 <script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script src="/js/api.js"></script>
 <script>
+    // 주소는 안 적어도 되지만, 적었다면 상세주소까지 적어야 저장된다 (서버 UserRequest.UpdateDto 와 같은 규칙)
+    document.querySelector('.profile-form').addEventListener('submit', ev => {
+        const base = document.getElementById('address-base').value.trim();
+        const detail = document.getElementById('address-detail');
+        if (base && !detail.value.trim()) {
+            ev.preventDefault();
+            alert('상세주소(동·호수 등)를 입력해 주세요.');
+            detail.focus();
+        }
+    });
 
     // 주소 입력 api
 
