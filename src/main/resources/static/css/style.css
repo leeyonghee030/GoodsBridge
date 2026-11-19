@@ -2413,3 +2413,5 @@ button.iqm-more:hover { background: var(--color-surface); color: var(--color-tex
 .iqm-edit-actions { display: flex; justify-content: flex-end; gap: 0.3rem; margin-top: 0.4rem; }
 .iqm-edit-actions button[type="submit"] { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
 .iqm-edit-actions button[type="submit"]:hover { background: var(--color-dark-hover); color: #fff; }
+/* 게시글 상세의 댓글: ⋯ 메뉴를 오른쪽 위에 둔다 */
+.comment-row .iqm-reply-actions { position: absolute; top: 0.55rem; right: 0; margin: 0; }

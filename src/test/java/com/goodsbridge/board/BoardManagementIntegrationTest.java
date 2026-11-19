@@ -430,6 +430,35 @@ class BoardManagementIntegrationTest {
     }
 
     @Test
+    void newInquiryAndReview_notifyTheSellerOrAdmins() {
+        events.clear();
+        Long inquiryId = inquiry(buyerId, null, itemA.getId(), null);
+        assertThat(events.stream(NotificationEvent.class).filter(e -> e.referenceId().equals(inquiryId)))
+            .extracting(NotificationEvent::userId, NotificationEvent::type)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple(sellerId, com.goodsbridge.notification.Notification.Type.BOARD_INQUIRY));
+
+        events.clear();
+        Long reviewId = review(buyerId, itemA);
+        assertThat(events.stream(NotificationEvent.class).filter(e -> e.referenceId().equals(reviewId)))
+            .extracting(NotificationEvent::userId, NotificationEvent::type)
+            .containsExactly(org.assertj.core.groups.Tuple.tuple(sellerId, com.goodsbridge.notification.Notification.Type.BOARD_REVIEW));
+
+        // 고객센터 문의는 관리자 전원에게
+        jdbcTemplate.update("update user_tb set role = 'ADMIN' where id = ?", otherId);
+        events.clear();
+        Long csId = boardService.createBoard(BoardRequestDto.builder().title("고객센터").content("내용")
+            .boardType(BoardType.CUSTOMER_SERVICE).build(), buyerId);
+        assertThat(events.stream(NotificationEvent.class).filter(e -> e.referenceId().equals(csId)).map(NotificationEvent::userId))
+            .containsExactlyInAnyOrderElementsOf(userRepository.findIdsByRole(Role.ADMIN))
+            .contains(otherId);
+
+        // 판매자가 자기 상품에 문의를 남기면 자기에게는 알리지 않는다
+        events.clear();
+        inquiry(sellerId, null, itemA.getId(), null);
+        assertThat(events.stream(NotificationEvent.class)).isEmpty();
+    }
+
+    @Test
     void reviewReplies_onlyBySellerOfTheItem() {
         Long id = review(buyerId, itemA);
         assertThatThrownBy(() -> reply(id, buyerId, "작성자 댓글")).isInstanceOf(ForbiddenException.class);

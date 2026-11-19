@@ -43,18 +43,22 @@
         <div id="reply-list">
             {{^board.replies}}<p class="empty">아직 댓글이 없습니다.</p>{{/board.replies}}
             {{#board.replies}}
-            <div class="comment-row">
+            <div class="comment-row" data-reply-id="{{id}}">
                 <strong>{{authorNickname}}</strong>
                 <small class="board-date" data-iso="{{createdAt}}"></small>
                 <p>{{content}}</p>
-                <button type="button" class="comment-delete" data-delete-reply="{{id}}" data-author-id="{{authorId}}" hidden aria-label="댓글 삭제">✕</button>
+                <!-- 내가 쓴 댓글에만 ⋯ 메뉴(수정/삭제)를 보여준다 -->
+                <span class="iqm-reply-actions" data-author-id="{{authorId}}" hidden>
+                    <button type="button" data-act="menu" class="iqm-more" aria-label="더보기">⋯</button>
+                    <span class="iqm-menu" hidden><button type="button" data-act="edit">수정</button><button type="button" data-act="delete" class="is-danger">삭제</button></span>
+                </span>
             </div>
             {{/board.replies}}
         </div>
         {{#replyLocked}}<p class="empty" style="margin-top: 1rem;">리뷰에는 판매자만 댓글을 달 수 있어요.</p>{{/replyLocked}}
         {{^replyLocked}}
         <form id="reply-form" style="margin-top: 1rem;">
-            <p><input id="reply-content" type="text" placeholder="댓글을 입력하세요" required></p>
+            <p><input id="reply-content" type="text" placeholder="댓글을 입력하세요" maxlength="1000" required></p>
             <button type="submit">댓글 등록</button>
         </form>
         {{/replyLocked}}
@@ -132,14 +136,55 @@ const errorText = async (res, fallback) => {
         });
     }
 
-    // 본인이 작성한 댓글에만 삭제 버튼 노출
-    document.querySelectorAll('[data-delete-reply]').forEach(button => {
-        if (userId !== null && userId === Number(button.dataset.authorId)) button.hidden = false;
-        button.addEventListener('click', async () => {
-            const res = await pageFetch('/api/replies/' + button.dataset.deleteReply, { method: 'DELETE' });
-            if (!res.ok) { alert('삭제에 실패했습니다.'); return; }
+    // ===== 댓글 ⋯ 메뉴 (본인이 작성한 댓글만): 수정 / 삭제 =====
+    const replyList = document.getElementById('reply-list');
+    const replyMessage = document.getElementById('reply-message');
+    const closeReplyMenus = () => replyList.querySelectorAll('.iqm-menu').forEach(m => { m.hidden = true; });
+    replyList.querySelectorAll('.iqm-reply-actions').forEach(actions => {
+        if (userId !== null && userId === Number(actions.dataset.authorId)) actions.hidden = false;
+    });
+    document.addEventListener('click', event => {
+        if (!event.target.closest('#reply-list .iqm-reply-actions')) closeReplyMenus();
+    });
+    replyList.addEventListener('click', async event => {
+        const button = event.target.closest('[data-act]');
+        if (!button) return;
+        const row = button.closest('.comment-row');
+        const replyId = row.dataset.replyId;
+        if (button.dataset.act === 'menu') {
+            const menu = row.querySelector('.iqm-menu');
+            const willOpen = menu.hidden;
+            closeReplyMenus();
+            menu.hidden = !willOpen;
+            return;
+        }
+        closeReplyMenus();
+        if (button.dataset.act === 'delete') {
+            if (!(await gbConfirm('이 댓글을 삭제할까요?'))) return;
+            const res = await pageFetch('/api/replies/' + replyId, { method: 'DELETE' });
+            if (!res.ok) { replyMessage.textContent = await errorText(res, '삭제에 실패했습니다.'); replyMessage.className = 'form-message error'; return; }
             location.reload();
+            return;
+        }
+        if (button.dataset.act === 'edit') {
+            const p = row.querySelector('p');
+            row.querySelector('.iqm-reply-actions').hidden = true;
+            p.outerHTML = `<form class="iqm-edit"><textarea rows="3" maxlength="1000" required>${esc(p.textContent)}</textarea>
+                <div class="iqm-edit-actions"><button type="button" data-act="cancel" class="is-ghost">취소</button><button type="submit">저장</button></div></form>`;
+            row.querySelector('textarea').focus();
+            return;
+        }
+        if (button.dataset.act === 'cancel') location.reload();
+    });
+    replyList.addEventListener('submit', async event => {
+        event.preventDefault();
+        const row = event.target.closest('.comment-row');
+        const res = await pageFetch('/api/replies/' + row.dataset.replyId, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: row.querySelector('textarea').value.trim() })
         });
+        if (!res.ok) { replyMessage.textContent = await errorText(res, '수정에 실패했습니다.'); replyMessage.className = 'form-message error'; return; }
+        location.reload();
     });
 
     // ===== 게시글 수정 =====

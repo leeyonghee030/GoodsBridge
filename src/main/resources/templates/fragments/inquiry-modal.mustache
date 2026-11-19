@@ -3,7 +3,7 @@
   사용: window.openInquiryModal(boardId, { onChange: () => 목록 새로고침 })
   목록의 행은 <a href="/test/board/{id}" data-inquiry-id="{id}"> 형태로 두면, 눌렀을 때 팝업이 열리고 (스크립트가 없으면 상세 페이지로 이동한다)
 -->
-<div class="modal-backdrop" id="iq-modal" hidden>
+<div class="modal-backdrop" id="iqm-modal" hidden>
     <div class="modal-card iq-modal-card" role="dialog" aria-modal="true" aria-labelledby="iqm-title">
         <button type="button" class="modal-close" id="iqm-close" aria-label="닫기">✕</button>
         <div class="iqm-head">
@@ -14,7 +14,7 @@
         <p class="iqm-question" id="iqm-content"></p>
         <div class="iqm-replies" id="iqm-replies"></div>
         <form id="iqm-form" class="iqm-form">
-            <textarea id="iqm-input" rows="3" placeholder="답변을 입력하세요" required></textarea>
+            <textarea id="iqm-input" rows="3" placeholder="답변을 입력하세요" maxlength="1000" required></textarea>
             <div class="iqm-actions">
                 <a id="iqm-detail" class="iqm-link" href="#">상세 보기</a>
                 <button type="submit" id="iqm-submit">답변 등록</button>
@@ -26,7 +26,7 @@
 
 <script>
 (() => {
-    const modal = document.getElementById('iq-modal');
+    const modal = document.getElementById('iqm-modal');
     const $ = id => document.getElementById(id);
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const when = iso => (iso || '').replace('T', ' ').slice(0, 16);
@@ -127,7 +127,7 @@
         message.textContent = '';
 
         if (button.dataset.act === 'delete') {
-            if (!confirm('이 답변을 삭제할까요?')) return;
+            if (!(await (window.gbConfirm ? gbConfirm('이 답변을 삭제할까요?') : confirm('이 답변을 삭제할까요?')))) return;
             const res = await fetch('/api/replies/' + replyId, { method: 'DELETE', credentials: 'same-origin' });
             if (!res.ok) { message.textContent = await errorText(res, '삭제에 실패했습니다.'); message.className = 'form-message error'; return; }
             refresh();
@@ -136,7 +136,7 @@
         if (button.dataset.act === 'edit') {
             const p = row.querySelector('p');
             row.querySelector('.iqm-reply-actions').hidden = true;
-            p.outerHTML = `<form class="iqm-edit"><textarea rows="3" required>${esc(p.textContent)}</textarea>
+            p.outerHTML = `<form class="iqm-edit"><textarea rows="3" maxlength="1000" required>${esc(p.textContent)}</textarea>
                 <div class="iqm-edit-actions"><button type="button" data-act="cancel" class="is-ghost">취소</button><button type="submit">저장</button></div></form>`;
             row.querySelector('textarea').focus();
             return;

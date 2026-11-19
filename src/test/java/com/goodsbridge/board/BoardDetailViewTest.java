@@ -89,6 +89,19 @@ class BoardDetailViewTest {
     }
 
     @Test
+    void replies_haveAKebabMenuWithEditAndDelete_insteadOfTheOldDeleteButton() throws Exception {
+        Long id = board(BoardType.COMMUNITY);
+        Board board = boardRepository.findById(id).orElseThrow();
+        board.addReply(Reply.builder().board(board).content("댓글").authorId(authorId).build());
+        boardRepository.flush();
+        mockMvc.perform(get("/test/board/" + id))
+            .andExpect(content().string(containsString("data-author-id=\"" + authorId + "\" hidden>")))
+            .andExpect(content().string(containsString("data-act=\"edit\">수정</button>")))
+            .andExpect(content().string(containsString("gbConfirm('이 댓글을 삭제할까요?')")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("data-delete-reply"))));
+    }
+
+    @Test
     void editForm_neverOffersChangingTheLinkedItem() throws Exception {
         mockMvc.perform(get("/test/board/" + board(BoardType.CUSTOMER_SERVICE)))
             .andExpect(content().string(containsString("<p style=\"position: relative;\" hidden>")));

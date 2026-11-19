@@ -125,12 +125,65 @@ public class BoardService {
             .purchaseId(purchaseId)
             .build();
 
+        Long boardId;
         try {
-            return boardRepository.save(board).getId();
+            boardId = boardRepository.save(board).getId();
         } catch (DataIntegrityViolationException e) {
             // 같은 구매에 리뷰를 동시에 두 번 보낸 경우 (purchase_id 유니크 제약)
             throw new BadRequestException("이미 리뷰를 작성한 구매입니다.");
         }
+
+        notifyNewBoard(board, loginUserId);
+        return boardId;
+    }
+
+    // 새 문의는 답변할 쪽(상품·이벤트·경매 문의는 판매자, 고객센터는 관리자 전원)에게, 새 리뷰는 그 상품의 판매자에게 알린다
+    private void notifyNewBoard(Board board, Long authorId) {
+        Notification.Type type;
+        String title;
+        String content;
+        List<Long> receiverIds;
+
+        switch (board.getBoardType()) {
+            case PRODUCT_INQUIRY -> {
+                type = Notification.Type.BOARD_INQUIRY;
+                title = "[새 문의]";
+                content = "{" + board.getTitle() + "} 문의가 등록되었습니다";
+                receiverIds = sellerIdOf(board);
+            }
+            case CUSTOMER_SERVICE -> {
+                type = Notification.Type.BOARD_INQUIRY;
+                title = "[고객센터 문의]";
+                content = "{" + board.getTitle() + "} 문의가 등록되었습니다";
+                receiverIds = userRepository.findIdsByRole(Role.ADMIN);
+            }
+            case PRODUCT_REVIEW -> {
+                type = Notification.Type.BOARD_REVIEW;
+                title = "[새 리뷰]";
+                content = "{" + board.getTitle() + "} 리뷰가 등록되었습니다";
+                receiverIds = sellerIdOf(board);
+            }
+            default -> {
+                return;
+            }
+        }
+
+        for (Long receiverId : receiverIds) {
+            if (Objects.equals(receiverId, authorId)) {
+                continue; // 내 글을 나에게 알리지 않는다
+            }
+            publisher.publishEvent(new NotificationEvent(
+                receiverId, type, title, content, Notification.ReferenceType.BOARD, board.getId()));
+        }
+    }
+
+    private List<Long> sellerIdOf(Board board) {
+        if (board.getItemId() == null) {
+            return List.of();
+        }
+        return itemRepository.findById(board.getItemId())
+            .map(item -> item.getSellerUserId() == null ? List.<Long>of() : List.of(item.getSellerUserId()))
+            .orElse(List.of());
     }
 
     private void requireTargetId(Long targetId) {
@@ -529,7 +582,7 @@ public class BoardService {
         // 댓글 생성
         Reply reply = Reply.builder()
             .board(board)
-            .content(requestDto.getContent())
+            .content(requestDto.getContent().trim())
             .authorId(loginUserId)
             .build();
 
@@ -556,13 +609,14 @@ public class BoardService {
         if (isAuthor) {
             List<Long> answererIds = List.of();
             if (board.getBoardType() == BoardType.PRODUCT_INQUIRY) {
-                answererIds = itemRepository.findById(board.getItemId())
-                    .map(item -> List.of(item.getSellerUserId()))
-                    .orElse(List.of());
+                answererIds = sellerIdOf(board);
             } else if (board.getBoardType() == BoardType.CUSTOMER_SERVICE) {
                 answererIds = userRepository.findIdsByRole(Role.ADMIN);
             }
             for (Long receiverId : answererIds) {
+                if (Objects.equals(receiverId, loginUserId)) {
+                    continue;
+                }
                 publisher.publishEvent(
                     new NotificationEvent(
                         receiverId,
