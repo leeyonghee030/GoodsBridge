@@ -190,6 +190,7 @@ const errorText = async (res, fallback) => {
             return;
         }
         orderMessage.textContent = '';
+        window.deliveryAddress.reset(); // 내 기본 주소는 창을 열 때 받아 온다
         modal.hidden = false;
         $('order-name').focus();
     });

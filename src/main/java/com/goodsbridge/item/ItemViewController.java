@@ -3,7 +3,6 @@ package com.goodsbridge.item;
 import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
-import com.goodsbridge.user.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -25,7 +24,6 @@ public class ItemViewController {
     private final ShopRepository shopRepository;
     private final ShopSaleService shopSaleService;
     private final com.goodsbridge.auction.AuctionRepository auctionRepository;
-    private final UserService userService;
 
     @Value("${portone.store-id}")
     private String storeId;
@@ -64,8 +62,6 @@ public class ItemViewController {
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);
         model.addAttribute("userId", userId);
-        // 내 정보에 기본 주소가 있으면 구매 창의 배송지에 "기본 주소"로 미리 채운다
-        model.addAttribute("defaultAddress", userService.findDefaultAddress(userId));
         return "item/detail";
     }
 

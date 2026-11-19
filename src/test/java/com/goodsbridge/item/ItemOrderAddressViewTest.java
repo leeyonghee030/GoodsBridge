@@ -23,11 +23,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * 상품 구매 창의 배송지 주소: 내 정보와 같은 방식(우편번호 검색 + 기본주소 + 상세주소)이고,
- * 내 정보에 기본 주소가 있으면 "기본 주소 / 새로운 주소"를 고를 수 있게 기본 주소를 넘겨준다.
+ * 구매·낙찰 잔금 결제 창의 배송지 주소: 내 정보와 같은 방식(우편번호 검색 + 기본주소 + 상세주소).
+ * 내 기본 주소는 화면을 그릴 때 미리 넣지 않고, 창을 열 때 /api/users/me/default-address 로 받아 온다.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -60,64 +61,60 @@ class ItemOrderAddressViewTest {
     }
 
     @Test
-    void addressUsesThePostcodeSearchLikeMyProfile() throws Exception {
-        loginAs(null);
-        mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(status().isOk())
-            .andExpect(content().string(containsString("id=\"da-postcode\"")))
-            .andExpect(content().string(containsString("id=\"da-search\"")))
-            .andExpect(content().string(containsString("id=\"da-base\"")))
-            .andExpect(content().string(containsString("id=\"da-detail\"")))
-            .andExpect(content().string(containsString("postcode.v2.js")))
-            // 구매할 때 상세주소는 필수 (기본 주소에서도 고칠 수 있게 readOnly 로 막지 않는다)
-            .andExpect(content().string(containsString("상세주소(동·호수 등)를 입력해 주세요.")))
-            .andExpect(content().string(not(containsString("readOnly"))))
-            .andExpect(content().string(not(containsString("id=\"order-address\""))));
-    }
-
-    @Test
-    void userWithoutDefaultAddress_hasNoDefaultOrNewChoice() throws Exception {
-        loginAs(null);
-        mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(content().string(not(containsString("id=\"da-modes\""))));
-    }
-
-    @Test
-    void userWithDefaultAddress_startsWithItAndCanChooseANewOne() throws Exception {
+    void paymentScreensUseThePostcodeSearchAndLoadTheDefaultAddressOnlyWhenOpened() throws Exception {
         loginAs(Address.builder().postalCode("04001").address("서울 마포구 와우산로 21").detailAddress("3층").build());
-        mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(content().string(containsString("id=\"da-modes\"")))
-            .andExpect(content().string(containsString("data-postal-code=\"04001\"")))
-            .andExpect(content().string(containsString("data-address=\"서울 마포구 와우산로 21\"")))
-            .andExpect(content().string(containsString("data-detail-address=\"3층\"")))
-            .andExpect(content().string(containsString("data-mode=\"default\" class=\"active\">기본 주소</button>")))
-            .andExpect(content().string(containsString("data-mode=\"new\">새로운 주소</button>")));
-    }
-
-    @Test
-    void auctionBalancePayment_usesTheSameAddressInputWithTheDefaultAddress() throws Exception {
-        loginAs(Address.builder().postalCode("04001").address("서울 마포구 와우산로 21").detailAddress("3층").build());
-        for (String page : new String[]{"/test/auction/1", "/my/auctions"}) {
+        for (String page : new String[]{"/test/item/" + itemId, "/test/auction/1", "/my/auctions"}) {
             mockMvc.perform(get(page))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("id=\"da-search\"")))
-                .andExpect(content().string(containsString("data-address=\"서울 마포구 와우산로 21\"")))
-                .andExpect(content().string(containsString("window.deliveryAddress.text()")))
-                .andExpect(content().string(not(containsString("-address\" rows=\"2\""))));
+                .andExpect(content().string(containsString("id=\"da-detail\"")))
+                .andExpect(content().string(containsString("<script async src=\"//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js\">")))
+                .andExpect(content().string(containsString("/js/postcode-address.js")))
+                .andExpect(content().string(containsString("/api/users/me/default-address")))
+                // 선택 버튼은 기본 주소를 받아 온 뒤에만 보인다 (화면에 주소를 미리 넣지 않는다)
+                .andExpect(content().string(containsString("<div class=\"da-modes\" id=\"da-modes\" hidden>")))
+                .andExpect(content().string(not(containsString("서울 마포구 와우산로 21"))))
+                // 구매할 때 상세주소는 필수
+                .andExpect(content().string(containsString("상세주소(동·호수 등)를 입력해 주세요.")));
         }
     }
 
     @Test
-    void emptyAddressIsNotADefaultAddress() throws Exception {
-        loginAs(Address.builder().postalCode("").address(" ").detailAddress("").build());
+    void itemOrderOpensWithTheDefaultAddressReset() throws Exception {
+        loginAs(null);
         mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(content().string(not(containsString("id=\"da-modes\""))));
+            .andExpect(content().string(containsString("window.deliveryAddress.reset(); // 내 기본 주소는 창을 열 때 받아 온다")))
+            .andExpect(content().string(not(containsString("id=\"order-address\""))));
     }
 
     @Test
-    void guestSeesThePageWithoutADefaultAddress() throws Exception {
-        mockMvc.perform(get("/test/item/" + itemId))
+    void defaultAddressApi_returnsMySavedAddress() throws Exception {
+        loginAs(Address.builder().postalCode("04001").address("서울 마포구 와우산로 21").detailAddress("3층").build());
+        mockMvc.perform(get("/api/users/me/default-address"))
             .andExpect(status().isOk())
-            .andExpect(content().string(not(containsString("id=\"da-modes\""))));
+            .andExpect(jsonPath("$.postalCode").value("04001"))
+            .andExpect(jsonPath("$.address").value("서울 마포구 와우산로 21"))
+            .andExpect(jsonPath("$.detailAddress").value("3층"));
+    }
+
+    @Test
+    void defaultAddressApi_isEmptyWithoutASavedAddress() throws Exception {
+        loginAs(null);
+        mockMvc.perform(get("/api/users/me/default-address")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void defaultAddressApi_treatsABlankAddressAsNone() throws Exception {
+        loginAs(Address.builder().postalCode("").address(" ").detailAddress("").build());
+        mockMvc.perform(get("/api/users/me/default-address")).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void myProfileUsesTheSameAddressRules() throws Exception {
+        loginAs(null);
+        mockMvc.perform(get("/update"))
+            .andExpect(status().isOk())
+            .andExpect(content().string(containsString("/js/postcode-address.js")))
+            .andExpect(content().string(containsString("window.formatPostcodeAddress(data)")));
     }
 }

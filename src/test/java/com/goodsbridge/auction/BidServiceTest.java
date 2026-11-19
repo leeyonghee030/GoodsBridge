@@ -28,6 +28,8 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -190,6 +192,46 @@ class BidServiceTest {
         verifyNoInteractions(paymentService);
         // 나 자신에게 상위 입찰 알림을 보내지 않는다
         verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void placeBid_cancelsADuplicateDepositSentByAReturningBidder() {
+        // 이미 보증금을 낸 사람이 화면 착오로 보증금을 또 결제해 보내면, 그 결제는 기록하지 않고 취소한다
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(true);
+        Bid previousBid = mock(Bid.class);
+        when(previousBid.getDepositPaymentId()).thenReturn("payment-a");
+        when(bidRepository.findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(1L, 2L))
+            .thenReturn(Optional.of(previousBid));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-b"));
+
+        verify(paymentService).cancelUnrecorded(eq("payment-b"), anyString());
+        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
+        verify(auction).setWinningPaymentId("payment-a");
+    }
+
+    @Test
+    void placeBid_doesNotCancelTheDepositAlreadyRecorded() {
+        // 처음 낸 보증금과 같은 결제 id 를 다시 보내면 취소하지 않는다
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(true);
+        Bid previousBid = mock(Bid.class);
+        when(previousBid.getDepositPaymentId()).thenReturn("payment-a");
+        when(bidRepository.findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(1L, 2L))
+            .thenReturn(Optional.of(previousBid));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-a"));
+
+        verifyNoInteractions(paymentService);
+    }
+
+    @Test
+    void hasMyBid_isTrueOnlyForALoggedInBidder() {
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(true);
+
+        assertTrue(bidService.hasMyBid(1L, 2L));
+        assertFalse(bidService.hasMyBid(1L, null));
     }
 
     @Test
