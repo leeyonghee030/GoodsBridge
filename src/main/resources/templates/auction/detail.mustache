@@ -138,7 +138,7 @@
     <h1>낙찰 잔금 결제</h1>
     <section class="order-section">
         <h2>배송지</h2>
-        <textarea id="au-address" rows="2" maxlength="255" placeholder="배송받을 주소를 입력해 주세요 (예: 서울시 마포구 …)"></textarea>
+        {{> fragments/delivery-address}}
     </section>
     <section class="order-section order-sum">
         <h2>결제금액</h2>
@@ -179,7 +179,8 @@
     const isLive = () => a.status === 'ACTIVE' && deadlineOf() > new Date();
     const isWinner = () => userId !== null && a.currentWinnerUserId === userId;
     const isOwnerShop = () => myShopIds.includes(a.shopId);
-    const myBidCount = () => bids.filter(b => b.userId === userId).length;
+    // 첫 입찰(보증금 결제) 여부는 서버가 알려준다. 입찰 내역은 최근 100건만 불러오므로 거기서 세면 오래된 내 입찰을 놓친다
+    let hasMyBid = false;
     // 최소 입찰가: 아직 입찰이 없으면 시작가 그대로도 가능, 입찰이 있으면 현재가보다 높아야 한다
     const minBid = () => a.bidCount ? a.currentPrice + {{minBidIncrement}} : a.currentPrice;
     // 서버/네트워크 오류를 사용자가 알아보기 쉬운 문장으로
@@ -236,7 +237,7 @@
         if (isLive()) {
             // 입찰 안내
             if (isWinner()) st.innerHTML = '<div class="au-state">지금 <b>내가 최고 입찰자</b>예요. 다른 사람이 더 높게 입찰하면 알려 드릴게요.</div>';
-            const first = userId !== null && myBidCount() === 0;
+            const first = userId !== null && !hasMyBid;
             if (adminAccount) {
                 action.hidden = false; action.disabled = true; action.textContent = '관리자 계정은 입찰할 수 없어요';
             } else if (isOwnerShop()) {
@@ -304,6 +305,10 @@
         if (!ar.ok) { $('au-image').textContent = '경매를 찾을 수 없어요.'; return false; }
         a = await ar.json();
         bids = br.ok ? ((await br.json()).content || []) : [];
+        if (userId !== null) {
+            const mr = await pageFetch(`/api/auctions/${AUCTION_ID}/my-bid`);
+            if (mr.ok) hasMyBid = !!(await mr.json()).hasBid;
+        }
         if (first && userId !== null) {
             const sr = await pageFetch('/api/shops/me?page=0&size=50');
             if (sr.ok) myShopIds = ((await sr.json()).content || []).map(s => s.id);
@@ -350,7 +355,7 @@
             await alert(a.bidCount ? `현재가 ${money(a.currentPrice)}보다 높게 입찰해 주세요.\n(${money(minBid())} 이상)` : `시작가 ${money(a.currentPrice)} 이상으로 입찰해 주세요.`);
             return;
         }
-        const first = myBidCount() === 0;
+        const first = !hasMyBid;
         // 이미 내가 최고가이거나, 현재가보다 5만원 이상 높게 부르면 한 번 더 확인한다 (둘 다면 한 안내문에 같이)
         const warns = [];
         if (isWinner()) warns.push('지금 <b>내가 최고 입찰자</b>예요. 또 입찰하지 않아도 돼요.');
@@ -384,14 +389,15 @@
         $('s-price').textContent = money(a.currentPrice);
         $('s-deposit').textContent = money(a.depositAmount);
         $('s-balance').textContent = money(a.balanceAmount);
-        $('au-address').value = '';
+        window.deliveryAddress.reset();
         modal.hidden = false;
     }
     $('au-close').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', e => { if (e.target === modal) modal.hidden = true; });
     $('au-pay').addEventListener('click', async () => {
-        const address = $('au-address').value.trim();
-        if (!address) { await alert('배송지를 입력해 주세요.'); return; }
+        const addressError = window.deliveryAddress.error();
+        if (addressError) { await alert(addressError); return; }
+        const address = window.deliveryAddress.text();
         const btn = $('au-pay');
         btn.disabled = true;
         try {

@@ -1,0 +1,104 @@
+<!--
+  배송지 주소 입력 (내 정보의 주소 입력과 같은 방식: 우편번호 검색 + 기본주소 + 상세주소).
+  상품 구매 창, 경매 낙찰 잔금 결제 창(경매 상세 / 내 경매)이 함께 쓴다. 한 화면에 하나만 둔다.
+  내 기본 주소는 창을 열 때(reset) 한 번만 /api/users/me/default-address 로 받아 온다 (화면을 그릴 때 미리 조회하지 않는다).
+  기본 주소가 있으면 "기본 주소 / 새로운 주소"를 고를 수 있고 기본 주소로 시작한다.
+  스크립트: window.deliveryAddress.reset() → 창을 열 때 처음 상태로 (기본 주소가 있으면 기본 주소)
+            window.deliveryAddress.error() → 입력이 덜 됐으면 안내 문구 (주소검색 안 함 / 상세주소 비어 있음 / 너무 김), 다 됐으면 null. 포커스도 옮긴다
+            window.deliveryAddress.text()  → "(우편번호) 기본주소 상세주소" (주소가 없으면 '')
+-->
+<div class="da-modes" id="da-modes" hidden>
+    <button type="button" data-mode="default" class="active">기본 주소</button>
+    <button type="button" data-mode="new">새로운 주소</button>
+</div>
+<div class="address-postcode-row">
+    <input id="da-postcode" type="text" placeholder="우편번호" readonly>
+    <button type="button" id="da-search">주소검색</button>
+</div>
+<div class="address-base-row">
+    <input id="da-base" type="text" placeholder="기본주소" readonly>
+    <input id="da-detail" type="text" maxlength="60" placeholder="상세주소 (동·호수 등)" autocomplete="address-line2" required>
+</div>
+
+<!-- 주소검색은 누를 때만 필요하므로 페이지 로딩(입찰 화면 등)을 막지 않게 비동기로 불러온다 -->
+<script async src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
+<script src="/js/postcode-address.js"></script>
+<script>
+(() => {
+    const $ = id => document.getElementById(id);
+    const modes = $('da-modes');
+    const search = $('da-search');
+    let defaultAddress = null;   // {postalCode, address, detailAddress}
+    let loading = null;          // 기본 주소는 처음 창을 열 때 한 번만 받아 온다
+
+    function fill(postalCode, address, detail) {
+        $('da-postcode').value = postalCode || '';
+        $('da-base').value = address || '';
+        $('da-detail').value = detail || '';
+    }
+
+    // 기본 주소: 내 정보의 주소를 채운다 (상세주소는 고칠 수 있다) / 새로운 주소: 비우고 주소검색으로 입력한다
+    function setMode(mode) {
+        const useDefault = mode === 'default' && defaultAddress !== null;
+        modes.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === (useDefault ? 'default' : 'new')));
+        if (useDefault) fill(defaultAddress.postalCode, defaultAddress.address, defaultAddress.detailAddress);
+        else fill('', '', '');
+        search.hidden = useDefault;
+    }
+
+    function loadDefaultAddress() {
+        if (!loading) {
+            loading = fetch('/api/users/me/default-address', { credentials: 'same-origin' })
+                .then(res => res.status === 200 ? res.json() : null)
+                .catch(() => null)
+                .then(address => { defaultAddress = address; });
+        }
+        return loading;
+    }
+
+    function openSearch() {
+        if (search.hidden) return;
+        if (!window.kakao || !kakao.Postcode) { alert('주소검색을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+        new kakao.Postcode({
+            oncomplete: data => {
+                fill(data.zonecode, window.formatPostcodeAddress(data), '');
+                $('da-detail').focus();
+            }
+        }).open();
+    }
+
+    modes.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-mode]');
+        if (!b) return;
+        setMode(b.dataset.mode);
+        if (b.dataset.mode === 'new') search.focus();
+    });
+    search.addEventListener('click', openSearch);
+    $('da-postcode').addEventListener('click', openSearch);
+    $('da-base').addEventListener('click', openSearch);
+
+    window.deliveryAddress = {
+        async reset() {
+            fill('', '', '');
+            await loadDefaultAddress();
+            modes.hidden = defaultAddress === null;
+            setMode('default');
+        },
+        // 구매할 때는 주소검색으로 고른 주소와 상세주소가 모두 있어야 한다
+        error() {
+            if (!$('da-base').value.trim()) { search.hidden = false; search.focus(); return '주소검색으로 주소를 입력해 주세요.'; }
+            if (!$('da-detail').value.trim()) { $('da-detail').focus(); return '상세주소(동·호수 등)를 입력해 주세요.'; }
+            // 서버의 배송지 길이 제한(255자)을 결제 전에 지킨다. 저장된 기본 주소는 입력칸의 maxlength 를 거치지 않으므로 여기서 본다
+            if ($('da-detail').value.trim().length > 60) { $('da-detail').focus(); return '상세주소는 60자 이내로 입력해 주세요.'; }
+            if (this.text().length > 200) { $('da-detail').focus(); return '주소가 너무 길어요. 상세주소를 줄여 주세요.'; }
+            return null;
+        },
+        text() {
+            const postcode = $('da-postcode').value.trim();
+            const base = $('da-base').value.trim();
+            if (!base) return '';
+            return [postcode ? `(${postcode})` : '', base, $('da-detail').value.trim()].filter(Boolean).join(' ');
+        }
+    };
+})();
+</script>

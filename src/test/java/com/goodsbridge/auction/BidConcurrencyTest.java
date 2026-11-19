@@ -189,7 +189,7 @@ class BidConcurrencyTest {
             tasks.add(() -> bid(userId, amount));
         }
 
-        runConcurrently(tasks);
+        List<Outcome> outcomes = runConcurrently(tasks);
 
         // 최초 입찰에만 보증금 검증, 이후 입찰은 검증 스킵 (이슈 #20 유효성 검사)
         verify(paymentService, times(1)).verify(anyString(), anyInt(), any(), anyLong());
@@ -198,9 +198,13 @@ class BidConcurrencyTest {
             Auction auction = auctionRepository.findById(auctionId).orElseThrow();
             List<Bid> bids = bidsOf(auctionId);
 
-            assertEquals(1, bids.size());
-            assertEquals(bids.get(0).getBidAmount(), auction.getCurrentPrice());
-            // 같은 유저가 최초 입찰에 성공한 경우 보증금 결제 id를 공유한다
+            // 최고 입찰자도 금액을 올려 다시 입찰할 수 있으므로, 처리 순서상 유효했던 입찰은 모두 저장된다
+            // (먼저 처리된 더 높은 금액보다 낮은 입찰만 거절된다)
+            long accepted = outcomes.stream().filter(o -> o == Outcome.ACCEPTED).count();
+            assertEquals(accepted, bids.size());
+            assertEquals(bids.stream().mapToInt(Bid::getBidAmount).max().orElseThrow(), auction.getCurrentPrice());
+            assertEquals(userId, auction.getCurrentWinner().getId());
+            // 같은 유저의 입찰은 모두 처음 낸 보증금 결제 id를 공유한다
             assertTrue(bids.stream().allMatch(b -> ("deposit-" + userId).equals(b.getDepositPaymentId())));
         });
     }

@@ -185,6 +185,13 @@ public class UserController {
         return "redirect:/login";
     }
 
+    // 구매·낙찰 잔금 결제 창의 배송지에 채울 내 기본 주소. 저장한 주소가 없으면 204 (fragments/delivery-address 가 창을 열 때 부른다)
+    @GetMapping("/api/users/me/default-address")
+    public ResponseEntity<java.util.Map<String, String>> defaultAddress(@AuthenticationPrincipal Long userId) {
+        java.util.Map<String, String> address = userService.findDefaultAddress(userId);
+        return address == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(address);
+    }
+
     @PostMapping("/api/logout")
     public String logout(@AuthenticationPrincipal Long userId, HttpServletResponse response) {
         authService.logout(userId);          // DB에서 Refresh Token 해시 제거
