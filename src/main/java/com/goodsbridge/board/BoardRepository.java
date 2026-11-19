@@ -27,6 +27,7 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
         FROM Board b
         JOIN User u ON u.id = b.authorId
         WHERE b.boardType IN :boardTypes
+        AND (b.hiddenBySeller = false OR b.authorId = :viewerId)
         AND (
             b.title LIKE %:keyword%
             OR b.content LIKE %:keyword%
@@ -36,8 +37,17 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
     Page<Board> findByKeyword(
         @Param("keyword") String keyword,
         @Param("boardTypes") List<BoardType> boardTypes,
+        @Param("viewerId") Long viewerId,
         Pageable pageable
     );
+
+    // 상품을 지정하지 않은 리뷰 목록. 판매자가 비공개로 바꾼 리뷰는 작성자 본인(viewerId)에게만 보인다.
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_REVIEW
+        AND (b.hiddenBySeller = false OR b.authorId = :viewerId)
+        """)
+    Page<Board> findVisibleReviews(@Param("viewerId") Long viewerId, Pageable pageable);
 
     // 한 상품의 리뷰 (상품 상세 화면용). 판매자가 비공개로 바꾼 리뷰는 작성자 본인(viewerId)에게만 보인다.
     @Query("""
@@ -118,8 +128,18 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_REVIEW
         AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        AND (:hidden IS NULL OR b.hiddenBySeller = :hidden)
         """)
-    Page<Board> findReviewsBySeller(@Param("sellerId") Long sellerId, Pageable pageable);
+    Page<Board> findReviewsBySeller(@Param("sellerId") Long sellerId, @Param("hidden") Boolean hidden, Pageable pageable);
+
+    // 리뷰 관리 탭의 개수 (hidden 이 null 이면 전체)
+    @Query("""
+        SELECT COUNT(b) FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_REVIEW
+        AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        AND (:hidden IS NULL OR b.hiddenBySeller = :hidden)
+        """)
+    long countReviewsBySeller(@Param("sellerId") Long sellerId, @Param("hidden") Boolean hidden);
 
     // 상품 화면의 문의. 대상을 기록하기 전에 쓰인 문의(targetType 이 비어 있음)도 상품 문의로 본다.
     @Query("""

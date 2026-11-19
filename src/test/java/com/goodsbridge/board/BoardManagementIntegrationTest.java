@@ -459,6 +459,50 @@ class BoardManagementIntegrationTest {
     }
 
     @Test
+    void sellerReviews_filterAndCountByHiddenOnServer() throws Exception {
+        Long shown = review(buyerId, itemA);
+        Long hidden = review(otherId, itemC);
+        review(buyerId, itemB); // 다른 판매자의 상품
+        boardService.setReviewHidden(hidden, true, sellerId);
+
+        assertThat(boardService.getSellerReviews(sellerId, true, page()).getContent())
+            .extracting(BoardManageResponse::id).containsExactly(hidden);
+        assertThat(boardService.getSellerReviews(sellerId, false, page()).getContent())
+            .extracting(BoardManageResponse::id).containsExactly(shown);
+        assertThat(boardService.getSellerReviewCounts(sellerId))
+            .containsOnly(Map.entry("ALL", 2L), Map.entry("PUBLIC", 1L), Map.entry("HIDDEN", 1L));
+
+        mockMvc.perform(get("/api/boards/seller/reviews").param("hidden", "true").with(login(sellerId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1));
+        mockMvc.perform(get("/api/boards/seller/reviews/counts").with(login(sellerId)))
+            .andExpect(jsonPath("$.ALL").value(2))
+            .andExpect(jsonPath("$.HIDDEN").value(1));
+    }
+
+    @Test
+    void hiddenReviews_areNotFoundBySearchOrTheReviewList_exceptByTheirAuthor() {
+        Long hidden = review(buyerId, itemA);
+        boardService.setReviewHidden(hidden, true, sellerId);
+        Board board = boardRepository.findById(hidden).orElseThrow();
+        String word = board.getContent();
+
+        // 다른 사람: 검색어로도, 상품을 지정하지 않은 리뷰 목록으로도 나오지 않는다
+        assertThat(boardService.getBoards(BoardType.PRODUCT_REVIEW, word, page(), otherId).getContent())
+            .extracting(BoardResponseDto::getId).doesNotContain(hidden);
+        assertThat(boardService.getBoards(BoardType.PRODUCT_REVIEW, null, page(), otherId).getContent())
+            .extracting(BoardResponseDto::getId).doesNotContain(hidden);
+        assertThat(boardService.getBoards(BoardType.PRODUCT_REVIEW, word, page(), null).getContent())
+            .extracting(BoardResponseDto::getId).doesNotContain(hidden);
+
+        // 작성자 본인에게는 보인다
+        assertThat(boardService.getBoards(BoardType.PRODUCT_REVIEW, word, page(), buyerId).getContent())
+            .extracting(BoardResponseDto::getId).contains(hidden);
+        assertThat(boardService.getBoards(BoardType.PRODUCT_REVIEW, null, page(), buyerId).getContent())
+            .extracting(BoardResponseDto::getId).contains(hidden);
+    }
+
+    @Test
     void reviewReplies_onlyBySellerOfTheItem() {
         Long id = review(buyerId, itemA);
         assertThatThrownBy(() -> reply(id, buyerId, "작성자 댓글")).isInstanceOf(ForbiddenException.class);

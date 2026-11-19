@@ -189,7 +189,7 @@ public class DemoDataService {
                 .itemId(purchase.getItem().getId()).boardType(BoardType.PRODUCT_REVIEW).isSecret(false)
                 .purchaseId(purchase.getId()).build());
             // 판매자가 비공개로 바꾼 리뷰도 하나 보이게 한다 (리뷰 관리의 "비공개" 표시, 작성자에게만 보이는 모습)
-            if (n == reviews.length - 1 && confirmed.size() > 1) review.hideBySeller();
+            if (n == confirmed.size() - 1 && confirmed.size() > 1) review.hideBySeller();
             setBoardDate(review, n + 1, 3);
         }
 

@@ -293,6 +293,7 @@ class BoardRepositoryTest {
                 BoardType.PRODUCT_INQUIRY,
                 BoardType.COMMUNITY
             ),
+            null,
             PageRequest.of(0, 10)
         );
 
@@ -345,6 +346,7 @@ class BoardRepositoryTest {
         Page<Board> result = boardRepository.findByKeyword(
             "상품",
             List.of(BoardType.COMMUNITY),
+            null,
             PageRequest.of(0, 10)
         );
 
@@ -389,6 +391,7 @@ class BoardRepositoryTest {
         Page<Board> result = boardRepository.findByKeyword(
             "배송",
             List.of(BoardType.COMMUNITY),
+            null,
             PageRequest.of(0, 10)
         );
 
@@ -445,6 +448,7 @@ class BoardRepositoryTest {
                 BoardType.COMMUNITY,
                 BoardType.PRODUCT_REVIEW
             ),
+            null,
             PageRequest.of(0, 10)
         );
 

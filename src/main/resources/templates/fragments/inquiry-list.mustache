@@ -29,6 +29,7 @@
     let last = true;
     let rows = [];
     let counts = {};
+    let loadSeq = 0; // 탭을 빠르게 바꿨을 때 늦게 도착한 이전 응답을 버린다
 
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
@@ -65,16 +66,19 @@
     }
 
     async function load(reset) {
-        if (reset) { nextPage = 0; rows = []; }
-        const query = new URLSearchParams({ page: nextPage, size: 10, sort: 'id,desc' });
+        const seq = ++loadSeq;
+        const pageNo = reset ? 0 : nextPage;
+        const query = new URLSearchParams({ page: pageNo, size: 10, sort: 'id,desc' });
         if (kind !== 'ALL') query.set('targetType', kind);
         if (status !== 'ALL') query.set('status', status);
         const res = await fetch(LIST_API + '?' + query.toString(), { credentials: 'same-origin' });
+        if (seq !== loadSeq) return;
         if (!res.ok) { emptyEl.textContent = '문의를 불러오지 못했어요.'; emptyEl.hidden = false; return; }
         const page = await res.json();
-        rows = rows.concat(page.content || []);
+        if (seq !== loadSeq) return;
+        rows = (reset ? [] : rows).concat(page.content || []);
         last = !!page.last;
-        nextPage += 1;
+        nextPage = pageNo + 1;
         render();
     }
 

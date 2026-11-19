@@ -33,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -710,6 +711,7 @@ class BoardServiceTest {
         given(boardRepository.findByKeyword(
             eq("공지"),
             eq(List.of(BoardType.COMMUNITY)),
+            isNull(),
             eq(pageable)
         )).willReturn(boardPage);
 
@@ -731,6 +733,7 @@ class BoardServiceTest {
         verify(boardRepository).findByKeyword(
             "공지",
             List.of(BoardType.COMMUNITY),
+            null,
             pageable
         );
     }
@@ -746,6 +749,7 @@ class BoardServiceTest {
         given(boardRepository.findByKeyword(
             eq("공지"),
             eq(List.of(BoardType.COMMUNITY)),
+            isNull(),
             eq(pageable)
         )).willReturn(emptyPage);
 
@@ -761,6 +765,7 @@ class BoardServiceTest {
         verify(boardRepository).findByKeyword(
             "공지",
             List.of(BoardType.COMMUNITY),
+            null,
             pageable
         );
     }

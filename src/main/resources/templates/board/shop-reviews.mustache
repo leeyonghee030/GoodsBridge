@@ -32,6 +32,8 @@
     let nextPage = 0;
     let last = true;
     let rows = [];
+    let counts = {};
+    let loadSeq = 0; // 탭을 빠르게 바꿨을 때 늦게 도착한 이전 응답을 버린다
 
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
@@ -40,12 +42,16 @@
         try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
     };
 
-    const count = key => key === 'ALL' ? rows.length
-        : rows.filter(r => key === 'HIDDEN' ? r.hiddenBySeller : !r.hiddenBySeller).length;
-
+    // 탭의 개수와 공개/비공개 필터는 서버에서 받는다 (불러온 페이지만이 아니라 전체 기준)
     function renderTabs() {
         document.getElementById('mb-status').innerHTML = STATUS.map(([key, label]) =>
-            `<button type="button" data-status="${key}" class="${status === key ? 'active' : ''}">${label}<small>${count(key)}</small></button>`).join('');
+            `<button type="button" data-status="${key}" class="${status === key ? 'active' : ''}">${label}<small>${counts[key] ?? ''}</small></button>`).join('');
+    }
+
+    async function loadCounts() {
+        const res = await fetch('/api/boards/seller/reviews/counts', { credentials: 'same-origin' });
+        if (res.ok) counts = await res.json();
+        renderTabs();
     }
 
     function rowHtml(r) {
@@ -67,24 +73,27 @@
 
     function render() {
         renderTabs();
-        const shown = status === 'ALL' ? rows : rows.filter(r => status === 'HIDDEN' ? r.hiddenBySeller : !r.hiddenBySeller);
-        listEl.innerHTML = shown.map(rowHtml).join('');
-        emptyEl.hidden = shown.length > 0;
-        if (shown.length === 0) {
-            emptyEl.textContent = rows.length ? '이 상태의 리뷰가 없어요.' : '내 상품에 달린 리뷰가 아직 없어요.';
+        listEl.innerHTML = rows.map(rowHtml).join('');
+        emptyEl.hidden = rows.length > 0;
+        if (rows.length === 0) {
+            emptyEl.textContent = status !== 'ALL' ? '이 상태의 리뷰가 없어요.' : '내 상품에 달린 리뷰가 아직 없어요.';
         }
         moreEl.hidden = last;
     }
 
     async function load(reset) {
-        if (reset) { nextPage = 0; rows = []; }
-        const query = new URLSearchParams({ page: nextPage, size: 10, sort: 'id,desc' });
+        const seq = ++loadSeq;
+        const pageNo = reset ? 0 : nextPage;
+        const query = new URLSearchParams({ page: pageNo, size: 10, sort: 'id,desc' });
+        if (status !== 'ALL') query.set('hidden', status === 'HIDDEN');
         const res = await fetch('/api/boards/seller/reviews?' + query.toString(), { credentials: 'same-origin' });
+        if (seq !== loadSeq) return;
         if (!res.ok) { emptyEl.textContent = '리뷰를 불러오지 못했어요.'; emptyEl.hidden = false; return; }
         const page = await res.json();
-        rows = rows.concat(page.content || []);
+        if (seq !== loadSeq) return;
+        rows = (reset ? [] : rows).concat(page.content || []);
         last = !!page.last;
-        nextPage += 1;
+        nextPage = pageNo + 1;
         render();
     }
 
@@ -92,7 +101,8 @@
         const button = event.target.closest('[data-status]');
         if (!button) return;
         status = button.dataset.status;
-        render();
+        renderTabs();
+        load(true);
     });
     moreEl.addEventListener('click', () => load(false));
 
@@ -111,14 +121,13 @@
                     body: JSON.stringify({ hidden: !review.hiddenBySeller })
                 });
                 if (!res.ok) { await alert(await errorText(res, '처리에 실패했습니다.')); return; }
-                review.hiddenBySeller = !review.hiddenBySeller;
-                render();
+                // 공개/비공개가 바뀌면 개수와 (필터 중이면) 목록이 달라진다
+                await Promise.all([loadCounts(), load(true)]);
             } else {
                 if (!(await gbConfirm('이 리뷰를 삭제할까요?\n삭제하면 되돌릴 수 없어요.'))) return;
                 const res = await fetch(`/api/boards/${review.id}`, { method: 'DELETE', credentials: 'same-origin' });
                 if (!res.ok) { await alert(await errorText(res, '삭제에 실패했습니다.')); return; }
-                rows = rows.filter(r => r.id !== review.id);
-                render();
+                await Promise.all([loadCounts(), load(true)]);
             }
         } finally {
             button.disabled = false;
@@ -126,6 +135,7 @@
     });
 
     render();
+    loadCounts();
     load(true);
 })();
 </script>

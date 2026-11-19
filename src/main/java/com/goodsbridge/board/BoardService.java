@@ -129,8 +129,11 @@ public class BoardService {
         try {
             boardId = boardRepository.save(board).getId();
         } catch (DataIntegrityViolationException e) {
-            // 같은 구매에 리뷰를 동시에 두 번 보낸 경우 (purchase_id 유니크 제약)
-            throw new BadRequestException("이미 리뷰를 작성한 구매입니다.");
+            // 같은 구매에 리뷰를 동시에 두 번 보낸 경우 (purchase_id 유니크 제약). 그 밖의 오류는 그대로 올린다
+            if (board.getBoardType() == BoardType.PRODUCT_REVIEW) {
+                throw new BadRequestException("이미 리뷰를 작성한 구매입니다.");
+            }
+            throw e;
         }
 
         notifyNewBoard(board, loginUserId);
@@ -335,8 +338,25 @@ public class BoardService {
     // 판매자 "리뷰 관리": 내 상품의 리뷰 (비공개로 바꾼 것도 포함)
     @Transactional(readOnly = true)
     public Page<BoardManageResponse> getSellerReviews(Long loginUserId, Pageable pageable) {
+        return getSellerReviews(loginUserId, null, pageable);
+    }
+
+    // hidden 을 주면 비공개(true)/공개(false) 리뷰만
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getSellerReviews(Long loginUserId, Boolean hidden, Pageable pageable) {
         requireLogin(loginUserId);
-        return toManageResponses(boardRepository.findReviewsBySeller(loginUserId, pageable));
+        return toManageResponses(boardRepository.findReviewsBySeller(loginUserId, hidden, pageable));
+    }
+
+    // 리뷰 관리 탭의 개수: 전체/공개/비공개
+    @Transactional(readOnly = true)
+    public Map<String, Long> getSellerReviewCounts(Long loginUserId) {
+        requireLogin(loginUserId);
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("ALL", boardRepository.countReviewsBySeller(loginUserId, null));
+        counts.put("PUBLIC", boardRepository.countReviewsBySeller(loginUserId, false));
+        counts.put("HIDDEN", boardRepository.countReviewsBySeller(loginUserId, true));
+        return counts;
     }
 
     // 문의 탭의 개수: 전체/상품/이벤트/경매. scope 가 seller 면 내 상품에 온 문의, 아니면 내가 쓴 문의
@@ -818,6 +838,8 @@ public class BoardService {
             boardPage = type == InquiryTargetType.ITEM
                 ? boardRepository.findItemInquiries(id, pageable)
                 : boardRepository.findInquiriesByTarget(type, id, pageable);
+        } else if (boardType == BoardType.PRODUCT_REVIEW && searchKeyword.isBlank()) {
+            boardPage = boardRepository.findVisibleReviews(loginUserId, pageable);
         } else if (searchKeyword.isBlank()) {
             boardPage = boardRepository.findByBoardType(
                 boardType,
@@ -827,6 +849,7 @@ public class BoardService {
             boardPage = boardRepository.findByKeyword(
                 searchKeyword,
                 List.of(boardType),
+                loginUserId,
                 pageable
             );
         }

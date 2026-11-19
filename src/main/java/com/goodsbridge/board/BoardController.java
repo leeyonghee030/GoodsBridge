@@ -134,10 +134,19 @@ public class BoardController {
     // 판매자 "리뷰 관리": 내 상품의 리뷰 (비공개로 바꾼 것 포함)
     @GetMapping("/boards/seller/reviews")
     public ResponseEntity<Page<BoardManageResponse>> getSellerReviews(
+        @RequestParam(required = false) Boolean hidden,
         @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        return ResponseEntity.ok(boardService.getSellerReviews(loginUserId, pageable));
+        return ResponseEntity.ok(boardService.getSellerReviews(loginUserId, hidden, pageable));
+    }
+
+    // 리뷰 관리 탭의 개수 (ALL/PUBLIC/HIDDEN)
+    @GetMapping("/boards/seller/reviews/counts")
+    public ResponseEntity<Map<String, Long>> getSellerReviewCounts(
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getSellerReviewCounts(loginUserId));
     }
 
     // 문의 탭의 개수 (ALL/ITEM/EVENT/AUCTION). scope=seller 면 내 상품에 온 문의, 아니면 내가 쓴 문의

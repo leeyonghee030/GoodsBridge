@@ -135,9 +135,9 @@
             </div>`).join('');
     }
 
-    // 구매확정한 구매(환불 없음)에는 목록에서 바로 리뷰를 쓰거나, 이미 쓴 리뷰로 간다
+    // 구매확정한 구매에는 목록에서 바로 리뷰를 쓰거나, 이미 쓴 리뷰로 간다 (상세 창·서버와 같은 기준: 구매확정 여부)
     function reviewAction(p) {
-        if (stateOf(p) !== 'CONFIRMED') return '';
+        if (p.purchaseStatus !== 'CONFIRMED') return '';
         return myReviews[p.purchaseId]
             ? `<a class="pu-review-done" href="/test/board/${myReviews[p.purchaseId]}?from=${encodeURIComponent('/my/purchases?tab=CONFIRMED')}">내 리뷰</a>`
             : `<button type="button" class="pu-review-btn" data-review="${p.purchaseId}">리뷰 쓰기</button>`;
