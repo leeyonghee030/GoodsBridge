@@ -1,21 +1,4 @@
-<!--
-  상품·이벤트·경매 상세 화면의 문의 목록과 "문의하기".
-  페이지에서 모델로 넘겨야 하는 값: inquiryTargetType (ITEM / EVENT / AUCTION), inquiryTargetId (그 상품·이벤트·경매의 id)
-  문의는 작성자와 판매자만 볼 수 있다 (서버가 다른 사람의 문의는 제목만 가린 채 내려준다).
--->
-<div class="container detail-container" id="iq-root" style="margin: 1.5rem auto 2rem;">
-    <section class="panel">
-        <div class="section-title">
-            <h2>문의</h2>
-            <button type="button" id="iq-open">문의하기</button>
-        </div>
-        <p class="empty" style="font-size: 0.84rem; margin: 0 0 0.6rem;">문의 내용은 작성자와 판매자만 볼 수 있어요.</p>
-        <div id="iq-list"></div>
-        <p id="iq-empty" class="empty" hidden>아직 문의가 없어요.</p>
-        <button type="button" id="iq-more" style="margin-top: 0.75rem;" hidden>더 보기</button>
-    </section>
-</div>
-
+<!-- 상세 화면의 문의 목록·문의하기 스크립트와 문의하기 창 (패널은 fragments/inquiry-panel). 모델: inquiryTargetType, inquiryTargetId -->
 <div class="modal-backdrop" id="iq-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" id="iq-close">✕</button>
@@ -44,6 +27,8 @@
     const form = document.getElementById('iq-form');
     const message = document.getElementById('iq-message');
     let nextPage = 0;
+    // 정보 영역 탭 옆의 문의 개수
+    const setCount = total => { const el = document.querySelector('[data-tab-count="inquiry"]'); if (el) el.textContent = total; };
 
     const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
     const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
@@ -81,6 +66,7 @@
             return;
         }
         const page = await res.json();
+        setCount(page.totalElements);
         list.insertAdjacentHTML('beforeend', (page.content || []).map(row).join(''));
         nextPage += 1;
         emptyEl.textContent = '아직 문의가 없어요.';

@@ -2273,3 +2273,25 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .faq-item p { margin: 0 0 0.9rem; font-size: 0.86rem; line-height: 1.7; color: var(--color-text-soft); }
 .faq-item p a, .info-more a { text-decoration: underline; text-underline-offset: 3px; font-weight: 600; color: var(--color-text); }
 .info-more { margin: 1.4rem 0 0; font-size: 0.86rem; color: var(--color-muted); }
+
+/* 상세 화면 정보 영역 탭: 상품 정보·구매 / 리뷰 / 문의를 같은 자리에서 바꿔 한눈에 보여준다 */
+.info-tabs { flex: none; display: flex; gap: 0.2rem; margin: 0 0 0.9rem; border-bottom: 1px solid var(--color-border); }
+.info-tabs .info-tab { width: auto; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; margin-bottom: -1px; font: inherit; font-size: 0.92rem; font-weight: 500; color: var(--color-muted); cursor: pointer; }
+.info-tabs .info-tab:hover { background: none; color: var(--color-text); }
+.info-tabs .info-tab.active, .info-tabs .info-tab.active:hover { background: none; color: var(--color-text); font-weight: 700; border-bottom-color: var(--color-dark); }
+.info-tabs .info-tab small { margin-left: 0.3rem; font-size: 0.76rem; font-weight: 600; color: var(--color-muted); }
+.info-tabs .info-tab small:empty { display: none; }
+.info-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.info-pane[hidden] { display: none; }
+.info-panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0 0 0.5rem; }
+.info-panel-head h2 { margin: 0; font-size: 1.02rem; }
+.info-pane .info-panel-head button { width: auto; padding: 0.42rem 0.9rem; font-size: 0.8rem; }
+.info-note { flex: none; margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--color-muted); }
+.info-list { flex: 1; min-height: 0; overflow-y: auto; }
+.info-empty { margin: 0; padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.88rem; }
+.info-pane .info-more { flex: none; margin-top: 0.6rem; }
+.au-info .info-list { max-height: 420px; }
+/* 탭이 차지하는 높이만큼 정보 영역이 자라고(최소 450px), 목록은 안에서 스크롤한다 */
+.item-detail-info.tabbed { height: auto; min-height: 450px; }
+.item-detail-info.tabbed .info-list { max-height: 340px; }
+@media (max-width: 760px) { .info-pane { flex: none; } .info-list { overflow: visible; } }

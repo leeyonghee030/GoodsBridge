@@ -74,7 +74,12 @@
         </div>
     </div>
     <!-- 상세는 간단하게: 가격/남은 수량/마감만. 참가 방법·동의·수량 선택은 참가하기 → 결제 창에서 -->
-    <div class="detail-info item-detail-info">
+    <div class="detail-info item-detail-info tabbed">
+        <nav class="info-tabs" role="tablist" aria-label="상세 정보">
+            <button type="button" class="info-tab active" data-pane="info">이벤트 정보</button>
+            <button type="button" class="info-tab" data-pane="inquiry">문의<small data-tab-count="inquiry"></small></button>
+        </nav>
+        <div class="info-pane" data-pane="info">
         <div class="ev-head">
             <span class="badge">선착순 이벤트</span>
             <span class="badge" id="ev-status"></span>
@@ -102,6 +107,8 @@
         <button type="button" id="ev-action">참가하기</button>
         <!-- 참가한 뒤에는 번호표 확인과 구매 취소를 마이페이지 이벤트 내역에서 한다 -->
         <a href="/my/events" class="ev-mylink" id="ev-mylink" hidden>내 참가 내역 · 취소하러 가기</a>
+        </div>
+{{> fragments/inquiry-panel}}
     </div>
 </div>
 </div>
@@ -348,6 +355,7 @@
 })();
 </script>
 
-{{> fragments/inquiry}}
+{{> fragments/inquiry-script}}
+{{> fragments/info-tabs-script}}
 
 {{> fragments/footer}}

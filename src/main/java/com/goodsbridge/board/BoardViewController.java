@@ -90,16 +90,16 @@ public class BoardViewController {
     // 상세 화면의 "목록으로" 링크: 리뷰·이벤트/경매 문의는 글이 달린 화면으로, 나머지는 그 유형의 목록으로
     private String backUrl(BoardResponseDto board) {
         if (board.getBoardType() == BoardType.PRODUCT_REVIEW && board.getItemId() != null) {
-            return "/test/item/" + board.getItemId();
+            return "/test/item/" + board.getItemId() + "#review";
         }
         if (board.getBoardType() == BoardType.PRODUCT_INQUIRY && board.getTargetType() != null) {
             switch (board.getTargetType()) {
                 case EVENT:
-                    return "/test/event/" + board.getTargetId();
+                    return "/test/event/" + board.getTargetId() + "#inquiry";
                 case AUCTION:
-                    return "/test/auction/" + board.getTargetId();
+                    return "/test/auction/" + board.getTargetId() + "#inquiry";
                 case ITEM:
-                    return "/test/item/" + board.getItemId();
+                    return "/test/item/" + board.getItemId() + "#inquiry";
             }
         }
         return "/test/board?boardType=" + board.getBoardType();

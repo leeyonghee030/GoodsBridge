@@ -1,0 +1,23 @@
+<!-- 상세 화면 정보 영역의 탭 전환 (상품 정보 / 리뷰 / 문의). 주소의 #review, #inquiry 로 바로 열 수 있다. -->
+<script>
+(() => {
+    const tabs = [...document.querySelectorAll('.info-tab')];
+    const panes = [...document.querySelectorAll('.info-pane')];
+    if (!tabs.length) return;
+
+    function show(name) {
+        if (!tabs.some(tab => tab.dataset.pane === name)) name = 'info';
+        tabs.forEach(tab => {
+            const active = tab.dataset.pane === name;
+            tab.classList.toggle('active', active);
+            tab.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+        panes.forEach(pane => { pane.hidden = pane.dataset.pane !== name; });
+        // 새로 고침하거나 주소를 공유해도 같은 탭이 열리도록 주소에 남긴다
+        history.replaceState(null, '', name === 'info' ? location.pathname + location.search : '#' + name);
+    }
+
+    tabs.forEach(tab => tab.addEventListener('click', () => show(tab.dataset.pane)));
+    show(location.hash.replace('#', '') || 'info');
+})();
+</script>

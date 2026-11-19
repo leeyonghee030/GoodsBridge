@@ -74,6 +74,10 @@ class InquiryReviewViewTest {
 
         mockMvc.perform(get("/test/item/" + item.getId()))
             .andExpect(status().isOk())
+            // 정보 영역 탭: 상품 정보 / 리뷰 / 문의
+            .andExpect(content().string(containsString("class=\"info-tab active\" data-pane=\"info\"")))
+            .andExpect(content().string(containsString("data-pane=\"review\"")))
+            .andExpect(content().string(containsString("data-pane=\"inquiry\"")))
             // 리뷰 영역: 이 상품의 리뷰만 불러온다
             .andExpect(content().string(containsString("id=\"rv-root\"")))
             .andExpect(content().string(containsString("const ITEM_ID = " + item.getId() + ";")))
@@ -97,7 +101,9 @@ class InquiryReviewViewTest {
             .andExpect(content().string(containsString("id=\"iq-root\"")))
             .andExpect(content().string(containsString("const TARGET_TYPE = 'EVENT';")))
             .andExpect(content().string(containsString("const TARGET_ID = " + event.getId() + ";")))
-            // 리뷰는 상품 상세에서만 보인다
+            // 이벤트 정보 / 문의 탭만 있다 (리뷰는 상품 상세에서만 보인다)
+            .andExpect(content().string(containsString("data-pane=\"inquiry\"")))
+            .andExpect(content().string(not(containsString("data-pane=\"review\""))))
             .andExpect(content().string(not(containsString("id=\"rv-root\""))));
     }
 
@@ -112,6 +118,8 @@ class InquiryReviewViewTest {
             .andExpect(content().string(containsString("id=\"iq-root\"")))
             .andExpect(content().string(containsString("const TARGET_TYPE = 'AUCTION';")))
             .andExpect(content().string(containsString("const TARGET_ID = " + auction.getId() + ";")))
+            .andExpect(content().string(containsString("data-pane=\"inquiry\"")))
+            .andExpect(content().string(not(containsString("data-pane=\"review\""))))
             .andExpect(content().string(not(containsString("id=\"rv-root\""))));
     }
 
@@ -144,9 +152,9 @@ class InquiryReviewViewTest {
         // 이벤트에 남긴 문의는 그 이벤트 화면으로, 상품 문의는 그 상품 화면으로 돌아간다
         mockMvc.perform(get("/test/board/" + eventInquiry.getId()))
             .andExpect(status().isOk())
-            .andExpect(content().string(containsString("href=\"/test/event/" + event.getId() + "\" class=\"back-link\"")));
+            .andExpect(content().string(containsString("href=\"/test/event/" + event.getId() + "#inquiry\" class=\"back-link\"")));
         mockMvc.perform(get("/test/board/" + itemInquiry.getId()))
             .andExpect(status().isOk())
-            .andExpect(content().string(containsString("href=\"/test/item/" + firstItem().getId() + "\" class=\"back-link\"")));
+            .andExpect(content().string(containsString("href=\"/test/item/" + firstItem().getId() + "#inquiry\" class=\"back-link\"")));
     }
 }

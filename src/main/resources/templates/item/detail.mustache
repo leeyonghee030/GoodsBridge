@@ -52,6 +52,12 @@
         </div>
     </div>
     <div class="detail-info item-detail-info">
+        <nav class="info-tabs" role="tablist" aria-label="상품 정보">
+            <button type="button" class="info-tab active" data-pane="info">상품 정보</button>
+            <button type="button" class="info-tab" data-pane="review">리뷰<small data-tab-count="review"></small></button>
+            <button type="button" class="info-tab" data-pane="inquiry">문의<small data-tab-count="inquiry"></small></button>
+        </nav>
+        <div class="info-pane" data-pane="info">
         <p class="item-tag">{{item.categoryName}}</p>
         <h1>{{item.title}}</h1>
         <p class="item-price">{{#money}}{{item.price}}{{/money}}원</p>
@@ -66,6 +72,9 @@
             <button type="button" id="buy-button">구매하기</button>
             <p id="buy-message" class="form-message"></p>
         </div>
+        </div>
+{{> fragments/review-panel}}
+{{> fragments/inquiry-panel}}
     </div>
 </div>
 </div>
@@ -274,7 +283,8 @@ const errorText = async (res, fallback) => {
 })();
 </script>
 
-{{> fragments/review}}
-{{> fragments/inquiry}}
+{{> fragments/review-script}}
+{{> fragments/inquiry-script}}
+{{> fragments/info-tabs-script}}
 
 {{> fragments/footer}}

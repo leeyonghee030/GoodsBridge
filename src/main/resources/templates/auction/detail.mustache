@@ -78,6 +78,11 @@
         <div class="detail-image" id="au-image">불러오는 중...</div>
     </div>
     <div class="detail-info au-info">
+        <nav class="info-tabs" role="tablist" aria-label="상세 정보">
+            <button type="button" class="info-tab active" data-pane="info">경매 정보</button>
+            <button type="button" class="info-tab" data-pane="inquiry">문의<small data-tab-count="inquiry"></small></button>
+        </nav>
+        <div class="info-pane" data-pane="info">
         <div class="au-head">
             <span class="badge">경매</span>
             <span class="badge" id="au-status"></span>
@@ -114,6 +119,8 @@
         </div>
         <button type="button" id="au-action" hidden></button>
         <div class="au-owner" id="au-owner" hidden></div>
+        </div>
+{{> fragments/inquiry-panel}}
     </div>
     <aside class="au-side">
         <section class="au-history">
@@ -432,6 +439,7 @@
 })();
 </script>
 
-{{> fragments/inquiry}}
+{{> fragments/inquiry-script}}
+{{> fragments/info-tabs-script}}
 
 {{> fragments/footer}}
