@@ -13,9 +13,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -109,24 +109,26 @@ public class BoardController {
         return ResponseEntity.ok(boardService.getMyReviewIds(loginUserId));
     }
 
-    // 마이페이지 "내 문의": 내가 쓴 상품 문의. targetType(ITEM/EVENT/AUCTION)으로 대상을 좁힐 수 있다
+    // 마이페이지 "내 문의": 내가 쓴 상품 문의. targetType(ITEM/EVENT/AUCTION), status(PENDING/COMPLETED)로 좁힐 수 있다
     @GetMapping("/boards/my-inquiries")
     public ResponseEntity<Page<BoardManageResponse>> getMyInquiries(
         @RequestParam(required = false) InquiryTargetType targetType,
+        @RequestParam(required = false) BoardStatus status,
         @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        return ResponseEntity.ok(boardService.getMyInquiries(loginUserId, targetType, pageable));
+        return ResponseEntity.ok(boardService.getMyInquiries(loginUserId, targetType, status, pageable));
     }
 
     // 판매자 "문의 관리": 내 상품·이벤트·경매에 온 문의
     @GetMapping("/boards/seller/inquiries")
     public ResponseEntity<Page<BoardManageResponse>> getSellerInquiries(
         @RequestParam(required = false) InquiryTargetType targetType,
+        @RequestParam(required = false) BoardStatus status,
         @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
         @AuthenticationPrincipal Long loginUserId
     ) {
-        return ResponseEntity.ok(boardService.getSellerInquiries(loginUserId, targetType, pageable));
+        return ResponseEntity.ok(boardService.getSellerInquiries(loginUserId, targetType, status, pageable));
     }
 
     // 판매자 "리뷰 관리": 내 상품의 리뷰 (비공개로 바꾼 것 포함)
@@ -190,6 +192,18 @@ public class BoardController {
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(replyId);
+    }
+
+    // 댓글 수정 (작성자 본인만)
+    @PutMapping("/replies/{id}")
+    public ResponseEntity<Void> updateReply(
+        @PathVariable Long id,
+        @RequestBody @Valid ReplyRequestDto requestDto,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        boardService.updateReply(id, requestDto, loginUserId);
+
+        return ResponseEntity.noContent().build();
     }
 
     // 댓글 삭제

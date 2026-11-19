@@ -16,6 +16,7 @@ import com.goodsbridge.item.Item;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.purchase.PurchaseStatus;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -225,14 +226,25 @@ public class BoardService {
         InquiryTargetType targetType,
         Pageable pageable
     ) {
+        return getMyInquiries(loginUserId, targetType, null, pageable);
+    }
+
+    // status 를 주면 답변 대기/완료만
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getMyInquiries(
+        Long loginUserId,
+        InquiryTargetType targetType,
+        BoardStatus status,
+        Pageable pageable
+    ) {
         requireLogin(loginUserId);
         Page<Board> page;
         if (targetType == null) {
-            page = boardRepository.findMyInquiries(loginUserId, pageable);
+            page = boardRepository.findMyInquiries(loginUserId, status, pageable);
         } else if (targetType == InquiryTargetType.ITEM) {
-            page = boardRepository.findMyItemInquiries(loginUserId, pageable);
+            page = boardRepository.findMyItemInquiries(loginUserId, status, pageable);
         } else {
-            page = boardRepository.findMyInquiriesByTarget(loginUserId, targetType, pageable);
+            page = boardRepository.findMyInquiriesByTarget(loginUserId, targetType, status, pageable);
         }
         return toManageResponses(page);
     }
@@ -244,14 +256,25 @@ public class BoardService {
         InquiryTargetType targetType,
         Pageable pageable
     ) {
+        return getSellerInquiries(loginUserId, targetType, null, pageable);
+    }
+
+    // status 를 주면 답변 대기/완료만
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getSellerInquiries(
+        Long loginUserId,
+        InquiryTargetType targetType,
+        BoardStatus status,
+        Pageable pageable
+    ) {
         requireLogin(loginUserId);
         Page<Board> page;
         if (targetType == null) {
-            page = boardRepository.findSellerInquiries(loginUserId, pageable);
+            page = boardRepository.findSellerInquiries(loginUserId, status, pageable);
         } else if (targetType == InquiryTargetType.ITEM) {
-            page = boardRepository.findSellerItemInquiries(loginUserId, pageable);
+            page = boardRepository.findSellerItemInquiries(loginUserId, status, pageable);
         } else {
-            page = boardRepository.findSellerInquiriesByTarget(loginUserId, targetType, pageable);
+            page = boardRepository.findSellerInquiriesByTarget(loginUserId, targetType, status, pageable);
         }
         return toManageResponses(page);
     }
@@ -475,6 +498,15 @@ public class BoardService {
                 );
             }
 
+            // 상품 리뷰에는 그 상품의 판매자만 댓글을 단다
+        } else if (board.getBoardType() == BoardType.PRODUCT_REVIEW) {
+
+            if (!isSellerOf(board, loginUserId)) {
+                throw new ForbiddenException(
+                    "상품 리뷰에는 해당 상품의 판매자만 댓글을 달 수 있습니다."
+                );
+            }
+
             // 고객센터 댓글 권한 검증
         } else if (board.getBoardType() == BoardType.CUSTOMER_SERVICE) {
 
@@ -520,6 +552,30 @@ public class BoardService {
             );
         }
 
+        // 문의 작성자가 추가 질문을 달면 답변할 쪽(상품 문의는 판매자, 고객센터는 관리자)에게 알린다
+        if (isAuthor) {
+            List<Long> answererIds = List.of();
+            if (board.getBoardType() == BoardType.PRODUCT_INQUIRY) {
+                answererIds = itemRepository.findById(board.getItemId())
+                    .map(item -> List.of(item.getSellerUserId()))
+                    .orElse(List.of());
+            } else if (board.getBoardType() == BoardType.CUSTOMER_SERVICE) {
+                answererIds = userRepository.findIdsByRole(Role.ADMIN);
+            }
+            for (Long receiverId : answererIds) {
+                publisher.publishEvent(
+                    new NotificationEvent(
+                        receiverId,
+                        Notification.Type.BOARD_REPLY,
+                        "[추가 질문]",
+                        "{" + board.getTitle() + "}에 추가 질문이 달렸습니다",
+                        Notification.ReferenceType.BOARD,
+                        board.getId()
+                    )
+                );
+            }
+        }
+
         // 게시판 유형과 댓글 작성자에 따라 게시글 상태 변경
         if (board.getBoardType() == BoardType.PRODUCT_INQUIRY
             || board.getBoardType() == BoardType.CUSTOMER_SERVICE) {
@@ -536,6 +592,21 @@ public class BoardService {
         return replyId;
     }
 
+
+    // 댓글 수정 (작성자 본인만)
+    @Transactional
+    public void updateReply(Long replyId, ReplyRequestDto requestDto, Long loginUserId) {
+        Reply reply = replyRepository.findById(replyId)
+            .orElseThrow(() -> new NotFoundException("댓글을 찾을 수 없습니다."));
+
+        if (reply.getBoard().getBoardType() == BoardType.LEGACY) {
+            throw new NotFoundException("댓글을 찾을 수 없습니다.");
+        }
+        if (!Objects.equals(reply.getAuthorId(), loginUserId)) {
+            throw new ForbiddenException("댓글을 수정할 권한이 없습니다.");
+        }
+        reply.updateContent(requestDto.getContent().trim());
+    }
 
     // 댓글 삭제
 
@@ -559,9 +630,6 @@ public class BoardService {
             throw new ForbiddenException("댓글을 삭제할 권한이 없습니다.");
         }
 
-        // 삭제 전 댓글 개수 확인
-        long replyCount = replyRepository.countByBoardId(board.getId());
-
         // DB에서 댓글 직접 삭제
         int deletedCount = replyRepository.deleteByIdInBulk(replyId);
 
@@ -569,10 +637,28 @@ public class BoardService {
             throw new NotFoundException("댓글을 찾을 수 없습니다.");
         }
 
-        // 마지막 댓글이 삭제되면 답변 대기 상태로 변경
-        if (replyCount == 1) {
-            board.pending();
+        // 남은 댓글 중 가장 최근 것을 누가 썼는지로 답변 상태를 다시 정한다
+        // (없거나 문의 작성자의 추가 질문이면 답변 대기, 판매자·관리자의 답변이면 답변 완료)
+        if (board.getBoardType() == BoardType.PRODUCT_INQUIRY
+            || board.getBoardType() == BoardType.CUSTOMER_SERVICE) {
+            Optional<Reply> latest = replyRepository.findFirstByBoardIdOrderByIdDesc(board.getId());
+            if (latest.isEmpty() || Objects.equals(latest.get().getAuthorId(), board.getAuthorId())) {
+                board.pending();
+            } else {
+                board.complete();
+            }
         }
+    }
+
+    // 상품 리뷰에 댓글을 달 수 있는지 (그 상품의 판매자만)
+    @Transactional(readOnly = true)
+    public boolean isItemSeller(Long itemId, Long loginUserId) {
+        if (itemId == null || loginUserId == null) {
+            return false;
+        }
+        return itemRepository.findById(itemId)
+            .map(item -> Objects.equals(item.getSellerUserId(), loginUserId))
+            .orElse(false);
     }
 
     // 게시글 수정

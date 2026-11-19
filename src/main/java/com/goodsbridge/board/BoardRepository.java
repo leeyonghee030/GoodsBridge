@@ -57,27 +57,30 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
         AND b.authorId = :authorId
+        AND (:status IS NULL OR b.status = :status)
         """)
-    Page<Board> findMyInquiries(@Param("authorId") Long authorId, Pageable pageable);
+    Page<Board> findMyInquiries(@Param("authorId") Long authorId, @Param("status") BoardStatus status, Pageable pageable);
 
     @Query("""
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
         AND b.authorId = :authorId
         AND (b.targetType IS NULL OR b.targetType = com.goodsbridge.board.InquiryTargetType.ITEM)
+        AND (:status IS NULL OR b.status = :status)
         """)
-    Page<Board> findMyItemInquiries(@Param("authorId") Long authorId, Pageable pageable);
+    Page<Board> findMyItemInquiries(@Param("authorId") Long authorId, @Param("status") BoardStatus status, Pageable pageable);
 
     @Query("""
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
         AND b.authorId = :authorId
         AND b.targetType = :targetType
+        AND (:status IS NULL OR b.status = :status)
         """)
     Page<Board> findMyInquiriesByTarget(
         @Param("authorId") Long authorId,
         @Param("targetType") InquiryTargetType targetType,
-        Pageable pageable
+        @Param("status") BoardStatus status, Pageable pageable
     );
 
     // ===== 판매자: 내 상품(이벤트·경매의 상품 포함)에 온 문의와 리뷰 =====
@@ -85,27 +88,30 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
         AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        AND (:status IS NULL OR b.status = :status)
         """)
-    Page<Board> findSellerInquiries(@Param("sellerId") Long sellerId, Pageable pageable);
+    Page<Board> findSellerInquiries(@Param("sellerId") Long sellerId, @Param("status") BoardStatus status, Pageable pageable);
 
     @Query("""
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
         AND (b.targetType IS NULL OR b.targetType = com.goodsbridge.board.InquiryTargetType.ITEM)
         AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        AND (:status IS NULL OR b.status = :status)
         """)
-    Page<Board> findSellerItemInquiries(@Param("sellerId") Long sellerId, Pageable pageable);
+    Page<Board> findSellerItemInquiries(@Param("sellerId") Long sellerId, @Param("status") BoardStatus status, Pageable pageable);
 
     @Query("""
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
         AND b.targetType = :targetType
         AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        AND (:status IS NULL OR b.status = :status)
         """)
     Page<Board> findSellerInquiriesByTarget(
         @Param("sellerId") Long sellerId,
         @Param("targetType") InquiryTargetType targetType,
-        Pageable pageable
+        @Param("status") BoardStatus status, Pageable pageable
     );
 
     @Query("""

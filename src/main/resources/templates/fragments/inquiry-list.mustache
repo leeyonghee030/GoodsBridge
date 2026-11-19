@@ -52,12 +52,12 @@
     }
 
     function render() {
-        const shown = status === 'ALL' ? rows : rows.filter(r => r.status === status);
-        listEl.innerHTML = shown.map(rowHtml).join('');
-        const none = shown.length === 0;
+        // 상태(답변 대기/완료)는 서버에서 걸러서 받는다
+        listEl.innerHTML = rows.map(rowHtml).join('');
+        const none = rows.length === 0;
         emptyEl.hidden = !none;
         if (none) {
-            emptyEl.textContent = rows.length
+            emptyEl.textContent = status !== 'ALL'
                 ? '이 상태의 문의가 없어요.'
                 : (SELLER ? '아직 받은 문의가 없어요.' : '아직 남긴 문의가 없어요. 상품·이벤트·경매 상세 화면에서 문의할 수 있어요.');
         }
@@ -68,6 +68,7 @@
         if (reset) { nextPage = 0; rows = []; }
         const query = new URLSearchParams({ page: nextPage, size: 10, sort: 'id,desc' });
         if (kind !== 'ALL') query.set('targetType', kind);
+        if (status !== 'ALL') query.set('status', status);
         const res = await fetch(LIST_API + '?' + query.toString(), { credentials: 'same-origin' });
         if (!res.ok) { emptyEl.textContent = '문의를 불러오지 못했어요.'; emptyEl.hidden = false; return; }
         const page = await res.json();
@@ -95,7 +96,7 @@
         if (!button) return;
         status = button.dataset.status;
         renderTabs();
-        render();
+        load(true);
     });
     moreEl.addEventListener('click', () => load(false));
 

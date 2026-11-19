@@ -34,6 +34,7 @@
         const text = await res.text();
         try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
     };
+    const ME = {{#userId}}{{userId}}{{/userId}}{{^userId}}null{{/userId}};
     let currentId = null;
     let onChange = null;
 
@@ -52,9 +53,17 @@
         $('iqm-meta').textContent = [b.authorNickname, when(b.createdAt)].filter(Boolean).join(' · ');
         $('iqm-content').textContent = b.content;
         const replies = (b.replies || []).slice().reverse(); // 오래된 답변부터
-        $('iqm-replies').innerHTML = replies.map(r =>
-            `<div class="iqm-reply"><strong>${esc(r.authorNickname)}</strong><small>${when(r.createdAt)}</small><p>${esc(r.content)}</p></div>`).join('');
-        $('iqm-detail').href = '/test/board/' + b.id;
+        // 내가 쓴 답변에는 수정/삭제 버튼이 붙는다
+        $('iqm-replies').innerHTML = replies.map(r => {
+            const mine = ME !== null && r.authorId === ME;
+            return `<div class="iqm-reply" data-reply-id="${r.id}">
+                <div class="iqm-reply-head"><strong>${esc(r.authorNickname)}</strong><small>${when(r.createdAt)}</small>
+                ${mine ? '<span class="iqm-reply-actions"><button type="button" data-act="menu" class="iqm-more" aria-label="더보기">⋯</button><span class="iqm-menu" hidden><button type="button" data-act="edit">수정</button><button type="button" data-act="delete" class="is-danger">삭제</button></span></span>' : ''}</div>
+                <p>${esc(r.content)}</p>
+            </div>`;
+        }).join('');
+        // 상세에서 "목록으로"나 삭제 후에는 팝업을 연 이 목록으로 돌아온다
+        $('iqm-detail').href = '/test/board/' + b.id + '?from=' + encodeURIComponent(location.pathname + location.search);
     }
 
     async function open(id, options) {
@@ -83,9 +92,69 @@
         submit.disabled = false;
         if (!res.ok) { message.textContent = await errorText(res, '답변 등록에 실패했습니다.'); message.className = 'form-message error'; return; }
         $('iqm-input').value = '';
+        refresh();
+    });
+
+    async function refresh() {
         const fresh = await fetch('/api/boards/' + currentId, { credentials: 'same-origin' });
         if (fresh.ok) paint(await fresh.json());
         if (onChange) onChange();
+    }
+
+    // 답변 ⋯ 메뉴: 바깥을 누르면 닫힌다
+    function closeMenus() {
+        document.querySelectorAll('#iqm-replies .iqm-menu').forEach(m => { m.hidden = true; });
+    }
+    document.addEventListener('click', event => {
+        if (!event.target.closest('.iqm-reply-actions')) closeMenus();
+    });
+
+    // 답변 수정 / 삭제
+    $('iqm-replies').addEventListener('click', async event => {
+        const button = event.target.closest('[data-act]');
+        if (!button) return;
+        const row = button.closest('.iqm-reply');
+        if (button.dataset.act === 'menu') {
+            const menu = row.querySelector('.iqm-menu');
+            const willOpen = menu.hidden;
+            closeMenus();
+            menu.hidden = !willOpen;
+            return;
+        }
+        closeMenus();
+        const replyId = row.dataset.replyId;
+        const message = $('iqm-message');
+        message.textContent = '';
+
+        if (button.dataset.act === 'delete') {
+            if (!confirm('이 답변을 삭제할까요?')) return;
+            const res = await fetch('/api/replies/' + replyId, { method: 'DELETE', credentials: 'same-origin' });
+            if (!res.ok) { message.textContent = await errorText(res, '삭제에 실패했습니다.'); message.className = 'form-message error'; return; }
+            refresh();
+            return;
+        }
+        if (button.dataset.act === 'edit') {
+            const p = row.querySelector('p');
+            row.querySelector('.iqm-reply-actions').hidden = true;
+            p.outerHTML = `<form class="iqm-edit"><textarea rows="3" required>${esc(p.textContent)}</textarea>
+                <div class="iqm-edit-actions"><button type="button" data-act="cancel" class="is-ghost">취소</button><button type="submit">저장</button></div></form>`;
+            row.querySelector('textarea').focus();
+            return;
+        }
+        if (button.dataset.act === 'cancel') refresh();
+    });
+
+    $('iqm-replies').addEventListener('submit', async event => {
+        event.preventDefault();
+        const row = event.target.closest('.iqm-reply');
+        const message = $('iqm-message');
+        const res = await fetch('/api/replies/' + row.dataset.replyId, {
+            method: 'PUT', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: row.querySelector('textarea').value.trim() })
+        });
+        if (!res.ok) { message.textContent = await errorText(res, '수정에 실패했습니다.'); message.className = 'form-message error'; return; }
+        refresh();
     });
 
     // 목록의 문의 행을 누르면 팝업으로 연다 (새 탭/휠클릭은 그대로 상세 페이지로 간다)

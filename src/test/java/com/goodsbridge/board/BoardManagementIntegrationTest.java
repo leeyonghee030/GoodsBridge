@@ -9,12 +9,14 @@ import com.goodsbridge.event.ShopEvent;
 import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.purchase.PurchaseStatus;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.LoginType;
+import com.goodsbridge.user.Role;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
@@ -44,6 +48,8 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -55,6 +61,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Transactional
+@RecordApplicationEvents
 class BoardManagementIntegrationTest {
 
     @Autowired BoardService boardService;
@@ -66,6 +73,9 @@ class BoardManagementIntegrationTest {
     @Autowired ShopEventRepository shopEventRepository;
     @Autowired AuctionRepository auctionRepository;
     @Autowired MockMvc mockMvc;
+    @Autowired jakarta.persistence.EntityManager em;
+    @Autowired ApplicationEvents events;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     Long buyerId;
     Long otherId;
@@ -327,6 +337,122 @@ class BoardManagementIntegrationTest {
         // 일반 사용자는 볼 수 없다
         mockMvc.perform(get("/api/boards/admin/support").with(login(buyerId)))
             .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void replies_canBeEditedAndDeletedOnlyByTheirAuthor() throws Exception {
+        Board cs = boardRepository.save(Board.builder().title("문의").content("내용").authorId(buyerId)
+            .boardType(BoardType.CUSTOMER_SERVICE).itemId(null).isSecret(true).build());
+        RequestPostProcessor admin = authentication(new UsernamePasswordAuthenticationToken(
+            otherId, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+        Long replyId = Long.valueOf(mockMvc.perform(
+                post("/api/boards/{id}/replies", cs.getId())
+                    .with(admin).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"처음 답변\"}"))
+            .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+
+        // 작성자(관리자)만 수정할 수 있다
+        mockMvc.perform(put("/api/replies/{id}", replyId)
+                .with(login(buyerId)).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"가로채기\"}"))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(put("/api/replies/{id}", replyId)
+                .with(admin).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"  고친 답변  \"}"))
+            .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/replies/{id}", replyId)
+                .with(admin).contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"\"}"))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/boards/{id}", cs.getId()).with(admin))
+            .andExpect(jsonPath("$.replies[0].content").value("고친 답변"));
+
+        // 삭제도 작성자만, 마지막 답변을 지우면 답변 대기로 돌아간다
+        mockMvc.perform(delete("/api/replies/{id}", replyId).with(login(buyerId)))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/api/replies/{id}", replyId).with(admin))
+            .andExpect(status().isNoContent());
+        em.flush(); // 상태 변경(답변 대기)을 먼저 반영한 뒤
+        em.clear(); // 벌크 삭제 뒤라 같은 트랜잭션의 캐시를 비우고 다시 읽는다
+        mockMvc.perform(get("/api/boards/{id}", cs.getId()).with(admin))
+            .andExpect(jsonPath("$.replies.length()").value(0))
+            .andExpect(jsonPath("$.status").value("PENDING"));
+    }
+
+    // ===================== 답변 상태 / 추가 질문 / 리뷰 댓글 =====================
+
+    private Long reply(Long boardId, Long authorId, String content) {
+        return boardService.createReply(boardId, contentDto(content), authorId);
+    }
+
+    private static ReplyRequestDto contentDto(String content) {
+        ReplyRequestDto dto = new ReplyRequestDto();
+        dto.setContent(content);
+        return dto;
+    }
+
+    private BoardStatus statusOf(Long boardId) {
+        return boardRepository.findById(boardId).orElseThrow().getStatus();
+    }
+
+    @Test
+    void deletingReply_recomputesStatusFromLatestRemainingReply() {
+        Long id = inquiry(buyerId, null, itemA.getId(), null);
+        reply(id, sellerId, "첫 답변");
+        Long followUp = reply(id, buyerId, "추가 질문");
+        assertThat(statusOf(id)).isEqualTo(BoardStatus.PENDING);   // 추가 질문 → 답변 대기
+        Long second = reply(id, sellerId, "두 번째 답변");
+        assertThat(statusOf(id)).isEqualTo(BoardStatus.COMPLETED);
+
+        // 판매자의 마지막 답변을 지우면 추가 질문이 남아 답변 대기
+        boardService.deleteReply(second, sellerId);
+        assertThat(statusOf(id)).isEqualTo(BoardStatus.PENDING);
+
+        // 추가 질문까지 지우면 남은 마지막 댓글이 판매자 답변이라 답변 완료
+        boardService.deleteReply(followUp, buyerId);
+        assertThat(statusOf(id)).isEqualTo(BoardStatus.COMPLETED);
+    }
+
+    @Test
+    void followUpQuestion_notifiesSellerOrAdmins() {
+        Long id = inquiry(buyerId, null, itemA.getId(), null);
+        reply(id, sellerId, "답변");
+        events.clear();
+        reply(id, buyerId, "추가 질문");
+        assertThat(events.stream(NotificationEvent.class).map(NotificationEvent::userId)).containsExactly(sellerId);
+
+        // 고객센터: 관리자 모두에게 알린다
+        jdbcTemplate.update("update user_tb set role = 'ADMIN' where id = ?", otherId);
+        Long cs = boardRepository.save(Board.builder().title("문의").content("내용").authorId(buyerId)
+            .boardType(BoardType.CUSTOMER_SERVICE).isSecret(true).build()).getId();
+        events.clear();
+        reply(cs, buyerId, "추가 질문");
+        assertThat(events.stream(NotificationEvent.class).map(NotificationEvent::userId))
+            .containsExactlyInAnyOrderElementsOf(userRepository.findIdsByRole(Role.ADMIN))
+            .contains(otherId);
+        assertThat(statusOf(cs)).isEqualTo(BoardStatus.PENDING);
+    }
+
+    @Test
+    void reviewReplies_onlyBySellerOfTheItem() {
+        Long id = review(buyerId, itemA);
+        assertThatThrownBy(() -> reply(id, buyerId, "작성자 댓글")).isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> reply(id, otherId, "남의 댓글")).isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> reply(id, otherSellerId, "다른 판매자")).isInstanceOf(ForbiddenException.class);
+        assertThat(reply(id, sellerId, "감사합니다")).isNotNull();
+    }
+
+    @Test
+    void inquiryLists_filterByStatusOnServer() throws Exception {
+        Long answered = inquiry(buyerId, null, itemA.getId(), null);
+        reply(answered, sellerId, "답변");
+        inquiry(buyerId, null, itemC.getId(), null);
+
+        assertThat(boardService.getMyInquiries(buyerId, null, BoardStatus.PENDING, page()).getTotalElements()).isEqualTo(1);
+        assertThat(boardService.getMyInquiries(buyerId, InquiryTargetType.ITEM, BoardStatus.COMPLETED, page())
+            .getContent()).extracting(BoardManageResponse::id).containsExactly(answered);
+        assertThat(boardService.getSellerInquiries(sellerId, null, BoardStatus.COMPLETED, page()).getTotalElements()).isEqualTo(1);
+        assertThat(boardService.getSellerInquiries(sellerId, null, null, page()).getTotalElements()).isEqualTo(2);
+
+        mockMvc.perform(get("/api/boards/seller/inquiries").param("status", "PENDING").with(login(sellerId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     private RequestPostProcessor login(Long userId) {

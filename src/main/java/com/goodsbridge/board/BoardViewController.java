@@ -59,12 +59,16 @@ public class BoardViewController {
     }
 
     @GetMapping("/test/board/{id}")
-    public String detail(@PathVariable Long id, Model model) {
+    public String detail(@PathVariable Long id, @RequestParam(required = false) String from, Model model) {
         Long userId = SecurityUtil.getCurrentUserIdOrNull();
         BoardResponseDto board = boardService.getBoard(id, userId);
         model.addAttribute("board", board);
-        model.addAttribute("backUrl", backUrl(board));
+        // 들어온 화면(from)이 있으면 "목록으로"와 삭제 후 이동이 그 화면으로 돌아간다 (구매 내역, 내 문의, 문의 관리 등)
+        model.addAttribute("backUrl", isLocalPath(from) ? from : backUrl(board));
         model.addAttribute("userId", userId);
+        // 상품 리뷰에는 그 상품의 판매자만 댓글을 단다 (나머지에게는 댓글 입력창 대신 안내를 보여준다)
+        model.addAttribute("replyLocked", board.getBoardType() == BoardType.PRODUCT_REVIEW
+            && !boardService.isItemSeller(board.getItemId(), userId));
         return "board/detail";
     }
 
@@ -118,10 +122,21 @@ public class BoardViewController {
             .toList();
     }
 
+    // 이 사이트 안의 경로만 돌아갈 곳으로 받는다 (외부 주소나 HTML 을 깨는 문자는 막는다)
+    private static final java.util.regex.Pattern LOCAL_PATH = java.util.regex.Pattern.compile("^/(?!/)[A-Za-z0-9/_?=&#.%-]*$");
+
+    private static boolean isLocalPath(String path) {
+        return path != null && LOCAL_PATH.matcher(path).matches();
+    }
+
     // 상세 화면의 "목록으로" 링크: 리뷰·이벤트/경매 문의는 글이 달린 화면으로, 나머지는 그 유형의 목록으로
     private String backUrl(BoardResponseDto board) {
         if (board.getBoardType() == BoardType.PRODUCT_REVIEW && board.getItemId() != null) {
             return "/test/item/" + board.getItemId() + "#review";
+        }
+        // 대상 정보 없이 쓰인 옛 상품 문의는 그 상품 화면으로
+        if (board.getBoardType() == BoardType.PRODUCT_INQUIRY && board.getTargetType() == null && board.getItemId() != null) {
+            return "/test/item/" + board.getItemId() + "#inquiry";
         }
         if (board.getBoardType() == BoardType.PRODUCT_INQUIRY && board.getTargetType() != null) {
             switch (board.getTargetType()) {

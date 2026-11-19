@@ -51,10 +51,13 @@
             </div>
             {{/board.replies}}
         </div>
+        {{#replyLocked}}<p class="empty" style="margin-top: 1rem;">리뷰에는 판매자만 댓글을 달 수 있어요.</p>{{/replyLocked}}
+        {{^replyLocked}}
         <form id="reply-form" style="margin-top: 1rem;">
             <p><input id="reply-content" type="text" placeholder="댓글을 입력하세요" required></p>
             <button type="submit">댓글 등록</button>
         </form>
+        {{/replyLocked}}
         <p id="reply-message" class="form-message"></p>
     </div>
 </div>
@@ -255,11 +258,12 @@ const errorText = async (res, fallback) => {
         if (!(await gbConfirm('게시글을 삭제하시겠습니까?'))) return;
         const res = await pageFetch('/api/boards/' + boardId, { method: 'DELETE' });
         if (!res.ok) { alert('삭제에 실패했습니다.'); return; }
-        location.href = '/test/board';
+        // 들어온 화면(목록으로 링크와 같은 곳)으로 돌아간다
+        location.href = document.querySelector('.back-link').getAttribute('href');
     });
 
     // ===== 댓글 작성 =====
-    document.getElementById('reply-form').addEventListener('submit', async event => {
+    document.getElementById('reply-form')?.addEventListener('submit', async event => {
         event.preventDefault();
         if (!requireLogin()) return;
         const message = document.getElementById('reply-message');

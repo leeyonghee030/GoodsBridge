@@ -149,6 +149,7 @@ public class DemoDataService {
         demoSampleDataService.seed();
         spreadAccountDates();
         seedBoards(userA, userB, shopOwner, shop);
+        seedSupportInquiries(userA, userB, admin);
         seedNotifications(userA, userB, shopOwner, shop);
     }
 
@@ -230,6 +231,46 @@ public class DemoDataService {
             inquiry(userA, auction.getItem(), InquiryTargetType.AUCTION, auction.getId(), "배송비는 따로 있나요?",
                 "낙찰가 외에 배송비가 따로 붙는지 궁금해요.", 1);
         }
+    }
+
+    // 고객센터 시연 문의 (관리자 "고객센터 문의" 화면용). 상품에 달린 글이 아니라 deleteDemoData 가 지우지 않으므로
+    // 같은 제목의 시연 글을 지우고 다시 만든다. 답변 완료 / 답변 후 추가 질문(답변 대기) / 답변 대기가 섞이게 한다.
+    private static final String[][] SUPPORT_INQUIRIES = {
+        {"결제 영수증은 어디서 받을 수 있나요?", "상품을 구매했는데 카드 결제 영수증을 따로 받을 수 있는지 궁금해요."},
+        {"교환 노쇼 페널티 기준이 궁금해요", "교환 약속 시간에 늦으면 노쇼로 처리되나요? 몇 분까지 기다려 주는지 알고 싶어요."},
+        {"가게 입점 신청은 어떻게 하나요?", "오프라인 굿즈샵을 운영하고 있는데 입점하려면 어떤 서류가 필요한가요?"},
+        {"알림이 오지 않아요", "교환 신청을 받았는데 알림센터에 알림이 표시되지 않았어요. 확인 부탁드려요."}
+    };
+
+    private void seedSupportInquiries(User userA, User userB, User admin) {
+        for (String[] q : SUPPORT_INQUIRIES) {
+            jdbcTemplate.update("delete from reply_tb where board_id in (select id from board_tb where board_type = 'CUSTOMER_SERVICE' and title = ?)", q[0]);
+            jdbcTemplate.update("delete from board_tb where board_type = 'CUSTOMER_SERVICE' and title = ?", q[0]);
+        }
+        String hello = "안녕하세요, GoodsBridge 고객센터입니다. ";
+
+        // 답변 완료
+        Board receipt = support(userA, SUPPORT_INQUIRIES[0], 3);
+        answer(receipt, admin, hello + "마이페이지 > 구매 내역에서 구매 건을 누르면 결제 정보와 함께 영수증을 확인할 수 있어요.");
+
+        // 관리자가 답변한 뒤 작성자가 추가 질문을 남겨 다시 답변 대기
+        Board noShow = support(userB, SUPPORT_INQUIRIES[1], 2);
+        answer(noShow, admin, hello + "약속 시간 기준으로 가게가 출석 체크를 하지 못하면 노쇼로 처리돼요.");
+        noShow.addReply(Reply.builder().board(noShow).content("그럼 가게에 미리 연락하면 시간을 미룰 수 있나요?").authorId(userB.getId()).build());
+        noShow.pending();
+        boardRepository.save(noShow);
+
+        // 답변 대기
+        support(userB, SUPPORT_INQUIRIES[2], 1);
+        support(userA, SUPPORT_INQUIRIES[3], 0);
+    }
+
+    private Board support(User author, String[] q, int daysAgo) {
+        Board board = boardRepository.save(Board.builder()
+            .title(q[0]).content(q[1]).authorId(author.getId())
+            .boardType(BoardType.CUSTOMER_SERVICE).isSecret(true).build());
+        setBoardDate(board, daysAgo, 2);
+        return board;
     }
 
     private Board inquiry(User author, Item item, InquiryTargetType type, Long targetId, String title, String content, int daysAgo) {

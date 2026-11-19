@@ -31,6 +31,10 @@
 .pu-refund-row small { color: var(--color-muted); }
 .pu-note { font-size: 0.78rem; color: var(--color-muted); margin: 0.3rem 0 0; }
 .pu-confirm { margin-top: 0.4rem; }
+.pu-side { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; }
+.pu-list button.pu-review-btn { width: auto; height: 1.7rem; margin: 0; padding: 0 0.7rem; border: 1px solid var(--color-dark); border-radius: 999px; background: var(--color-dark); color: #fff; font-family: var(--font-sans); font-size: 0.74rem; font-weight: 600; line-height: 1; cursor: pointer; }
+.pu-list button.pu-review-btn:hover { background: var(--color-dark-hover); }
+.pu-list a.pu-review-done { font-size: 0.74rem; color: var(--color-muted); text-decoration: underline; }
 </style>
 
 <!-- 내 정보 / 교환 내역처럼 탭과 내용을 하나의 카드 안에 둔다 -->
@@ -127,8 +131,16 @@
                     <strong>${esc(p.itemTitle)}</strong>
                     <small>${kindOf(p) === 'AUCTION' ? '낙찰가 ' : ''}${money(p.price)} · ${date(p.purchasedAt)} ${kindOf(p) === 'AUCTION' ? '결제' : '구매'}</small>
                 </span>
-                ${badgeOf(p)}
+                <span class="pu-side">${badgeOf(p)}${reviewAction(p)}</span>
             </div>`).join('');
+    }
+
+    // 구매확정한 구매(환불 없음)에는 목록에서 바로 리뷰를 쓰거나, 이미 쓴 리뷰로 간다
+    function reviewAction(p) {
+        if (stateOf(p) !== 'CONFIRMED') return '';
+        return myReviews[p.purchaseId]
+            ? `<a class="pu-review-done" href="/test/board/${myReviews[p.purchaseId]}?from=${encodeURIComponent('/my/purchases?tab=CONFIRMED')}">내 리뷰</a>`
+            : `<button type="button" class="pu-review-btn" data-review="${p.purchaseId}">리뷰 쓰기</button>`;
     }
 
     async function load() {
@@ -179,7 +191,7 @@
             <p class="pu-note">상품을 잘 받으셨다면 구매 확정을 눌러 주세요. 확정하면 환불 신청을 할 수 없어요.</p>` : ''}
             ${p.deliveryStatus !== 'DELIVERED' && p.purchaseStatus === 'PAID' ? '<p class="pu-note">배송이 완료되면 구매 확정과 환불 신청을 할 수 있어요.</p>' : ''}
             ${p.purchaseStatus === 'CONFIRMED' ? (myReviews[p.purchaseId]
-                ? `<a class="pu-review-link" href="/test/board/${myReviews[p.purchaseId]}">내 리뷰 보기</a>`
+                ? `<a class="pu-review-link" href="/test/board/${myReviews[p.purchaseId]}?from=${encodeURIComponent('/my/purchases?tab=CONFIRMED')}">내 리뷰 보기</a>`
                 : `<button type="button" class="pu-confirm" id="pu-review">리뷰 쓰기</button>
                    <p class="pu-note">구매확정한 상품에 리뷰를 남길 수 있어요. 구매 1건당 1개만 쓸 수 있어요.</p>`) : ''}
 
@@ -203,6 +215,13 @@
     }
 
     listEl.addEventListener('click', ev => {
+        if (ev.target.closest('a.pu-review-done')) return; // 링크는 그대로 이동
+        const reviewButton = ev.target.closest('[data-review]');
+        if (reviewButton) {
+            const p = purchases.find(x => x.purchaseId === Number(reviewButton.dataset.review));
+            if (p) window.openReviewModal({ purchaseId: p.purchaseId, itemTitle: p.itemTitle, onDone: () => load() });
+            return;
+        }
         const row = ev.target.closest('[data-id]');
         if (!row) return;
         current = purchases.find(p => p.purchaseId === Number(row.dataset.id));
@@ -261,7 +280,11 @@
 
     // 알림에서 /my/purchases?purchase={구매ID}로 들어오면 그 구매가 있는 단계 탭(배송 준비중 등)으로 가서 상세를 바로 연다
     load().then(() => {
-        const id = Number(new URLSearchParams(location.search).get('purchase'));
+        const params = new URLSearchParams(location.search);
+        // 리뷰 상세에서 돌아오면 ?tab=CONFIRMED 로 구매 확정 탭을 연다
+        const tab = params.get('tab');
+        if (tab && STATES.some(([key]) => key === tab)) { sub = tab; render(); }
+        const id = Number(params.get('purchase'));
         const target = id && purchases.find(p => p.purchaseId === id);
         if (!target) return;
         kind = 'ALL';

@@ -428,9 +428,6 @@ class BoardServiceTest {
         given(replyRepository.findById(1L))
             .willReturn(Optional.of(reply));
 
-        given(replyRepository.countByBoardId(board.getId()))
-            .willReturn(1L);
-
         given(replyRepository.deleteByIdInBulk(1L))
             .willReturn(1);
 
@@ -438,7 +435,6 @@ class BoardServiceTest {
         boardService.deleteReply(1L, 20L);
 
         // then
-        verify(replyRepository).countByBoardId(board.getId());
         verify(replyRepository).deleteByIdInBulk(1L);
     }
 
@@ -1380,8 +1376,9 @@ class BoardServiceTest {
         given(replyRepository.findById(1L))
             .willReturn(Optional.of(reply));
 
-        given(replyRepository.countByBoardId(1L))
-            .willReturn(1L);
+        // 삭제 후 남은 댓글이 없다
+        given(replyRepository.findFirstByBoardIdOrderByIdDesc(1L))
+            .willReturn(Optional.empty());
 
         given(replyRepository.deleteByIdInBulk(1L))
             .willReturn(1);
@@ -1392,7 +1389,6 @@ class BoardServiceTest {
         // then
         assertThat(board.getStatus()).isEqualTo(BoardStatus.PENDING);
 
-        verify(replyRepository).countByBoardId(1L);
         verify(replyRepository).deleteByIdInBulk(1L);
     }
 
@@ -1415,13 +1411,14 @@ class BoardServiceTest {
         board.complete();
 
         Reply deleteTarget = createReply(board, authorId);
-        createReply(board, 20L);
+        Reply sellerAnswer = createReply(board, 20L);
 
         given(replyRepository.findById(1L))
             .willReturn(Optional.of(deleteTarget));
 
-        given(replyRepository.countByBoardId(1L))
-            .willReturn(2L);
+        // 삭제 후 남은 마지막 댓글은 판매자의 답변이다
+        given(replyRepository.findFirstByBoardIdOrderByIdDesc(1L))
+            .willReturn(Optional.of(sellerAnswer));
 
         given(replyRepository.deleteByIdInBulk(1L))
             .willReturn(1);
@@ -1432,7 +1429,6 @@ class BoardServiceTest {
         // then
         assertThat(board.getStatus()).isEqualTo(BoardStatus.COMPLETED);
 
-        verify(replyRepository).countByBoardId(1L);
         verify(replyRepository).deleteByIdInBulk(1L);
     }
 
