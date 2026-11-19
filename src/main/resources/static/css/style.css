@@ -807,6 +807,12 @@ textarea:focus {
 
 .address-base-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 .address-base-row input { flex: 1; min-width: 0; }
+.address-postcode-row button[hidden] { display: none; }
+/* 배송지 주소(fragments/delivery-address): 기본 주소 / 새로운 주소 선택 */
+.da-modes { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+.da-modes button { width: auto; flex: 1; height: 2.3rem; margin: 0; padding: 0 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-muted); font-family: var(--font-sans); font-size: 0.84rem; font-weight: 600; cursor: pointer; }
+.da-modes button:hover { background: var(--color-surface); color: var(--color-text); }
+.da-modes button.active, .da-modes button.active:hover { border-color: var(--color-dark); background: var(--color-dark); color: #fff; }
 
 .profile-danger-zone { margin-top: 1.5rem; }
 

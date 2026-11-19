@@ -76,10 +76,7 @@ public class BidService {
             throw new BadRequestException("진행 중이며 마감되지 않은 경매만 입찰할 수 있습니다.");
         }
 
-        if (auction.getCurrentWinner() != null
-            && auction.getCurrentWinner().getId().equals(userId)) {
-            throw new BadRequestException("현재 최고 입찰자는 다시 입찰할 수 없습니다.");
-        }
+        // 현재 최고 입찰자도 금액을 올려 다시 입찰할 수 있다 (보증금은 처음 낸 것을 그대로 쓰고, 나에게 상위 입찰 알림은 보내지 않는다)
 
         // 4. 현재가 검증: 아직 입찰이 없으면(현재가 = 시작가) 시작가 이상, 이미 입찰이 있으면 현재가보다 높아야 한다
         Integer bidAmount = request.getBidAmount();

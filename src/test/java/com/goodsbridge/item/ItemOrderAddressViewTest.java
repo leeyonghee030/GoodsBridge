@@ -64,10 +64,10 @@ class ItemOrderAddressViewTest {
         loginAs(null);
         mockMvc.perform(get("/test/item/" + itemId))
             .andExpect(status().isOk())
-            .andExpect(content().string(containsString("id=\"order-postcode\"")))
-            .andExpect(content().string(containsString("id=\"order-postcode-search\"")))
-            .andExpect(content().string(containsString("id=\"order-address-base\"")))
-            .andExpect(content().string(containsString("id=\"order-address-detail\"")))
+            .andExpect(content().string(containsString("id=\"da-postcode\"")))
+            .andExpect(content().string(containsString("id=\"da-search\"")))
+            .andExpect(content().string(containsString("id=\"da-base\"")))
+            .andExpect(content().string(containsString("id=\"da-detail\"")))
             .andExpect(content().string(containsString("postcode.v2.js")))
             .andExpect(content().string(not(containsString("id=\"order-address\""))));
     }
@@ -76,14 +76,14 @@ class ItemOrderAddressViewTest {
     void userWithoutDefaultAddress_hasNoDefaultOrNewChoice() throws Exception {
         loginAs(null);
         mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(content().string(not(containsString("id=\"order-address-modes\""))));
+            .andExpect(content().string(not(containsString("id=\"da-modes\""))));
     }
 
     @Test
     void userWithDefaultAddress_startsWithItAndCanChooseANewOne() throws Exception {
         loginAs(Address.builder().postalCode("04001").address("서울 마포구 와우산로 21").detailAddress("3층").build());
         mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(content().string(containsString("id=\"order-address-modes\"")))
+            .andExpect(content().string(containsString("id=\"da-modes\"")))
             .andExpect(content().string(containsString("data-postal-code=\"04001\"")))
             .andExpect(content().string(containsString("data-address=\"서울 마포구 와우산로 21\"")))
             .andExpect(content().string(containsString("data-detail-address=\"3층\"")))
@@ -92,16 +92,29 @@ class ItemOrderAddressViewTest {
     }
 
     @Test
+    void auctionBalancePayment_usesTheSameAddressInputWithTheDefaultAddress() throws Exception {
+        loginAs(Address.builder().postalCode("04001").address("서울 마포구 와우산로 21").detailAddress("3층").build());
+        for (String page : new String[]{"/test/auction/1", "/my/auctions"}) {
+            mockMvc.perform(get(page))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("id=\"da-search\"")))
+                .andExpect(content().string(containsString("data-address=\"서울 마포구 와우산로 21\"")))
+                .andExpect(content().string(containsString("window.deliveryAddress.text()")))
+                .andExpect(content().string(not(containsString("-address\" rows=\"2\""))));
+        }
+    }
+
+    @Test
     void emptyAddressIsNotADefaultAddress() throws Exception {
         loginAs(Address.builder().postalCode("").address(" ").detailAddress("").build());
         mockMvc.perform(get("/test/item/" + itemId))
-            .andExpect(content().string(not(containsString("id=\"order-address-modes\""))));
+            .andExpect(content().string(not(containsString("id=\"da-modes\""))));
     }
 
     @Test
     void guestSeesThePageWithoutADefaultAddress() throws Exception {
         mockMvc.perform(get("/test/item/" + itemId))
             .andExpect(status().isOk())
-            .andExpect(content().string(not(containsString("id=\"order-address-modes\""))));
+            .andExpect(content().string(not(containsString("id=\"da-modes\""))));
     }
 }

@@ -171,15 +171,35 @@ class BidServiceTest {
     // ===================== 거부 케이스 =====================
 
     @Test
-    void placeBid_rejectsWhenCurrentWinnerTriesToBidAgain() {
+    void placeBid_currentWinnerCanRaiseTheirOwnBid() {
+        // 현재 최고 입찰자도 더 높은 금액으로 다시 입찰할 수 있다
+        when(auction.getCurrentWinner()).thenReturn(user);
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(true);
+        Bid previousBid = mock(Bid.class);
+        when(previousBid.getDepositPaymentId()).thenReturn("payment-a");
+        when(bidRepository.findFirstByAuctionIdAndUserIdOrderByCreatedAtAscIdAsc(1L, 2L))
+            .thenReturn(Optional.of(previousBid));
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        BidResponse response = bidService.placeBid(1L, 2L, new BidRequest(20_000, null));
+
+        assertEquals(20_000, response.getBidAmount());
+        verify(auction).updateCurrentBid(20_000, user);
+        // 보증금은 처음 낸 것을 그대로 쓴다 (추가 결제 없음)
+        verify(auction).setWinningPaymentId("payment-a");
+        verifyNoInteractions(paymentService);
+        // 나 자신에게 상위 입찰 알림을 보내지 않는다
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    void placeBid_currentWinnerMustStillBidAboveTheMinimumIncrement() {
+        // 다시 입찰해도 현재가 + 최소 증가폭 규칙은 그대로다
         when(auction.getCurrentWinner()).thenReturn(user);
 
-        BadRequestException exception = assertThrows(BadRequestException.class,
-            () -> bidService.placeBid(1L, 2L, new BidRequest(20_000, "payment-1")));
+        assertThrows(BadRequestException.class,
+            () -> bidService.placeBid(1L, 2L, new BidRequest(10_000, null)));
 
-        assertEquals("현재 최고 입찰자는 다시 입찰할 수 없습니다.", exception.getMessage());
-        verify(paymentService, never()).verify(any(), anyInt(), any(), anyLong());
-        verifyDepositCancelled();
         verify(bidRepository, never()).save(any());
     }
 

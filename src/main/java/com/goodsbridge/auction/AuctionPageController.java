@@ -20,6 +20,7 @@ import java.util.List;
 public class AuctionPageController {
 
     private final ShopRepository shopRepository;
+    private final com.goodsbridge.user.DefaultAddressProvider defaultAddressProvider;
 
     @Value("${portone.store-id}")
     private String storeId;
@@ -52,6 +53,8 @@ public class AuctionPageController {
     public String detail(@PathVariable Long id, Model model) {
         common(model);
         model.addAttribute("auctionId", id);
+        // 낙찰 잔금 결제 창의 배송지: 내 기본 주소가 있으면 "기본 주소"로 시작한다
+        model.addAttribute("defaultAddress", defaultAddressProvider.find(SecurityUtil.getCurrentUserIdOrNull()));
         return "auction/detail";
     }
 
@@ -59,6 +62,7 @@ public class AuctionPageController {
     @GetMapping("/my/auctions")
     public String myAuctions(Model model) {
         common(model);
+        model.addAttribute("defaultAddress", defaultAddressProvider.find(SecurityUtil.getCurrentUserIdOrNull()));
         return "auction/my";
     }
 
