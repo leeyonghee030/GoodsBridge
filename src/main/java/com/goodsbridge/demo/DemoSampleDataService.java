@@ -182,9 +182,10 @@ public class DemoSampleDataService {
         String find = "select min(id) from board_tb where title = ? and content = ?";
         Long id = first(find, title, content);
         if (id != null) {
-            // 유형 없이 만들어져 LEGACY 로 남은 옛 시연 글은 유형을 붙여 준다
-            jdbc.update("update board_tb set board_type = ?, target_type = ?, target_id = ? where id = ? and board_type = 'LEGACY'",
-                type, targetType, itemId, id);
+            // 유형 없이 만들어져 LEGACY 로 남았거나(상품이 달린 글은) 기본값 COMMUNITY 로 채워진 옛 시연 글은 유형을 바로잡아 준다
+            jdbc.update("update board_tb set board_type = ?, target_type = ?, target_id = ? where id = ? "
+                    + "and (board_type = 'LEGACY' or (board_type = 'COMMUNITY' and ? = 'PRODUCT_INQUIRY'))",
+                type, targetType, itemId, id, type);
             return id;
         }
         jdbc.update("insert into board_tb (author_id, content, created_at, is_secret, item_id, status, title, board_type, target_type, target_id) "
