@@ -2317,18 +2317,18 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .mb-kind { flex: none; min-width: 3rem; text-align: center; padding: 0.1rem 0.5rem; border: 1px solid var(--color-border); border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: #fff; color: var(--color-muted); }
 .mb-kind.is-event { background: #E6E6E6; border-color: #E6E6E6; color: #333; }
 .mb-kind.is-auction { background: var(--color-dark); border-color: var(--color-dark); color: #fff; }
-.mb-badge { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
+.mb-badge { flex: none; min-width: 3.6rem; text-align: center; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem; background: var(--color-surface); color: var(--color-muted); white-space: nowrap; }
 .mb-badge.is-wait { background: #FDECEA; color: #C0392B; }
 .mb-badge.is-done { background: #EAF5EE; color: #2E7D4F; }
 .mb-badge.is-hidden { background: var(--color-dark); color: #fff; }
-.mb-actions { flex: none; display: flex; gap: 0.4rem; }
-.mb-actions button { width: auto; padding: 0.38rem 0.75rem; font-size: 0.76rem; }
-.mb-actions button.secondary { background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); }
-.mb-actions button.secondary:hover { background: var(--color-surface); color: var(--color-text); }
-.mb-actions button.danger { background: #fff; border: 1px solid #E6B8B3; color: #C0392B; }
-.mb-actions button.danger:hover { background: #FDECEA; color: #C0392B; }
+.mb-actions { flex: none; display: flex; align-items: center; gap: 0.4rem; }
+/* 전역 button 스타일(폭 100%, secondary 의 margin-top 등)과 섞이지 않게 전용 버튼 스타일로 크기·높이·글씨를 통일한다 */
+.mb-actions .mb-btn { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 6.2rem; height: 2.1rem; margin: 0; padding: 0 0.5rem; border: 1px solid var(--color-border); border-radius: 4px; background: #fff; color: var(--color-text); font-family: var(--font-sans); font-size: 0.78rem; font-weight: 600; line-height: 1; white-space: nowrap; cursor: pointer; }
+.mb-actions .mb-btn:hover { background: var(--color-surface); color: var(--color-text); }
+.mb-actions .mb-btn.is-danger { border-color: #E6B8B3; color: #C0392B; }
+.mb-actions .mb-btn.is-danger:hover { background: #FDECEA; color: #C0392B; }
 .mb-empty { margin: 0; padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.88rem; }
 .mb-more { margin-top: 0.6rem; }
-@media (max-width: 640px) { .mb-row { flex-wrap: wrap; } .mb-actions { width: 100%; } }
+@media (max-width: 640px) { .mb-row { flex-wrap: wrap; } .mb-actions { width: 100%; } .mb-actions .mb-btn { flex: 1; width: auto; } }
 /* 판매자가 비공개로 바꾼 리뷰를 작성자에게 알리는 표시 */
 .rv-hidden-note { display: inline-block; margin-top: 0.25rem; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.72rem; background: var(--color-dark); color: #fff; }
