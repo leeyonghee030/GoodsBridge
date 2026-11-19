@@ -572,7 +572,7 @@ public class ExchangeService {
                 "[교환예약]",
                 exchangeRequest.getDeadline() +
                     "까지 교환 예약 일정이 생겼습니다",
-                Notification.ReferenceType.EXCHANGE,
+                Notification.ReferenceType.SHOP_EXCHANGE,   // 받는 사람이 가게 사장님이라 가게 교환 관리 화면으로 보낸다
                 exchangeRequest.getId()
             )
         );

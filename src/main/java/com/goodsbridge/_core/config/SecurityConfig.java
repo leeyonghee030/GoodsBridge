@@ -58,7 +58,9 @@ public class SecurityConfig {
                     "/oauth2/**", "/login/**", "/api/join", "/join", "/api/login",
                     "/css/**", "/js/**", "/img/**", "/favicon.ico", "/images/**", "/api/email/**",
                     // /shop/exchange: 가게 사장님 화면. 사장님이 아니면 컨트롤러가 /my/exchange 로 보낸다 (401 빈 화면 방지)
-                    "/test/**", "/exchange/**", "/demo/**", "/my/**", "/shop/exchange"
+                    "/test/**", "/exchange/**", "/demo/**", "/my/**", "/shop/exchange",
+                    // 푸터에서 연결되는 정적 안내 화면 (로그인 없이 볼 수 있다)
+                    "/about", "/shop-guide", "/notice", "/faq"
                 ).permitAll()
 
                 .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()

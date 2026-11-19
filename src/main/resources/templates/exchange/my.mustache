@@ -517,6 +517,19 @@
         render();
     });
 
+    // 알림 등으로 한 신청을 바로 열 때, 목록도 그 신청이 들어 있는 메인 탭·보조 탭으로 보여 준다
+    function showTabOf(id) {
+        const places = [
+            ['requests', 'closed', closedList], ['requests', 'received', receivedList], ['requests', 'sent', sentList],
+            ['exchanges', 'confirmed', confirmedList], ['exchanges', 'done', doneList], ['exchanges', 'failed', failedList]
+        ];
+        const found = places.find(([, , list]) => list().some(r => r.id === id));
+        if (!found) return;
+        group = found[0];
+        tab = found[1];
+        render();
+    }
+
     // ---------- 신청 상세 (만날 시간 + 채팅) ----------
     const reqModal = document.getElementById('req-modal');
     const reqBody = document.getElementById('req-body');
@@ -743,7 +756,12 @@
     // 알림 등에서 /my/exchange?request={신청ID} 로 들어오면 그 교환 팝업을 바로 연다
     load().then(() => {
         const id = Number(new URLSearchParams(location.search).get('request'));
-        if (id && requests.some(r => r.id === id)) openRequest(id);
+        if (id && requests.some(r => r.id === id)) {
+            showTabOf(id);   // 뒤 화면도 그 신청이 있는 탭(예: 신청 > 취소됨)으로 맞춘다
+            openRequest(id);
+        }
     });
 })();
 </script>
+
+{{> fragments/footer}}

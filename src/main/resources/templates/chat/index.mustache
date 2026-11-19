@@ -1,4 +1,14 @@
 {{> fragments/header}}
-<h1>Chat (테스트용)</h1>
-<p class="todo">TODO: #13(AI 에이전트) 완성 후 실제 화면으로 교체</p>
+
+<div class="container my-card">
+    <h1 style="margin:0 0 .3rem;font-size:1.15rem">GoodsBridge 도우미</h1>
+    {{#userId}}
+    <p style="font-size:.86rem;color:var(--color-muted)">오른쪽 아래 도우미 창으로 대화해요. 이 창은 어느 화면에서나 같은 모양으로 열려요.<br>
+        예) "내 교환 신청 보여줘", "5번 신청 취소해줘"</p>
+    {{/userId}}
+    {{^userId}}
+    <p style="font-size:.86rem;color:var(--color-muted)">로그인한 뒤에 이용할 수 있어요.</p>
+    {{/userId}}
+</div>
+
 {{> fragments/footer}}

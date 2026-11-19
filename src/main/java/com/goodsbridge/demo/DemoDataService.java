@@ -32,6 +32,8 @@ import com.goodsbridge.payment.PaymentRepository;
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseSource;
 import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.notification.Notification;
+import com.goodsbridge.notification.NotificationRepository;
 import com.goodsbridge.refund.Refund;
 import com.goodsbridge.refund.RefundRepository;
 import com.goodsbridge.refund.RefundType;
@@ -96,6 +98,7 @@ public class DemoDataService {
     private final PaymentRepository paymentRepository;
     private final PurchaseRepository purchaseRepository;
     private final RefundRepository refundRepository;
+    private final NotificationRepository notificationRepository;
     private final SettlementHistoryRepository settlementHistoryRepository;
     private final ExchangeMessageRepository exchangeMessageRepository;
     private final PasswordEncoder passwordEncoder;
@@ -128,6 +131,9 @@ public class DemoDataService {
         // 이전 시연(또는 테스트)에서 쌓인 데모 가게의 수수료 기록도 초기화해서 수익 요약이 시드 데이터와 맞게 한다
         jdbcTemplate.update("delete from settlement_history_tb where shop_id = ?", shop.getId());
         deleteDemoData(List.of(userA.getId(), userB.getId(), shopOwner.getId()));
+        // 지난 시연에서 쌓인 알림도 지운다. 남겨 두면 이미 사라진 신청·구매를 가리키는 알림이 계속 남는다.
+        jdbcTemplate.update("delete from notifications_tb where receiver_id in (?, ?, ?, ?, ?)",
+            userA.getId(), userB.getId(), shopOwner.getId(), shopOwnerB.getId(), admin.getId());
         deleteDemoPayments();
         seed(userA, userB, shopOwner, shop);
         seedBranches();
@@ -135,6 +141,93 @@ public class DemoDataService {
         // 목록 화면(가게·상품·교환 게시판·문의)을 채우는 샘플 데이터. 이미 있으면 건드리지 않는다
         demoSampleDataService.seed();
         spreadAccountDates();
+        seedNotifications(userA, userB, shopOwner, shop);
+    }
+
+    /**
+     * 알림센터 시연용 알림. 방금 만든 시연 데이터(구매·교환·경매·환불)를 실제로 가리키게 만들어서
+     * 알림을 눌렀을 때 알맞은 화면으로 이동하는지 바로 볼 수 있다. 초기화할 때마다 지우고 다시 만든다.
+     * 가장 오래된 알림 하나는 읽음으로 두어 읽음/안 읽음이 함께 보이게 한다.
+     */
+    private void seedNotifications(User userA, User userB, User shopOwner, Shop shop) {
+        List<Notification> made = new ArrayList<>();
+        Long a = userA.getId();
+        Long b = userB.getId();
+
+        // 신청B의 구매: 배송 단계별로 하나씩 (같은 구매를 가리키는 알림은 단계가 달라도 현재 단계 탭으로 열린다)
+        Long preparing = firstId("select id from purchase_tb where buyer_user_id = ? and delivery_status = 'PREPARING' and status = 'PAID' order by id desc limit 1", b);
+        Long shipped = firstId("select id from purchase_tb where buyer_user_id = ? and delivery_status = 'SHIPPED' and status = 'PAID' order by id desc limit 1", b);
+        Long delivered = firstId("select id from purchase_tb where buyer_user_id = ? and delivery_status = 'DELIVERED' and status = 'PAID' order by id desc limit 1", b);
+        // 교환: A는 내 글에 들어온 신청, B는 내가 한 신청의 결과
+        Long incoming = firstId("select r.id from exchange_request_tb r join exchange_item_tb e on e.id = r.exchange_itemaid "
+            + "where e.user_id = ? and r.status = 'PENDING' order by r.id desc limit 1", a);
+        Long confirmed = firstId("select r.id from exchange_request_tb r join item_tb i on i.id = r.itembid "
+            + "where i.seller_user_id = ? and r.status = 'CONFIRMED' order by r.id desc limit 1", b);
+        Long rejected = firstId("select r.id from exchange_request_tb r join item_tb i on i.id = r.itembid "
+            + "where i.seller_user_id = ? and r.status = 'REJECTED' order by r.id desc limit 1", b);
+        Long won = firstId("select id from auction_tb where current_winner_user_id = ? and status = 'ENDED_SUCCESS' order by id desc limit 1", b);
+        Long refundRejected = firstId("select id from refund_tb where requester_user_id = ? and status = 'REJECTED' order by id desc limit 1", b);
+
+        if (incoming != null) {
+            made.add(notification(userA, Notification.Type.EXCHANGE_REQUEST, "[교환신청]", "(테스트) 교환 게시글에 교환 신청이 들어왔습니다",
+                Notification.ReferenceType.EXCHANGE, incoming));
+        }
+        if (confirmed != null) {
+            made.add(notification(userB, Notification.Type.EXCHANGE_APPROVED, "[교환승인]", "교환 신청이 수락되었습니다. 가게에서 만나 교환해 주세요.",
+                Notification.ReferenceType.EXCHANGE, confirmed));
+        }
+        if (rejected != null) {
+            made.add(notification(userB, Notification.Type.EXCHANGE_REJECTED, "[교환거절]", "교환 신청이 거절되었습니다",
+                Notification.ReferenceType.EXCHANGE, rejected));
+        }
+        if (won != null) {
+            made.add(notification(userB, Notification.Type.AUCTION_WIN, "[상품 낙찰]", "(테스트) 경매 상품에 낙찰되셨습니다! 기한 내 잔금을 결제해 주세요.",
+                Notification.ReferenceType.AUCTION, won));
+        }
+        if (preparing != null) {
+            made.add(notification(userB, Notification.Type.PAYMENT_COMPLETED, "[배송준비중]", "(테스트) 상품이 구매가 완료되었습니다",
+                Notification.ReferenceType.DELIVERY, preparing));
+        }
+        if (shipped != null) {
+            made.add(notification(userB, Notification.Type.DELIVERY_STARTED, "[배송시작]", "(테스트) 상품이 배송 중입니다",
+                Notification.ReferenceType.DELIVERY, shipped));
+        }
+        if (delivered != null) {
+            made.add(notification(userB, Notification.Type.DELIVERY_COMPLETED, "[배송완료]", "(테스트) 상품이 배송 완료되었습니다. 구매를 확정해 주세요.",
+                Notification.ReferenceType.DELIVERY, delivered));
+        }
+        if (refundRejected != null) {
+            made.add(notification(userB, Notification.Type.REFUND_REJECTED, "[환불거절]", "환불 요청이 거절되었습니다",
+                Notification.ReferenceType.REFUND, refundRejected));
+        }
+
+        // 가게 사장님: 교환 예약 알림 (실제로 가게가 받는 알림은 이것뿐이다. 경매 입찰 알림은 아직 발송되지 않는다)
+        List<Long> booked = jdbcTemplate.queryForList(
+            "select id from exchange_request_tb where shop_id = ? and status = 'CONFIRMED' order by id desc limit 2", Long.class, shop.getId());
+        for (Long requestId : booked) {
+            made.add(notification(shopOwner, Notification.Type.EXCHANGE_BOOKED, "[교환예약]", "(테스트) 교환 예약 일정이 생겼습니다. 방문하면 출석을 확인해 주세요.",
+                Notification.ReferenceType.SHOP_EXCHANGE, requestId));
+        }
+
+        // 만든 순서대로 몇 분씩 간격을 두고 과거로 흩어 놓고, 가장 오래된 알림은 읽음으로 둔다
+        for (int i = 0; i < made.size(); i++) {
+            jdbcTemplate.update("update notifications_tb set created_at = ? where id = ?",
+                Timestamp.valueOf(LocalDateTime.now().minusMinutes(5L + i * 20L)), made.get(i).getId());
+        }
+        if (made.size() > 1) {
+            jdbcTemplate.update("update notifications_tb set read_status = 'READ' where id = ?", made.get(made.size() - 1).getId());
+        }
+    }
+
+    private Notification notification(User receiver, Notification.Type type, String title, String content,
+                                      Notification.ReferenceType referenceType, Long referenceId) {
+        return notificationRepository.save(new Notification(receiver, type, title, content, referenceType, referenceId));
+    }
+
+    // 첫 번째 행의 id (없으면 null)
+    private Long firstId(String sql, Long userId) {
+        List<Long> ids = jdbcTemplate.queryForList(sql, Long.class, userId);
+        return ids.isEmpty() ? null : ids.get(0);
     }
 
     // 시연 계정과 시연 가게의 가입일·입점일을 과거로 흩어 놓는다 (샘플 데이터와 같은 이유: 대시보드 차트가 DB마다 같은 모양이 되게)
