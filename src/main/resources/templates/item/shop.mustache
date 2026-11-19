@@ -1018,7 +1018,14 @@
         if (mm && Number(mm[2]) >= 1 && Number(mm[2]) <= 12) { setMonth(Number(mm[1]), Number(mm[2]) - 1); viewYear = Number(mm[1]); }
     })();
 
-    load();
+    // 알림([새 주문]·[구매 확정])에서 ?purchase={구매ID}로 들어오면 그 주문의 판매 상세 창을 바로 연다
+    load().then(() => {
+        const purchaseId = Number(new URLSearchParams(location.search).get('purchase'));
+        current = purchaseId ? sales.find(s => s.purchaseId === purchaseId) : null;
+        if (!current) return;
+        renderDetail();
+        detailModal.hidden = false;
+    });
 })();
 </script>
 

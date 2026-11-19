@@ -1,5 +1,6 @@
 package com.goodsbridge.exchange;
 
+import com.goodsbridge.notification.NotificationText;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -121,8 +122,8 @@ public class ExchangeChatService {
             new NotificationEvent(
                 request.getMeetingProposerId(),
                 Notification.Type.EXCHANGE_MEETING_CONFIRMED,
-                "[교환 약속 승락됨]",
-                request.getMeetingAt() + "에 약속이 확정되었습니다",
+                "[교환 약속 승낙됨]",
+                NotificationText.when(request.getMeetingAt()) + "으로 약속이 확정되었습니다",
                 Notification.ReferenceType.EXCHANGE,
                 request.getId()
             )
@@ -134,9 +135,8 @@ public class ExchangeChatService {
                 request.getShop().getOwnerUserId(),
                 Notification.Type.EXCHANGE_MEETING_CONFIRMED,
                 "[교환 약속 체결]",
-                request.getExchangeItemA().getUser().getId() + "님과 " +
-                    request.getItemB().getSellerUserId() + "님의 약속이 " +
-                    request.getMeetingAt() + "에 약속이 확정되었습니다",
+                "'" + request.getExchangeItemA().getItem().getTitle() + "' ↔ '" + request.getItemB().getTitle()
+                    + "' 교환 약속이 " + NotificationText.when(request.getMeetingAt()) + "으로 확정되었습니다",
                 Notification.ReferenceType.EXCHANGE,
                 request.getId()
             )

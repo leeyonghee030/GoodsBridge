@@ -29,6 +29,32 @@ class NotificationServiceTest {
     @InjectMocks NotificationService notificationService;
 
     @Test
+    void createNotification_updatesTheUnreadBidNotificationOfTheSameAuctionInsteadOfStackingANewOne() {
+        Long shopOwnerId = 50L;
+        when(userRepository.findById(shopOwnerId)).thenReturn(Optional.of(new User()));
+        Notification earlier = new Notification(new User(), Notification.Type.AUCTION_BID, "[새 입찰]",
+            "'포토카드' 경매에 새 입찰이 들어왔어요. 현재가 12,000원 (입찰 1건)", Notification.ReferenceType.AUCTION, 7L);
+        when(notificationRepository.findFirstByReceiverIdAndTypeAndReferenceTypeAndReferenceIdAndReadStatus(
+            shopOwnerId, Notification.Type.AUCTION_BID, Notification.ReferenceType.AUCTION, 7L, Notification.ReadStatus.UNREAD))
+            .thenReturn(Optional.of(earlier));
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            notificationService.createNotification(shopOwnerId, Notification.Type.AUCTION_BID, "[새 입찰]",
+                "'포토카드' 경매에 새 입찰이 들어왔어요. 현재가 15,000원 (입찰 2건)", Notification.ReferenceType.AUCTION, 7L);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        // 새 알림을 만들지 않고 기존 안 읽은 알림의 내용을 최신으로 바꾼다
+        ArgumentCaptor<Notification> saved = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(saved.capture());
+        assertSame(earlier, saved.getValue());
+        assertEquals("'포토카드' 경매에 새 입찰이 들어왔어요. 현재가 15,000원 (입찰 2건)", earlier.getContent());
+    }
+
+    @Test
     void createNotification_savesUnreadNotificationAndSendsItOverSse() {
         Long userId = 14L;
         User receiver = new User();

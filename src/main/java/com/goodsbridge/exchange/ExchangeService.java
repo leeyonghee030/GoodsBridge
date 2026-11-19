@@ -1,6 +1,7 @@
 package com.goodsbridge.exchange;
 
 
+import com.goodsbridge.notification.NotificationText;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -116,7 +117,7 @@ public class ExchangeService {
                     userId,
                     Notification.Type.EXCHANGE_COMMENT,
                     "[댓글]",
-                    "'{" + exchangeItem.getItem().getTitle() + "}' 글에 댓글이 달렸습니다",
+                    "'" + exchangeItem.getItem().getTitle() + "' 글에 댓글이 달렸습니다",
                     Notification.ReferenceType.EXCHANGE,
                     id
                 )
@@ -429,8 +430,8 @@ public class ExchangeService {
             new NotificationEvent(
                 exchangeItem.getUser().getId(),
                 Notification.Type.EXCHANGE_REQUEST,
-                "[교환신청]",
-                item.getTitle() + "에 교환 신청이 들어왔습니다",
+                "[교환 신청]",
+                "'" + item.getTitle() + "'에 교환 신청이 들어왔습니다",
                 Notification.ReferenceType.EXCHANGE,
                 exchangeRequest.getId()
             )
@@ -462,9 +463,9 @@ public class ExchangeService {
             new NotificationEvent(
                 exchangeRequest.getItemB().getSellerUserId(),
                 Notification.Type.EXCHANGE_REJECTED,
-                "[교환거절]",
-                exchangeRequest.getExchangeItemA().getItem().getTitle() +
-                    " 교환신청이 거절되었습니다. 보증금은 전액 환불됩니다",
+                "[교환 거절]",
+                "'" + exchangeRequest.getExchangeItemA().getItem().getTitle() +
+                    "' 교환 신청이 거절되었습니다. 보증금은 전액 환불됩니다",
                 Notification.ReferenceType.EXCHANGE,
                 exchangeRequest.getId()
             )
@@ -493,9 +494,9 @@ public class ExchangeService {
             new NotificationEvent(
                 exchangeRequest.getExchangeItemA().getUser().getId(),
                 Notification.Type.EXCHANGE_CANCELLED,
-                "[교환취소]",
-                exchangeRequest.getExchangeItemA().getItem().getTitle() +
-                    " 교환신청이 취소되었습니다",
+                "[교환 취소]",
+                "'" + exchangeRequest.getExchangeItemA().getItem().getTitle() +
+                    "' 교환 신청이 취소되었습니다",
                 Notification.ReferenceType.EXCHANGE,
                 exchangeRequest.getId()
             )
@@ -555,9 +556,9 @@ public class ExchangeService {
                 new NotificationEvent(
                     e.getItemB().getSellerUserId(),
                     Notification.Type.EXCHANGE_CANCELLED,
-                    "[교환취소]",
-                    exchangeRequest.getExchangeItemA().getItem().getTitle() +
-                        " 교환신청이 취소되었습니다",
+                    "[교환 취소]",
+                    "'" + exchangeRequest.getExchangeItemA().getItem().getTitle() +
+                        "' 교환 신청이 취소되었습니다",
                     Notification.ReferenceType.EXCHANGE,
                     e.getId()
                 )
@@ -569,8 +570,8 @@ public class ExchangeService {
             new NotificationEvent(
                 exchangeRequest.getShop().getOwnerUserId(),
                 Notification.Type.EXCHANGE_BOOKED,
-                "[교환예약]",
-                exchangeRequest.getDeadline() +
+                "[교환 예약]",
+                NotificationText.when(exchangeRequest.getDeadline()) +
                     "까지 교환 예약 일정이 생겼습니다",
                 Notification.ReferenceType.SHOP_EXCHANGE,   // 받는 사람이 가게 사장님이라 가게 교환 관리 화면으로 보낸다
                 exchangeRequest.getId()
@@ -803,8 +804,8 @@ public class ExchangeService {
 
         String title = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "[교환 완료]" :"[교환 실패]";
 
-        String contentA = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "교환이 완료됐어요. 보증금 " + refundA + "원이 환불돼요" :"노쇼로 보증금이 환불되지 않았어요";
-        String contentB = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "교환이 완료됐어요. 보증금 " + refundB + "원이 환불돼요" :"노쇼로 보증금이 환불되지 않았어요";
+        String contentA = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "교환이 완료됐어요. 보증금 " + NotificationText.won(refundA) + "이 환불돼요" :"노쇼로 보증금이 환불되지 않았어요";
+        String contentB = e.getStatus() == ExchangeRequestStatus.COMPLETED ? "교환이 완료됐어요. 보증금 " + NotificationText.won(refundB) + "이 환불돼요" :"노쇼로 보증금이 환불되지 않았어요";
 
         publisher.publishEvent(
             new NotificationEvent(
