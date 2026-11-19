@@ -23,6 +23,10 @@ public interface ShopEventRepository extends JpaRepository<ShopEvent, Long> {
 """)
     List<ShopEvent> getShopEventAll(@Param("shopId") Long shopId,@Param("status") ShopEventStatus status);
 
+    @Query("select new com.goodsbridge.event.EventNotifyInfo(e.item.title, e.shop.ownerUserId) "
+        + "from ShopEvent e where e.id = :id")
+    Optional<EventNotifyInfo> findNotifyInfo(@Param("id") Long id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from ShopEvent s where s.id = :id")
     Optional<ShopEvent> findByIdForUpdate(@Param("id") Long id);

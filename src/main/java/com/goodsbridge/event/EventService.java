@@ -79,6 +79,8 @@ public class EventService {
     }
 
     private EventParticipationResponse doSaveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
+        // 알림에 쓸 값은 잠금을 잡기 전에 읽는다 (선착순이 몰리는 구간이라 잠금 안에서 조회를 늘리지 않는다)
+        EventNotifyInfo notifyInfo = shopEventRepository.findNotifyInfo(id).orElse(null);
         //조회
         ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(() -> {
                 throw new NotFoundException("존재하지 않는 이벤트입니다");
@@ -158,12 +160,39 @@ public class EventService {
         eventParticipationRepository.save(eventParticipation);
         eventParticipationRepository.flush();
         entityManager.refresh(eventParticipation);
+
+        String itemTitle = notifyInfo.itemTitle();
+        // 참가자: 참가 완료와 번호표, 수령(방문) 기한
+        publisher.publishEvent(new NotificationEvent(
+            userid,
+            Notification.Type.EVENT_JOINED,
+            "[이벤트 참가 완료]",
+            "'" + itemTitle + "' 이벤트에 참가했어요. 번호표 " + ticketNumber + "번, "
+                + shopEvent.getVisitUntil() + "까지 가게에 방문해 받아 가세요",
+            Notification.ReferenceType.EVENT,
+            shopEvent.getId()
+        ));
+        // 가게: 새 참가
+        Long ownerId = notifyInfo.ownerUserId();
+        if (ownerId != null) {
+            publisher.publishEvent(new NotificationEvent(
+                ownerId,
+                Notification.Type.EVENT_JOINED,
+                "[이벤트 새 참가]",
+                "'" + itemTitle + "' 이벤트에 " + user.getNickname() + "님이 " + quantity + "개 참가했어요 ("
+                    + shopEvent.getCurrentCount() + "/" + shopEvent.getCapacity() + ")",
+                Notification.ReferenceType.SHOP_EVENTS,
+                shopEvent.getId()
+            ));
+        }
         return new EventParticipationResponse(eventParticipation);
     }
 
     // 참가 취소: 구매 건(번호표에 쌓인 구매 1건) 단위로 취소/환불한다
     @Transactional
     public void cancelEventParticipation(Long id, Long userid, Long participationId) {
+        // 알림에 쓸 값은 잠금을 잡기 전에 읽는다
+        EventNotifyInfo notifyInfo = shopEventRepository.findNotifyInfo(id).orElse(null);
         //조회 (참가 신청과 동시에 인원수를 바꾸므로 같은 잠금을 건다)
         ShopEvent shopEvent = shopEventRepository.findByIdForUpdate(id).orElseThrow(() -> {
                 throw new NotFoundException("존재하지 않는 이벤트입니다");
@@ -194,6 +223,20 @@ public class EventService {
         eventParticipation.cancel();
         // 수량 반납 (정원이 차서 마감됐던 이벤트는 다시 모집중)
         shopEvent.decreaseCurrentCount(eventParticipation.getQuantity());
+
+        // 가게: 참가 취소
+        Long ownerId = notifyInfo.ownerUserId();
+        if (ownerId != null) {
+            publisher.publishEvent(new NotificationEvent(
+                ownerId,
+                Notification.Type.EVENT_PARTICIPATION_CANCELLED,
+                "[이벤트 참가 취소]",
+                "'" + notifyInfo.itemTitle() + "' 이벤트에서 " + user.getNickname() + "님이 "
+                    + eventParticipation.getQuantity() + "개 참가를 취소했어요",
+                Notification.ReferenceType.SHOP_EVENTS,
+                shopEvent.getId()
+            ));
+        }
     }
 
 

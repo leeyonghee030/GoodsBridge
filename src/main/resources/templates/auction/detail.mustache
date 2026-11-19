@@ -305,11 +305,10 @@
         if (!ar.ok) { $('au-image').textContent = '경매를 찾을 수 없어요.'; return false; }
         a = await ar.json();
         bids = br.ok ? ((await br.json()).content || []) : [];
-        if (userId !== null) {
+        if (first && userId !== null) {
+            // 내 입찰 여부는 처음 열 때 한 번만 묻는다 (5초마다 새로고침할 때는 묻지 않고, 내가 입찰하면 바로 true 로 바꾼다)
             const mr = await pageFetch(`/api/auctions/${AUCTION_ID}/my-bid`);
             if (mr.ok) hasMyBid = !!(await mr.json()).hasBid;
-        }
-        if (first && userId !== null) {
             const sr = await pageFetch('/api/shops/me?page=0&size=50');
             if (sr.ok) myShopIds = ((await sr.json()).content || []).map(s => s.id);
         }
@@ -374,6 +373,7 @@
             });
             if (!res.ok) throw new Error(await errorText(res, '입찰에 실패했습니다.') + (first ? '\n결제한 보증금은 자동으로 취소돼요.' : ''));
             bidInput.value = '';
+            hasMyBid = true; // 이제 보증금을 냈으므로 다음 입찰은 보증금 결제 없이
             await alert('입찰했어요!');
         } catch (err) {
             await alert(friendly(err));

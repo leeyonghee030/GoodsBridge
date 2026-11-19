@@ -34,6 +34,7 @@ public class AuctionScheduler {
         runStep("경매 자동 마감", this::closeExpiredAuctions);
         runStep("경매 마감 임박 알림", this::notifyEndingSoonAuctions);
         runStep("패찰자 보증금 환불", this::refundLosers);
+        runStep("잔금 결제 기한 임박 알림", this::notifyBalanceDueSoon);
         runStep("잔금 미납 처리", this::forfeitUnpaidWinners);
         runStep("취소 경매 보증금 환불", this::refundCancelledAuctions);
     }
@@ -46,6 +47,19 @@ public class AuctionScheduler {
                 auctionService.notifyEndingSoon(id);
             } catch (RuntimeException e) {
                 log.error("경매 마감 임박 알림 실패 - auctionId={}", id, e);
+            }
+        }
+    }
+
+    private void notifyBalanceDueSoon() {
+        LocalDateTime now = LocalDateTime.now();
+        List<Long> ids = auctionRepository.findIdsBalanceDueSoon(
+            Status.ENDED_SUCCESS, now, now.plusHours(AuctionService.BALANCE_REMINDER_HOURS));
+        for (Long id : ids) {
+            try {
+                auctionService.notifyBalanceDueSoon(id);
+            } catch (RuntimeException e) {
+                log.error("잔금 결제 기한 임박 알림 실패 - auctionId={}", id, e);
             }
         }
     }

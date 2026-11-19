@@ -88,6 +88,37 @@ public class AuctionService {
         auction.markEndingSoonNotified();
     }
 
+    // 잔금 결제 기한이 BALANCE_REMINDER_HOURS 시간 안으로 남은 낙찰자에게 한 번 알린다 (경매 행 잠금 + 저장 플래그로 중복 방지)
+    public static final int BALANCE_REMINDER_HOURS = 6;
+
+    @Transactional
+    public void notifyBalanceDueSoon(Long auctionId) {
+        Auction auction = auctionRepository.findByIdLock(auctionId)
+            .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+        LocalDateTime now = LocalDateTime.now();
+        if (auction.getStatus() != Status.ENDED_SUCCESS
+            || auction.getBalancePaymentId() != null
+            || auction.isBalanceReminderNotified()
+            || auction.getCurrentWinner() == null
+            || auction.getBalanceDueAt() == null
+            || !auction.getBalanceDueAt().isAfter(now)
+            || auction.getBalanceDueAt().isAfter(now.plusHours(BALANCE_REMINDER_HOURS))) {
+            return;
+        }
+        String balance = NumberFormat.getIntegerInstance(Locale.KOREA).format(auction.getBalanceAmount());
+        publisher.publishEvent(new NotificationEvent(
+            auction.getCurrentWinner().getId(),
+            Notification.Type.AUCTION_REMAINING_PAYMENT,
+            "[잔금 결제 기한 임박]",
+            "'" + auction.getItem().getTitle() + "' 낙찰 잔금 " + balance + "원을 "
+                + auction.getBalanceDueAt().toLocalDate() + " " + auction.getBalanceDueAt().toLocalTime().withNano(0).withSecond(0)
+                + "까지 결제해 주세요. 기한이 지나면 낙찰이 취소되고 보증금은 돌려받을 수 없어요",
+            Notification.ReferenceType.AUCTION,
+            auctionId
+        ));
+        auction.markBalanceReminderNotified();
+    }
+
     // 경매 개설
     @Transactional
     public AuctionResponse create(Long userId, Long shopId, AuctionRequest request) {

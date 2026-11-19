@@ -6,6 +6,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 @RestController
 @RequiredArgsConstructor
@@ -30,6 +33,21 @@ public class NotificationController {
         @AuthenticationPrincipal Long userId
     ) {
         notificationService.markAsRead(notificationId, userId);
+    }
+
+    // 내 알림 전체 (읽은 것 포함, 최신순). ?page=0&size=20
+    @GetMapping("/me")
+    public Page<NotificationResponse.NotificationDto> getMyNotifications(
+        @AuthenticationPrincipal Long userId,
+        @PageableDefault(size = 20) Pageable pageable
+    ) {
+        return notificationService.getMyNotifications(userId, pageable);
+    }
+
+    // 모두 읽음 처리 (바꾼 개수)
+    @PatchMapping("/read-all")
+    public int markAllAsRead(@AuthenticationPrincipal Long userId) {
+        return notificationService.markAllAsRead(userId);
     }
 
     // 읽지 않은 알림 조회

@@ -1,5 +1,7 @@
 package com.goodsbridge.event;
 
+import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.notification.Notification;
 import org.springframework.context.ApplicationEventPublisher;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
@@ -54,6 +56,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -130,8 +133,16 @@ class EventServiceTest {
             .build();
     }
 
+    // 알림에 쓰는 상품명·가게 주인 id 는 잠금 전에 따로 읽는다 (EventService.findNotifyInfo)
+    private void stubNotifyInfo(ShopEvent shopEvent) {
+        // when() 안에서 다른 목을 부르면 스텁이 꼬이므로 값을 먼저 꺼낸다
+        EventNotifyInfo info = new EventNotifyInfo(shopEvent.getItem().getTitle(), shopEvent.getShop().getOwnerUserId());
+        lenient().when(shopEventRepository.findNotifyInfo(EVENT_ID)).thenReturn(Optional.of(info));
+    }
+
     private void joinable(ShopEvent shopEvent) {
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
     }
@@ -199,6 +210,7 @@ class EventServiceTest {
     void join_admin_rejectedAndPaymentCancelled() {
         ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User admin = activeUser();
         when(admin.getRole()).thenReturn(Role.ADMIN);
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(admin));
@@ -402,6 +414,7 @@ class EventServiceTest {
         when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
         lenient().when(shopEvent.getItem().getPrice()).thenReturn(30000);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         return shopEvent;
     }
 
@@ -449,6 +462,7 @@ class EventServiceTest {
         ShopEvent shopEvent = event(10, LocalDateTime.now().plusDays(2));
         when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(false);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
 
         assertThrows(ForbiddenException.class,
             () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("itemDescription", "x")));
@@ -470,6 +484,7 @@ class EventServiceTest {
         ShopEvent shopEvent = event(10, LocalDateTime.now().minusHours(2), 3, java.time.LocalDate.now());
         when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
 
         assertThrows(BadRequestException.class,
             () -> eventService.updateEvent(EVENT_ID, USER_ID, updateRequest("itemDescription", "x")));
@@ -608,6 +623,7 @@ class EventServiceTest {
         ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
         shopEvent.increaseCurrentCount(8);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User me = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(me));
         EventParticipation extra = boughtBefore(shopEvent, "pay-1", 3, 3);
@@ -626,6 +642,7 @@ class EventServiceTest {
     void cancelJoin_otherUsersPurchase_notFound() {
         ShopEvent shopEvent = event(100, LocalDateTime.now().plusDays(1), 10);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User me = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(me));
         User other = mock(User.class);
@@ -640,6 +657,65 @@ class EventServiceTest {
         verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
     }
 
+    // ---------- 알림: 참가 완료(참가자), 새 참가 / 참가 취소(가게)
+
+    private ShopEvent eventOfShop(Long ownerId) {
+        Shop shop = mock(Shop.class);
+        lenient().when(shop.getOwnerUserId()).thenReturn(ownerId);
+        Item item = mock(Item.class);
+        lenient().when(item.getTitle()).thenReturn("한정 굿즈");
+        ShopEvent shopEvent = ShopEvent.builder()
+            .shop(shop).item(item).capacity(10).feeAmount(FEE).deadline(LocalDateTime.now().plusDays(1)).maxPerUser(3)
+            .visitUntil(java.time.LocalDate.now().plusDays(5))
+            .build();
+        ReflectionTestUtils.setField(shopEvent, "id", EVENT_ID);
+        return shopEvent;
+    }
+
+    @Test
+    @DisplayName("참가하면 참가자에게 번호표·수령 기한을, 가게에 새 참가를 알린다")
+    void join_notifiesParticipantAndShop() {
+        ShopEvent shopEvent = eventOfShop(50L);
+        joinable(shopEvent);
+        when(paymentService.verify(anyString(), anyInt(), any(), anyLong())).thenReturn("pay-1");
+        EventParticipationRequest req = request("pay-1");
+        ReflectionTestUtils.setField(req, "quantity", 2);
+
+        eventService.saveEventParticipation(EVENT_ID, USER_ID, req);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(publisher, times(2)).publishEvent(captor.capture());
+        NotificationEvent toUser = captor.getAllValues().get(0);
+        NotificationEvent toShop = captor.getAllValues().get(1);
+        assertEquals(USER_ID, toUser.userId());
+        assertEquals(Notification.Type.EVENT_JOINED, toUser.type());
+        assertTrue(toUser.content().contains("번호표 1번"), toUser.content());
+        assertTrue(toUser.content().contains(shopEvent.getVisitUntil().toString()), toUser.content());
+        assertEquals(50L, toShop.userId());
+        assertEquals(Notification.ReferenceType.SHOP_EVENTS, toShop.referenceType());
+        assertTrue(toShop.content().contains("2개 참가") && toShop.content().contains("(2/10)"), toShop.content());
+    }
+
+    @Test
+    @DisplayName("참가를 취소하면 가게에 알린다")
+    void cancelJoin_notifiesShop() {
+        ShopEvent shopEvent = eventOfShop(50L);
+        shopEvent.increaseCurrentCount(1);
+        when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
+        User me = activeUser();
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(me));
+        EventParticipation joined = participation(shopEvent, "pay-1");
+        when(eventParticipationRepository.findById(100L)).thenReturn(Optional.of(joined));
+
+        eventService.cancelEventParticipation(EVENT_ID, USER_ID, 100L);
+
+        org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
+        verify(publisher).publishEvent(captor.capture());
+        assertEquals(50L, captor.getValue().userId());
+        assertEquals(Notification.Type.EVENT_PARTICIPATION_CANCELLED, captor.getValue().type());
+    }
+
     // ---------- C, D. 참가 취소
 
     @Test
@@ -649,6 +725,7 @@ class EventServiceTest {
         shopEvent.increaseCurrentCount(1);
         shopEvent.updateStatus(ShopEventStatus.CLOSED);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         EventParticipation joined = participation(shopEvent, "pay-1");
@@ -668,6 +745,7 @@ class EventServiceTest {
         ShopEvent shopEvent = event(5, LocalDateTime.now().minusMinutes(1));
         shopEvent.updateStatus(ShopEventStatus.CLOSED);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
@@ -682,6 +760,7 @@ class EventServiceTest {
         ShopEvent shopEvent = event(5, LocalDateTime.now().plusDays(1));
         shopEvent.updateStatus(ShopEventStatus.CANCELLED);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         User user = activeUser();
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
 
@@ -699,6 +778,7 @@ class EventServiceTest {
         shopEvent.updateStatus(ShopEventStatus.CLOSED);
         when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
         EventParticipation p1 = participation(shopEvent, "pay-1");
         EventParticipation p2 = participation(shopEvent, "pay-2");
         when(eventParticipationRepository.findJoinedByShopEventId(EVENT_ID)).thenReturn(List.of(p1, p2));
@@ -718,6 +798,7 @@ class EventServiceTest {
         ShopEvent shopEvent = event(2, LocalDateTime.now().minusMinutes(1));
         when(shopEvent.getShop().isOwner(USER_ID)).thenReturn(true);
         when(shopEventRepository.findByIdForUpdate(EVENT_ID)).thenReturn(Optional.of(shopEvent));
+        stubNotifyInfo(shopEvent);
 
         assertThrows(ForbiddenException.class, () -> eventService.cancelShopEvent(EVENT_ID, USER_ID));
 

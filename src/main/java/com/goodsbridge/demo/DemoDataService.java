@@ -120,6 +120,11 @@ public class DemoDataService {
         User admin = findOrCreateUser(ADMIN_EMAIL, "데모관리자");
         // User 엔티티에 역할 변경 메서드가 없어서 데모 계정만 직접 갱신한다.
         jdbcTemplate.update("update user_tb set role = 'ADMIN' where id = ?", admin.getId());
+        // 구매·낙찰 잔금 결제의 "기본 주소"를 누구나 같은 화면으로 시연할 수 있게 데모 구매자 계정에 기본 주소를 넣는다
+        // (다른 데모 계정 설정처럼 SQL 로 바로 바꾼다. 엔티티를 고치면 커밋 때 행 전체가 저장돼 아래 상태 복구 SQL 을 덮을 수 있다)
+        String demoAddress = "update user_tb set postal_code = ?, address = ?, detail_address = ? where id = ?";
+        jdbcTemplate.update(demoAddress, "04044", "서울 마포구 양화로 45 (서교동)", "101동 1201호", userA.getId());
+        jdbcTemplate.update(demoAddress, "04420", "서울 용산구 유엔빌리지길 1 (한남동)", "12층", userB.getId());
 
         Shop shop = findOrCreateShop(shopOwner, "데모 굿즈샵", "서울", "서울시 마포구 데모로 1");
         resetSubscription(shop);
