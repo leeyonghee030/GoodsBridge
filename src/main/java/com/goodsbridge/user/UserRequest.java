@@ -35,8 +35,17 @@ public class UserRequest {
     @Data
     public static class UpdateDto {
         private String password;
-        private MultipartFile profileImage;
+        private MultipartFile profileImage; // 프로필 이미지
         private String nickname;
+
+        private String postalCode;      // 우편 번호
+        private String address;         // 기본 주소
+        private String detailAddress;   // 상세 주소 (선택 입력)
+
+        // 휴대폰
+        private String phonePrefix;
+        private String phoneMiddle;
+        private String phoneLast;
 
         public boolean hasPassword() {
             return password != null && !password.isBlank();
@@ -46,16 +55,46 @@ public class UserRequest {
             return profileImage != null && !profileImage.isEmpty();
         }
 
-        public boolean hasNickname(){
+        public boolean hasNickname() {
             return nickname != null && !nickname.isBlank();
         }
 
-        public void validate(){
-            if (!hasNickname() && !hasPassword() && !hasProfileImage()){
+        public boolean hasAddress() {
+            return postalCode != null && !postalCode.isBlank() &&
+                address != null && !address.isBlank();
+        }
+
+        public boolean hasPhoneNumber() {
+            return phonePrefix != null && !phonePrefix.isBlank()
+                && phoneMiddle != null && !phoneMiddle.isBlank()
+                && phoneLast != null && !phoneLast.isBlank();
+        }
+
+        public void validate() {
+            if (!hasNickname() &&
+                !hasPassword() &&
+                !hasProfileImage() &&
+                !hasAddress() &&
+                !hasPhoneNumber())
+            {
                 throw new BadRequestException("변경할 데이터를 입력해주세요");
             }
 
-            if (hasPassword() && password.length() < 8){
+            // 화면의 국번 select 는 항상 값이 있으므로, 가운데/끝자리 중 하나라도 적었을 때만 전부 입력했는지 확인한다.
+            boolean phoneStarted = (phoneMiddle != null && !phoneMiddle.isBlank())
+                || (phoneLast != null && !phoneLast.isBlank());
+            if (phoneStarted && !hasPhoneNumber()) {
+                throw new BadRequestException("휴대전화 번호를 모두 입력해주세요.");
+            }
+
+            boolean hasPostalCode = postalCode != null && !postalCode.isBlank();
+            boolean hasBaseAddress = address != null && !address.isBlank();
+
+            if (hasPostalCode != hasBaseAddress) {
+                throw new BadRequestException("우편번호와 기본 주소를 모두 입력해 주세요.");
+            }
+
+            if (hasPassword() && password.length() < 8) {
                 throw new BadRequestException("패스워드는 8자 이상이어야 합니다");
             }
         }

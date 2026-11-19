@@ -31,6 +31,11 @@ public class User {
     @Column(unique = true)
     private String nickname;
 
+    @Embedded
+    private Address address; // 배송 주소
+
+    private String phoneNumber;
+
     private String profileImage;
 
     @CreationTimestamp
@@ -59,11 +64,18 @@ public class User {
     @Column(name = "refresh_token_hash", length = 64)
     private String refreshTokenHash;
 
-    @Builder
+    // 주소·전화번호 없이 만드는 기존 호출부(테스트 등)를 위해 유지한다
     public User(String email, String password, String nickname, LoginType loginType, String profileImage) {
+        this(email, password, nickname, loginType, profileImage, null, null);
+    }
+
+    @Builder
+    public User(String email, String password, String nickname, LoginType loginType, String profileImage, Address address, String phoneNumber) {
         this.email = email;
         this.password = password;
         this.nickname = nickname;
+        this.address = address;
+        this.phoneNumber = phoneNumber;
         this.profileImage = profileImage;
         this.loginType = (loginType == null)? LoginType.EMAIL : loginType;
         this.role = Role.USER;
@@ -81,6 +93,10 @@ public class User {
     public void updateNickname(String nickname){
         this.nickname = nickname;
     }
+
+    public void updatePhoneNumber(String phoneNumber){this.phoneNumber = phoneNumber;}
+
+    public void updateAddress(Address address){this.address = address;}
 
     public String getProfilePath() {
         if(this.profileImage == null){
