@@ -34,6 +34,12 @@
 .order-field label { display: block; margin-bottom: 0.35rem; font-size: 0.84rem; font-weight: 500; }
 .order-field label em { font-style: normal; color: #C0392B; }
 .order-field input, .order-field select { margin: 0; }
+/* 배송지: 기본 주소 / 새로운 주소 선택 (내 정보에 기본 주소가 있을 때만) */
+.order-address-modes { display: flex; gap: 0.4rem; margin-bottom: 0.5rem; }
+.order-address-modes button { width: auto; flex: 1; height: 2.3rem; margin: 0; padding: 0 0.8rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; color: var(--color-muted); font-family: var(--font-sans); font-size: 0.84rem; font-weight: 600; cursor: pointer; }
+.order-address-modes button:hover { background: var(--color-surface); color: var(--color-text); }
+.order-address-modes button.active, .order-address-modes button.active:hover { border-color: var(--color-dark); background: var(--color-dark); color: #fff; }
+.order-field .address-postcode-row button[hidden] { display: none; }
 .order-pay { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
 .order-pay input { width: auto; margin: 0; accent-color: var(--color-dark); }
 .order-sum div { display: flex; justify-content: space-between; margin-bottom: 0.45rem; font-size: 0.86rem; color: var(--color-muted); }
@@ -96,8 +102,24 @@
             <input id="order-phone" type="text" inputmode="numeric" maxlength="13" placeholder="숫자만 입력해 주세요." autocomplete="tel">
         </div>
         <div class="order-field">
-            <label for="order-address">주소 <em>*</em></label>
-            <input id="order-address" type="text" maxlength="150" placeholder="받으실 주소를 입력해 주세요. (예: 서울시 마포구 와우산로 21, 3층)" autocomplete="street-address">
+            <label for="order-postcode">주소 <em>*</em></label>
+            {{#defaultAddress}}
+            <!-- 내 정보에 기본 주소가 있으면 기본 주소로 시작하고, 새로운 주소를 고르면 주소검색으로 입력한다 -->
+            <div class="order-address-modes" id="order-address-modes"
+                 data-postal-code="{{postalCode}}" data-address="{{address}}" data-detail-address="{{detailAddress}}">
+                <button type="button" data-mode="default" class="active">기본 주소</button>
+                <button type="button" data-mode="new">새로운 주소</button>
+            </div>
+            {{/defaultAddress}}
+            <!-- 내 정보의 주소 입력과 같은 방식: 우편번호 검색 + 기본주소 + 상세주소 -->
+            <div class="address-postcode-row">
+                <input id="order-postcode" type="text" placeholder="우편번호" readonly>
+                <button type="button" id="order-postcode-search">주소검색</button>
+            </div>
+            <div class="address-base-row">
+                <input id="order-address-base" type="text" placeholder="기본주소" readonly>
+                <input id="order-address-detail" type="text" maxlength="60" placeholder="상세주소 (선택 입력 가능)" autocomplete="address-line2">
+            </div>
         </div>
         <div class="order-field">
             <label for="order-request">배송 요청사항 (선택)</label>
@@ -133,6 +155,7 @@
 </div>
 
 <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+<script src="//t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
 // 서버 에러 응답({"code","message","timestamp"})에서 사용자에게 보여줄 message만 꺼냄
 const errorText = async (res, fallback) => {
@@ -207,18 +230,72 @@ const errorText = async (res, fallback) => {
         if (ev.target.value === 'custom') $('order-request-custom').focus();
     });
 
+    // ===== 배송지 주소: 내 정보와 같은 우편번호 검색 =====
+    const addressModes = $('order-address-modes');
+    function fillAddress(postalCode, address, detail) {
+        $('order-postcode').value = postalCode || '';
+        $('order-address-base').value = address || '';
+        $('order-address-detail').value = detail || '';
+    }
+    // 기본 주소: 내 정보의 주소를 채우고 그대로 쓴다 (바꾸려면 새로운 주소)
+    // 새로운 주소: 비워 두고 주소검색으로 입력한다
+    function setAddressMode(mode) {
+        if (!addressModes) return;
+        const useDefault = mode === 'default';
+        addressModes.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+        if (useDefault) {
+            fillAddress(addressModes.dataset.postalCode, addressModes.dataset.address, addressModes.dataset.detailAddress);
+        } else {
+            fillAddress('', '', '');
+        }
+        $('order-postcode-search').hidden = useDefault;
+        $('order-address-detail').readOnly = useDefault;
+    }
+    if (addressModes) {
+        addressModes.addEventListener('click', ev => {
+            const b = ev.target.closest('[data-mode]');
+            if (!b) return;
+            setAddressMode(b.dataset.mode);
+            if (b.dataset.mode === 'new') $('order-postcode-search').focus();
+        });
+        setAddressMode('default');
+    }
+
+    function searchAddress() {
+        if (!window.kakao || !kakao.Postcode) { fail('주소검색을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.'); return; }
+        new kakao.Postcode({
+            oncomplete: data => {
+                // 내 정보 화면과 같은 규칙: 도로명이면 참고항목(법정동, 공동주택 이름)을 붙이고, 지번이면 지번 주소
+                let addr = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                if (data.userSelectedType === 'R') {
+                    let extra = '';
+                    if (data.bname !== '' && /[동로가]$/.test(data.bname)) extra += data.bname;
+                    if (data.buildingName !== '' && data.apartment === 'Y') extra += (extra ? ', ' : '') + data.buildingName;
+                    if (extra) addr += ` (${extra})`;
+                }
+                fillAddress(data.zonecode, addr, '');
+                $('order-address-detail').focus();
+            }
+        }).open();
+    }
+    $('order-postcode-search').addEventListener('click', searchAddress);
+    $('order-postcode').addEventListener('click', () => { if (!$('order-postcode-search').hidden) searchAddress(); });
+    $('order-address-base').addEventListener('click', () => { if (!$('order-postcode-search').hidden) searchAddress(); });
+
     // 구매 API 는 배송지 문자열 하나만 받으므로 받는 사람/연락처/주소/요청사항을 한 줄로 합친다 (가게 판매 상세에 그대로 보인다)
     function deliveryText() {
         const name = $('order-name').value.trim();
         const phone = $('order-phone').value.trim();
-        const address = $('order-address').value.trim();
+        const postcode = $('order-postcode').value.trim();
+        const baseAddress = $('order-address-base').value.trim();
+        const address = [postcode ? `(${postcode})` : '', baseAddress, $('order-address-detail').value.trim()].filter(Boolean).join(' ');
         const req = $('order-request').value === 'custom' ? $('order-request-custom').value.trim() : $('order-request').value;
         if (!name) return { error: '받는 사람을 입력해 주세요.', focus: 'order-name' };
         if (phone.replace(/\D/g, '').length < 10) return { error: '휴대폰번호를 정확히 입력해 주세요.', focus: 'order-phone' };
-        if (!address) return { error: '주소를 입력해 주세요.', focus: 'order-address' };
+        if (!baseAddress) return { error: '주소검색으로 주소를 입력해 주세요.', focus: 'order-postcode-search' };
         let text = `${name} / ${phone} / ${address}`;
         if (req) text += ` / 요청: ${req}`;
-        if (text.length > 250) return { error: '배송지 정보가 너무 길어요. 주소나 요청사항을 줄여 주세요.', focus: 'order-address' };
+        if (text.length > 250) return { error: '배송지 정보가 너무 길어요. 상세주소나 요청사항을 줄여 주세요.', focus: 'order-address-detail' };
         return { text };
     }
 

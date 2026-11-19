@@ -3,6 +3,8 @@ package com.goodsbridge.item;
 import com.goodsbridge._core.util.SecurityUtil;
 import com.goodsbridge.shop.Shop;
 import com.goodsbridge.shop.ShopRepository;
+import com.goodsbridge.user.Address;
+import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class ItemViewController {
     private final ShopRepository shopRepository;
     private final ShopSaleService shopSaleService;
     private final com.goodsbridge.auction.AuctionRepository auctionRepository;
+    private final UserRepository userRepository;
 
     @Value("${portone.store-id}")
     private String storeId;
@@ -62,7 +66,27 @@ public class ItemViewController {
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);
         model.addAttribute("userId", userId);
+        // 내 정보에 기본 주소가 있으면 구매 창의 배송지에 "기본 주소"로 미리 채운다
+        model.addAttribute("defaultAddress", defaultAddressOf(userId));
         return "item/detail";
+    }
+
+    private Map<String, String> defaultAddressOf(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId)
+            .map(user -> user.getAddress())
+            .filter(address -> address != null && address.getAddress() != null && !address.getAddress().isBlank())
+            .map(address -> Map.of(
+                "postalCode", nullToEmpty(address.getPostalCode()),
+                "address", address.getAddress(),
+                "detailAddress", nullToEmpty(address.getDetailAddress())))
+            .orElse(null);
+    }
+
+    private static String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     // 마이페이지: 구매 내역
