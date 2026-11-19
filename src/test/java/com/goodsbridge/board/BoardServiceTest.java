@@ -7,6 +7,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -974,8 +975,13 @@ class BoardServiceTest {
         given(itemRepository.findById(itemId))
             .willReturn(Optional.of(item));
 
-        given(purchaseRepository.existsByUserIdAndItemId(loginUserId, itemId))
-            .willReturn(true);
+        // 구매확정했고 아직 리뷰가 없는 내 구매가 있다
+        Purchase purchase = mock(Purchase.class);
+        given(purchase.getId()).willReturn(55L);
+        given(purchase.getItem()).willReturn(item);
+        given(item.getId()).willReturn(itemId);
+        given(purchaseRepository.findReviewablePurchases(loginUserId, itemId))
+            .willReturn(List.of(purchase));
 
         given(boardRepository.save(any(Board.class)))
             .willAnswer(invocation -> {
@@ -999,6 +1005,7 @@ class BoardServiceTest {
         assertThat(saved.getAuthorId()).isEqualTo(loginUserId);
         assertThat(saved.getItemId()).isEqualTo(itemId);
         assertThat(saved.getBoardType()).isEqualTo(BoardType.PRODUCT_REVIEW);
+        assertThat(saved.getPurchaseId()).isEqualTo(55L);
         assertThat(saved.getIsSecret()).isFalse();
         assertThat(saved.getStatus()).isEqualTo(BoardStatus.PENDING);
     }
@@ -1043,8 +1050,9 @@ class BoardServiceTest {
         given(itemRepository.findById(itemId))
             .willReturn(Optional.of(item));
 
-        given(purchaseRepository.existsByUserIdAndItemId(loginUserId, itemId))
-            .willReturn(false);
+        // 구매확정한(리뷰를 쓸 수 있는) 구매가 없다
+        given(purchaseRepository.findReviewablePurchases(loginUserId, itemId))
+            .willReturn(List.of());
 
         // when & then
         assertThatThrownBy(() ->

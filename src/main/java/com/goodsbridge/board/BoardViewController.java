@@ -27,6 +27,11 @@ public class BoardViewController {
         @RequestParam(required = false) String keyword,
         Model model
     ) {
+        // 상품 리뷰는 게시판 화면에 보이지 않는다 (각 상품 상세 화면에서 본다)
+        if (boardType == BoardType.PRODUCT_REVIEW) {
+            return "redirect:/test/board";
+        }
+
         Pageable pageable = PageRequest.of(
             0,
             10,
@@ -60,6 +65,7 @@ public class BoardViewController {
         Long userId = SecurityUtil.getCurrentUserIdOrNull();
         BoardResponseDto board = boardService.getBoard(id, userId);
         model.addAttribute("board", board);
+        model.addAttribute("backUrl", backUrl(board));
         // 커뮤니티와 상품 리뷰는 항상 공개 글이라 수정 폼에 비밀글 선택지를 보여주지 않는다
         model.addAttribute("canSecret",
             board.getBoardType() != BoardType.COMMUNITY && board.getBoardType() != BoardType.PRODUCT_REVIEW);
@@ -68,8 +74,9 @@ public class BoardViewController {
     }
 
     // 화면에서 고를 수 있는 게시판 유형 (LEGACY 는 기존 글 보존용이라 제외)
+    // 상품 리뷰는 게시판이 아니라 각 상품 상세 화면에서만 보여주므로 탭에 없다.
     private static final List<BoardType> TAB_TYPES = List.of(
-        BoardType.COMMUNITY, BoardType.PRODUCT_REVIEW, BoardType.PRODUCT_INQUIRY, BoardType.CUSTOMER_SERVICE);
+        BoardType.COMMUNITY, BoardType.PRODUCT_INQUIRY, BoardType.CUSTOMER_SERVICE);
 
     private List<Map<String, Object>> boardTabs(BoardType current) {
         return TAB_TYPES.stream()
@@ -78,6 +85,24 @@ public class BoardViewController {
                 "label", label(type),
                 "active", type == current))
             .toList();
+    }
+
+    // 상세 화면의 "목록으로" 링크: 리뷰·이벤트/경매 문의는 글이 달린 화면으로, 나머지는 그 유형의 목록으로
+    private String backUrl(BoardResponseDto board) {
+        if (board.getBoardType() == BoardType.PRODUCT_REVIEW && board.getItemId() != null) {
+            return "/test/item/" + board.getItemId();
+        }
+        if (board.getBoardType() == BoardType.PRODUCT_INQUIRY && board.getTargetType() != null) {
+            switch (board.getTargetType()) {
+                case EVENT:
+                    return "/test/event/" + board.getTargetId();
+                case AUCTION:
+                    return "/test/auction/" + board.getTargetId();
+                case ITEM:
+                    return "/test/item/" + board.getItemId();
+            }
+        }
+        return "/test/board?boardType=" + board.getBoardType();
     }
 
     private String label(BoardType type) {

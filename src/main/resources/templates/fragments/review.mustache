@@ -1,0 +1,97 @@
+<!--
+  상품 상세 화면의 리뷰 목록과 "리뷰 쓰기". 리뷰는 게시판에는 나오지 않고 각 상품 상세 화면에서 그 상품의 리뷰만 보인다.
+  페이지에서 모델로 넘겨야 하는 값: reviewItemId (상품 id)
+  리뷰는 구매확정한 사람만, 구매 1건당 1개만 쓸 수 있다 (서버가 확인한다).
+-->
+<div class="container detail-container" id="rv-root" style="margin: 1.5rem auto 0;">
+    <section class="panel">
+        <div class="section-title">
+            <h2>리뷰</h2>
+            <button type="button" id="rv-open" hidden>리뷰 쓰기</button>
+        </div>
+        <p id="rv-hint" class="empty" style="font-size: 0.84rem; margin: 0 0 0.6rem;" hidden>구매확정한 상품에만, 구매 1건당 1개의 리뷰를 쓸 수 있어요.</p>
+        <div id="rv-list"></div>
+        <p id="rv-empty" class="empty" hidden>아직 리뷰가 없어요.</p>
+        <button type="button" id="rv-more" style="margin-top: 0.75rem;" hidden>더 보기</button>
+    </section>
+</div>
+
+{{> fragments/review-modal}}
+
+<script>
+(() => {
+    const ITEM_ID = {{reviewItemId}};
+    const loggedIn = {{#userId}}true{{/userId}}{{^userId}}false{{/userId}};
+    const PAGE_SIZE = 5;
+
+    const list = document.getElementById('rv-list');
+    const emptyEl = document.getElementById('rv-empty');
+    const moreButton = document.getElementById('rv-more');
+    const openButton = document.getElementById('rv-open');
+    const hint = document.getElementById('rv-hint');
+    let nextPage = 0;
+    let eligiblePurchaseId = null;
+
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
+    const preview = text => { const t = String(text ?? ''); return t.length > 120 ? t.slice(0, 120) + '…' : t; };
+
+    function row(board) {
+        return `<a class="payment-row" href="/test/board/${board.id}" style="text-decoration: none; color: inherit;">
+            <div>
+                <strong>${esc(board.title)}</strong>
+                <small>${esc(preview(board.content))}</small>
+                <small>${esc(board.authorNickname)}</small>
+            </div>
+            <small class="board-meta">${day(board.createdAt)}</small>
+        </a>`;
+    }
+
+    async function load(reset) {
+        if (reset) { nextPage = 0; list.innerHTML = ''; }
+        const query = new URLSearchParams({
+            boardType: 'PRODUCT_REVIEW', itemId: ITEM_ID, page: nextPage, size: PAGE_SIZE, sort: 'id,desc'
+        });
+        const res = await fetch('/api/boards?' + query.toString(), { credentials: 'same-origin' });
+        if (!res.ok) {
+            emptyEl.textContent = '리뷰를 불러오지 못했어요.';
+            emptyEl.hidden = false;
+            return;
+        }
+        const page = await res.json();
+        list.insertAdjacentHTML('beforeend', (page.content || []).map(row).join(''));
+        nextPage += 1;
+        emptyEl.textContent = '아직 리뷰가 없어요.';
+        emptyEl.hidden = list.children.length > 0;
+        moreButton.hidden = !!page.last;
+    }
+
+    // 지금 이 상품에 리뷰를 쓸 수 있는지 (구매확정했고 아직 리뷰를 쓰지 않은 구매가 있는지)
+    async function checkEligibility() {
+        openButton.hidden = true;
+        hint.hidden = true;
+        if (!loggedIn) return;
+        const res = await fetch('/api/boards/review-eligibility?itemId=' + ITEM_ID, { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const eligibility = await res.json();
+        eligiblePurchaseId = eligibility.reviewable ? eligibility.purchaseId : null;
+        openButton.hidden = eligiblePurchaseId == null;
+        hint.hidden = eligiblePurchaseId != null;
+    }
+
+    openButton.addEventListener('click', () => {
+        if (eligiblePurchaseId == null) return;
+        const title = document.querySelector('.item-detail-info h1');
+        window.openReviewModal({
+            purchaseId: eligiblePurchaseId,
+            itemId: ITEM_ID,
+            itemTitle: title ? title.textContent.trim() : '',
+            onDone: async () => { await Promise.all([load(true), checkEligibility()]); }
+        });
+    });
+    moreButton.addEventListener('click', () => load(false));
+
+    load(true);
+    checkEligibility();
+})();
+</script>

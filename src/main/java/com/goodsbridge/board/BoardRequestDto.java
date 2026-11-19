@@ -26,4 +26,11 @@ public class BoardRequestDto {
     private BoardType boardType;
 
     private Boolean isSecret;
+
+    // 상품 문의: 문의 대상. 비우면 상품(itemId)에 대한 문의다. 이벤트/경매는 targetId 를 함께 보낸다.
+    private InquiryTargetType targetType;
+    private Long targetId;
+
+    // 상품 리뷰: 리뷰를 쓰는 구매. 비우면 itemId 로 리뷰를 쓸 수 있는 내 구매를 서버가 고른다.
+    private Long purchaseId;
 }

@@ -58,6 +58,8 @@
     </div>
 </div>
 
+{{> fragments/review-modal}}
+
 <script>
 (() => {
     const pageFetch = (path, options = {}) => fetch(path, Object.assign({ credentials: 'same-origin' }, options));
@@ -132,6 +134,11 @@
         const res = await pageFetch('/api/items/my-purchases');
         if (!res.ok) { listEl.innerHTML = '<p class="empty">구매 내역을 불러오지 못했어요.</p>'; return; }
         purchases = (await res.json()).sort((a, b) => new Date(b.purchasedAt) - new Date(a.purchasedAt));
+        // 내가 쓴 리뷰 (구매 id -> 리뷰 id). 못 불러와도 구매 내역은 그대로 보여준다
+        try {
+            const reviews = await pageFetch('/api/boards/my-reviews');
+            myReviews = reviews.ok ? await reviews.json() : {};
+        } catch (e) { myReviews = {}; }
         render();
     }
 
@@ -148,6 +155,7 @@
     const modal = document.getElementById('pu-modal');
     const body = document.getElementById('pu-body');
     let current = null;
+    let myReviews = {};   // 구매 id -> 내가 쓴 리뷰 id (리뷰를 이미 쓴 구매는 "내 리뷰 보기"로 바꾼다)
 
     function renderDetail() {
         const p = current;
@@ -169,6 +177,10 @@
             <button type="button" class="pu-confirm" id="pu-confirm">구매 확정</button>
             <p class="pu-note">상품을 잘 받으셨다면 구매 확정을 눌러 주세요. 확정하면 환불 신청을 할 수 없어요.</p>` : ''}
             ${p.deliveryStatus !== 'DELIVERED' && p.purchaseStatus === 'PAID' ? '<p class="pu-note">배송이 완료되면 구매 확정과 환불 신청을 할 수 있어요.</p>' : ''}
+            ${p.purchaseStatus === 'CONFIRMED' ? (myReviews[p.purchaseId]
+                ? `<a class="pu-review-link" href="/test/board/${myReviews[p.purchaseId]}">내 리뷰 보기</a>`
+                : `<button type="button" class="pu-confirm" id="pu-review">리뷰 쓰기</button>
+                   <p class="pu-note">구매확정한 상품에 리뷰를 남길 수 있어요. 구매 1건당 1개만 쓸 수 있어요.</p>`) : ''}
 
             ${p.refunds.length || p.deliveryStatus === 'DELIVERED' ? '<h2>환불</h2>' : ''}
             ${p.refunds.length ? p.refunds.map(r => `
@@ -209,6 +221,15 @@
         if (ev.target.id !== 'pu-refund-amount') return;
         const digits = ev.target.value.replace(/\D/g, '').replace(/^0+/, '');
         ev.target.value = digits ? Number(digits).toLocaleString('ko-KR') : '';
+    });
+
+    body.addEventListener('click', ev => {
+        if (ev.target.id !== 'pu-review') return;
+        window.openReviewModal({
+            purchaseId: current.purchaseId,
+            itemTitle: current.itemTitle,
+            onDone: () => refresh()
+        });
     });
 
     body.addEventListener('click', async ev => {

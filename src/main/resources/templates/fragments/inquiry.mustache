@@ -1,0 +1,148 @@
+<!--
+  상품·이벤트·경매 상세 화면의 문의 목록과 "문의하기".
+  페이지에서 모델로 넘겨야 하는 값: inquiryTargetType (ITEM / EVENT / AUCTION), inquiryTargetId (그 상품·이벤트·경매의 id)
+  문의는 작성자와 판매자만 볼 수 있다 (서버가 다른 사람의 문의는 제목만 가린 채 내려준다).
+-->
+<div class="container detail-container" id="iq-root" style="margin: 1.5rem auto 2rem;">
+    <section class="panel">
+        <div class="section-title">
+            <h2>문의</h2>
+            <button type="button" id="iq-open">문의하기</button>
+        </div>
+        <p class="empty" style="font-size: 0.84rem; margin: 0 0 0.6rem;">문의 내용은 작성자와 판매자만 볼 수 있어요.</p>
+        <div id="iq-list"></div>
+        <p id="iq-empty" class="empty" hidden>아직 문의가 없어요.</p>
+        <button type="button" id="iq-more" style="margin-top: 0.75rem;" hidden>더 보기</button>
+    </section>
+</div>
+
+<div class="modal-backdrop" id="iq-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="iq-close">✕</button>
+        <h1>문의하기</h1>
+        <form id="iq-form">
+            <p><input id="iq-title" type="text" placeholder="제목" maxlength="100" autocomplete="off" required></p>
+            <p><textarea id="iq-content" placeholder="문의 내용을 입력하세요. 답변은 이 화면의 문의 목록과 알림으로 알려드려요." rows="5" maxlength="5000" required></textarea></p>
+            <button type="submit" id="iq-submit">등록</button>
+        </form>
+        <p id="iq-message" class="form-message"></p>
+    </div>
+</div>
+
+<script>
+(() => {
+    const TARGET_TYPE = '{{inquiryTargetType}}';
+    const TARGET_ID = {{inquiryTargetId}};
+    const loggedIn = {{#userId}}true{{/userId}}{{^userId}}false{{/userId}};
+    const PAGE_SIZE = 5;
+    const STATUS = { PENDING: '답변 대기', COMPLETED: '답변 완료' };
+
+    const list = document.getElementById('iq-list');
+    const emptyEl = document.getElementById('iq-empty');
+    const moreButton = document.getElementById('iq-more');
+    const modal = document.getElementById('iq-modal');
+    const form = document.getElementById('iq-form');
+    const message = document.getElementById('iq-message');
+    let nextPage = 0;
+
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+
+    function row(board) {
+        // 읽을 권한이 없는 문의는 서버가 작성자 등을 비워서 보낸다. 눌러도 열 수 없어서 링크 없이 안내만 보여준다.
+        if (board.authorId == null) {
+            return `<div class="payment-row" style="color: var(--color-muted);">
+                <div><strong>🔒 비공개 문의</strong><small>작성자와 판매자만 볼 수 있어요</small></div>
+            </div>`;
+        }
+        return `<a class="payment-row" href="/test/board/${board.id}" style="text-decoration: none; color: inherit;">
+            <div>
+                <strong>🔒 ${esc(board.title)}</strong>
+                <small>${esc(board.authorNickname)}${board.status ? ' · ' + esc(STATUS[board.status] || board.status) : ''}</small>
+            </div>
+            <small class="board-meta">${day(board.createdAt)}</small>
+        </a>`;
+    }
+
+    async function load(reset) {
+        if (reset) { nextPage = 0; list.innerHTML = ''; }
+        const query = new URLSearchParams({
+            boardType: 'PRODUCT_INQUIRY', targetType: TARGET_TYPE, targetId: TARGET_ID,
+            page: nextPage, size: PAGE_SIZE, sort: 'id,desc'
+        });
+        const res = await fetch('/api/boards?' + query.toString(), { credentials: 'same-origin' });
+        if (!res.ok) {
+            emptyEl.textContent = '문의를 불러오지 못했어요.';
+            emptyEl.hidden = false;
+            return;
+        }
+        const page = await res.json();
+        list.insertAdjacentHTML('beforeend', (page.content || []).map(row).join(''));
+        nextPage += 1;
+        emptyEl.textContent = '아직 문의가 없어요.';
+        emptyEl.hidden = list.children.length > 0;
+        moreButton.hidden = !!page.last;
+    }
+
+    function requireLogin() {
+        if (loggedIn) return true;
+        const loginModal = document.getElementById('login-modal');
+        if (loginModal) loginModal.hidden = false;
+        return false;
+    }
+
+    document.getElementById('iq-open').addEventListener('click', () => {
+        if (!requireLogin()) return;
+        form.reset();
+        message.textContent = '';
+        message.className = 'form-message';
+        modal.hidden = false;
+        document.getElementById('iq-title').focus();
+    });
+    document.getElementById('iq-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
+    moreButton.addEventListener('click', () => load(false));
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const button = document.getElementById('iq-submit');
+        button.disabled = true;
+        message.textContent = '';
+        try {
+            // 상품 문의는 상품 id 를, 이벤트·경매 문의는 그 이벤트·경매의 id 를 targetId 로 보낸다
+            const res = await fetch('/api/boards', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: document.getElementById('iq-title').value.trim(),
+                    content: document.getElementById('iq-content').value.trim(),
+                    boardType: 'PRODUCT_INQUIRY',
+                    targetType: TARGET_TYPE,
+                    targetId: TARGET_ID,
+                    itemId: TARGET_TYPE === 'ITEM' ? TARGET_ID : null,
+                    isSecret: true
+                })
+            });
+            if (!res.ok) {
+                message.textContent = await errorText(res, '문의 등록에 실패했습니다.');
+                message.className = 'form-message error';
+                return;
+            }
+            modal.hidden = true;
+            await load(true);
+        } catch (e) {
+            message.textContent = '문의 등록 중 오류가 발생했습니다.';
+            message.className = 'form-message error';
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    load(true);
+})();
+</script>

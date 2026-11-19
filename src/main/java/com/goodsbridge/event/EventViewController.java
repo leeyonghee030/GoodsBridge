@@ -50,6 +50,9 @@ public class EventViewController {
     @GetMapping("/test/event/{id}")
     public String detail(@PathVariable Long id, Model model) {
         model.addAttribute("event", eventService.getEventDetail(id));
+        // 이벤트 상세의 문의 영역이 쓰는 값 (이 이벤트에 남긴 문의만 보인다)
+        model.addAttribute("inquiryTargetType", "EVENT");
+        model.addAttribute("inquiryTargetId", id);
         model.addAttribute("portoneStoreId", storeId);
         model.addAttribute("portoneChannelKey", channelKey);
         model.addAttribute("skipPayment", skipPayment);

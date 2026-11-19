@@ -6,12 +6,19 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.notification.Notification;
 import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.auction.Auction;
+import com.goodsbridge.auction.AuctionRepository;
+import com.goodsbridge.event.ShopEvent;
+import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
+import com.goodsbridge.purchase.PurchaseStatus;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
@@ -34,6 +41,8 @@ public class BoardService {
     private final ApplicationEventPublisher publisher;
     private final PurchaseRepository purchaseRepository;
     private final ItemRepository itemRepository;
+    private final ShopEventRepository shopEventRepository;
+    private final AuctionRepository auctionRepository;
 
     // 게시글 작성
     @Transactional
@@ -50,55 +59,145 @@ public class BoardService {
             );
         }
 
-        // 상품 리뷰 작성 권한 검증
+        Long itemId = requestDto.getItemId();
+        InquiryTargetType targetType = null;
+        Long targetId = null;
+        Long purchaseId = null;
+
+        // 상품 리뷰: 구매확정한 구매에만 쓸 수 있고, 구매 1건당 1개다
         if (requestDto.getBoardType() == BoardType.PRODUCT_REVIEW) {
-
-            if (requestDto.getItemId() == null) {
-                throw new BadRequestException("상품 리뷰에는 상품 ID가 필요합니다.");
-            }
-
-            // 상품 존재 여부 확인
-            itemRepository.findById(requestDto.getItemId())
-                .orElseThrow(() ->
-                    new NotFoundException("상품을 찾을 수 없습니다.")
-                );
-
-            // 구매 이력 확인
-            boolean hasPurchased = purchaseRepository.existsByUserIdAndItemId(
-                loginUserId,
-                requestDto.getItemId()
-            );
-
-            if (!hasPurchased) {
-                throw new ForbiddenException(
-                    "해당 상품을 구매한 사용자만 리뷰를 작성할 수 있습니다."
-                );
-            }
+            Purchase purchase = findReviewablePurchase(requestDto, loginUserId);
+            itemId = purchase.getItem().getId();
+            purchaseId = purchase.getId();
         }
 
-        // 상품 문의 작성 시 상품 정보 검증
+        // 상품 문의: 상품·이벤트·경매 중 한 곳에 남긴다
         if (requestDto.getBoardType() == BoardType.PRODUCT_INQUIRY) {
+            targetType = requestDto.getTargetType() == null
+                ? InquiryTargetType.ITEM
+                : requestDto.getTargetType();
+            targetId = requestDto.getTargetId();
 
-            if (requestDto.getItemId() == null) {
-                throw new BadRequestException("상품 문의에는 상품 ID가 필요합니다.");
+            switch (targetType) {
+                case ITEM -> {
+                    // targetId 만 보낸 경우에도 상품 id 로 쓴다
+                    if (itemId == null) {
+                        itemId = targetId;
+                    }
+                    if (itemId == null) {
+                        throw new BadRequestException("상품 문의에는 상품 ID가 필요합니다.");
+                    }
+                    itemRepository.findById(itemId)
+                        .orElseThrow(() -> new NotFoundException("상품을 찾을 수 없습니다."));
+                    targetId = itemId;
+                }
+                case EVENT -> {
+                    requireTargetId(targetId);
+                    ShopEvent event = shopEventRepository.findById(targetId)
+                        .orElseThrow(() -> new NotFoundException("이벤트를 찾을 수 없습니다."));
+                    itemId = event.getItem().getId();
+                }
+                case AUCTION -> {
+                    requireTargetId(targetId);
+                    Auction auction = auctionRepository.findById(targetId)
+                        .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
+                    if (auction.getItem() == null) {
+                        throw new BadRequestException("상품이 연결되지 않은 경매에는 문의할 수 없습니다.");
+                    }
+                    itemId = auction.getItem().getId();
+                }
             }
-
-            itemRepository.findById(requestDto.getItemId())
-                .orElseThrow(() ->
-                    new NotFoundException("상품을 찾을 수 없습니다.")
-                );
         }
 
         Board board = Board.builder()
             .title(requestDto.getTitle())
             .content(requestDto.getContent())
             .authorId(loginUserId)
-            .itemId(requestDto.getItemId())
+            .itemId(itemId)
             .boardType(requestDto.getBoardType())
             .isSecret(requestDto.getIsSecret())
+            .targetType(targetType)
+            .targetId(targetId)
+            .purchaseId(purchaseId)
             .build();
 
-        return boardRepository.save(board).getId();
+        try {
+            return boardRepository.save(board).getId();
+        } catch (DataIntegrityViolationException e) {
+            // 같은 구매에 리뷰를 동시에 두 번 보낸 경우 (purchase_id 유니크 제약)
+            throw new BadRequestException("이미 리뷰를 작성한 구매입니다.");
+        }
+    }
+
+    private void requireTargetId(Long targetId) {
+        if (targetId == null) {
+            throw new BadRequestException("문의 대상(targetId)은 필수 입력값입니다.");
+        }
+    }
+
+    // 리뷰를 쓸 구매를 찾는다. 구매확정(CONFIRMED)한 내 구매여야 하고, 구매 1건당 리뷰는 1개다.
+    private Purchase findReviewablePurchase(BoardRequestDto requestDto, Long loginUserId) {
+
+        if (requestDto.getPurchaseId() != null) {
+            Purchase purchase = purchaseRepository.findById(requestDto.getPurchaseId())
+                .orElseThrow(() -> new NotFoundException("구매 내역을 찾을 수 없습니다."));
+
+            if (!Objects.equals(purchase.getUser().getId(), loginUserId)) {
+                throw new ForbiddenException("본인이 구매한 상품에만 리뷰를 작성할 수 있습니다.");
+            }
+            if (requestDto.getItemId() != null
+                && !Objects.equals(purchase.getItem().getId(), requestDto.getItemId())) {
+                throw new BadRequestException("구매한 상품과 리뷰 대상 상품이 다릅니다.");
+            }
+            if (purchase.getStatus() != PurchaseStatus.CONFIRMED) {
+                throw new ForbiddenException("구매확정한 상품만 리뷰를 작성할 수 있습니다.");
+            }
+            if (boardRepository.existsByPurchaseId(purchase.getId())) {
+                throw new BadRequestException("이미 리뷰를 작성한 구매입니다.");
+            }
+            return purchase;
+        }
+
+        // 구매를 지정하지 않으면 이 상품에서 리뷰를 쓸 수 있는 내 구매 중 가장 오래된 것을 쓴다
+        if (requestDto.getItemId() == null) {
+            throw new BadRequestException("상품 리뷰에는 상품 ID가 필요합니다.");
+        }
+        itemRepository.findById(requestDto.getItemId())
+            .orElseThrow(() -> new NotFoundException("상품을 찾을 수 없습니다."));
+
+        return purchaseRepository.findReviewablePurchases(loginUserId, requestDto.getItemId())
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> new ForbiddenException(
+                "구매확정한 상품만 리뷰를 작성할 수 있고, 구매 1건당 리뷰는 1개만 쓸 수 있습니다."
+            ));
+    }
+
+    // 이 상품에 지금 리뷰를 쓸 수 있는지 (구매확정했고 아직 리뷰를 쓰지 않은 구매가 있는지)
+    @Transactional(readOnly = true)
+    public ReviewEligibilityResponse getReviewEligibility(Long itemId, Long loginUserId) {
+        if (loginUserId == null || itemId == null) {
+            return ReviewEligibilityResponse.no();
+        }
+        return purchaseRepository.findReviewablePurchases(loginUserId, itemId)
+            .stream()
+            .findFirst()
+            .map(purchase -> new ReviewEligibilityResponse(true, purchase.getId()))
+            .orElse(ReviewEligibilityResponse.no());
+    }
+
+    // 내가 쓴 리뷰: 구매 id -> 게시글 id
+    @Transactional(readOnly = true)
+    public Map<Long, Long> getMyReviewIds(Long loginUserId) {
+        if (loginUserId == null) {
+            return Map.of();
+        }
+        return boardRepository.findMyReviewIds(loginUserId).stream()
+            .collect(Collectors.toMap(
+                row -> (Long) row[0],
+                row -> (Long) row[1],
+                (first, second) -> first
+            ));
     }
 
     // 게시글 상세 조회
@@ -362,6 +461,22 @@ public class BoardService {
         Pageable pageable,
         Long loginUserId
     ) {
+        return getBoards(boardType, keyword, null, null, null, pageable, loginUserId);
+    }
+
+    // 게시글 목록 조회 (상품 상세 화면용 필터 포함)
+    // - 상품 리뷰 + itemId: 그 상품의 리뷰
+    // - 상품 문의 + targetType/targetId (또는 itemId): 그 상품·이벤트·경매의 문의
+    @Transactional(readOnly = true)
+    public Page<BoardResponseDto> getBoards(
+        BoardType boardType,
+        String keyword,
+        Long itemId,
+        InquiryTargetType targetType,
+        Long targetId,
+        Pageable pageable,
+        Long loginUserId
+    ) {
         // 현재 게시판 화면에서 지원하는 유형만 허용
         if (boardType == null || boardType == BoardType.LEGACY) {
             throw new BadRequestException("지원하지 않는 게시판 유형입니다.");
@@ -374,7 +489,19 @@ public class BoardService {
         // 선택한 게시판 유형의 게시글만 조회
         Page<Board> boardPage;
 
-        if (searchKeyword.isBlank()) {
+        if (boardType == BoardType.PRODUCT_REVIEW && itemId != null) {
+            boardPage = boardRepository.findReviewsByItemId(itemId, pageable);
+        } else if (boardType == BoardType.PRODUCT_INQUIRY
+            && (targetType != null || itemId != null)) {
+            InquiryTargetType type = targetType == null ? InquiryTargetType.ITEM : targetType;
+            Long id = targetId != null ? targetId : itemId;
+            if (id == null) {
+                throw new BadRequestException("문의 대상(targetId)은 필수 입력값입니다.");
+            }
+            boardPage = type == InquiryTargetType.ITEM
+                ? boardRepository.findItemInquiries(id, pageable)
+                : boardRepository.findInquiriesByTarget(type, id, pageable);
+        } else if (searchKeyword.isBlank()) {
             boardPage = boardRepository.findByBoardType(
                 boardType,
                 pageable

@@ -411,6 +411,12 @@ public class DemoDataService {
         jdbcTemplate.update("delete from exchange_item_tb where user_id in " + u + " or item_id in " + items);
         jdbcTemplate.update("delete from refund_tb where requester_user_id in " + u
             + " or payment_id in (select id from payment_tb where payment_id in (select payment_id from purchase_tb where item_id in " + items + "))");
+        // 상품 문의·리뷰 게시글(댓글 포함)도 지운다. 상품·구매·이벤트·경매가 새로 만들어지면 옛 글이 가리킬 곳이 없어진다.
+        // (MySQL 은 같은 테이블을 서브쿼리로 참조하면서 지울 수 없어서, 게시글은 조건을 직접 쓴다)
+        jdbcTemplate.update("delete from reply_tb where board_id in (select id from board_tb where item_id in " + items
+            + " and board_type in ('PRODUCT_INQUIRY', 'PRODUCT_REVIEW'))");
+        jdbcTemplate.update("delete from board_tb where item_id in " + items
+            + " and board_type in ('PRODUCT_INQUIRY', 'PRODUCT_REVIEW')");
         jdbcTemplate.update("delete from purchase_tb where item_id in " + items);
         jdbcTemplate.update("delete from bid_tb where auction_id in (select id from auction_tb where item_id in " + items + ")");
         jdbcTemplate.update("delete from auction_tb where item_id in " + items);

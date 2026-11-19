@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.Map;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -58,10 +60,16 @@ public class BoardController {
 // GET /api/boards?boardType=PRODUCT_REVIEW&page=0&size=10
 // GET /api/boards?boardType=PRODUCT_INQUIRY&page=0&size=10
 // GET /api/boards?boardType=CUSTOMER_SERVICE&page=0&size=10
+    // 상품 상세 화면용 필터:
+    // GET /api/boards?boardType=PRODUCT_REVIEW&itemId=3          (그 상품의 리뷰)
+    // GET /api/boards?boardType=PRODUCT_INQUIRY&targetType=EVENT&targetId=5   (그 이벤트의 문의)
     @GetMapping("/boards")
     public ResponseEntity<Page<BoardResponseDto>> getBoards(
         @RequestParam(defaultValue = "COMMUNITY") BoardType boardType,
         @RequestParam(required = false) String keyword,
+        @RequestParam(required = false) Long itemId,
+        @RequestParam(required = false) InquiryTargetType targetType,
+        @RequestParam(required = false) Long targetId,
         @PageableDefault(
             size = 10,
             sort = "id",
@@ -73,11 +81,31 @@ public class BoardController {
             boardService.getBoards(
                 boardType,
                 keyword,
+                itemId,
+                targetType,
+                targetId,
                 pageable,
                 loginUserId
             );
 
         return ResponseEntity.ok(response);
+    }
+
+    // 이 상품에 지금 리뷰를 쓸 수 있는지 (구매확정했고 아직 리뷰를 쓰지 않은 구매가 있는지). 비로그인은 false
+    @GetMapping("/boards/review-eligibility")
+    public ResponseEntity<ReviewEligibilityResponse> getReviewEligibility(
+        @RequestParam Long itemId,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getReviewEligibility(itemId, loginUserId));
+    }
+
+    // 내가 쓴 리뷰 (구매 id -> 게시글 id). 내 구매 내역에서 "리뷰 쓰기"/"내 리뷰" 버튼을 가르는 데 쓴다
+    @GetMapping("/boards/my-reviews")
+    public ResponseEntity<Map<Long, Long>> getMyReviews(
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getMyReviewIds(loginUserId));
     }
 
     // 댓글 작성

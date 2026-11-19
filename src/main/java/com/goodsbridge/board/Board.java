@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "board_tb")
+@Table(name = "board_tb", uniqueConstraints = @UniqueConstraint(name = "uk_board_review_purchase", columnNames = "purchase_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Board {
@@ -39,6 +39,19 @@ public class Board {
 
     @Column(name = "item_id")
     private Long itemId; // 상품 문의 및 상품 리뷰 게시글에 연결된 상품 ID
+
+    // 상품 문의가 남겨진 곳 (상품/이벤트/경매). 기존 문의처럼 비어 있으면 상품(ITEM)으로 본다.
+    // enum 컬럼이나 CHECK 제약이 생기지 않도록 varchar 로 고정한다 (값이 늘 때 DB 정의를 따로 고쳐야 하는 문제를 피함)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "target_type", columnDefinition = "varchar(20)")
+    private InquiryTargetType targetType;
+
+    @Column(name = "target_id")
+    private Long targetId; // targetType 이 가리키는 상품/이벤트/경매의 id
+
+    // 상품 리뷰가 달린 구매 (구매 1건당 리뷰 1개: 유니크 제약)
+    @Column(name = "purchase_id")
+    private Long purchaseId;
 
     @Enumerated(EnumType.STRING)
     // 기존 게시글(컬럼 추가 전)은 DB 기본값으로 LEGACY 가 된다. 새 글은 항상 boardType 을 직접 넣는다.
@@ -67,13 +80,30 @@ public class Board {
         Long authorId,
         Long itemId,
         BoardType boardType,
-        Boolean isSecret
+        Boolean isSecret,
+        InquiryTargetType targetType,
+        Long targetId,
+        Long purchaseId
     ) {
         // 필수 입력값 검증
         validateRequiredFields(title, content, authorId);
 
         // 게시판 유형과 상품 ID 조합 검증
         validateBoardTypeAndItemId(boardType, itemId);
+
+        if (boardType == BoardType.PRODUCT_INQUIRY) {
+            // 문의는 대상(상품/이벤트/경매)을 가진다. 지정하지 않으면 상품 문의다.
+            InquiryTargetType type = targetType == null ? InquiryTargetType.ITEM : targetType;
+            Long id = (type == InquiryTargetType.ITEM && targetId == null) ? itemId : targetId;
+            if (id == null) {
+                throw new BadRequestException("문의 대상(targetId)은 필수 입력값입니다.");
+            }
+            this.targetType = type;
+            this.targetId = id;
+        }
+        if (boardType == BoardType.PRODUCT_REVIEW) {
+            this.purchaseId = purchaseId;
+        }
 
         this.title = title;
         this.content = content;

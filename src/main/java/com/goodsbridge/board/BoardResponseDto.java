@@ -29,6 +29,8 @@ public class BoardResponseDto {
     private LocalDateTime createdAt;
     private List<ReplyResponseDto> replies;
     private BoardType boardType;
+    private InquiryTargetType targetType;
+    private Long targetId;
 
     // 게시글 상세 조회
     public static BoardResponseDto from(
@@ -52,7 +54,9 @@ public class BoardResponseDto {
             getReplyStatus(board),
             board.getCreatedAt(),
             replyDtos,
-            board.getBoardType()
+            board.getBoardType(),
+            board.getTargetType(),
+            board.getTargetId()
         );
     }
 
@@ -76,7 +80,9 @@ public class BoardResponseDto {
                 null,
                 null,
                 List.of(),
-                board.getBoardType()
+                board.getBoardType(),
+                board.getTargetType(),
+                board.getTargetId()
             );
         }
 
@@ -91,7 +97,9 @@ public class BoardResponseDto {
             getReplyStatus(board),
             board.getCreatedAt(),
             List.of(),
-            board.getBoardType()
+            board.getBoardType(),
+            board.getTargetType(),
+            board.getTargetId()
         );
     }
 
