@@ -2286,9 +2286,16 @@ button.chat-reset[type="button"]:hover { background: var(--color-surface); color
 .info-panel-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0 0 0.5rem; }
 .info-panel-head h2 { margin: 0; font-size: 1.02rem; }
 .info-pane .info-panel-head button { width: auto; padding: 0.42rem 0.9rem; font-size: 0.8rem; }
-.info-note { flex: none; margin: 0 0 0.6rem; font-size: 0.8rem; color: var(--color-muted); }
+.info-panel-title { display: flex; align-items: center; flex-wrap: wrap; gap: 0.35rem 0.6rem; min-width: 0; }
+/* 제목 옆의 작은 안내 알약 (아이콘 + 짧은 한 줄) */
+.info-hint { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.18rem 0.6rem 0.18rem 0.5rem; border-radius: 999px; background: var(--color-surface); color: var(--color-muted); font-size: 0.72rem; font-weight: 500; line-height: 1.3; white-space: nowrap; }
+.info-hint::before { content: ""; flex: none; width: 0.78rem; height: 0.78rem; background: currentColor; -webkit-mask: var(--hint-icon) center / contain no-repeat; mask: var(--hint-icon) center / contain no-repeat; }
+.info-hint.is-info { --hint-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 11v5.5M12 7.6h.01'/%3E%3C/svg%3E"); }
+.info-hint.is-lock { --hint-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='11' width='16' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E"); }
 .info-list { flex: 1; min-height: 0; overflow-y: auto; }
-.info-empty { margin: 0; padding: 3rem 0; text-align: center; color: var(--color-muted); font-size: 0.88rem; }
+/* 목록이 비었을 때는 자리를 차지하지 않아서 "아직 없어요" 안내가 제목 바로 아래에 온다 */
+.info-list:empty { flex: none; }
+.info-empty { margin: 0; padding: 2.5rem 0; text-align: center; color: var(--color-muted); font-size: 0.88rem; }
 .info-pane .info-more { flex: none; margin-top: 0.6rem; }
 .au-info .info-list { max-height: 420px; }
 /* 탭이 차지하는 높이만큼 정보 영역이 자라고(최소 450px), 목록은 안에서 스크롤한다 */

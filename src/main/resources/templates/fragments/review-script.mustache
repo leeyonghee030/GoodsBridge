@@ -11,7 +11,6 @@
     const emptyEl = document.getElementById('rv-empty');
     const moreButton = document.getElementById('rv-more');
     const openButton = document.getElementById('rv-open');
-    const hint = document.getElementById('rv-hint');
     let nextPage = 0;
     let eligiblePurchaseId = null;
     // 정보 영역 탭 옆의 리뷰 개수
@@ -56,14 +55,12 @@
     // 지금 이 상품에 리뷰를 쓸 수 있는지 (구매확정했고 아직 리뷰를 쓰지 않은 구매가 있는지)
     async function checkEligibility() {
         openButton.hidden = true;
-        hint.hidden = true;
         if (!loggedIn) return;
         const res = await fetch('/api/boards/review-eligibility?itemId=' + ITEM_ID, { credentials: 'same-origin' });
         if (!res.ok) return;
         const eligibility = await res.json();
         eligiblePurchaseId = eligibility.reviewable ? eligibility.purchaseId : null;
         openButton.hidden = eligiblePurchaseId == null;
-        hint.hidden = eligiblePurchaseId != null;
     }
 
     openButton.addEventListener('click', () => {

@@ -1,10 +1,12 @@
 <!-- 상세 화면의 "문의" 탭 내용. 스크립트와 문의하기 창은 fragments/inquiry-script 에 있다. -->
 <div class="info-pane" data-pane="inquiry" id="iq-root" hidden>
     <div class="info-panel-head">
-        <h2>문의</h2>
+        <div class="info-panel-title">
+            <h2>문의</h2>
+            <span class="info-hint is-lock" title="문의 내용은 작성자와 판매자만 볼 수 있어요">작성자·판매자만 볼 수 있어요</span>
+        </div>
         <button type="button" id="iq-open">문의하기</button>
     </div>
-    <p class="info-note">문의 내용은 작성자와 판매자만 볼 수 있어요.</p>
     <div id="iq-list" class="info-list"></div>
     <p id="iq-empty" class="info-empty" hidden>아직 문의가 없어요.</p>
     <button type="button" id="iq-more" class="info-more" hidden>더 보기</button>
