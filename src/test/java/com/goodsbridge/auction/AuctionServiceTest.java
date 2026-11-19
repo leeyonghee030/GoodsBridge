@@ -41,6 +41,7 @@ class AuctionServiceTest {
     private static final Long OTHER_SHOP_ID = 2L;
     private static final Long SHOP_ITEM_ID = 5L;
     private static final Long PERSONAL_ITEM_ID = 3L;
+    private static final long VALID_DEADLINE_SECONDS = 900;
 
     @Autowired
     private AuctionService auctionService;
@@ -62,7 +63,7 @@ class AuctionServiceTest {
     @Test
     void create_initializesCurrentPriceAndActiveStatus() {
         AuctionResponse response = auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         assertThat(response.getId()).isNotNull();
         assertThat(response.getCurrentPrice()).isEqualTo(50_000);
@@ -76,7 +77,7 @@ class AuctionServiceTest {
     @Test
     void create_savesDepositAmountAndDeadlineFromRequest() {
         AuctionResponse response = auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 7_500, 600));
+            request(SHOP_ITEM_ID, 50_000, 7_500, VALID_DEADLINE_SECONDS));
 
         assertThat(response.getDepositAmount()).isEqualTo(7_500);
         assertThat(response.getDeadline()).isAfter(LocalDateTime.now());
@@ -87,21 +88,21 @@ class AuctionServiceTest {
     @Test
     void create_rejectsNonOwner() {
         assertThatThrownBy(() -> auctionService.create(ADMIN_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10)))
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
     void create_rejectsMissingShop() {
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, 999_999L,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10)))
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(NotFoundException.class);
     }
 
     @Test
     void create_rejectsMissingItem() {
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(999_999L, 50_000, 5_000, 10)))
+            request(999_999L, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(NotFoundException.class);
     }
 
@@ -109,26 +110,29 @@ class AuctionServiceTest {
     void create_rejectsNormalSaleItem() {
         // 상품 1은 가게 1의 일반 판매 상품 → 경매 전에 다른 사람이 살 수 있어서 경매 전용 상품만 올릴 수 있다
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(1L, 50_000, 5_000, 10)))
+            request(1L, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(BadRequestException.class)
             .hasMessageContaining("경매 전용");
     }
 
     @Test
     void create_rejectsInvalidStartPriceDepositAndDeadline() {
-        // startPrice > 0
+        // 시작가가 0 이하인 경우
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 0, 5_000, 10)))
+            request(SHOP_ITEM_ID, 0, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(BadRequestException.class);
-        // depositAmount < startPrice의 10%
+
+        // 보증금이 시작가의 10% 미만인 경우
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 1_000, 10)))
+            request(SHOP_ITEM_ID, 50_000, 1_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(BadRequestException.class);
-        // depositAmount > startPrice의 20%
+
+        // 보증금이 시작가의 20% 초과인 경우
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 15_000, 10)))
+            request(SHOP_ITEM_ID, 50_000, 15_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(BadRequestException.class);
-        // deadline은 미래 시각
+
+        // 마감 시간이 과거인 경우
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
             request(SHOP_ITEM_ID, 50_000, 5_000, -1)))
             .isInstanceOf(BadRequestException.class);
@@ -138,7 +142,7 @@ class AuctionServiceTest {
     void create_rejectsItemOwnedByAnotherSellerAndNotInThisShop() {
         // 3번 상품은 판매자 2, 가게 없음 -> 1번 유저(1번 가게 주인)가 올릴 수 없다.
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(PERSONAL_ITEM_ID, 50_000, 5_000, 10)))
+            request(PERSONAL_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(ForbiddenException.class);
     }
 
@@ -146,16 +150,16 @@ class AuctionServiceTest {
     void create_rejectsItemBelongingToAnotherShop() {
         // 2번 가게 주인도 1번 유저지만, 5번 상품은 1번 가게 소속이라 2번 가게 경매로 등록할 수 없다.
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, OTHER_SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10)))
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(ForbiddenException.class);
     }
 
     @Test
     void create_rejectsSecondActiveAuctionForSameItem() {
-        auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+        auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         assertThatThrownBy(() -> auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10)))
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS)))
             .isInstanceOf(BadRequestException.class);
     }
 
@@ -165,7 +169,7 @@ class AuctionServiceTest {
         auctionService.close(OWNER_ID, expired.getId());   // ENDED_FAIL
 
         AuctionResponse response = auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         assertThat(response.getStatus()).isEqualTo(Status.ACTIVE);
     }
@@ -174,7 +178,7 @@ class AuctionServiceTest {
 
     @Test
     void findAll_filtersByStatusAndFindByIdRejectsMissingAuction() {
-        auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+        auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         Page<AuctionResponse> active = auctionService.findAll(0, 10, Status.ACTIVE);
 
@@ -186,7 +190,7 @@ class AuctionServiceTest {
 
     @Test
     void findAll_withoutStatusReturnsAuctionsOfEveryStatus() {
-        auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+        auctionService.create(OWNER_ID, SHOP_ID, request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
         Auction expired = saveExpiredAuction();
         auctionService.close(OWNER_ID, expired.getId());   // ENDED_FAIL
 
@@ -217,7 +221,7 @@ class AuctionServiceTest {
     @Test
     void findById_returnsCreatedAuction() {
         AuctionResponse created = auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         AuctionResponse found = auctionService.findById(created.getId());
 
@@ -331,7 +335,7 @@ class AuctionServiceTest {
     @Test
     void create_responseCarriesItemAndShopInfoForScreens() {
         AuctionResponse response = auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         AuctionResponse detail = auctionService.findById(response.getId());
         assertThat(detail.getItemTitle()).isNotBlank();
@@ -342,7 +346,7 @@ class AuctionServiceTest {
     @Test
     void findAllByShop_returnsOnlyThatShopsAuctionsAndFiltersByStatus() {
         AuctionResponse created = auctionService.create(OWNER_ID, SHOP_ID,
-            request(SHOP_ITEM_ID, 50_000, 5_000, 10));
+            request(SHOP_ITEM_ID, 50_000, 5_000, VALID_DEADLINE_SECONDS));
 
         Page<AuctionResponse> mine = auctionService.findAllByShop(0, 20, null, SHOP_ID);
         assertThat(mine.getContent()).extracting(AuctionResponse::getId).contains(created.getId());

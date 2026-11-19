@@ -142,7 +142,7 @@ public class AuctionService {
             LockModeType.PESSIMISTIC_WRITE
         );
 
-        // 상품잉 없는 경우
+        // 상품이 없는 경우
         if (item == null) {
             throw new NotFoundException("상품을 찾을 수 없습니다.");
         }

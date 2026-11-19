@@ -2,7 +2,6 @@ package com.goodsbridge.payment;
 
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.InternalServerException;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -17,7 +16,6 @@ import java.util.Map;
 import java.util.regex.Pattern;
 
 @Slf4j
-@Getter
 @Component
 public class PortOneClient {
 

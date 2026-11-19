@@ -20,5 +20,5 @@ public interface PaymentCancelFailureRepository extends JpaRepository<PaymentCan
         where f.status = :status
         order by f.id asc
     """)
-    List<PaymentCancelFailure> findTop20ByStatusOrderByIdAsc(PaymentCancelFailure.Status status);
+    List<PaymentCancelFailure> findByStatusOrderByIdAsc(PaymentCancelFailure.Status status);
 }
