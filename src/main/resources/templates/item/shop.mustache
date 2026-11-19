@@ -703,6 +703,8 @@
         input.addEventListener('input', () => { onInput && onInput(); show(); });
         input.addEventListener('keydown', ev => {
             if (ev.key === 'Enter') {   // 엔터: 검색 결과 첫 번째 카테고리로 선택
+                // 한글 입력 중(조합 중)의 Enter 는 글자 확정용이라 무시한다. 사파리는 isComposing 이 먼저 풀려서 keyCode 229 도 본다
+                if (ev.isComposing || ev.keyCode === 229) return;
                 const first = list.querySelector('[data-id]:not([data-id=""])');
                 if (!list.hidden && first) { ev.preventDefault(); pick(first); }
             } else if (ev.key === 'Escape') list.hidden = true;
