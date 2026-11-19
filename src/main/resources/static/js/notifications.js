@@ -134,9 +134,9 @@
     try {
       const response = await apiFetch('/api/notifications/read-all', { method: 'PATCH' });
       if (!response.ok) throw new Error('모두 읽음 처리에 실패했습니다.');
-      loadedNotifications = [];
-      renderNotifications();
-      await refreshCount();
+      // 화면의 목록을 비우지 않고 서버에서 다시 받는다 (불러오는 중이던 요청·방금 도착한 알림과 어긋나지 않게)
+      liveNotificationsDuringLoad.clear();
+      await loadNotifications();
     } catch (error) {
       showState(error.message || '모두 읽음 처리에 실패했습니다.');
     } finally {

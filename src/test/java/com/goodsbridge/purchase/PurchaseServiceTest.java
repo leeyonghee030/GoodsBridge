@@ -270,7 +270,7 @@ class PurchaseServiceTest {
         NotificationEvent toBuyer = captor.getAllValues().get(0);
         NotificationEvent toSeller = captor.getAllValues().get(1);
         assertEquals(3L, toBuyer.userId());
-        assertEquals("'{포토카드}' 주문이 완료됐어요. 가게에서 배송을 준비하고 있어요", toBuyer.content());
+        assertEquals("'포토카드' 주문이 완료됐어요. 가게에서 배송을 준비하고 있어요", toBuyer.content());
         assertEquals(99L, toSeller.userId());
         assertEquals("[새 주문]", toSeller.title());
         assertEquals(Notification.ReferenceType.SHOP_SALES, toSeller.referenceType());
@@ -295,7 +295,9 @@ class PurchaseServiceTest {
         verify(publisher).publishEvent(captor.capture());
         assertEquals(99L, captor.getValue().userId());
         assertEquals(Notification.Type.PURCHASE_CONFIRMED, captor.getValue().type());
-        assertEquals(Notification.ReferenceType.SHOP_SALES, captor.getValue().referenceType());
+        // 가게 없는 개인 판매: 가게 화면 링크도, 정산 문장도 없다
+        assertEquals(Notification.ReferenceType.SHOP, captor.getValue().referenceType());
+        assertEquals("'포토카드' 구매가 확정됐어요.", captor.getValue().content());
     }
 
     @Test

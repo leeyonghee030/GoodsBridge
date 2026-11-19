@@ -12,6 +12,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @RequiredArgsConstructor
@@ -45,8 +47,8 @@ public class NotificationService {
 
     // 내 알림 전체 (읽은 것 포함, 최신순)
     @Transactional(readOnly = true)
-    public org.springframework.data.domain.Page<NotificationResponse.NotificationDto> getMyNotifications(
-        Long userId, org.springframework.data.domain.Pageable pageable) {
+    public Page<NotificationResponse.NotificationDto> getMyNotifications(
+        Long userId, Pageable pageable) {
         return notificationRepository.findAllMine(userId, pageable).map(NotificationResponse.NotificationDto::new);
     }
 

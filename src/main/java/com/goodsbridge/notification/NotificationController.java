@@ -6,6 +6,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 
 @RestController
 @RequiredArgsConstructor
@@ -34,9 +37,9 @@ public class NotificationController {
 
     // 내 알림 전체 (읽은 것 포함, 최신순). ?page=0&size=20
     @GetMapping("/me")
-    public org.springframework.data.domain.Page<NotificationResponse.NotificationDto> getMyNotifications(
+    public Page<NotificationResponse.NotificationDto> getMyNotifications(
         @AuthenticationPrincipal Long userId,
-        @org.springframework.data.web.PageableDefault(size = 20) org.springframework.data.domain.Pageable pageable
+        @PageableDefault(size = 20) Pageable pageable
     ) {
         return notificationService.getMyNotifications(userId, pageable);
     }
