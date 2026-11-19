@@ -11,22 +11,23 @@
         </div>
         <div class="footer-col">
             <h3>COMPANY</h3>
-            <a href="#">소개</a>
-            <a href="#">입점 문의</a>
-            <a href="#">공지사항</a>
-            <a href="#">자주 묻는 질문</a>
+            <a href="/about">소개</a>
+            <a href="/shop-guide">입점 문의</a>
+            <a href="/notice">공지사항</a>
+            <a href="/faq">자주 묻는 질문</a>
         </div>
         <div class="footer-col">
             <h3>ABOUT</h3>
             <p>오프라인 가게를 거점으로 보증금과 노쇼 페널티로 안전하게 굿즈를 교환하는 플랫폼입니다.</p>
         </div>
         <div class="footer-col">
-            <h3>NEWSLETTER</h3>
-            <p>새로운 교환 게시글과 이벤트 소식을 받아보세요.</p>
-            <form class="newsletter-form" onsubmit="return false;">
-                <input type="email" placeholder="Email">
-                <button type="submit">&rarr;</button>
-            </form>
+            <h3>NOTIFICATIONS</h3>
+            <p>새로운 교환 신청과 이벤트·경매 소식을 알림으로 받아보세요.</p>
+            <!-- 눌러서 위쪽 종 모양 알림을 연다. 로그인하지 않았으면 로그인으로 보낸다 -->
+            <a class="footer-notify" id="footer-notify" href="/api/kakao-login">
+                <span>알림 확인하기</span>
+                <b aria-hidden="true">&rarr;</b>
+            </a>
         </div>
     </div>
     <div class="footer-wordmark">GoodsBridge</div>
@@ -34,7 +35,53 @@
         <span>© 2026 GoodsBridge</span>
     </div>
 </footer>
+{{#userId}}{{^adminAccount}}
+<!-- AI 도우미: 스크롤해도 오른쪽 아래에 고정. 동작은 /js/chat-widget.js -->
+<div class="chat-widget" id="chat-widget" data-user-id="{{userId}}">
+    <section class="chat-panel" id="chat-panel" aria-label="AI 도우미">
+        <div class="chat-head">
+            <strong>GoodsBridge 도우미</strong>
+            <div class="chat-head-actions">
+                <span class="chat-usage" id="chat-usage" hidden></span>
+                <button type="button" class="chat-reset" id="chat-reset" title="대화 기록을 모두 지워요">새 대화</button>
+                <button type="button" class="chat-close" id="chat-close" aria-label="닫기">✕</button>
+            </div>
+        </div>
+        <div class="chat-list" id="chat-list" aria-live="polite"></div>
+        <!-- 빠른 메뉴: AI 없이 같은 기능을 버튼으로 쓴다 (AI 무료 사용량이 다 되어도 사용 가능) -->
+        <div class="chat-quick" id="chat-quick">
+            <button type="button" data-quick="my-requests">내 교환 신청</button>
+            <button type="button" data-quick="cancel-request">교환 신청 취소</button>
+            <button type="button" data-quick="guide-exchange">교환 방법</button>
+            <button type="button" data-quick="guide-deposit">보증금·정산</button>
+            <button type="button" data-quick="guide-more">경매·이벤트</button>
+            <button type="button" data-quick="guide-browse">상품·가게 보기</button>
+        </div>
+        <form class="chat-form" id="chat-form">
+            <input id="chat-input" type="text" maxlength="300" placeholder="메시지를 입력하세요" autocomplete="off" required>
+            <button type="submit" id="chat-send">보내기</button>
+        </form>
+    </section>
+    <button type="button" class="chat-toggle" id="chat-toggle" aria-label="AI 도우미 열기" aria-expanded="false" aria-controls="chat-panel">
+        <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+    </button>
+</div>
+{{/adminAccount}}{{/userId}}
 <script src="/js/api.js"></script>
 <script src="/js/notifications.js"></script>
+<script>
+    // 푸터의 "알림 확인하기": 맨 위로 올라가 종 모양 알림 창을 연다 (로그인 전이면 링크대로 로그인으로 간다)
+    (function () {
+        const link = document.getElementById('footer-notify');
+        link.addEventListener('click', function (event) {
+            const trigger = document.getElementById('notification-trigger');
+            if (!trigger) return;
+            event.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(function () { trigger.click(); }, 350);
+        });
+    })();
+</script>
+{{#userId}}{{^adminAccount}}<script src="/js/chat-widget.js"></script>{{/adminAccount}}{{/userId}}
 </body>
 </html>
