@@ -1,0 +1,81 @@
+<!-- 상품 상세의 리뷰 목록·리뷰 쓰기 스크립트와 리뷰 쓰기 창 (패널은 fragments/review-panel). 모델: reviewItemId -->
+{{> fragments/review-modal}}
+
+<script>
+(() => {
+    const ITEM_ID = {{reviewItemId}};
+    const loggedIn = {{#userId}}true{{/userId}}{{^userId}}false{{/userId}};
+    const PAGE_SIZE = 5;
+
+    const list = document.getElementById('rv-list');
+    const emptyEl = document.getElementById('rv-empty');
+    const moreButton = document.getElementById('rv-more');
+    const openButton = document.getElementById('rv-open');
+    let nextPage = 0;
+    let eligiblePurchaseId = null;
+    // 정보 영역 탭 옆의 리뷰 개수
+    const setCount = total => { const el = document.querySelector('[data-tab-count="review"]'); if (el) el.textContent = total; };
+
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const day = iso => (iso || '').replace('T', ' ').slice(0, 10);
+    const preview = text => { const t = String(text ?? ''); return t.length > 120 ? t.slice(0, 120) + '…' : t; };
+
+    function row(board) {
+        return `<a class="payment-row" href="/test/board/${board.id}" style="text-decoration: none; color: inherit;">
+            <div>
+                <strong>${esc(board.title)}</strong>
+                <small>${esc(preview(board.content))}</small>
+                <small>${esc(board.authorNickname)}</small>
+                ${board.hiddenBySeller ? '<span class="rv-hidden-note">판매자가 비공개로 바꿈 · 나에게만 보여요</span>' : ''}
+            </div>
+            <small class="board-meta">${day(board.createdAt)}</small>
+        </a>`;
+    }
+
+    async function load(reset) {
+        if (reset) { nextPage = 0; list.innerHTML = ''; }
+        const query = new URLSearchParams({
+            boardType: 'PRODUCT_REVIEW', itemId: ITEM_ID, page: nextPage, size: PAGE_SIZE, sort: 'id,desc'
+        });
+        const res = await fetch('/api/boards?' + query.toString(), { credentials: 'same-origin' });
+        if (!res.ok) {
+            emptyEl.textContent = '리뷰를 불러오지 못했어요.';
+            emptyEl.hidden = false;
+            return;
+        }
+        const page = await res.json();
+        setCount(page.totalElements);
+        list.insertAdjacentHTML('beforeend', (page.content || []).map(row).join(''));
+        nextPage += 1;
+        emptyEl.textContent = '아직 리뷰가 없어요.';
+        emptyEl.hidden = list.children.length > 0;
+        moreButton.hidden = !!page.last;
+    }
+
+    // 지금 이 상품에 리뷰를 쓸 수 있는지 (구매확정했고 아직 리뷰를 쓰지 않은 구매가 있는지)
+    async function checkEligibility() {
+        openButton.hidden = true;
+        if (!loggedIn) return;
+        const res = await fetch('/api/boards/review-eligibility?itemId=' + ITEM_ID, { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const eligibility = await res.json();
+        eligiblePurchaseId = eligibility.reviewable ? eligibility.purchaseId : null;
+        openButton.hidden = eligiblePurchaseId == null;
+    }
+
+    openButton.addEventListener('click', () => {
+        if (eligiblePurchaseId == null) return;
+        const title = document.querySelector('.item-detail-info h1');
+        window.openReviewModal({
+            purchaseId: eligiblePurchaseId,
+            itemId: ITEM_ID,
+            itemTitle: title ? title.textContent.trim() : '',
+            onDone: async () => { await Promise.all([load(true), checkEligibility()]); }
+        });
+    });
+    moreButton.addEventListener('click', () => load(false));
+
+    load(true);
+    checkEligibility();
+})();
+</script>

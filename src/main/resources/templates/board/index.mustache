@@ -1,72 +1,63 @@
 {{> fragments/header}}
 
-<section class="page-head">
-    <h1>게시판</h1>
-    <p>문의와 공지를 올리고 답변을 받아보세요.</p>
-</section>
+<div class="container board-page">
+    <header class="board-head">
+        <h1>게시판</h1>
+        <p>커뮤니티에서 이야기하고, 궁금한 점은 고객센터로 문의해 보세요.</p>
+    </header>
 
-<style>
-    .board-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0 0 1rem; }
-    .board-tab { padding: 0.4rem 0.9rem; border: 1px solid var(--color-border, #ddd); border-radius: 999px; text-decoration: none; color: inherit; font-size: 0.88rem; }
-    .board-tab.active { background: var(--color-text, #111); color: #fff; border-color: var(--color-text, #111); }
-</style>
-<nav class="board-tabs" aria-label="게시판 유형">
-    {{#boardTabs}}<a class="board-tab{{#active}} active{{/active}}" href="/test/board?boardType={{type}}"{{#active}} aria-current="page"{{/active}}>{{label}}</a>{{/boardTabs}}
-</nav>
+    <nav class="board-tabs" aria-label="게시판 유형">
+        {{#boardTabs}}<a class="board-tab{{#active}} active{{/active}}" href="/test/board?boardType={{type}}"{{#active}} aria-current="page"{{/active}}>{{label}}</a>{{/boardTabs}}
+    </nav>
 
-<section class="panel">
-    <div class="section-title">
-        <h2>{{boardTypeLabel}} 글</h2>
-        <button type="button" id="open-create">글쓰기</button>
-    </div>
-    <form id="search-form" style="margin-bottom: 1rem;">
-        <label for="keyword-input" class="sr-only">검색</label>
-        <input type="text" id="keyword-input" placeholder="제목, 내용 또는 작성자 검색" value="{{keyword}}" style="width: 60%; display: inline-block;">
-        <button type="submit" style="width: auto; display: inline-block;">검색</button>
-        <button type="button" id="sort-toggle" class="btn-secondary" style="width: auto; display: inline-block;">최신순</button>
-    </form>
-    <div id="board-list" class="board-list-box">
-        {{^boards}}<p class="empty">아직 등록된 게시글이 없습니다.</p>{{/boards}}
-        {{#boards}}
-        {{#authorId}}
-        <a class="payment-row" href="/test/board/{{id}}" style="text-decoration: none; color: inherit;">
-            <div>
-                <strong>{{#isSecret}}🔒 {{/isSecret}}{{title}}</strong>
-                <small>작성자: {{authorNickname}} · {{status.description}}</small>
-            </div>
-            <small class="board-meta"><span class="board-date" data-iso="{{createdAt}}"></span></small>
-        </a>
-        {{/authorId}}
-        {{^authorId}}
-        <div class="payment-row" style="color: var(--color-muted);">
-            <div>
-                <strong>🔒 {{title}}</strong>
-                <small>작성자와 관리자만 볼 수 있어요</small>
-            </div>
+    <section class="board-card">
+        <div class="board-toolbar">
+            <form id="search-form" class="board-search" role="search">
+                <label for="keyword-input" class="sr-only">검색</label>
+                <input type="text" id="keyword-input" placeholder="제목, 내용 또는 작성자 검색" value="{{keyword}}" autocomplete="off">
+                <button type="submit" class="board-btn is-ghost">검색</button>
+            </form>
+            <button type="button" id="sort-toggle" class="board-btn is-ghost">최신순</button>
+            <button type="button" id="open-create" class="board-btn">글쓰기</button>
         </div>
-        {{/authorId}}
-        {{/boards}}
-    </div>
-    <p id="load-more-status" class="empty" hidden>불러오는 중...</p>
-    <button type="button" id="load-more" style="margin-top: 0.75rem;" {{^totalPages}}hidden{{/totalPages}}>더 보기</button>
-</section>
+        {{#csBoard}}<p class="board-note"><span class="info-hint is-lock">작성자·관리자만 볼 수 있어요</span></p>{{/csBoard}}
+
+        <div id="board-list" class="board-rows">
+            {{^boards}}<p class="board-empty">아직 등록된 게시글이 없어요.</p>{{/boards}}
+            {{#boards}}
+            {{#authorId}}
+            <a class="bd-row" href="/test/board/{{id}}">
+                <span class="bd-main">
+                    <strong>{{#isSecret}}<i class="bd-lock" aria-hidden="true"></i>{{/isSecret}}{{title}}</strong>
+                    <small>{{authorNickname}}</small>
+                </span>
+                {{#status}}<span class="bd-status is-{{.}}">{{description}}</span>{{/status}}
+                <time class="bd-date board-date" data-iso="{{createdAt}}"></time>
+            </a>
+            {{/authorId}}
+            {{^authorId}}
+            <div class="bd-row is-locked">
+                <span class="bd-main">
+                    <strong><i class="bd-lock" aria-hidden="true"></i>{{title}}</strong>
+                    <small>작성자와 관리자만 볼 수 있어요</small>
+                </span>
+            </div>
+            {{/authorId}}
+            {{/boards}}
+        </div>
+        <p id="load-more-status" class="board-empty" hidden>불러오는 중...</p>
+        <button type="button" id="load-more" class="board-more" {{^totalPages}}hidden{{/totalPages}}>더 보기</button>
+    </section>
+</div>
 
 <div class="modal-backdrop" id="create-modal" hidden>
     <div class="modal-card">
         <button type="button" class="modal-close" id="close-create">✕</button>
-        <h1>게시글 작성</h1>
+        <h1>{{boardTypeLabel}} 글쓰기</h1>
+        {{#csBoard}}<p class="board-note" style="text-align: center;"><span class="info-hint is-lock">작성자와 관리자만 볼 수 있어요</span></p>{{/csBoard}}
         <form id="create-form">
             <p><input id="board-title" type="text" placeholder="제목" maxlength="100" autocomplete="off" required></p>
-            <p><textarea id="board-content" placeholder="내용을 입력하세요" rows="5" required></textarea></p>
-            <p style="position: relative;" {{^needsItem}}hidden{{/needsItem}}>
-                <input id="item-search" type="text" placeholder="관련 상품 검색 (필수)" autocomplete="off">
-                <input id="board-item-id" type="hidden">
-                <div id="item-search-results" class="autocomplete-list"></div>
-            </p>
-            <label class="checkbox-row" {{^canSecret}}hidden{{/canSecret}}>
-                <input type="checkbox" id="board-secret">
-                비밀글로 작성
-            </label>
+            <p><textarea id="board-content" placeholder="내용을 입력하세요" rows="6" required></textarea></p>
             <button type="submit">등록</button>
         </form>
         <p id="create-message" class="form-message"></p>
@@ -110,16 +101,17 @@ const errorText = async (res, fallback) => {
     function rowHtml(board) {
         // 읽을 권한이 없는 글은 서버가 작성자 등 정보를 비워서 보낸다. 눌러도 403 이라 링크 없이 안내만 보여준다.
         if (board.authorId == null) {
-            return `<div class="payment-row" style="color: var(--color-muted);">
-                <div><strong>🔒 ${esc(board.title)}</strong><small>작성자와 관리자만 볼 수 있어요</small></div>
+            return `<div class="bd-row is-locked">
+                <span class="bd-main"><strong><i class="bd-lock" aria-hidden="true"></i>${esc(board.title)}</strong><small>작성자와 관리자만 볼 수 있어요</small></span>
             </div>`;
         }
-        return `<a class="payment-row" href="/test/board/${board.id}" style="text-decoration: none; color: inherit;">
-            <div>
-                <strong>${board.isSecret ? '🔒 ' : ''}${esc(board.title)}</strong>
-                <small>작성자: ${esc(board.authorNickname)} · ${esc(statusLabels[board.status] || board.status)}</small>
-            </div>
-            <small class="board-meta">${formatDate(board.createdAt)}</small>
+        return `<a class="bd-row" href="/test/board/${board.id}">
+            <span class="bd-main">
+                <strong>${board.isSecret ? '<i class="bd-lock" aria-hidden="true"></i>' : ''}${esc(board.title)}</strong>
+                <small>${esc(board.authorNickname)}</small>
+            </span>
+            ${board.status ? `<span class="bd-status is-${board.status}">${esc(statusLabels[board.status] || board.status)}</span>` : ''}
+            <time class="bd-date">${formatDate(board.createdAt)}</time>
         </a>`;
     }
 
@@ -141,16 +133,6 @@ const errorText = async (res, fallback) => {
         loadingMore = false;
     }
 
-    // 고정 높이 목록 안에서 맨 아래 근처까지 스크롤하면 다음 글을 자동으로 불러옴
-    let listScrollTimer;
-    list.addEventListener('scroll', () => {
-        // 스크롤하는 동안에만 스크롤바 표시
-        list.classList.add('is-scrolling');
-        clearTimeout(listScrollTimer);
-        listScrollTimer = setTimeout(() => list.classList.remove('is-scrolling'), 600);
-        if (list.scrollTop + list.clientHeight >= list.scrollHeight - 60) loadMore();
-    });
-
     loadMoreButton.hidden = currentPage >= totalPages;
     loadMoreButton.addEventListener('click', loadMore);
 
@@ -163,8 +145,7 @@ const errorText = async (res, fallback) => {
         if (!res.ok) return;
         const page = await res.json();
         const rows = page.content || [];
-        list.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="empty">아직 등록된 게시글이 없습니다.</p>';
-        list.scrollTop = 0;
+        list.innerHTML = rows.length ? rows.map(rowHtml).join('') : '<p class="board-empty">아직 등록된 게시글이 없어요.</p>';
         totalPages = page.totalPages;
         currentPage = 1;
         loadMoreButton.hidden = currentPage >= totalPages;
@@ -188,104 +169,25 @@ const errorText = async (res, fallback) => {
         runSearch(currentKeyword);
     });
 
+    // ===== 글쓰기 =====
     const modal = document.getElementById('create-modal');
     document.getElementById('open-create').addEventListener('click', () => {
         if (!requireLogin()) return;
         modal.hidden = false;
-        loadItemsForSearch();
     });
     document.getElementById('close-create').addEventListener('click', () => { modal.hidden = true; });
     modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
 
-    // ===== 관련 상품 검색/선택 (처음에는 100개만 불러오고, 글자를 입력하면 검색해서 찾기) =====
-    let allItemsForSearch = [];
-    let itemsLoaded = false;
-
-    async function loadItemsForSearch() {
-        if (itemsLoaded) return;
-        const res = await pageFetch('/api/items?size=100');
-        if (!res.ok) return;
-        itemsLoaded = true;
-        const page = await res.json();
-        allItemsForSearch = page.content || [];
-    }
-
-    const itemSearchInput = document.getElementById('item-search');
-    const itemSearchResults = document.getElementById('item-search-results');
-    const boardItemIdInput = document.getElementById('board-item-id');
-
-    // 모달의 overflow:auto에 드롭다운이 가려지지 않도록 body 바로 아래 fixed 위치로 띄움
-    function positionDropdown() {
-        const rect = itemSearchInput.getBoundingClientRect();
-        itemSearchResults.style.position = 'fixed';
-        itemSearchResults.style.top = rect.bottom + 'px';
-        itemSearchResults.style.left = rect.left + 'px';
-        itemSearchResults.style.width = rect.width + 'px';
-    }
-
-    // more: 처음 불러온 100개가 전부가 아닐 수 있다는 안내, pending: 서버 검색 결과를 기다리는 중
-    function renderItemResults(matches, more = false, pending = false) {
-        positionDropdown();
-        itemSearchResults.innerHTML = matches.length
-            ? matches.map(item => `<div class="autocomplete-item" data-id="${item.id}" data-title="${esc(item.title)}">${esc(item.title)}</div>`).join('')
-              + (more ? '<div class="autocomplete-item empty">최대 100개까지 보여요. 검색어를 입력해 더 찾아보세요</div>' : '')
-            : `<div class="autocomplete-item empty">${pending ? '검색 중...' : '검색 결과가 없습니다'}</div>`;
-        itemSearchResults.querySelectorAll('[data-id]').forEach(el => el.addEventListener('click', () => {
-            boardItemIdInput.value = el.dataset.id;
-            itemSearchInput.value = el.dataset.title;
-            itemSearchResults.innerHTML = '';
-        }));
-    }
-
-    // 검색어가 없으면 처음 불러온 100개, 있으면 글자를 입력할 때마다 바로 서버에 검색 요청
-    // (서버가 keyword 를 지원하면 전체에서 찾고, 아니면 받은 100개 안에서 걸러낸다)
-    const ITEM_SEARCH_LIMIT = 100;
-    let itemSearchSeq = 0;
-    async function showItemResults() {
-        const keyword = itemSearchInput.value.trim().toLowerCase();
-        if (!keyword) {
-            itemSearchSeq++;
-            renderItemResults(allItemsForSearch, allItemsForSearch.length >= ITEM_SEARCH_LIMIT);
-            return;
-        }
-        const seq = ++itemSearchSeq;
-        // 이미 받아 둔 목록에서 먼저 바로 보여주고, 서버 검색 결과가 오면 교체
-        renderItemResults(allItemsForSearch.filter(item => item.title.toLowerCase().includes(keyword)), false, true);
-        const res = await pageFetch('/api/items?size=' + ITEM_SEARCH_LIMIT + '&keyword=' + encodeURIComponent(keyword));
-        // 그 사이 더 새로운 글자가 입력됐다면 이 응답은 버린다 (늦게 도착한 이전 결과가 덮어쓰지 않게)
-        if (!res.ok || seq !== itemSearchSeq) return;
-        const found = ((await res.json()).content || []).filter(item => item.title.toLowerCase().includes(keyword));
-        if (seq !== itemSearchSeq) return;
-        renderItemResults(found);
-    }
-
-    itemSearchInput.addEventListener('focus', async () => {
-        await loadItemsForSearch();
-        showItemResults();
-    });
-    itemSearchInput.addEventListener('input', () => {
-        boardItemIdInput.value = '';
-        showItemResults();
-    });
-    document.addEventListener('click', event => {
-        if (!itemSearchInput.contains(event.target) && !itemSearchResults.contains(event.target) && event.target !== itemSearchInput) {
-            itemSearchResults.innerHTML = '';
-        }
-    });
-
     document.getElementById('create-form').addEventListener('submit', async event => {
         event.preventDefault();
         const message = document.getElementById('create-message');
-        const itemIdValue = document.getElementById('board-item-id').value.trim();
-        if ({{needsItem}} && !itemIdValue) {
-            message.textContent = '관련 상품을 검색해서 선택해 주세요.'; message.className = 'form-message error'; return;
-        }
         const body = {
             title: document.getElementById('board-title').value.trim(),
             content: document.getElementById('board-content').value.trim(),
-            itemId: itemIdValue ? Number(itemIdValue) : null,
+            itemId: null,
             boardType: boardType,
-            isSecret: document.getElementById('board-secret').checked
+            // 고객센터 문의는 작성자와 관리자만 볼 수 있어서 항상 비공개다 (서버도 그렇게 저장한다)
+            isSecret: boardType === 'CUSTOMER_SERVICE'
         };
         const res = await pageFetch('/api/boards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (!res.ok) { message.textContent = await errorText(res, '등록에 실패했습니다.'); message.className = 'form-message error'; return; }

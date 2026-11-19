@@ -7,6 +7,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -427,9 +429,6 @@ class BoardServiceTest {
         given(replyRepository.findById(1L))
             .willReturn(Optional.of(reply));
 
-        given(replyRepository.countByBoardId(board.getId()))
-            .willReturn(1L);
-
         given(replyRepository.deleteByIdInBulk(1L))
             .willReturn(1);
 
@@ -437,7 +436,6 @@ class BoardServiceTest {
         boardService.deleteReply(1L, 20L);
 
         // then
-        verify(replyRepository).countByBoardId(board.getId());
         verify(replyRepository).deleteByIdInBulk(1L);
     }
 
@@ -713,6 +711,7 @@ class BoardServiceTest {
         given(boardRepository.findByKeyword(
             eq("공지"),
             eq(List.of(BoardType.COMMUNITY)),
+            isNull(),
             eq(pageable)
         )).willReturn(boardPage);
 
@@ -734,6 +733,7 @@ class BoardServiceTest {
         verify(boardRepository).findByKeyword(
             "공지",
             List.of(BoardType.COMMUNITY),
+            null,
             pageable
         );
     }
@@ -749,6 +749,7 @@ class BoardServiceTest {
         given(boardRepository.findByKeyword(
             eq("공지"),
             eq(List.of(BoardType.COMMUNITY)),
+            isNull(),
             eq(pageable)
         )).willReturn(emptyPage);
 
@@ -764,6 +765,7 @@ class BoardServiceTest {
         verify(boardRepository).findByKeyword(
             "공지",
             List.of(BoardType.COMMUNITY),
+            null,
             pageable
         );
     }
@@ -974,8 +976,13 @@ class BoardServiceTest {
         given(itemRepository.findById(itemId))
             .willReturn(Optional.of(item));
 
-        given(purchaseRepository.existsByUserIdAndItemId(loginUserId, itemId))
-            .willReturn(true);
+        // 구매확정했고 아직 리뷰가 없는 내 구매가 있다
+        Purchase purchase = mock(Purchase.class);
+        given(purchase.getId()).willReturn(55L);
+        given(purchase.getItem()).willReturn(item);
+        given(item.getId()).willReturn(itemId);
+        given(purchaseRepository.findReviewablePurchases(loginUserId, itemId))
+            .willReturn(List.of(purchase));
 
         given(boardRepository.save(any(Board.class)))
             .willAnswer(invocation -> {
@@ -999,6 +1006,7 @@ class BoardServiceTest {
         assertThat(saved.getAuthorId()).isEqualTo(loginUserId);
         assertThat(saved.getItemId()).isEqualTo(itemId);
         assertThat(saved.getBoardType()).isEqualTo(BoardType.PRODUCT_REVIEW);
+        assertThat(saved.getPurchaseId()).isEqualTo(55L);
         assertThat(saved.getIsSecret()).isFalse();
         assertThat(saved.getStatus()).isEqualTo(BoardStatus.PENDING);
     }
@@ -1043,8 +1051,9 @@ class BoardServiceTest {
         given(itemRepository.findById(itemId))
             .willReturn(Optional.of(item));
 
-        given(purchaseRepository.existsByUserIdAndItemId(loginUserId, itemId))
-            .willReturn(false);
+        // 구매확정한(리뷰를 쓸 수 있는) 구매가 없다
+        given(purchaseRepository.findReviewablePurchases(loginUserId, itemId))
+            .willReturn(List.of());
 
         // when & then
         assertThatThrownBy(() ->
@@ -1372,8 +1381,9 @@ class BoardServiceTest {
         given(replyRepository.findById(1L))
             .willReturn(Optional.of(reply));
 
-        given(replyRepository.countByBoardId(1L))
-            .willReturn(1L);
+        // 삭제 후 남은 댓글이 없다
+        given(replyRepository.findFirstByBoardIdOrderByIdDesc(1L))
+            .willReturn(Optional.empty());
 
         given(replyRepository.deleteByIdInBulk(1L))
             .willReturn(1);
@@ -1384,7 +1394,6 @@ class BoardServiceTest {
         // then
         assertThat(board.getStatus()).isEqualTo(BoardStatus.PENDING);
 
-        verify(replyRepository).countByBoardId(1L);
         verify(replyRepository).deleteByIdInBulk(1L);
     }
 
@@ -1407,13 +1416,14 @@ class BoardServiceTest {
         board.complete();
 
         Reply deleteTarget = createReply(board, authorId);
-        createReply(board, 20L);
+        Reply sellerAnswer = createReply(board, 20L);
 
         given(replyRepository.findById(1L))
             .willReturn(Optional.of(deleteTarget));
 
-        given(replyRepository.countByBoardId(1L))
-            .willReturn(2L);
+        // 삭제 후 남은 마지막 댓글은 판매자의 답변이다
+        given(replyRepository.findFirstByBoardIdOrderByIdDesc(1L))
+            .willReturn(Optional.of(sellerAnswer));
 
         given(replyRepository.deleteByIdInBulk(1L))
             .willReturn(1);
@@ -1424,7 +1434,6 @@ class BoardServiceTest {
         // then
         assertThat(board.getStatus()).isEqualTo(BoardStatus.COMPLETED);
 
-        verify(replyRepository).countByBoardId(1L);
         verify(replyRepository).deleteByIdInBulk(1L);
     }
 

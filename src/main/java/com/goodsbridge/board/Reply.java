@@ -40,6 +40,10 @@ public class Reply {
         this.authorId = authorId;
     }
 
+    public void updateContent(String content) {
+        this.content = content;
+    }
+
     void assignBoard(Board board) {
         this.board = board;
     }

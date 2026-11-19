@@ -174,14 +174,23 @@ public class DemoSampleDataService {
             .build());
     }
 
+    // 상품이 있는 글은 그 상품에 남긴 문의, 없는 글은 커뮤니티 글(비밀글이면 고객센터 문의)로 만든다.
+    // 유형을 지정하지 않으면 board_type 이 LEGACY 가 되어 게시판에서 보이지 않는다.
     private long ensureBoard(long authorId, String title, String content, Long itemId, boolean secret, String status) {
+        String type = itemId != null ? "PRODUCT_INQUIRY" : secret ? "CUSTOMER_SERVICE" : "COMMUNITY";
+        String targetType = itemId != null ? "ITEM" : null;
         String find = "select min(id) from board_tb where title = ? and content = ?";
         Long id = first(find, title, content);
         if (id != null) {
+            // 유형 없이 만들어져 LEGACY 로 남았거나(상품이 달린 글은) 기본값 COMMUNITY 로 채워진 옛 시연 글은 유형을 바로잡아 준다
+            jdbc.update("update board_tb set board_type = ?, target_type = ?, target_id = ? where id = ? "
+                    + "and (board_type = 'LEGACY' or (board_type = 'COMMUNITY' and ? = 'PRODUCT_INQUIRY'))",
+                type, targetType, itemId, id, type);
             return id;
         }
-        jdbc.update("insert into board_tb (author_id, content, created_at, is_secret, item_id, status, title) values (?, ?, now(6), ?, ?, ?, ?)",
-            authorId, content, secret, itemId, status, title);
+        jdbc.update("insert into board_tb (author_id, content, created_at, is_secret, item_id, status, title, board_type, target_type, target_id) "
+                + "values (?, ?, now(6), ?, ?, ?, ?, ?, ?, ?)",
+            authorId, content, secret, itemId, status, title, type, targetType, itemId);
         return first(find, title, content);
     }
 

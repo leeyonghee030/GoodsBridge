@@ -52,6 +52,9 @@ public class AuctionPageController {
     public String detail(@PathVariable Long id, Model model) {
         common(model);
         model.addAttribute("auctionId", id);
+        // 경매 상세의 문의 영역이 쓰는 값 (이 경매에 남긴 문의만 보인다)
+        model.addAttribute("inquiryTargetType", "AUCTION");
+        model.addAttribute("inquiryTargetId", id);
         return "auction/detail";
     }
 

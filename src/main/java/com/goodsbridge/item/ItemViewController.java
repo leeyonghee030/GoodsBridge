@@ -50,6 +50,10 @@ public class ItemViewController {
         boolean ownItem = userId != null && (userId.equals(item.getSellerUserId())
             || (item.getShopId() != null && shopRepository.findById(item.getShopId()).map(shop -> shop.isOwner(userId)).orElse(false)));
         model.addAttribute("item", item);
+        // 상품 상세의 문의(상품에 대한 문의)와 리뷰(그 상품의 리뷰만) 영역이 쓰는 값
+        model.addAttribute("inquiryTargetType", "ITEM");
+        model.addAttribute("inquiryTargetId", id);
+        model.addAttribute("reviewItemId", id);
         // 경매 전용 상품은 일반 구매가 아니라 경매로만 살 수 있다 → 구매 버튼 대신 경매 안내를 보여준다
         boolean auctionItem = item.getSaleType() == SaleType.AUCTION;
         model.addAttribute("auctionItem", auctionItem);
