@@ -1,11 +1,11 @@
 {{> fragments/header}}
 
-<section class="page-head">
-    <h1>게시판</h1>
-    <p>커뮤니티에서 이야기하고, 궁금한 점은 고객센터로 문의해 보세요.</p>
-</section>
-
 <div class="container board-page">
+    <header class="board-head">
+        <h1>게시판</h1>
+        <p>커뮤니티에서 이야기하고, 궁금한 점은 고객센터로 문의해 보세요.</p>
+    </header>
+
     <nav class="board-tabs" aria-label="게시판 유형">
         {{#boardTabs}}<a class="board-tab{{#active}} active{{/active}}" href="/test/board?boardType={{type}}"{{#active}} aria-current="page"{{/active}}>{{label}}</a>{{/boardTabs}}
     </nav>

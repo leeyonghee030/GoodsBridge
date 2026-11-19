@@ -44,7 +44,7 @@
         const target = r.targetType || 'ITEM';
         const wait = r.status === 'PENDING';
         const meta = [r.itemTitle, SELLER ? r.authorNickname : null, day(r.createdAt)].filter(Boolean).map(esc).join(' · ');
-        return `<a class="mb-row" href="/test/board/${r.id}">
+        return `<a class="mb-row" href="/test/board/${r.id}" data-inquiry-id="${r.id}">
             <span class="mb-kind is-${target.toLowerCase()}">${KIND_LABEL[target] || '상품'}</span>
             <span class="mb-main"><strong>${esc(r.title)}</strong><small>${meta}</small></span>
             <span class="mb-badge ${wait ? 'is-wait' : 'is-done'}">${wait ? '답변 대기' : '답변 완료'}</span>
@@ -99,8 +99,13 @@
     });
     moreEl.addEventListener('click', () => load(false));
 
+    // 문의를 누르면 팝업이 열리고, 답변을 달면 목록과 개수를 새로 불러온다
+    window.inquiryModalOptions = { onChange: () => { loadCounts(); load(true); } };
+
     renderTabs();
     loadCounts();
     load(true);
 })();
 </script>
+
+{{> fragments/inquiry-modal}}

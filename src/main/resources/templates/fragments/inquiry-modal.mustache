@@ -1,0 +1,100 @@
+<!--
+  문의 팝업. 내 문의 / 판매자 문의 관리 / 관리자 고객센터 문의가 함께 쓴다 (페이지를 옮기지 않고 창으로 열어 읽고 답변한다).
+  사용: window.openInquiryModal(boardId, { onChange: () => 목록 새로고침 })
+  목록의 행은 <a href="/test/board/{id}" data-inquiry-id="{id}"> 형태로 두면, 눌렀을 때 팝업이 열리고 (스크립트가 없으면 상세 페이지로 이동한다)
+-->
+<div class="modal-backdrop" id="iq-modal" hidden>
+    <div class="modal-card iq-modal-card" role="dialog" aria-modal="true" aria-labelledby="iqm-title">
+        <button type="button" class="modal-close" id="iqm-close" aria-label="닫기">✕</button>
+        <div class="iqm-head">
+            <span class="mb-badge" id="iqm-status"></span>
+            <h2 id="iqm-title"></h2>
+            <p class="iqm-meta" id="iqm-meta"></p>
+        </div>
+        <p class="iqm-question" id="iqm-content"></p>
+        <div class="iqm-replies" id="iqm-replies"></div>
+        <form id="iqm-form" class="iqm-form">
+            <textarea id="iqm-input" rows="3" placeholder="답변을 입력하세요" required></textarea>
+            <div class="iqm-actions">
+                <a id="iqm-detail" class="iqm-link" href="#">상세 보기</a>
+                <button type="submit" id="iqm-submit">답변 등록</button>
+            </div>
+            <p id="iqm-message" class="form-message"></p>
+        </form>
+    </div>
+</div>
+
+<script>
+(() => {
+    const modal = document.getElementById('iq-modal');
+    const $ = id => document.getElementById(id);
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const when = iso => (iso || '').replace('T', ' ').slice(0, 16);
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+    let currentId = null;
+    let onChange = null;
+
+    function close() { modal.hidden = true; currentId = null; }
+    $('iqm-close').addEventListener('click', close);
+    modal.addEventListener('click', event => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) close(); });
+
+    function paint(b) {
+        const wait = b.status === 'PENDING';
+        const badge = $('iqm-status');
+        badge.textContent = wait ? '답변 대기' : '답변 완료';
+        badge.className = 'mb-badge ' + (wait ? 'is-wait' : 'is-done');
+        badge.hidden = !b.status;
+        $('iqm-title').textContent = b.title;
+        $('iqm-meta').textContent = [b.authorNickname, when(b.createdAt)].filter(Boolean).join(' · ');
+        $('iqm-content').textContent = b.content;
+        const replies = (b.replies || []).slice().reverse(); // 오래된 답변부터
+        $('iqm-replies').innerHTML = replies.map(r =>
+            `<div class="iqm-reply"><strong>${esc(r.authorNickname)}</strong><small>${when(r.createdAt)}</small><p>${esc(r.content)}</p></div>`).join('');
+        $('iqm-detail').href = '/test/board/' + b.id;
+    }
+
+    async function open(id, options) {
+        currentId = id;
+        onChange = options && options.onChange;
+        $('iqm-message').textContent = '';
+        $('iqm-input').value = '';
+        const res = await fetch('/api/boards/' + id, { credentials: 'same-origin' });
+        if (!res.ok) { alert(await errorText(res, '문의를 불러오지 못했어요.')); return; }
+        paint(await res.json());
+        modal.hidden = false;
+        $('iqm-input').focus();
+    }
+    window.openInquiryModal = open;
+
+    $('iqm-form').addEventListener('submit', async event => {
+        event.preventDefault();
+        const message = $('iqm-message');
+        const submit = $('iqm-submit');
+        submit.disabled = true;
+        const res = await fetch('/api/boards/' + currentId + '/replies', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: $('iqm-input').value.trim() })
+        });
+        submit.disabled = false;
+        if (!res.ok) { message.textContent = await errorText(res, '답변 등록에 실패했습니다.'); message.className = 'form-message error'; return; }
+        $('iqm-input').value = '';
+        const fresh = await fetch('/api/boards/' + currentId, { credentials: 'same-origin' });
+        if (fresh.ok) paint(await fresh.json());
+        if (onChange) onChange();
+    });
+
+    // 목록의 문의 행을 누르면 팝업으로 연다 (새 탭/휠클릭은 그대로 상세 페이지로 간다)
+    document.addEventListener('click', event => {
+        const row = event.target.closest('[data-inquiry-id]');
+        if (!row || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        const handler = window.inquiryModalOptions || {};
+        open(row.dataset.inquiryId, handler);
+    });
+})();
+</script>
