@@ -2,7 +2,7 @@
 
 굿즈(포토카드 등) 교환/거래 플랫폼. 오프라인 굿즈샵을 거점으로 안전 교환(보증금+노쇼 페널티)을 중개하는 중고거래 플랫폼입니다. 4인/14일 부트캠프 팀프로젝트.
 
-전체 기획/ERD/API 명세/유저플로우는 [`docs/기획서.md`](docs/기획서.md) 참고.
+전체 기획/ERD/API 명세/유저플로우는 [`docs/spec/기획서.md`](docs/spec/기획서.md) 참고.
 
 ## 기술 스택
 - Java 21, Spring Boot, Gradle
@@ -40,7 +40,17 @@ docker ps   # goodsbridge-mysql 떠 있으면 성공
 MySQL 컨테이너는 한 번 띄워두면 계속 켜둬도 됩니다. 다음에 작업할 땐 `./gradlew bootRun`만 하면 됩니다.
 
 ## 화면 (Mustache)
-각 도메인 API가 아직 완성 전이라, 화면은 전부 `/test/{도메인}` 경로의 placeholder 상태입니다 (예: `/test/item`, `/test/admin`). 백엔드 완성 순서대로 실제 화면으로 교체됩니다 — 자세한 건 [#24 화면 전환 체크리스트](../../issues/24) 참고. 담당자가 직접 만들 필요는 없습니다.
+화면은 Mustache로 서버에서 그립니다. 경로는 다음과 같습니다.
+- 둘러보기: `/test/item`, `/test/event`, `/test/auction`, `/test/shop`, `/test/board`, `/test/chat` (상세는 `/test/{도메인}/{id}`)
+- 마이페이지: `/my/purchases`, `/my/exchange`, `/my/events`, `/my/auctions`, `/my/inquiries`
+- 가게 관리: `/shop/dashboard`, `/shop/items`, `/shop/exchange`, `/shop/events`, `/shop/auctions`, `/shop/inquiries`, `/shop/reviews`
+- 관리자: `/test/admin` (입점·구독·경매·고객센터 문의)
+
+## 문서
+- 시작하기: [로컬 실행 가이드](docs/guide/로컬_실행_가이드.md), [데모 임시데이터 사용법](docs/guide/데모_임시데이터_사용법.md)
+- 기획·설계: [기획서](docs/spec/기획서.md), [이슈 전체 로직 정리](docs/spec/이슈_전체정리.md), [AI 에이전트 학습 노트](docs/spec/AI_에이전트_학습노트.md)
+- 운영: [알림 DB 컬럼 수정 안내](docs/ops/알림_DB_컬럼_수정_안내.md), [작업 분배](docs/ops/작업_분배.md)
+- 전체 문서 목록: [INDEX.md](INDEX.md)
 
 ## 협업 규칙
 - **Git 전략**: `main`(배포/데모) / `develop`(기본, 작업 베이스) / `feature/{이슈번호}-{영문명}`. `main`·`develop` 직접 push 불가, PR + 리뷰 승인 1개 이상 필요, Squash merge만 허용
