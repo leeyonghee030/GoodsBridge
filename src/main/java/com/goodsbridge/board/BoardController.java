@@ -147,6 +147,24 @@ public class BoardController {
         return ResponseEntity.ok(boardService.getInquiryCounts(loginUserId, "seller".equals(scope)));
     }
 
+    // 관리자 "고객센터 문의": 모든 고객센터 문의. status(PENDING/COMPLETED)로 좁힐 수 있다
+    @GetMapping("/boards/admin/support")
+    public ResponseEntity<Page<BoardManageResponse>> getSupportInquiries(
+        @RequestParam(required = false) BoardStatus status,
+        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getSupportInquiries(loginUserId, status, pageable));
+    }
+
+    // 관리자 고객센터 탭의 개수 (ALL/PENDING/COMPLETED)
+    @GetMapping("/boards/admin/support/counts")
+    public ResponseEntity<Map<String, Long>> getSupportCounts(
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getSupportCounts(loginUserId));
+    }
+
     // 판매자가 자기 상품의 리뷰를 비공개로 바꾸거나(true) 다시 공개한다(false)
     @PatchMapping("/boards/{id}/hidden")
     public ResponseEntity<Void> setReviewHidden(

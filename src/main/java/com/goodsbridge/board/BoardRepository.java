@@ -148,6 +148,13 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
         """)
     List<Object[]> findMyReviewIds(@Param("authorId") Long authorId);
 
+    // 관리자 "고객센터 문의": 답변 상태별 목록과 개수
+    Page<Board> findByBoardTypeAndStatus(BoardType boardType, BoardStatus status, Pageable pageable);
+
+    long countByBoardType(BoardType boardType);
+
+    long countByBoardTypeAndStatus(BoardType boardType, BoardStatus status);
+
     // 특정 게시판 유형의 전체 게시글 조회
     Page<Board> findByBoardType(
         BoardType boardType,

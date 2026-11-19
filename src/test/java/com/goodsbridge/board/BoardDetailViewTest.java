@@ -73,11 +73,11 @@ class BoardDetailViewTest {
     }
 
     @Test
-    void editForm_hidesSecretOnlyForAlwaysPublicBoards() throws Exception {
-        mockMvc.perform(get("/test/board/" + board(BoardType.COMMUNITY)))
-            .andExpect(content().string(containsString("<label class=\"checkbox-row\" hidden>")));
-        mockMvc.perform(get("/test/board/" + board(BoardType.CUSTOMER_SERVICE)))
-            .andExpect(content().string(not(containsString("<label class=\"checkbox-row\" hidden>"))));
+    void editForm_hasNoSecretCheckbox() throws Exception {
+        for (BoardType type : new BoardType[]{BoardType.COMMUNITY, BoardType.CUSTOMER_SERVICE}) {
+            mockMvc.perform(get("/test/board/" + board(type)))
+                .andExpect(content().string(not(containsString("edit-secret"))));
+        }
     }
 
     @Test

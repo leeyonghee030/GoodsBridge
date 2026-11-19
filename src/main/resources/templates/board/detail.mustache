@@ -32,10 +32,6 @@
                 <input id="edit-item-id" type="hidden" value="{{#board.itemId}}{{board.itemId}}{{/board.itemId}}">
                 <div id="item-search-results" class="autocomplete-list"></div>
             </p>
-            <label class="checkbox-row" {{^canSecret}}hidden{{/canSecret}}>
-                <input type="checkbox" id="edit-secret" {{#board.isSecret}}checked{{/board.isSecret}}>
-                비밀글로 유지
-            </label>
             <button type="submit">저장</button>
         </form>
         <p id="edit-message" class="form-message"></p>
@@ -247,8 +243,7 @@ const errorText = async (res, fallback) => {
         const body = {
             title: document.getElementById('edit-title').value.trim(),
             content: document.getElementById('edit-content').value.trim(),
-            itemId: itemIdValue ? Number(itemIdValue) : null,
-            isSecret: document.getElementById('edit-secret').checked
+            itemId: itemIdValue ? Number(itemIdValue) : null
         };
         const res = await pageFetch('/api/boards/' + boardId, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (!res.ok) { message.textContent = await errorText(res, '수정에 실패했습니다.'); message.className = 'form-message error'; return; }

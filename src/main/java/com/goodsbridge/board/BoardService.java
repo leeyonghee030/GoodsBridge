@@ -280,6 +280,39 @@ public class BoardService {
         return counts;
     }
 
+    // 관리자 "고객센터 문의": 모든 고객센터 문의 (status 를 주면 답변 대기/완료만)
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getSupportInquiries(
+        Long loginUserId,
+        BoardStatus status,
+        Pageable pageable
+    ) {
+        requireAdmin(loginUserId);
+        Page<Board> page = status == null
+            ? boardRepository.findByBoardType(BoardType.CUSTOMER_SERVICE, pageable)
+            : boardRepository.findByBoardTypeAndStatus(BoardType.CUSTOMER_SERVICE, status, pageable);
+        return toManageResponses(page);
+    }
+
+    // 관리자 고객센터 탭의 개수: 전체/답변 대기/답변 완료
+    @Transactional(readOnly = true)
+    public Map<String, Long> getSupportCounts(Long loginUserId) {
+        requireAdmin(loginUserId);
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("ALL", boardRepository.countByBoardType(BoardType.CUSTOMER_SERVICE));
+        for (BoardStatus status : BoardStatus.values()) {
+            counts.put(status.name(), boardRepository.countByBoardTypeAndStatus(BoardType.CUSTOMER_SERVICE, status));
+        }
+        return counts;
+    }
+
+    private void requireAdmin(Long loginUserId) {
+        requireLogin(loginUserId);
+        if (!isAdmin()) {
+            throw new ForbiddenException("관리자만 볼 수 있습니다.");
+        }
+    }
+
     // 판매자가 자기 상품의 리뷰를 비공개로 바꾸거나 다시 공개한다
     @Transactional
     public void setReviewHidden(Long boardId, boolean hidden, Long loginUserId) {
@@ -321,10 +354,11 @@ public class BoardService {
             board.getContent(),
             nicknames.getOrDefault(board.getAuthorId(), "알 수 없음"),
             board.getItemId(),
-            itemTitles.get(board.getItemId()),
+            board.getItemId() == null ? null : itemTitles.get(board.getItemId()),
             board.getTargetType(),
             board.getTargetId(),
-            board.getBoardType() == BoardType.PRODUCT_INQUIRY ? board.getStatus() : null,
+            (board.getBoardType() == BoardType.PRODUCT_INQUIRY
+                || board.getBoardType() == BoardType.CUSTOMER_SERVICE) ? board.getStatus() : null,
             board.isHiddenBySeller(),
             board.getCreatedAt()
         ));

@@ -305,6 +305,30 @@ class BoardManagementIntegrationTest {
             .andExpect(status().isNoContent());
     }
 
+    @Test
+    void customerServicePosts_areAlwaysSecret_andOnlyAdminSeesTheSupportInbox() throws Exception {
+        // 작성자가 비밀글이 아니라고 보내도 고객센터 글은 비공개로 저장된다
+        Board cs = boardRepository.save(Board.builder().title("고객센터 문의").content("내용").authorId(buyerId)
+            .boardType(BoardType.CUSTOMER_SERVICE).itemId(null).isSecret(false).build());
+        assertThat(cs.getIsSecret()).isTrue();
+        cs.update("고객센터 문의", "수정", false);
+        assertThat(cs.getIsSecret()).isTrue();
+
+        RequestPostProcessor admin = authentication(new UsernamePasswordAuthenticationToken(
+            otherId, null, List.of(new SimpleGrantedAuthority("ROLE_ADMIN"))));
+        mockMvc.perform(get("/api/boards/admin/support").with(admin))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.content[0].id").value(cs.getId()))
+            .andExpect(jsonPath("$.content[0].status").value("PENDING"));
+        mockMvc.perform(get("/api/boards/admin/support").param("status", "COMPLETED").with(admin))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(get("/api/boards/admin/support/counts").with(admin))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.ALL").value(1)).andExpect(jsonPath("$.PENDING").value(1));
+        // 일반 사용자는 볼 수 없다
+        mockMvc.perform(get("/api/boards/admin/support").with(login(buyerId)))
+            .andExpect(status().isForbidden());
+    }
+
     private RequestPostProcessor login(Long userId) {
         return authentication(new UsernamePasswordAuthenticationToken(
             userId, null, List.of(new SimpleGrantedAuthority("ROLE_USER"))));

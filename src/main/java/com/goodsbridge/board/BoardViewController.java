@@ -29,8 +29,8 @@ public class BoardViewController {
         @RequestParam(required = false) String keyword,
         Model model
     ) {
-        // 상품 리뷰는 게시판 화면에 보이지 않는다 (각 상품 상세 화면에서 본다)
-        if (boardType == BoardType.PRODUCT_REVIEW) {
+        // 상품 리뷰와 상품 문의는 게시판 화면에 보이지 않는다 (상품·이벤트·경매 상세 화면과 마이페이지에서 본다)
+        if (boardType == BoardType.PRODUCT_REVIEW || boardType == BoardType.PRODUCT_INQUIRY) {
             return "redirect:/test/board";
         }
 
@@ -51,12 +51,8 @@ public class BoardViewController {
         model.addAttribute("boardType", boardType);
         model.addAttribute("boardTabs", boardTabs(boardType));
         model.addAttribute("boardTypeLabel", label(boardType));
-        // 상품 문의·리뷰는 상품이 필수이고, 커뮤니티·고객센터는 상품을 연결할 수 없다 (Board 의 유형별 규칙)
-        model.addAttribute("needsItem",
-            boardType == BoardType.PRODUCT_INQUIRY || boardType == BoardType.PRODUCT_REVIEW);
-        // 커뮤니티와 상품 리뷰는 항상 공개 글이라 비밀글 선택지를 보여주지 않는다
-        model.addAttribute("canSecret",
-            boardType != BoardType.COMMUNITY && boardType != BoardType.PRODUCT_REVIEW);
+        // 고객센터는 작성자와 관리자만 볼 수 있다 (안내 표시용). 비밀글 선택지는 없다 (고객센터는 항상 비공개)
+        model.addAttribute("csBoard", boardType == BoardType.CUSTOMER_SERVICE);
         model.addAttribute("userId", userId);
 
         return "board/index";
@@ -68,9 +64,6 @@ public class BoardViewController {
         BoardResponseDto board = boardService.getBoard(id, userId);
         model.addAttribute("board", board);
         model.addAttribute("backUrl", backUrl(board));
-        // 커뮤니티와 상품 리뷰는 항상 공개 글이라 수정 폼에 비밀글 선택지를 보여주지 않는다
-        model.addAttribute("canSecret",
-            board.getBoardType() != BoardType.COMMUNITY && board.getBoardType() != BoardType.PRODUCT_REVIEW);
         model.addAttribute("userId", userId);
         return "board/detail";
     }
@@ -112,8 +105,9 @@ public class BoardViewController {
 
     // 화면에서 고를 수 있는 게시판 유형 (LEGACY 는 기존 글 보존용이라 제외)
     // 상품 리뷰는 게시판이 아니라 각 상품 상세 화면에서만 보여주므로 탭에 없다.
+    // 상품 문의는 상품·이벤트·경매 상세 화면과 마이페이지의 "내 문의"/"문의 관리"에서 다루므로 게시판 탭에 없다.
     private static final List<BoardType> TAB_TYPES = List.of(
-        BoardType.COMMUNITY, BoardType.PRODUCT_INQUIRY, BoardType.CUSTOMER_SERVICE);
+        BoardType.COMMUNITY, BoardType.CUSTOMER_SERVICE);
 
     private List<Map<String, Object>> boardTabs(BoardType current) {
         return TAB_TYPES.stream()

@@ -114,12 +114,14 @@ public class Board {
         this.authorId = authorId;
         this.itemId = itemId;
         this.boardType = boardType;
-        // 상품 리뷰는 항상 공개 게시글
+        // 커뮤니티·상품 리뷰는 항상 공개, 고객센터는 작성자와 관리자만 보므로 항상 비공개
         this.isSecret =
             (boardType == BoardType.COMMUNITY
                 || boardType == BoardType.PRODUCT_REVIEW)
                 ? false
-                : (isSecret != null ? isSecret : false);
+                : boardType == BoardType.CUSTOMER_SERVICE
+                    ? true
+                    : (isSecret != null ? isSecret : false);
         this.status = BoardStatus.PENDING;
     }
 
@@ -137,6 +139,11 @@ public class Board {
         if (this.boardType == BoardType.COMMUNITY
             || this.boardType == BoardType.PRODUCT_REVIEW) {
             this.isSecret = false;
+            return;
+        }
+
+        if (this.boardType == BoardType.CUSTOMER_SERVICE) {
+            this.isSecret = true;
             return;
         }
 

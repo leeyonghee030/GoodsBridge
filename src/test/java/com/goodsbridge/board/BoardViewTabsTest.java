@@ -30,13 +30,14 @@ class BoardViewTabsTest {
     }
 
     @Test
-    void showsTheThreeTabs_andMarksTheCurrentOne() throws Exception {
+    void showsTheTwoTabs_andMarksTheCurrentOne() throws Exception {
         mockMvc.perform(get("/test/board").param("boardType", "CUSTOMER_SERVICE"))
             .andExpect(status().isOk())
             .andExpect(content().string(containsString("href=\"/test/board?boardType=COMMUNITY\"")))
             // 상품 리뷰는 게시판이 아니라 각 상품 상세 화면에서 보여준다
             .andExpect(content().string(not(containsString("boardType=PRODUCT_REVIEW"))))
-            .andExpect(content().string(containsString("href=\"/test/board?boardType=PRODUCT_INQUIRY\"")))
+            // 상품 문의도 게시판이 아니라 상품·이벤트·경매 상세 화면과 마이페이지에서 다룬다
+            .andExpect(content().string(not(containsString("boardType=PRODUCT_INQUIRY"))))
             .andExpect(content().string(containsString("class=\"board-tab active\" href=\"/test/board?boardType=CUSTOMER_SERVICE\"")))
             .andExpect(content().string(containsString("고객센터 글")))
             .andExpect(content().string(not(containsString("boardType=LEGACY"))));
@@ -58,29 +59,27 @@ class BoardViewTabsTest {
     }
 
     @Test
-    void productInquiry_requiresAnItem_andHidesNothingElse() throws Exception {
+    void productInquiryBoard_isNotShown_andGoesBackToCommunity() throws Exception {
         mockMvc.perform(get("/test/board").param("boardType", "PRODUCT_INQUIRY"))
-            .andExpect(status().isOk())
-            .andExpect(content().string(containsString("if (true && !itemIdValue)")))
-            .andExpect(content().string(not(containsString("<p style=\"position: relative;\" hidden>"))))
-            .andExpect(content().string(not(containsString("<label class=\"checkbox-row\" hidden>"))));
+            .andExpect(status().is3xxRedirection())
+            .andExpect(header().string("Location", "/test/board"));
     }
 
     @Test
-    void communityAndCustomerService_cannotLinkAnItem() throws Exception {
+    void writeForm_hasNoItemPicker_andNoSecretCheckbox() throws Exception {
         for (String type : new String[]{"COMMUNITY", "CUSTOMER_SERVICE"}) {
             mockMvc.perform(get("/test/board").param("boardType", type))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("<p style=\"position: relative;\" hidden>")))
-                .andExpect(content().string(containsString("if (false && !itemIdValue)")));
+                .andExpect(content().string(not(containsString("id=\"item-search\""))))
+                .andExpect(content().string(not(containsString("board-secret"))));
         }
     }
 
     @Test
-    void community_hidesTheSecretCheckbox_butCustomerServiceKeepsIt() throws Exception {
-        mockMvc.perform(get("/test/board").param("boardType", "COMMUNITY"))
-            .andExpect(content().string(containsString("<label class=\"checkbox-row\" hidden>")));
+    void customerService_showsTheOnlyAuthorAndAdminNote() throws Exception {
         mockMvc.perform(get("/test/board").param("boardType", "CUSTOMER_SERVICE"))
-            .andExpect(content().string(not(containsString("<label class=\"checkbox-row\" hidden>"))));
+            .andExpect(content().string(containsString("작성자·관리자만 볼 수 있어요")));
+        mockMvc.perform(get("/test/board").param("boardType", "COMMUNITY"))
+            .andExpect(content().string(not(containsString("작성자·관리자만 볼 수 있어요"))));
     }
 }
