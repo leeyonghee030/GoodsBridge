@@ -102,6 +102,9 @@ class BoardControllerTest {
         given(boardService.getBoards(
             eq(BoardType.COMMUNITY),
             eq("공지"),
+            isNull(),
+            isNull(),
+            isNull(),
             any(Pageable.class),
             isNull()
         )).willReturn(boardPage);
@@ -118,6 +121,9 @@ class BoardControllerTest {
         verify(boardService).getBoards(
             eq(BoardType.COMMUNITY),
             eq("공지"),
+            isNull(),
+            isNull(),
+            isNull(),
             any(Pageable.class),
             isNull()
         );
@@ -137,6 +143,9 @@ class BoardControllerTest {
         given(boardService.getBoards(
             eq(BoardType.COMMUNITY),
             isNull(),
+            isNull(),
+            isNull(),
+            isNull(),
             any(Pageable.class),
             isNull()
         )).willReturn(boardPage);
@@ -148,6 +157,9 @@ class BoardControllerTest {
 
         verify(boardService).getBoards(
             eq(BoardType.COMMUNITY),
+            isNull(),
+            isNull(),
+            isNull(),
             isNull(),
             any(Pageable.class),
             isNull()
@@ -496,6 +508,9 @@ class BoardControllerTest {
         given(boardService.getBoards(
             eq(BoardType.COMMUNITY),
             isNull(),
+            isNull(),
+            isNull(),
+            isNull(),
             any(Pageable.class),
             isNull()
         )).willReturn(boardPage);
@@ -511,6 +526,9 @@ class BoardControllerTest {
 
         verify(boardService).getBoards(
             eq(BoardType.COMMUNITY),
+            isNull(),
+            isNull(),
+            isNull(),
             isNull(),
             captor.capture(),
             isNull()
@@ -613,6 +631,9 @@ class BoardControllerTest {
         given(boardService.getBoards(
             eq(BoardType.COMMUNITY),
             isNull(),
+            isNull(),
+            isNull(),
+            isNull(),
             any(Pageable.class),
             isNull()
         )).willReturn(boardPage);
@@ -629,6 +650,9 @@ class BoardControllerTest {
 
         verify(boardService).getBoards(
             eq(BoardType.COMMUNITY),
+            isNull(),
+            isNull(),
+            isNull(),
             isNull(),
             captor.capture(),
             isNull()
@@ -651,6 +675,9 @@ class BoardControllerTest {
         given(boardService.getBoards(
             eq(BoardType.COMMUNITY),
             isNull(),
+            isNull(),
+            isNull(),
+            isNull(),
             any(Pageable.class),
             isNull()
         )).willReturn(boardPage);
@@ -667,6 +694,9 @@ class BoardControllerTest {
 
         verify(boardService).getBoards(
             eq(BoardType.COMMUNITY),
+            isNull(),
+            isNull(),
+            isNull(),
             isNull(),
             captor.capture(),
             isNull()

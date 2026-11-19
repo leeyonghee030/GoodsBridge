@@ -1,0 +1,96 @@
+{{> fragments/header}}
+
+<!-- 관리자: 고객센터 문의. 글을 누르면 팝업으로 열려 내용을 읽고 바로 답변한다 (답글을 달면 "답변 완료"로 바뀐다) -->
+<div class="container my-card">
+    <nav class="my-tabs">
+        <a href="/test/admin">대시보드</a>
+        <a href="/test/admin/shops">입점 관리</a>
+        <a href="/test/admin/subscriptions">구독 관리</a>
+        <a href="/test/admin/subscription-payments">구독 결제 내역</a>
+        <a href="/test/admin/auctions">경매 관리</a>
+        <a href="/test/admin/support" class="active">고객센터 문의</a>
+    </nav>
+
+    <div class="mb-subtabs" id="sp-status"></div>
+    <section class="mb-panel">
+        <div id="sp-list" class="mb-list"></div>
+        <p id="sp-empty" class="mb-empty" hidden></p>
+        <button type="button" id="sp-more" class="mb-more" hidden>더 보기</button>
+    </section>
+</div>
+
+<script>
+(() => {
+    const STATUS = [['ALL', '전체'], ['PENDING', '답변 대기'], ['COMPLETED', '답변 완료']];
+    const listEl = document.getElementById('sp-list');
+    const emptyEl = document.getElementById('sp-empty');
+    const moreEl = document.getElementById('sp-more');
+    let status = 'PENDING';
+    let nextPage = 0;
+    let last = true;
+    let counts = {};
+    let loadSeq = 0; // 탭을 빠르게 바꿨을 때 늦게 도착한 이전 응답을 버린다
+
+    const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const when = iso => (iso || '').replace('T', ' ').slice(0, 16);
+
+    function renderTabs() {
+        document.getElementById('sp-status').innerHTML = STATUS.map(([key, label]) =>
+            `<button type="button" data-status="${key}" class="${status === key ? 'active' : ''}">${label}<small>${counts[key] ?? ''}</small></button>`).join('');
+    }
+
+    function rowHtml(r) {
+        const wait = r.status === 'PENDING';
+        return `<a class="mb-row" href="/test/board/${r.id}" data-inquiry-id="${r.id}">
+            <span class="mb-main"><strong>${esc(r.title)}</strong><small>${esc(r.authorNickname)} · ${when(r.createdAt)}</small></span>
+            <span class="mb-badge ${wait ? 'is-wait' : 'is-done'}">${wait ? '답변 대기' : '답변 완료'}</span>
+        </a>`;
+    }
+
+    async function load(reset) {
+        const seq = ++loadSeq;
+        const pageNo = reset ? 0 : nextPage;
+        const query = new URLSearchParams({ page: pageNo, size: 10, sort: 'id,desc' });
+        if (status !== 'ALL') query.set('status', status);
+        const res = await fetch('/api/boards/admin/support?' + query.toString(), { credentials: 'same-origin' });
+        if (seq !== loadSeq) return;
+        if (!res.ok) { emptyEl.textContent = '문의를 불러오지 못했어요.'; emptyEl.hidden = false; return; }
+        const page = await res.json();
+        if (seq !== loadSeq) return;
+        const html = (page.content || []).map(rowHtml).join('');
+        if (reset) listEl.innerHTML = html; else listEl.insertAdjacentHTML('beforeend', html);
+        last = !!page.last;
+        nextPage = pageNo + 1;
+        const none = listEl.children.length === 0;
+        emptyEl.hidden = !none;
+        if (none) emptyEl.textContent = status === 'PENDING' ? '답변을 기다리는 문의가 없어요.' : '문의가 없어요.';
+        moreEl.hidden = last;
+    }
+
+    async function loadCounts() {
+        const res = await fetch('/api/boards/admin/support/counts', { credentials: 'same-origin' });
+        if (res.ok) counts = await res.json();
+        renderTabs();
+    }
+
+    document.getElementById('sp-status').addEventListener('click', event => {
+        const button = event.target.closest('[data-status]');
+        if (!button) return;
+        status = button.dataset.status;
+        renderTabs();
+        load(true);
+    });
+    moreEl.addEventListener('click', () => load(false));
+
+    // 문의를 누르면 팝업이 열리고, 답변을 달면 목록과 개수를 새로 불러온다
+    window.inquiryModalOptions = { onChange: () => { loadCounts(); load(true); } };
+
+    renderTabs();
+    loadCounts();
+    load(true);
+})();
+</script>
+
+{{> fragments/inquiry-modal}}
+
+{{> fragments/footer}}

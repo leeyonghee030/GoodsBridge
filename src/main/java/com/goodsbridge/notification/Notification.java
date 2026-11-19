@@ -143,7 +143,9 @@ public class Notification {
         PURCHASE_ORDERED,           // 새 주문
         PURCHASE_CANCELLED_BY_SHOP, // 가게 사유 환불처리
 
-        BOARD_REPLY                 // 계시글 댓글
+        BOARD_REPLY,                // 계시글 댓글
+        BOARD_INQUIRY,              // 새 문의 (판매자·관리자에게)
+        BOARD_REVIEW                // 새 리뷰 (판매자에게)
     }
 
     public enum ReferenceType {

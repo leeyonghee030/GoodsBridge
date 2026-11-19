@@ -20,6 +20,17 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
         """)
     boolean existsByUserIdAndItemId(@Param("userId") Long userId, @Param("itemId") Long itemId);
 
+    // 리뷰를 쓸 수 있는 구매: 내가 구매확정했고 아직 리뷰가 달리지 않은 구매 (오래된 순)
+    @Query("""
+        select p from Purchase p
+        where p.user.id = :userId
+          and p.item.id = :itemId
+          and p.status = com.goodsbridge.purchase.PurchaseStatus.CONFIRMED
+          and not exists (select b.id from Board b where b.purchaseId = p.id)
+        order by p.id asc
+        """)
+    List<Purchase> findReviewablePurchases(@Param("userId") Long userId, @Param("itemId") Long itemId);
+
     // 누가 샀든 이미 판매된 상품인지 확인 (결제 검증 전에 먼저 차단)
     @Query("""
         select case when count(p) > 0 then true else false end

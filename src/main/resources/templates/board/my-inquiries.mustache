@@ -1,0 +1,17 @@
+{{> fragments/header}}
+
+<!-- 내 정보 / 교환 내역처럼 탭과 내용을 하나의 카드 안에 둔다 -->
+<div class="container my-card">
+<nav class="my-tabs">
+    <a href="/update">내 정보</a>
+    <a href="/my/exchange">교환 내역</a>
+    <a href="/my/purchases">구매 내역</a>
+    <a href="/my/events">이벤트 내역</a>
+    <a href="/my/auctions">경매 내역</a>
+    <a href="/my/inquiries" class="active">내 문의</a>
+</nav>
+
+{{> fragments/inquiry-list}}
+</div>
+
+{{> fragments/footer}}

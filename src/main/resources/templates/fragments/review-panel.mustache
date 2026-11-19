@@ -1,0 +1,13 @@
+<!-- 상품 상세의 "리뷰" 탭 내용. 스크립트와 리뷰 쓰기 창은 fragments/review-script 에 있다. -->
+<div class="info-pane" data-pane="review" id="rv-root" hidden>
+    <div class="info-panel-head">
+        <div class="info-panel-title">
+            <h2>리뷰</h2>
+            <span class="info-hint is-info" title="구매확정한 상품에만, 구매 1건당 1개의 리뷰를 쓸 수 있어요">구매확정 후 · 1건당 1개</span>
+        </div>
+        <button type="button" id="rv-open" hidden>리뷰 쓰기</button>
+    </div>
+    <div id="rv-list" class="info-list"></div>
+    <p id="rv-empty" class="info-empty" hidden>아직 리뷰가 없어요.</p>
+    <button type="button" id="rv-more" class="info-more" hidden>더 보기</button>
+</div>

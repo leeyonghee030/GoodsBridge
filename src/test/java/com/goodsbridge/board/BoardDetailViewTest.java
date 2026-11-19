@@ -67,17 +67,52 @@ class BoardDetailViewTest {
     }
 
     @Test
+    void backLinkReturnsToTheScreenItCameFrom_onlyForLocalPaths() throws Exception {
+        Long id = board(BoardType.CUSTOMER_SERVICE);
+        // 구매 내역의 "내 리뷰"처럼 들어온 화면을 넘기면 그 화면으로 돌아간다
+        mockMvc.perform(get("/test/board/" + id).param("from", "/my/purchases?tab=CONFIRMED"))
+            .andExpect(content().string(containsString(
+                "href=\"/my/purchases?tab=CONFIRMED\" class=\"back-link\"")));
+        // 외부 주소나 HTML 을 깨는 값은 무시하고 기본 목록으로 간다
+        for (String bad : new String[]{"https://evil.test", "//evil.test", "/x\" onclick=\"alert(1)", "javascript:alert(1)"}) {
+            mockMvc.perform(get("/test/board/" + id).param("from", bad))
+                .andExpect(content().string(containsString(
+                    "href=\"/test/board?boardType=CUSTOMER_SERVICE\" class=\"back-link\"")));
+        }
+    }
+
+    @Test
+    void deleteGoesBackToTheSameScreenAsTheBackLink() throws Exception {
+        mockMvc.perform(get("/test/board/" + board(BoardType.COMMUNITY)))
+            .andExpect(content().string(containsString("location.href = document.querySelector('.back-link').getAttribute('href');")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("location.href = '/test/board';"))));
+    }
+
+    @Test
+    void replies_haveAKebabMenuWithEditAndDelete_insteadOfTheOldDeleteButton() throws Exception {
+        Long id = board(BoardType.COMMUNITY);
+        Board board = boardRepository.findById(id).orElseThrow();
+        board.addReply(Reply.builder().board(board).content("댓글").authorId(authorId).build());
+        boardRepository.flush();
+        mockMvc.perform(get("/test/board/" + id))
+            .andExpect(content().string(containsString("data-author-id=\"" + authorId + "\" hidden>")))
+            .andExpect(content().string(containsString("data-act=\"edit\">수정</button>")))
+            .andExpect(content().string(containsString("gbConfirm('이 댓글을 삭제할까요?')")))
+            .andExpect(content().string(org.hamcrest.Matchers.not(containsString("data-delete-reply"))));
+    }
+
+    @Test
     void editForm_neverOffersChangingTheLinkedItem() throws Exception {
         mockMvc.perform(get("/test/board/" + board(BoardType.CUSTOMER_SERVICE)))
             .andExpect(content().string(containsString("<p style=\"position: relative;\" hidden>")));
     }
 
     @Test
-    void editForm_hidesSecretOnlyForAlwaysPublicBoards() throws Exception {
-        mockMvc.perform(get("/test/board/" + board(BoardType.COMMUNITY)))
-            .andExpect(content().string(containsString("<label class=\"checkbox-row\" hidden>")));
-        mockMvc.perform(get("/test/board/" + board(BoardType.CUSTOMER_SERVICE)))
-            .andExpect(content().string(not(containsString("<label class=\"checkbox-row\" hidden>"))));
+    void editForm_hasNoSecretCheckbox() throws Exception {
+        for (BoardType type : new BoardType[]{BoardType.COMMUNITY, BoardType.CUSTOMER_SERVICE}) {
+            mockMvc.perform(get("/test/board/" + board(type)))
+                .andExpect(content().string(not(containsString("edit-secret"))));
+        }
     }
 
     @Test

@@ -1,0 +1,78 @@
+<!-- 리뷰 쓰기 창. 페이지에서 window.openReviewModal({ purchaseId, itemTitle, onDone }) 로 연다. -->
+<div class="modal-backdrop" id="rv-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="rv-close">✕</button>
+        <h1>리뷰 쓰기</h1>
+        <p class="rv-target" id="rv-target" style="margin: 0 0 0.8rem; font-size: 0.86rem; color: var(--color-muted);"></p>
+        <form id="rv-form">
+            <p><input id="rv-title" type="text" placeholder="제목" maxlength="100" autocomplete="off" required></p>
+            <p><textarea id="rv-content" placeholder="상품을 받아보신 후기를 남겨 주세요" rows="5" maxlength="5000" required></textarea></p>
+            <button type="submit" id="rv-submit">등록</button>
+        </form>
+        <p id="rv-message" class="form-message"></p>
+    </div>
+</div>
+
+<script>
+(() => {
+    const modal = document.getElementById('rv-modal');
+    const form = document.getElementById('rv-form');
+    const message = document.getElementById('rv-message');
+    let current = null;
+
+    const errorText = async (res, fallback) => {
+        const text = await res.text();
+        try { return JSON.parse(text).message || fallback; } catch (e) { return text || fallback; }
+    };
+
+    window.openReviewModal = options => {
+        current = options;
+        document.getElementById('rv-target').textContent = options.itemTitle || '';
+        form.reset();
+        message.textContent = '';
+        message.className = 'form-message';
+        modal.hidden = false;
+        document.getElementById('rv-title').focus();
+    };
+
+    document.getElementById('rv-close').addEventListener('click', () => { modal.hidden = true; });
+    modal.addEventListener('click', event => { if (event.target === modal) modal.hidden = true; });
+
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!current) return;
+        const button = document.getElementById('rv-submit');
+        button.disabled = true;
+        message.textContent = '';
+        try {
+            // 서버가 구매확정한 내 구매인지, 이미 리뷰를 썼는지 확인한다 (구매 1건당 리뷰 1개)
+            const res = await fetch('/api/boards', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: document.getElementById('rv-title').value.trim(),
+                    content: document.getElementById('rv-content').value.trim(),
+                    boardType: 'PRODUCT_REVIEW',
+                    purchaseId: current.purchaseId,
+                    itemId: current.itemId || null,
+                    isSecret: false
+                })
+            });
+            if (!res.ok) {
+                message.textContent = await errorText(res, '리뷰 등록에 실패했습니다.');
+                message.className = 'form-message error';
+                return;
+            }
+            const boardId = await res.json();
+            modal.hidden = true;
+            if (current.onDone) current.onDone(boardId);
+        } catch (e) {
+            message.textContent = '리뷰 등록 중 오류가 발생했습니다.';
+            message.className = 'form-message error';
+        } finally {
+            button.disabled = false;
+        }
+    });
+})();
+</script>

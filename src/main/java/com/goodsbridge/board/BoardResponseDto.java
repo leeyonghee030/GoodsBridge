@@ -29,6 +29,9 @@ public class BoardResponseDto {
     private LocalDateTime createdAt;
     private List<ReplyResponseDto> replies;
     private BoardType boardType;
+    private InquiryTargetType targetType;
+    private Long targetId;
+    private Boolean hiddenBySeller; // 리뷰: 판매자가 비공개로 바꿨는지 (작성자에게 "판매자가 비공개로 바꿈"을 보여줄 때 쓴다)
 
     // 게시글 상세 조회
     public static BoardResponseDto from(
@@ -52,7 +55,10 @@ public class BoardResponseDto {
             getReplyStatus(board),
             board.getCreatedAt(),
             replyDtos,
-            board.getBoardType()
+            board.getBoardType(),
+            board.getTargetType(),
+            board.getTargetId(),
+            board.isHiddenBySeller()
         );
     }
 
@@ -76,7 +82,10 @@ public class BoardResponseDto {
                 null,
                 null,
                 List.of(),
-                board.getBoardType()
+                board.getBoardType(),
+                board.getTargetType(),
+                board.getTargetId(),
+                false
             );
         }
 
@@ -91,7 +100,10 @@ public class BoardResponseDto {
             getReplyStatus(board),
             board.getCreatedAt(),
             List.of(),
-            board.getBoardType()
+            board.getBoardType(),
+            board.getTargetType(),
+            board.getTargetId(),
+            board.isHiddenBySeller()
         );
     }
 

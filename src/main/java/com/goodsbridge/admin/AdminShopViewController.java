@@ -35,6 +35,13 @@ public class AdminShopViewController {
         return "admin/shops".equals(view) ? "admin/auctions" : view;
     }
 
+    // 고객센터 문의 (글을 펼쳐 바로 답글을 남긴다, 데이터는 /api/boards/admin/support)
+    @GetMapping("/test/admin/support")
+    public String support(Authentication authentication, Model model) {
+        String view = render(authentication, model, true);
+        return "admin/shops".equals(view) ? "admin/support" : view;
+    }
+
     // 관리자 권한 확인 후 입점 관리 페이지 접근 및 사용자 정보 전달
     private String render(Authentication authentication, Model model, boolean subscriptionsMode) {
         model.addAttribute("subscriptionsMode", subscriptionsMode);
