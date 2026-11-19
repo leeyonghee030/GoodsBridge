@@ -11,6 +11,8 @@ import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.event.ShopEvent;
 import com.goodsbridge.event.ShopEventRepository;
 import com.goodsbridge.item.ItemRepository;
+import com.goodsbridge.item.Item;
+
 import com.goodsbridge.purchase.Purchase;
 import com.goodsbridge.purchase.PurchaseRepository;
 import com.goodsbridge.purchase.PurchaseStatus;
@@ -20,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -200,6 +203,133 @@ public class BoardService {
             ));
     }
 
+    private boolean isSellerOf(Board board, Long userId) {
+        if (userId == null || board.getItemId() == null) {
+            return false;
+        }
+        return itemRepository.findById(board.getItemId())
+            .map(item -> Objects.equals(item.getSellerUserId(), userId))
+            .orElse(false);
+    }
+
+    private void requireLogin(Long loginUserId) {
+        if (loginUserId == null) {
+            throw new ForbiddenException("로그인이 필요한 서비스입니다.");
+        }
+    }
+
+    // 마이페이지 "내 문의": 내가 쓴 상품 문의 (targetType 을 주면 상품/이벤트/경매 중 그 대상만)
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getMyInquiries(
+        Long loginUserId,
+        InquiryTargetType targetType,
+        Pageable pageable
+    ) {
+        requireLogin(loginUserId);
+        Page<Board> page;
+        if (targetType == null) {
+            page = boardRepository.findMyInquiries(loginUserId, pageable);
+        } else if (targetType == InquiryTargetType.ITEM) {
+            page = boardRepository.findMyItemInquiries(loginUserId, pageable);
+        } else {
+            page = boardRepository.findMyInquiriesByTarget(loginUserId, targetType, pageable);
+        }
+        return toManageResponses(page);
+    }
+
+    // 판매자 "문의 관리": 내 상품·이벤트·경매에 온 문의
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getSellerInquiries(
+        Long loginUserId,
+        InquiryTargetType targetType,
+        Pageable pageable
+    ) {
+        requireLogin(loginUserId);
+        Page<Board> page;
+        if (targetType == null) {
+            page = boardRepository.findSellerInquiries(loginUserId, pageable);
+        } else if (targetType == InquiryTargetType.ITEM) {
+            page = boardRepository.findSellerItemInquiries(loginUserId, pageable);
+        } else {
+            page = boardRepository.findSellerInquiriesByTarget(loginUserId, targetType, pageable);
+        }
+        return toManageResponses(page);
+    }
+
+    // 판매자 "리뷰 관리": 내 상품의 리뷰 (비공개로 바꾼 것도 포함)
+    @Transactional(readOnly = true)
+    public Page<BoardManageResponse> getSellerReviews(Long loginUserId, Pageable pageable) {
+        requireLogin(loginUserId);
+        return toManageResponses(boardRepository.findReviewsBySeller(loginUserId, pageable));
+    }
+
+    // 문의 탭의 개수: 전체/상품/이벤트/경매. scope 가 seller 면 내 상품에 온 문의, 아니면 내가 쓴 문의
+    @Transactional(readOnly = true)
+    public Map<String, Long> getInquiryCounts(Long loginUserId, boolean seller) {
+        requireLogin(loginUserId);
+        PageRequest one = PageRequest.of(0, 1);
+        Map<String, Long> counts = new LinkedHashMap<>();
+        counts.put("ALL", (seller
+            ? getSellerInquiries(loginUserId, null, one)
+            : getMyInquiries(loginUserId, null, one)).getTotalElements());
+        for (InquiryTargetType type : InquiryTargetType.values()) {
+            counts.put(type.name(), (seller
+                ? getSellerInquiries(loginUserId, type, one)
+                : getMyInquiries(loginUserId, type, one)).getTotalElements());
+        }
+        return counts;
+    }
+
+    // 판매자가 자기 상품의 리뷰를 비공개로 바꾸거나 다시 공개한다
+    @Transactional
+    public void setReviewHidden(Long boardId, boolean hidden, Long loginUserId) {
+        requireLogin(loginUserId);
+        Board board = boardRepository.findById(boardId)
+            .orElseThrow(() -> new NotFoundException("게시글을 찾을 수 없습니다."));
+
+        if (board.getBoardType() != BoardType.PRODUCT_REVIEW) {
+            throw new BadRequestException("상품 리뷰만 비공개로 바꿀 수 있습니다.");
+        }
+        if (!isSellerOf(board, loginUserId)) {
+            throw new ForbiddenException("해당 상품의 판매자만 리뷰를 관리할 수 있습니다.");
+        }
+
+        if (hidden) {
+            board.hideBySeller();
+        } else {
+            board.showBySeller();
+        }
+    }
+
+    private Page<BoardManageResponse> toManageResponses(Page<Board> page) {
+        List<Board> boards = page.getContent();
+        Map<Long, String> nicknames = collectBoardNicknames(boards);
+        List<Long> itemIds = boards.stream()
+            .map(Board::getItemId)
+            .filter(Objects::nonNull)
+            .distinct()
+            .toList();
+        Map<Long, String> itemTitles = itemIds.isEmpty()
+            ? Map.of()
+            : itemRepository.findAllById(itemIds).stream()
+                .collect(Collectors.toMap(Item::getId, Item::getTitle, (a, b) -> a));
+
+        return page.map(board -> new BoardManageResponse(
+            board.getId(),
+            board.getBoardType(),
+            board.getTitle(),
+            board.getContent(),
+            nicknames.getOrDefault(board.getAuthorId(), "알 수 없음"),
+            board.getItemId(),
+            itemTitles.get(board.getItemId()),
+            board.getTargetType(),
+            board.getTargetId(),
+            board.getBoardType() == BoardType.PRODUCT_INQUIRY ? board.getStatus() : null,
+            board.isHiddenBySeller(),
+            board.getCreatedAt()
+        ));
+    }
+
     // 게시글 상세 조회
     @Transactional(readOnly = true)
     public BoardResponseDto getBoard(Long id, Long loginUserId) {
@@ -211,6 +341,14 @@ public class BoardService {
 
         // 기존 게시글 유형은 일반 상세 조회에서 제외
         if (board.getBoardType() == BoardType.LEGACY) {
+            throw new NotFoundException("게시글을 찾을 수 없습니다.");
+        }
+
+        // 판매자가 비공개로 바꾼 리뷰는 작성자 본인과 그 상품의 판매자만 볼 수 있다
+        if (board.getBoardType() == BoardType.PRODUCT_REVIEW
+            && board.isHiddenBySeller()
+            && !Objects.equals(board.getAuthorId(), loginUserId)
+            && !isSellerOf(board, loginUserId)) {
             throw new NotFoundException("게시글을 찾을 수 없습니다.");
         }
 
@@ -446,7 +584,12 @@ public class BoardService {
             throw new NotFoundException("게시글을 찾을 수 없습니다.");
         }
 
-        if (!Objects.equals(board.getAuthorId(), loginUserId)) {
+        boolean isAuthor = Objects.equals(board.getAuthorId(), loginUserId);
+        // 판매자는 자기 상품의 리뷰를 삭제할 수 있다 (리뷰 관리)
+        boolean isReviewSeller = board.getBoardType() == BoardType.PRODUCT_REVIEW
+            && isSellerOf(board, loginUserId);
+
+        if (!isAuthor && !isReviewSeller) {
             throw new ForbiddenException("게시글 권한이 없습니다.");
         }
 
@@ -490,7 +633,7 @@ public class BoardService {
         Page<Board> boardPage;
 
         if (boardType == BoardType.PRODUCT_REVIEW && itemId != null) {
-            boardPage = boardRepository.findReviewsByItemId(itemId, pageable);
+            boardPage = boardRepository.findReviewsByItemId(itemId, loginUserId, pageable);
         } else if (boardType == BoardType.PRODUCT_INQUIRY
             && (targetType != null || itemId != null)) {
             InquiryTargetType type = targetType == null ? InquiryTargetType.ITEM : targetType;
@@ -623,6 +766,11 @@ public class BoardService {
         boolean admin,
         Map<Long, Long> itemSellerIds
     ) {
+        // 판매자가 비공개로 바꾼 리뷰는 작성자 본인에게만 보인다
+        if (board.getBoardType() == BoardType.PRODUCT_REVIEW && board.isHiddenBySeller()) {
+            return loginUserId != null && Objects.equals(board.getAuthorId(), loginUserId);
+        }
+
         // 커뮤니티와 상품 리뷰는 누구나 조회 가능
         if (board.getBoardType() == BoardType.COMMUNITY
             || board.getBoardType() == BoardType.PRODUCT_REVIEW) {

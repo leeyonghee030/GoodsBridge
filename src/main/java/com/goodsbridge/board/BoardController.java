@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -106,6 +107,55 @@ public class BoardController {
         @AuthenticationPrincipal Long loginUserId
     ) {
         return ResponseEntity.ok(boardService.getMyReviewIds(loginUserId));
+    }
+
+    // 마이페이지 "내 문의": 내가 쓴 상품 문의. targetType(ITEM/EVENT/AUCTION)으로 대상을 좁힐 수 있다
+    @GetMapping("/boards/my-inquiries")
+    public ResponseEntity<Page<BoardManageResponse>> getMyInquiries(
+        @RequestParam(required = false) InquiryTargetType targetType,
+        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getMyInquiries(loginUserId, targetType, pageable));
+    }
+
+    // 판매자 "문의 관리": 내 상품·이벤트·경매에 온 문의
+    @GetMapping("/boards/seller/inquiries")
+    public ResponseEntity<Page<BoardManageResponse>> getSellerInquiries(
+        @RequestParam(required = false) InquiryTargetType targetType,
+        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getSellerInquiries(loginUserId, targetType, pageable));
+    }
+
+    // 판매자 "리뷰 관리": 내 상품의 리뷰 (비공개로 바꾼 것 포함)
+    @GetMapping("/boards/seller/reviews")
+    public ResponseEntity<Page<BoardManageResponse>> getSellerReviews(
+        @PageableDefault(size = 10, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getSellerReviews(loginUserId, pageable));
+    }
+
+    // 문의 탭의 개수 (ALL/ITEM/EVENT/AUCTION). scope=seller 면 내 상품에 온 문의, 아니면 내가 쓴 문의
+    @GetMapping("/boards/inquiry-counts")
+    public ResponseEntity<Map<String, Long>> getInquiryCounts(
+        @RequestParam(defaultValue = "mine") String scope,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        return ResponseEntity.ok(boardService.getInquiryCounts(loginUserId, "seller".equals(scope)));
+    }
+
+    // 판매자가 자기 상품의 리뷰를 비공개로 바꾸거나(true) 다시 공개한다(false)
+    @PatchMapping("/boards/{id}/hidden")
+    public ResponseEntity<Void> setReviewHidden(
+        @PathVariable Long id,
+        @RequestBody @Valid ReviewHiddenRequest request,
+        @AuthenticationPrincipal Long loginUserId
+    ) {
+        boardService.setReviewHidden(id, request.hidden(), loginUserId);
+        return ResponseEntity.noContent().build();
     }
 
     // 댓글 작성

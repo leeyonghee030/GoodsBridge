@@ -39,13 +39,81 @@ public interface BoardRepository extends JpaRepository<Board, Long> {
         Pageable pageable
     );
 
-    // 한 상품의 리뷰 (상품 상세 화면용)
+    // 한 상품의 리뷰 (상품 상세 화면용). 판매자가 비공개로 바꾼 리뷰는 작성자 본인(viewerId)에게만 보인다.
     @Query("""
         SELECT b FROM Board b
         WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_REVIEW
         AND b.itemId = :itemId
+        AND (b.hiddenBySeller = false OR b.authorId = :viewerId)
         """)
-    Page<Board> findReviewsByItemId(@Param("itemId") Long itemId, Pageable pageable);
+    Page<Board> findReviewsByItemId(
+        @Param("itemId") Long itemId,
+        @Param("viewerId") Long viewerId,
+        Pageable pageable
+    );
+
+    // ===== 마이페이지: 내가 쓴 문의 =====
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
+        AND b.authorId = :authorId
+        """)
+    Page<Board> findMyInquiries(@Param("authorId") Long authorId, Pageable pageable);
+
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
+        AND b.authorId = :authorId
+        AND (b.targetType IS NULL OR b.targetType = com.goodsbridge.board.InquiryTargetType.ITEM)
+        """)
+    Page<Board> findMyItemInquiries(@Param("authorId") Long authorId, Pageable pageable);
+
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
+        AND b.authorId = :authorId
+        AND b.targetType = :targetType
+        """)
+    Page<Board> findMyInquiriesByTarget(
+        @Param("authorId") Long authorId,
+        @Param("targetType") InquiryTargetType targetType,
+        Pageable pageable
+    );
+
+    // ===== 판매자: 내 상품(이벤트·경매의 상품 포함)에 온 문의와 리뷰 =====
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
+        AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        """)
+    Page<Board> findSellerInquiries(@Param("sellerId") Long sellerId, Pageable pageable);
+
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
+        AND (b.targetType IS NULL OR b.targetType = com.goodsbridge.board.InquiryTargetType.ITEM)
+        AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        """)
+    Page<Board> findSellerItemInquiries(@Param("sellerId") Long sellerId, Pageable pageable);
+
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_INQUIRY
+        AND b.targetType = :targetType
+        AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        """)
+    Page<Board> findSellerInquiriesByTarget(
+        @Param("sellerId") Long sellerId,
+        @Param("targetType") InquiryTargetType targetType,
+        Pageable pageable
+    );
+
+    @Query("""
+        SELECT b FROM Board b
+        WHERE b.boardType = com.goodsbridge.board.BoardType.PRODUCT_REVIEW
+        AND b.itemId IN (SELECT i.id FROM Item i WHERE i.sellerUserId = :sellerId)
+        """)
+    Page<Board> findReviewsBySeller(@Param("sellerId") Long sellerId, Pageable pageable);
 
     // 상품 화면의 문의. 대상을 기록하기 전에 쓰인 문의(targetType 이 비어 있음)도 상품 문의로 본다.
     @Query("""

@@ -53,6 +53,10 @@ public class Board {
     @Column(name = "purchase_id")
     private Long purchaseId;
 
+    // 판매자가 자기 상품의 리뷰를 비공개로 바꿨는지. 작성자 본인과 그 상품의 판매자에게만 보인다.
+    @Column(name = "hidden_by_seller", nullable = false, columnDefinition = "boolean not null default false")
+    private boolean hiddenBySeller;
+
     @Enumerated(EnumType.STRING)
     // 기존 게시글(컬럼 추가 전)은 DB 기본값으로 LEGACY 가 된다. 새 글은 항상 boardType 을 직접 넣는다.
     @Column(nullable = false, columnDefinition = "varchar(30) not null default 'LEGACY'")
@@ -144,6 +148,15 @@ public class Board {
     // 댓글 작성 시 호출할 상태 변경 메서드
     public void complete() {
         this.status = BoardStatus.COMPLETED;
+    }
+
+    // 판매자의 리뷰 비공개 / 다시 공개
+    public void hideBySeller() {
+        this.hiddenBySeller = true;
+    }
+
+    public void showBySeller() {
+        this.hiddenBySeller = false;
     }
 
     public void pending() {
