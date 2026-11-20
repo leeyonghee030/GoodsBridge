@@ -914,7 +914,9 @@ public class BoardService {
             return Map.of();
         }
 
+        // 닉네임이 빈 회원은 빼서 화면에서 "알 수 없음"으로 보이게 한다 (toMap 은 null 값을 넣으면 예외가 난다)
         return userRepository.findAllById(authorIds).stream()
+            .filter(user -> user.getNickname() != null)
             .collect(Collectors.toMap(
                 User::getId,
                 User::getNickname
@@ -933,7 +935,9 @@ public class BoardService {
             return Map.of();
         }
 
+        // 닉네임이 빈 회원은 빼서 화면에서 "알 수 없음"으로 보이게 한다 (toMap 은 null 값을 넣으면 예외가 난다)
         return userRepository.findAllById(authorIds).stream()
+            .filter(user -> user.getNickname() != null)
             .collect(Collectors.toMap(
                 User::getId,
                 User::getNickname
