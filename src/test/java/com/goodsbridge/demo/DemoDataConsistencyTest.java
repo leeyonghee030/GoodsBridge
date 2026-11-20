@@ -42,4 +42,16 @@ class DemoDataConsistencyTest {
 
         assertThat(bad).as("결제는 전액 환불됐는데 구매는 환불 상태가 아닌 건").isZero();
     }
+
+    @Test
+    void 가짜_결제는_모두_가짜_환불_처리되는_접두사를_쓴다() {
+        demoDataService.reset();
+
+        Integer bad = jdbcTemplate.queryForObject(
+            "select count(*) from payment_tb where pg_tx_id = 'demo' and payment_id not like 'demo-pay-%'",
+            Integer.class);
+
+        // DemoPaymentService.refund 는 demo-pay- 로 시작하는 결제만 PortOne 없이 환불한다
+        assertThat(bad).as("PortOne 으로 환불이 넘어가 실패하는 시연 결제").isZero();
+    }
 }

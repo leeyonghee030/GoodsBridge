@@ -1093,7 +1093,8 @@ public class DemoDataService {
             Item item = targets.get(n);
             String state = scenarios[n];
             Payment payment = paymentRepository.save(Payment.builder()
-                .paymentId("demo-sale-" + UUID.randomUUID())
+                // DemoPaymentService 가 PortOne 없이 환불(가짜 결제)하는 접두사와 같아야 한다. 다르면 환불 승인 때 PortOne 에서 "결제를 찾을 수 없습니다."가 난다
+                .paymentId("demo-pay-" + UUID.randomUUID())
                 .pgTxId("demo")
                 .user(buyer)
                 .amount(item.getPrice())
