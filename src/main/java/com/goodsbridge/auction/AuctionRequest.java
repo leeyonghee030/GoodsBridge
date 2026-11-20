@@ -26,10 +26,11 @@ public class AuctionRequest {
         if (depositAmount == null || depositAmount <= 0) {
             throw new BadRequestException("보증금은 0보다 커야합니다.");
         }
-        if (deadline == null || !deadline.isAfter(LocalDateTime.now())) {
-            throw new BadRequestException("마감 시간은 미래 시간이어야 합니다.");
+        LocalDateTime now = LocalDateTime.now();
+        if (deadline == null || deadline.isBefore(now.plusMinutes(10))) {
+            throw new BadRequestException("마감 시간은 현재 시간으로부터 최소 10분 이후여야 합니다.");
         }
-        if (deadline.isAfter(LocalDateTime.now().plusDays(Auction.MAX_DURATION_DAYS))) {
+        if (deadline.isAfter(now.plusDays(Auction.MAX_DURATION_DAYS))) {
             throw new BadRequestException("경매 마감은 최대 " + Auction.MAX_DURATION_DAYS + "일 이내로 설정해주세요.");
         }
         long startPriceValue = startPrice;

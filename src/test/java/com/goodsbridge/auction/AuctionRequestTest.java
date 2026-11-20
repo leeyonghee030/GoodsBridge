@@ -95,7 +95,26 @@ class AuctionRequestTest {
         assertThrows(BadRequestException.class, () -> request(1L, 50_000, 5_000, null).validate());
         BadRequestException e = assertThrows(BadRequestException.class,
             () -> request(1L, 50_000, 5_000, LocalDateTime.now().minusSeconds(1)).validate());
-        assertEquals("마감 시간은 미래 시간이어야 합니다.", e.getMessage());
+        assertEquals("마감 시간은 현재 시간으로부터 최소 10분 이후여야 합니다.", e.getMessage());
+    }
+
+    @Test
+    void validate_rejectsDeadlineLessThanTenMinutesAway() {
+        BadRequestException e = assertThrows(BadRequestException.class,
+            () -> request(1L, 50_000, 5_000,
+                LocalDateTime.now().plusMinutes(5)).validate());
+
+        assertEquals(
+            "마감 시간은 현재 시간으로부터 최소 10분 이후여야 합니다.",
+            e.getMessage()
+        );
+    }
+
+    @Test
+    void validate_acceptsDeadlineMoreThanTenMinutesAway() {
+        assertDoesNotThrow(() ->
+            request(1L, 50_000, 7_500,
+                LocalDateTime.now().plusMinutes(11)).validate());
     }
 
     @Test

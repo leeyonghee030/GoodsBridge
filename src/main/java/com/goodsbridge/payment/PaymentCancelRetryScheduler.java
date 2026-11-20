@@ -16,7 +16,7 @@ public class PaymentCancelRetryScheduler {
     @Scheduled(fixedDelay = 300_000)
     public void retryPendingCancels() {
         for (PaymentCancelFailure failure
-            : failureRepository.findTop20ByStatusOrderByIdAsc(PaymentCancelFailure.Status.PENDING)) {
+            : failureRepository.findByStatusOrderByIdAsc(PaymentCancelFailure.Status.PENDING)) {
             try {
                 retryService.retryOne(failure.getId());
             } catch (RuntimeException e) {
