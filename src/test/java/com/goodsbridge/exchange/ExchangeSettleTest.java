@@ -50,6 +50,8 @@ class ExchangeSettleTest {
     @Mock ExchangeCommentRepository exchangeCommentRepository;
     @Mock SettlementHistoryService settlementHistoryService;
     @Mock ApplicationEventPublisher publisher;
+    // 스케줄러는 건마다 새 트랜잭션을 연다. 목이라 TransactionTemplate 은 콜백만 그대로 실행한다
+    @Mock org.springframework.transaction.PlatformTransactionManager transactionManager;
     @InjectMocks ExchangeService exchangeService;
 
     ExchangeItem exchangeItemA;
@@ -86,7 +88,7 @@ class ExchangeSettleTest {
 
     @Test
     void checkIn_bothShowed_startsGraceAndDoesNotSettleYet() {
-        when(exchangeRequestRepository.findById(100L)).thenReturn(Optional.of(exchangeRequest));
+        when(exchangeRequestRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(exchangeRequest));
         when(shop.isOwner(1L)).thenReturn(true);
 
         exchangeService.checkIn(100L, 1L, checkInRequest(true, true));
@@ -99,7 +101,7 @@ class ExchangeSettleTest {
 
     @Test
     void checkIn_uncheckDuringGrace_cancelsGrace() {
-        when(exchangeRequestRepository.findById(100L)).thenReturn(Optional.of(exchangeRequest));
+        when(exchangeRequestRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(exchangeRequest));
         when(shop.isOwner(1L)).thenReturn(true);
 
         exchangeService.checkIn(100L, 1L, checkInRequest(true, true));
@@ -116,6 +118,7 @@ class ExchangeSettleTest {
         exchangeRequest.refreshBothChecked();
         ReflectionTestUtils.setField(exchangeRequest, "bothCheckedAt", java.time.LocalDateTime.now().minusMinutes(6));
         when(exchangeRequestRepository.findReadyToComplete(any())).thenReturn(List.of(exchangeRequest));
+        when(exchangeRequestRepository.findByIdForUpdate(any())).thenReturn(Optional.of(exchangeRequest));
         when(paymentRepository.findByPaymentId("pay-a")).thenReturn(Optional.of(mock(Payment.class)));
         when(paymentRepository.findByPaymentId("pay-b")).thenReturn(Optional.of(mock(Payment.class)));
 
@@ -133,6 +136,7 @@ class ExchangeSettleTest {
         Item itemA = mock(Item.class);
         when(exchangeItemA.getItem()).thenReturn(itemA);
         when(exchangeRequestRepository.findByStatusAndDeadlineBefore()).thenReturn(List.of(exchangeRequest));
+        when(exchangeRequestRepository.findByIdForUpdate(any())).thenReturn(Optional.of(exchangeRequest));
         when(paymentRepository.findByPaymentId("pay-a")).thenReturn(Optional.of(mock(Payment.class)));
         when(paymentRepository.findByPaymentId("pay-b")).thenReturn(Optional.of(mock(Payment.class)));
         // userAShowed/userBShowed는 생성자 기본값 false 그대로 둠 (둘 다 노쇼)
@@ -149,10 +153,49 @@ class ExchangeSettleTest {
     }
 
     @Test
+    void autoClose_oneBrokenRequestDoesNotBlockTheOthers() {
+        // 결제 기록이 없는 망가진 교환 1건이 있어도, 같은 주기의 다른 교환은 정산된다
+        ExchangeRequest broken = ExchangeRequest.builder()
+            .exchangeItemA(exchangeItemA).itemB(itemB).message("망가진 건").paymentIdB("pay-missing")
+            .shop(shop).depositAmountB(10_000).build();
+        broken.updateDepositAmountA(10_000);
+        broken.updatePaymentIdA("pay-missing-a");
+        broken.updateStatus(ExchangeRequestStatus.CONFIRMED);
+        ReflectionTestUtils.setField(broken, "id", 1L);
+        ReflectionTestUtils.setField(exchangeRequest, "id", 2L);
+        when(exchangeItemA.getItem()).thenReturn(mock(Item.class));
+        when(exchangeRequestRepository.findByStatusAndDeadlineBefore()).thenReturn(List.of(broken, exchangeRequest));
+        when(exchangeRequestRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(broken));
+        when(exchangeRequestRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(exchangeRequest));
+        when(paymentRepository.findByPaymentId(anyString())).thenAnswer(inv ->
+            inv.getArgument(0, String.class).startsWith("pay-missing") ? Optional.empty() : Optional.of(mock(Payment.class)));
+
+        exchangeService.autoCloseExchangeEvent();
+
+        assertEquals(ExchangeRequestStatus.EXPIRED_BOTH, exchangeRequest.getStatus());
+        verify(paymentService).refund("pay-a", 5_000, "교환 정산 환불");
+        verify(settlementHistoryService, times(2)).calculate(eq(shop), any(Payment.class), eq(5_000), eq(SettlementHistoryType.NO_SHOW_FEE));
+    }
+
+    @Test
+    void autoClose_skipsRequestAlreadyHandledWhileWaitingForLock() {
+        // 목록을 읽은 뒤 잠금을 잡았을 때 다른 쪽(다른 스케줄러·시연)이 이미 처리했다면 다시 환불하지 않는다
+        when(exchangeRequestRepository.findByStatusAndDeadlineBefore()).thenReturn(List.of(exchangeRequest));
+        exchangeRequest.updateStatus(ExchangeRequestStatus.EXPIRED_BOTH);
+        when(exchangeRequestRepository.findByIdForUpdate(any())).thenReturn(Optional.of(exchangeRequest));
+
+        exchangeService.autoCloseExchangeEvent();
+
+        verify(paymentService, never()).refund(anyString(), anyInt(), anyString());
+        verify(settlementHistoryService, never()).calculate(any(), any(), any(), any());
+    }
+
+    @Test
     void autoClose_onlyAShowed_aRefunded100PercentAndBForfeitsAll() {
         Item itemA = mock(Item.class);
         when(exchangeItemA.getItem()).thenReturn(itemA);
         when(exchangeRequestRepository.findByStatusAndDeadlineBefore()).thenReturn(List.of(exchangeRequest));
+        when(exchangeRequestRepository.findByIdForUpdate(any())).thenReturn(Optional.of(exchangeRequest));
         when(paymentRepository.findByPaymentId("pay-a")).thenReturn(Optional.of(mock(Payment.class)));
         when(paymentRepository.findByPaymentId("pay-b")).thenReturn(Optional.of(mock(Payment.class)));
         exchangeRequest.checkInA(true); // A만 출석, B는 노쇼

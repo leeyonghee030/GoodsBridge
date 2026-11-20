@@ -126,6 +126,11 @@ public interface ExchangeRequestRepository extends JpaRepository<ExchangeRequest
 """)
     public List<ExchangeRequest> findByStatusAndDeadlineBefore();
 
+    // 스케줄러가 교환 한 건을 처리할 때 행을 잠근다 (같은 건을 두 번 환불·정산하지 않게)
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select e from ExchangeRequest e where e.id = :id")
+    java.util.Optional<ExchangeRequest> findByIdForUpdate(@Param("id") Long id);
+
     // 교환 게시글(ExchangeItem)별 제안받은 횟수 - 인기순 정렬용
     @Query("""
         select e.exchangeItemA.id as exchangeItemId, count(e) as requestCount
