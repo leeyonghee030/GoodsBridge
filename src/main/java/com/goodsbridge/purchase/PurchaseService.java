@@ -221,6 +221,16 @@ public class PurchaseService {
 
         // 운송 번호 입력 -> 배송중
         if (trackingNumber != null) {
+            if (trackingNumber.isBlank()) {
+                throw new BadRequestException("운송장 번호를 입력해 주세요.");
+            }
+            if (purchaseRepository.existsByTrackingNumberAndIdNotAndDeliveryStatusNot(
+                trackingNumber.trim(),
+                purchaseId,
+                DeliveryStatus.DELIVERED
+            )) {
+                throw new BadRequestException("이미 등록된 운송장 번호입니다.");
+            }
             purchase.ship(trackingNumber);
             publisher.publishEvent(
                 new NotificationEvent(

@@ -92,4 +92,17 @@ public interface PurchaseRepository extends JpaRepository<Purchase, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Purchase p where p.id = :id")
     Optional<Purchase> findByIdLock(@Param("id") Long id);
+
+    @Query("""
+    SELECT COUNT(p) > 0
+    FROM Purchase p
+    WHERE p.trackingNumber = :trackingNumber
+      AND p.id != :purchaseId
+      AND p.deliveryStatus != :deliveredStatus
+    """)
+    boolean existsByTrackingNumberAndIdNotAndDeliveryStatusNot(
+        @Param("trackingNumber") String trackingNumber,
+        @Param("purchaseId") Long purchaseId,
+        @Param("deliveredStatus") DeliveryStatus deliveredStatus
+    );
 }
