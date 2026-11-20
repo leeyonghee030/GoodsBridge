@@ -160,7 +160,7 @@
 
         async function cancelAuction(id, title, bids, button) {
             const warn = Number(bids) > 0 ? `\n입찰 ${bids}건의 보증금은 모두 환불돼요.` : '';
-            if (!confirm(`"${title}" 경매를 취소할까요?${warn}\n취소한 경매는 되돌릴 수 없어요.`)) return;
+            if (!(await gbConfirm(`"${title}" 경매를 취소할까요?${warn}\n취소한 경매는 되돌릴 수 없어요.`))) return;
             button.disabled = true;
             show('경매를 취소하는 중입니다.', false);
             try {

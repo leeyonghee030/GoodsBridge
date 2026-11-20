@@ -72,11 +72,12 @@ public class GlobalExceptionHandler {
             .body(ErrorResponse.of(exception.getErrorCode(), exception.getMessage()));
     }
 
-    // 없는 주소에 잘못된 방식(GET 대신 POST 등)으로 요청하면 서버 오류(500)가 아니라 405/415 로 돌려준다
+    // 없는 주소에 잘못된 방식(GET 대신 POST 등)으로 요청하면 서버 오류(500)가 아니라 405/415 로 돌려준다.
+    // 본문 없이 돌려주면 브라우저 주소창으로 열었을 때 디자인 없는 빈 화면이 뜨므로, 화면이면 error/4xx, API면 Boot 기본 JSON 으로 보낸다
     @ExceptionHandler({HttpRequestMethodNotSupportedException.class, HttpMediaTypeNotSupportedException.class})
-    public ResponseEntity<Void> handleUnsupportedRequest(Exception e) {
+    public void handleUnsupportedRequest(Exception e, HttpServletResponse response) throws IOException {
         HttpStatus status = e instanceof HttpRequestMethodNotSupportedException ? HttpStatus.METHOD_NOT_ALLOWED : HttpStatus.UNSUPPORTED_MEDIA_TYPE;
-        return ResponseEntity.status(status).build();
+        response.sendError(status.value());
     }
 
     @ExceptionHandler(Exception.class)
