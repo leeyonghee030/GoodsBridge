@@ -1,6 +1,7 @@
 package com.goodsbridge.user;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -121,6 +122,8 @@ public class UserRequest {
         @NotBlank
         private String nickname;
 
+        private String phoneNumber;
+
         // 이메일 인증 확인 토큰
 //        @NotBlank
         private String verificationToken;
@@ -128,11 +131,12 @@ public class UserRequest {
         // DTO 에서 User 엔티티로 변환하는 메서드
         // 계층 간 데이터 변환을 명확하게 분리하는 것이 좋다.
         // toEntity() <-- 메서드 이름 (이 메서드를 호출하면 User 객체를 반환하는 코드를 작성하시오)
-        public User toEntity(String encodePassword) {
+        public User toEntity(String encodePassword, String phoneNumber) {
             return User.builder()
                 .email(email)
                 .password(encodePassword)
                 .nickname(nickname)
+                .phoneNumber(phoneNumber)
                 .build();
         }
     }
