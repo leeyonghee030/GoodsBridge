@@ -42,6 +42,49 @@ class DemoScenarioServiceTest {
     @Autowired private TransactionTemplate transactionTemplate;
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private DemoTempData tempData;
+    @Autowired private com.goodsbridge.shop.ShopSubscriptionBatchService subscriptionBatchService;
+
+    @Test
+    @DisplayName("빨리감기 구독 만료: D-3 알림 → 만료·가게 상품 판매 중지 → 이벤트 참가가 거절된다")
+    void timeline_subscription_expiresAndPausesShop() {
+        long usersBefore = userRepository.count();
+
+        List<DemoTimelineService.Step> steps = timelineService().run("subscription").steps();
+
+        assertThat(steps.get(0).facts()).containsEntry("구독 상태", "구독 중").containsEntry("판매 중 상품 (이벤트 상품 포함)", "3개");
+        assertThat(steps.get(1).facts()).containsEntry("만료 임박 알림", "보냄");
+        assertThat(steps.get(1).notifications()).contains("가게: [구독 만료 임박]");
+        assertThat(steps.get(2).facts()).containsEntry("구독 상태", "만료")
+            .containsEntry("판매 중 상품 (이벤트 상품 포함)", "0개").containsEntry("구독 만료로 중지된 상품", "3개");
+        assertThat(steps.get(2).notifications()).contains("가게: [구독 만료]");
+        assertThat(steps.get(3).facts().get("이벤트 참가 시도")).startsWith("거절").contains("구독");
+        assertThat(userRepository.count()).isEqualTo(usersBefore);
+    }
+
+    @Test
+    @DisplayName("빨리감기 교환 제안 만료: 응답 기한이 지나면 제안 만료, B 보증금 전액 환불")
+    void timeline_proposalExpired_refundsProposer() {
+        List<DemoTimelineService.Step> steps = timelineService().run("proposalExpired").steps();
+
+        assertThat(steps.get(0).facts()).containsEntry("교환 상태", "대기 중").containsEntry("B 보증금", "2,000원")
+            .containsEntry("B 보증금 환불", "0원");
+        assertThat(steps.get(1).facts()).containsEntry("교환 상태", "제안 만료").containsEntry("B 보증금 환불", "2,000원")
+            .containsEntry("가게 정산", "0원");
+        assertThat(steps.get(1).notifications()).contains("B: [교환 신청 만료]");
+    }
+
+    @Test
+    @DisplayName("빨리감기 출석 체크 유예: 5분 안에는 정산하지 않고 되돌릴 수 있으며, 5분이 지나면 완료·정산된다")
+    void timeline_checkInGrace_waitsFiveMinutesThenSettles() {
+        List<DemoTimelineService.Step> steps = timelineService().run("checkInGrace").steps();
+
+        assertThat(steps.get(1).facts()).containsEntry("교환 상태", "확정됨").containsEntry("B 출석", "왔음")
+            .containsEntry("가게 정산", "0원");
+        assertThat(steps.get(1).facts().get("5분 유예 시작")).isNotEqualTo("-");
+        assertThat(steps.get(2).facts()).containsEntry("B 출석", "-").containsEntry("5분 유예 시작", "-");
+        assertThat(steps.get(4).facts()).containsEntry("교환 상태", "완료됨")
+            .containsEntry("A 보증금 환불", "4,500원").containsEntry("B 보증금 환불", "1,500원").containsEntry("가게 정산", "2,000원");
+    }
 
     @Test
     @DisplayName("노쇼 정산: A 30,000원·B 8,000원이면 보증금 6,000·2,000원(최소 금액)으로 3케이스가 기획서대로 정산된다")
@@ -110,6 +153,7 @@ class DemoScenarioServiceTest {
 
     private DemoTimelineService timelineService() {
         return new DemoTimelineService(bidService, auctionService, purchaseService, auctionRepository, auctionScheduler,
-            eventService, shopEventRepository, transactionTemplate, jdbcTemplate, tempData);
+            eventService, shopEventRepository, subscriptionBatchService, exchangeService, exchangeItemRepository,
+            exchangeRequestRepository, transactionTemplate, jdbcTemplate, tempData);
     }
 }

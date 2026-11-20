@@ -16,6 +16,8 @@ import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -27,6 +29,7 @@ import java.util.stream.Collectors;
 
 // 시연 화면들이 쓰는 임시 데이터: 실행마다 사용자·가게·상품을 새로 만들고, 끝나면 그 실행에서 만든 것과 거기 딸린 기록을 모두 지운다.
 // 호출하는 쪽이 트랜잭션을 연다 (각 메서드는 저장만 한다).
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DemoTempData {
@@ -39,6 +42,7 @@ public class DemoTempData {
     private final CategoryJpaRepository categoryRepository;
     private final ItemRepository itemRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final TransactionTemplate transactionTemplate;
 
     // 한 번의 시연 실행에서 만든 것들
     public static class Run {
@@ -86,11 +90,17 @@ public class DemoTempData {
     }
 
     public Item item(Run run, User seller, SaleType saleType, int price, String title) {
+        return item(run, seller, null, saleType, price, title);
+    }
+
+    // 가게 소속 상품 (가게 구독이 만료되면 판매 중지되는 대상)
+    public Item item(Run run, User seller, Long shopId, SaleType saleType, int price, String title) {
         if (run.categoryId == null) {
             run.categoryId = categoryRepository.save(Category.builder().name("시연 " + run.id).build()).getId();
         }
         return itemRepository.save(Item.builder()
             .sellerUserId(seller.getId())
+            .shopId(shopId)
             .category(categoryRepository.getReferenceById(run.categoryId))
             .title(title)
             .price(price)
@@ -108,10 +118,19 @@ public class DemoTempData {
     }
 
     // 외래키 순서대로 지운다. 실행에서 만든 사용자·가게에 딸린 기록(알림·결제·정산·입찰·교환·이벤트 참가)도 함께 지운다.
+    // 한 트랜잭션으로 지워서 중간에 실패하면 반쯤 지워진 채 남지 않게 하고, 실패해도 기록만 남겨 시연 결과(또는 원래 오류)를 가리지 않는다.
     public void cleanup(Run run) {
         if (run.userIds.isEmpty()) {
             return;
         }
+        try {
+            transactionTemplate.executeWithoutResult(status -> deleteAll(run));
+        } catch (RuntimeException e) {
+            log.error("시연 임시 데이터 정리 실패 - run={}, users={}, shops={}", run.id, run.userIds, run.shopIds, e);
+        }
+    }
+
+    private void deleteAll(Run run) {
         String users = in(run.userIds);
         String shops = run.shopIds.isEmpty() ? "(-1)" : in(run.shopIds);
         jdbcTemplate.update("delete from notifications_tb where receiver_id in " + users);

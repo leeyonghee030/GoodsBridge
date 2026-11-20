@@ -17,6 +17,15 @@
         <button type="button" role="tab" data-scenario="event" aria-selected="false">
             <strong>선착순 이벤트</strong><span>마감 → 참가비 가게 정산</span>
         </button>
+        <button type="button" role="tab" data-scenario="subscription" aria-selected="false">
+            <strong>가게 구독 만료</strong><span>D-3 알림 → 만료 → 상품 판매 중지</span>
+        </button>
+        <button type="button" role="tab" data-scenario="proposalExpired" aria-selected="false">
+            <strong>교환 · 제안 기한 만료</strong><span>응답 없음 → 제안 만료 → 보증금 환불</span>
+        </button>
+        <button type="button" role="tab" data-scenario="checkInGrace" aria-selected="false">
+            <strong>교환 · 출석 체크 유예</strong><span>체크 → 5분 안 되돌리기 → 자동 완료</span>
+        </button>
     </div>
 
     <form id="dm-form" class="dm-form dm-run">
@@ -33,13 +42,17 @@
         <ul>
             <li>임시 가게·사용자(A·B·C)를 만들고 실제 입찰·참가 코드로 시작 상태를 만들어요.</li>
             <li>낙찰 성공 시나리오의 잔금 결제·발송·배송 완료·구매 확정은 실제 서비스 코드(<code>AuctionService.payBalance</code>, <code>PurchaseService.shipping</code>, <code>PurchaseService.confirm</code>)를 사용자·가게 사장님 대신 차례로 불러요.</li>
-            <li>그다음 마감 시간(또는 잔금 결제 기한)을 1분 전으로 당기고, 원래 1분마다 도는 실제 스케줄러(<code>AuctionScheduler.autoCloseAuctions</code>, <code>EventService.autoCloseShopEvents</code>)를 바로 한 번 실행해요.</li>
+            <li>그다음 마감 시간(잔금 기한, 구독 만료일, 교환 기한, 출석 체크 유예 시각)을 지난 것으로 당기고, 원래 정해진 주기에 도는 실제 스케줄러를 바로 한 번 실행해요. (<code>AuctionScheduler.autoCloseAuctions</code>, <code>EventService.autoCloseShopEvents</code>, <code>ShopSubscriptionBatchService</code>, <code>ExchangeService.autoCloseExchangeEvent</code>·<code>completeAfterGrace</code>)</li>
+            <li>스케줄러는 그 순간 기한이 지난 다른 데이터도 함께 처리해요. 원래 곧 스케줄러가 처리할 데이터라 결과는 같아요.</li>
             <li>단계마다 상태, 보증금 환불액, 가게 정산액, 새로 생긴 알림을 기록해서 보여줘요. 앞 단계와 달라진 값은 "이전 → 지금"으로 표시해요. 끝나면 임시 데이터는 모두 지워져요.</li>
         </ul>
     </details>
 </section>
 
 <style>
+    /* 시나리오 6개를 3개씩 두 줄로 (좁은 화면은 2개씩) */
+    .dm-seg { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 560px) { .dm-seg { grid-template-columns: 1fr 1fr; } }
     .dm-run { align-items: center; }
     .dm-desc { flex: 1 1 240px; margin: 0; font-size: 0.82rem; line-height: 1.6; color: var(--color-text-soft); word-break: keep-all; }
 
@@ -84,6 +97,18 @@
             button: '잔금 미납 빨리감기',
             desc: 'A·B·C가 차례로 입찰한 경매를 마감시키고(C 낙찰, A·B 보증금 환불), 낙찰자 C가 잔금을 안 낸 채 기한까지 지나게 해요.'
         },
+        subscription: {
+            button: '구독 만료 빨리감기',
+            desc: '구독 중인 가게(일반 상품 2개 + 이벤트 상품 1개로 선착순 이벤트 진행)의 구독 만료일을 3일 전 → 지난 날짜로 당겨요. 만료 임박 알림, 구독 만료, 가게 상품 3개 모두 판매 중지, 이벤트 참가 차단까지 보여줘요. B2B 구독이 수익 모델이라 구독이 끊기면 가게 영업이 멈춰요.'
+        },
+        proposalExpired: {
+            button: '제안 만료 빨리감기',
+            desc: 'B가 보증금을 내고 교환을 제안했는데 A가 응답하지 않은 채 응답 기한(3일)이 지나면, 제안이 자동으로 만료되고 B의 보증금이 전액 환불돼요.'
+        },
+        checkInGrace: {
+            button: '출석 체크 빨리감기',
+            desc: '가게가 두 사람 출석을 체크해도 바로 정산하지 않고 5분 동안 기다려요. 그 안에는 실수로 누른 체크를 되돌릴 수 있고, 5분이 지나면 자동으로 교환 완료·보증금 정산이 돼요.'
+        },
         event: {
             button: '이벤트 시간 빨리감기',
             desc: '정원 5명 선착순 이벤트에 3명이 참가한 상태에서 마감 시간을 지나게 해요. 마감되고 참가비가 가게 정산에 기록돼요.'
@@ -97,7 +122,7 @@
     const message = form.parentElement.querySelector('.dm-message');
     const cache = {};
     const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-    const isMoney = k => k.includes('환불') || k.includes('정산') || k.includes('납부');
+    const isMoney = k => k.includes('환불') || k.includes('정산') || k.includes('납부') || k.includes('보증금');
 
     const render = scenario => {
         const steps = cache[scenario];

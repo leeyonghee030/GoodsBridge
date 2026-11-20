@@ -1,6 +1,7 @@
 package com.goodsbridge.demo;
 
 import com.goodsbridge._core.exception.BadRequestException;
+import com.goodsbridge._core.exception.InternalServerException;
 import com.goodsbridge.auction.Auction;
 import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.auction.Bid;
@@ -226,17 +227,29 @@ public class DemoConcurrencyService {
             });
         }
         long begin = System.currentTimeMillis();
+        boolean finished = false;
         try {
             ready.await();
             begin = System.currentTimeMillis();
             start.countDown();
-            done.await(60, TimeUnit.SECONDS);
+            finished = done.await(60, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
             executor.shutdownNow();
+            // 임시 데이터를 지우기 전에 남은 스레드가 멈출 때까지 기다린다 (쓰는 중인 데이터를 지우지 않게)
+            try {
+                executor.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
-        return new Outcome(success.get(), fail.get(), System.currentTimeMillis() - begin);
+        long elapsed = System.currentTimeMillis() - begin;
+        if (!finished) {
+            // 시간 안에 끝나지 않으면 성공·실패 수가 인원과 맞지 않으므로 결과 대신 오류로 알린다
+            throw new InternalServerException("시연이 60초 안에 끝나지 않았어요. 잠시 후 다시 시도해 주세요.");
+        }
+        return new Outcome(success.get(), fail.get(), elapsed);
     }
 
     private static void pause() {
