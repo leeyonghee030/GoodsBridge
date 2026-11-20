@@ -932,6 +932,9 @@ public class DemoDataService {
         if (state.equals("REFUNDED")) {
             Refund refund = demoRefund(balance, winner, auction.getCurrentPrice(), "배송 중 분실되어 상품을 받지 못했어요", RequestedBy.USER, Status.REQUESTED);
             refund.approve();
+            // 실제 전액 환불(RefundService.refundAuctionAll)처럼 구매도 환불 상태로 바꾼다 (안 바꾸면 환불된 주문에 '구매 확정'이 보인다)
+            purchase.refund();
+            purchaseRepository.save(purchase);
             balance.refund(balance.getRefundableAmount());
             paymentRepository.findByPaymentId(auction.getWinningPaymentId()).ifPresent(d -> d.refund(d.getRefundableAmount()));
             settlementHistoryRepository.flush();
@@ -1101,7 +1104,8 @@ public class DemoDataService {
                 .build();
             if (!state.equals("PREPARING")) purchase.ship("CJ" + (500100200300L + n));
             // 지난달 이전 주문(구매 확정/부분 환불/환불 거절)은 이미 배송이 끝난 상태
-            if (state.equals("CONFIRMED") || state.equals("PARTIAL_REFUND") || state.equals("REFUND_REJECTED") || state.equals("DELIVERED")) purchase.markDelivered();
+            // 환불 요청도 배송 준비중이거나 배송 완료 뒤에만 할 수 있으므로(RefundService), 환불 요청중인 건도 배송 완료로 만든다
+            if (state.equals("CONFIRMED") || state.equals("PARTIAL_REFUND") || state.equals("REFUND_REJECTED") || state.equals("REFUND_REQUESTED") || state.equals("DELIVERED")) purchase.markDelivered();
             if (state.equals("CONFIRMED")) purchase.confirm();
             purchaseRepository.save(purchase);
             item.updateStatus(ItemStatus.SOLD);
