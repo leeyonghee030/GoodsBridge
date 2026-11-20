@@ -1,0 +1,172 @@
+{{> fragments/header}}
+{{> demo/head}}
+
+<section class="page-head">
+    <h1>시간 빨리감기 시연</h1>
+    <p>마감 시간이 지나야 도는 스케줄러를 기다리지 않고 바로 보여줘요. 시나리오를 고르고 실행하면 단계별로 무엇이 바뀌는지 보여줘요.</p>
+</section>
+
+<section class="panel">
+    <div class="dm-seg" role="tablist" aria-label="시나리오">
+        <button type="button" role="tab" data-scenario="auctionPaid" aria-selected="true">
+            <strong>경매 · 낙찰 성공</strong><span>마감 → 잔금 결제·배송지 → 배송 → 구매 확정</span>
+        </button>
+        <button type="button" role="tab" data-scenario="auction" aria-selected="false">
+            <strong>경매 · 잔금 미납</strong><span>마감 → 낙찰·패찰 환불 → 잔금 미납</span>
+        </button>
+        <button type="button" role="tab" data-scenario="event" aria-selected="false">
+            <strong>선착순 이벤트</strong><span>마감 → 참가비 가게 정산</span>
+        </button>
+        <button type="button" role="tab" data-scenario="subscription" aria-selected="false">
+            <strong>가게 구독 만료</strong><span>D-3 알림 → 만료 → 상품 판매 중지</span>
+        </button>
+        <button type="button" role="tab" data-scenario="proposalExpired" aria-selected="false">
+            <strong>교환 · 제안 기한 만료</strong><span>응답 없음 → 제안 만료 → 보증금 환불</span>
+        </button>
+        <button type="button" role="tab" data-scenario="checkInGrace" aria-selected="false">
+            <strong>교환 · 출석 체크 유예</strong><span>체크 → 5분 안 되돌리기 → 자동 완료</span>
+        </button>
+    </div>
+
+    <form id="dm-form" class="dm-form dm-run">
+        <input type="hidden" name="scenario" value="auctionPaid">
+        <p class="dm-desc" id="dm-desc"></p>
+        <button type="submit" id="dm-run-btn"></button>
+    </form>
+    <p class="form-message dm-message" aria-live="polite"></p>
+
+    <ol class="dm-steps" id="dm-result" hidden></ol>
+
+    <details class="dm-help">
+        <summary>무슨 일이 일어나는 건가요?</summary>
+        <ul>
+            <li>임시 가게·사용자(A·B·C)를 만들고 실제 입찰·참가 코드로 시작 상태를 만들어요.</li>
+            <li>낙찰 성공 시나리오의 잔금 결제·발송·배송 완료·구매 확정은 실제 서비스 코드(<code>AuctionService.payBalance</code>, <code>PurchaseService.shipping</code>, <code>PurchaseService.confirm</code>)를 사용자·가게 사장님 대신 차례로 불러요.</li>
+            <li>그다음 마감 시간(잔금 기한, 구독 만료일, 교환 기한, 출석 체크 유예 시각)을 지난 것으로 당기고, 원래 정해진 주기에 도는 실제 스케줄러를 바로 한 번 실행해요. (<code>AuctionScheduler.autoCloseAuctions</code>, <code>EventService.autoCloseShopEvents</code>, <code>ShopSubscriptionBatchService</code>, <code>ExchangeService.autoCloseExchangeEvent</code>·<code>completeAfterGrace</code>)</li>
+            <li>스케줄러는 그 순간 기한이 지난 다른 데이터도 함께 처리해요. 원래 곧 스케줄러가 처리할 데이터라 결과는 같아요.</li>
+            <li>단계마다 상태, 보증금 환불액, 가게 정산액, 새로 생긴 알림을 기록해서 보여줘요. 앞 단계와 달라진 값은 "이전 → 지금"으로 표시해요. 끝나면 임시 데이터는 모두 지워져요.</li>
+        </ul>
+    </details>
+</section>
+
+<style>
+    /* 시나리오 6개를 3개씩 두 줄로 (좁은 화면은 2개씩) */
+    .dm-seg { grid-template-columns: repeat(3, 1fr); }
+    @media (max-width: 560px) { .dm-seg { grid-template-columns: 1fr 1fr; } }
+    .dm-run { align-items: center; }
+    .dm-desc { flex: 1 1 240px; margin: 0; font-size: 0.82rem; line-height: 1.6; color: var(--color-text-soft); word-break: keep-all; }
+
+    /* 단계 타임라인 */
+    .dm-steps { list-style: none; margin: 1.5rem 0 0; padding: 0 0 0 1.6rem; position: relative; }
+    .dm-steps[hidden] { display: none; }
+    .dm-steps::before { content: ''; position: absolute; left: 0.6rem; top: 0.5rem; bottom: 0.5rem; width: 2px; background: var(--color-border); }
+    .dm-step { position: relative; margin-bottom: 0.9rem; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-bg); overflow: hidden; }
+    .dm-step::before {
+        content: attr(data-n); position: absolute; left: -1.6rem; top: 0.95rem; width: 1.25rem; height: 1.25rem; border-radius: 50%;
+        background: var(--color-dark); color: #fff; font-size: 0.68rem; font-weight: var(--fw-bold); line-height: 1.25rem; text-align: center;
+    }
+    .dm-step-head { padding: 0.85rem 1.1rem 0.75rem; border-bottom: 1px solid var(--color-border); }
+    .dm-step-head h3 { margin: 0; font-size: 0.95rem; font-weight: var(--fw-bold); }
+    .dm-step-head p { margin: 0.2rem 0 0; font-size: 0.78rem; color: var(--color-muted); word-break: keep-all; }
+    .dm-groups { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .dm-group { padding: 0.85rem 1.1rem; }
+    .dm-group + .dm-group { border-left: 1px solid var(--color-border); }
+    .dm-group h4 { margin: 0 0 0.55rem; font-size: 0.7rem; font-weight: var(--fw-semibold); letter-spacing: 0.04em; color: var(--color-muted); }
+    .dm-group dl { display: grid; grid-template-columns: auto 1fr; gap: 0.4rem 0.9rem; margin: 0; font-size: 0.84rem; }
+    .dm-group dt { color: var(--color-text-soft); white-space: nowrap; }
+    .dm-group dd { margin: 0; text-align: right; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+    .dm-group dd .was { margin-right: 0.3rem; font-weight: var(--fw-regular); color: var(--color-muted); text-decoration: line-through; }
+    .dm-group dd.changed .now { padding: 0.05rem 0.4rem; border-radius: 4px; background: var(--color-dark); color: #fff; }
+    .dm-notes { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; padding: 0.7rem 1.1rem; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+    .dm-notes > span { margin-right: 0.2rem; font-size: 0.72rem; font-weight: var(--fw-semibold); color: var(--color-muted); }
+    .dm-chip { padding: 0.15rem 0.55rem; border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-bg); font-size: 0.74rem; color: var(--color-text-soft); white-space: nowrap; }
+    .dm-chip b { margin-right: 0.25rem; color: var(--color-text); }
+    @media (max-width: 560px) {
+        .dm-group + .dm-group { border-left: 0; border-top: 1px solid var(--color-border); }
+    }
+</style>
+
+<script>
+(() => {
+    const SCENARIOS = {
+        auctionPaid: {
+            button: '낙찰 성공 빨리감기',
+            desc: '경매를 마감시켜 C가 낙찰되면, C가 배송지를 적고 잔금을 결제해요. 가게가 송장을 입력해 발송하고 배송 완료되면 C가 구매 확정해요.'
+        },
+        auction: {
+            button: '잔금 미납 빨리감기',
+            desc: 'A·B·C가 차례로 입찰한 경매를 마감시키고(C 낙찰, A·B 보증금 환불), 낙찰자 C가 잔금을 안 낸 채 기한까지 지나게 해요.'
+        },
+        subscription: {
+            button: '구독 만료 빨리감기',
+            desc: '구독 중인 가게(일반 상품 2개 + 이벤트 상품 1개로 선착순 이벤트 진행)의 구독 만료일을 3일 전 → 지난 날짜로 당겨요. 만료 임박 알림, 구독 만료, 가게 상품 3개 모두 판매 중지, 이벤트 참가 차단까지 보여줘요. B2B 구독이 수익 모델이라 구독이 끊기면 가게 영업이 멈춰요.'
+        },
+        proposalExpired: {
+            button: '제안 만료 빨리감기',
+            desc: 'B가 보증금을 내고 교환을 제안했는데 A가 응답하지 않은 채 응답 기한(3일)이 지나면, 제안이 자동으로 만료되고 B의 보증금이 전액 환불돼요.'
+        },
+        checkInGrace: {
+            button: '출석 체크 빨리감기',
+            desc: '가게가 두 사람 출석을 체크해도 바로 정산하지 않고 5분 동안 기다려요. 그 안에는 실수로 누른 체크를 되돌릴 수 있고, 5분이 지나면 자동으로 교환 완료·보증금 정산이 돼요.'
+        },
+        event: {
+            button: '이벤트 시간 빨리감기',
+            desc: '정원 5명 선착순 이벤트에 3명이 참가한 상태에서 마감 시간을 지나게 해요. 마감되고 참가비가 가게 정산에 기록돼요.'
+        }
+    };
+    const form = document.getElementById('dm-form');
+    const input = form.querySelector('input[name="scenario"]');
+    const desc = document.getElementById('dm-desc');
+    const runBtn = document.getElementById('dm-run-btn');
+    const result = document.getElementById('dm-result');
+    const message = form.parentElement.querySelector('.dm-message');
+    const cache = {};
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const isMoney = k => k.includes('환불') || k.includes('정산') || k.includes('납부') || k.includes('보증금');
+
+    const render = scenario => {
+        const steps = cache[scenario];
+        if (!steps) { result.hidden = true; result.innerHTML = ''; return; }
+        let prev = null;
+        result.innerHTML = steps.map((st, i) => {
+            const group = (title, entries) => entries.length ? '<div class="dm-group"><h4>' + title + '</h4><dl>' + entries.map(([k, v]) => {
+                const changed = prev && prev[k] !== undefined && prev[k] !== v;
+                return '<dt>' + esc(k) + '</dt><dd class="' + (changed ? 'changed' : '') + '">'
+                    + (changed ? '<span class="was">' + esc(prev[k]) + '</span>' : '') + '<span class="now">' + esc(v) + '</span></dd>';
+            }).join('') + '</dl></div>' : '';
+            const entries = Object.entries(st.facts);
+            const groups = group('상태', entries.filter(([k]) => !isMoney(k))) + group('돈 흐름', entries.filter(([k]) => isMoney(k)));
+            prev = st.facts;
+            const notes = '<div class="dm-notes"><span>새 알림 ' + st.notifications.length + '건</span>'
+                + (st.notifications.length ? st.notifications.map(n => {
+                    const [who, ...rest] = n.split(': ');
+                    return '<span class="dm-chip"><b>' + esc(who) + '</b>' + esc(rest.join(': ').replace(/^\[|\]$/g, '')) + '</span>';
+                }).join('') : '<span class="dm-chip">없음</span>') + '</div>';
+            return '<li class="dm-step" data-n="' + (i + 1) + '"><div class="dm-step-head"><h3>' + esc(st.title) + '</h3><p>' + esc(st.action) + '</p></div>'
+                + '<div class="dm-groups">' + groups + '</div>' + notes + '</li>';
+        }).join('');
+        result.hidden = false;
+    };
+
+    const select = scenario => {
+        input.value = scenario;
+        document.querySelectorAll('.dm-seg [data-scenario]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.scenario === scenario)));
+        desc.textContent = SCENARIOS[scenario].desc;
+        runBtn.textContent = SCENARIOS[scenario].button;
+        message.textContent = '';
+        render(scenario);
+    };
+    document.querySelectorAll('.dm-seg [data-scenario]').forEach(b => b.addEventListener('click', () => select(b.dataset.scenario)));
+    select('auctionPaid');
+
+    // 실행 중에 다른 시나리오를 눌러도 결과가 섞이지 않게, 실행한 시나리오를 기억해 둔다
+    let pending = null;
+    form.addEventListener('submit', () => { pending = input.value; });
+    dmRun(form, '/demo/timeline/run', data => {
+        cache[pending] = data.steps;
+        if (input.value === pending) render(pending);
+    }, '실행 중이에요... 마감 시간을 당기고 스케줄러를 차례로 돌려요.');
+})();
+</script>
+
+{{> fragments/footer}}

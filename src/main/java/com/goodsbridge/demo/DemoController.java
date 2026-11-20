@@ -12,9 +12,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.concurrent.Semaphore;
+import java.util.function.Supplier;
 
 // 시연용: 로그인 없이 일반유저/가게/관리자 계정으로 즉시 전환. app.demo.enabled=true 일 때만 존재한다.
 @RestController
@@ -34,6 +37,9 @@ public class DemoController {
     private final UserRepository userRepository;
     private final AuthService authService;
     private final DemoDataService demoDataService;
+    private final DemoConcurrencyService demoConcurrencyService;
+    private final DemoSettlementService demoSettlementService;
+    private final DemoTimelineService demoTimelineService;
 
     // 헤더가 데모 모드인지 확인하는 용도
     @GetMapping("/status")
@@ -69,5 +75,46 @@ public class DemoController {
     @PostMapping("/reset")
     public void reset() {
         demoDataService.reset();
+    }
+
+    // 선착순 이벤트 동시성 시연: 락 없음/있음 두 번 돌려서 결과를 비교한다 (화면: /demo/concurrency)
+    @PostMapping("/concurrency/run")
+    public DemoConcurrencyService.Result runConcurrency(@RequestParam(defaultValue = "5") int capacity,
+                                                        @RequestParam(defaultValue = "20") int users) {
+        return oneAtATime(() -> demoConcurrencyService.run(capacity, users));
+    }
+
+    // 경매 동시 입찰 시연 (화면: /demo/auction)
+    @PostMapping("/auction/run")
+    public DemoConcurrencyService.AuctionResult runAuction(@RequestParam(defaultValue = "20") int users) {
+        return oneAtATime(() -> demoConcurrencyService.runAuction(users));
+    }
+
+    // 교환 노쇼 정산 3케이스 시연 (화면: /demo/settlement)
+    @PostMapping("/settlement/run")
+    public DemoSettlementService.Result runSettlement(@RequestParam(defaultValue = "30000") int priceA,
+                                                      @RequestParam(defaultValue = "8000") int priceB) {
+        return oneAtATime(() -> demoSettlementService.run(priceA, priceB));
+    }
+
+    // 마감 스케줄러 빨리감기 시연 (화면: /demo/timeline)
+    @PostMapping("/timeline/run")
+    public DemoTimelineService.Scenario runTimeline(@RequestParam(defaultValue = "auctionPaid") String scenario) {
+        return oneAtATime(() -> demoTimelineService.run(scenario));
+    }
+
+    // 시연은 한 번에 하나만 돌린다. 동시성 시연은 스레드를 최대 100개 띄우고 DB 연결을 붙잡으므로,
+    // 여러 개가 겹치면 실제 사용자 요청이 DB 연결을 못 받고, 스케줄러를 부르는 시연끼리도 서로 섞인다.
+    private final Semaphore running = new Semaphore(1);
+
+    private <T> T oneAtATime(Supplier<T> demo) {
+        if (!running.tryAcquire()) {
+            throw new BadRequestException("다른 시연이 실행 중이에요. 잠시 후 다시 눌러 주세요.");
+        }
+        try {
+            return demo.get();
+        } finally {
+            running.release();
+        }
     }
 }

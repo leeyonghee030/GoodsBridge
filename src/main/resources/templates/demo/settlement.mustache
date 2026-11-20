@@ -1,0 +1,132 @@
+{{> fragments/header}}
+{{> demo/head}}
+
+<section class="page-head">
+    <h1>교환 노쇼 정산 시연</h1>
+    <p>교환이 확정된 두 사람(A·B)이 가게에 왔는지에 따라 보증금이 어떻게 정산되는지 보여줘요.</p>
+</section>
+
+<section class="panel">
+    <p class="dm-policy">
+        <b>보증금 정책</b> 교환이 확정되면 두 사람 모두 <b>자기 상품 가격의 20%</b>(최소 <b>2,000원</b>)를 보증금으로 내요.
+        가게에서 만났는지에 따라 일부를 돌려받고, 나머지는 교환 장소를 제공한 가게 몫이에요.
+    </p>
+
+    <form id="dm-form" class="dm-form">
+        <label>A 상품 가격 (원) <input type="number" name="priceA" value="30000" min="1" max="{{maxPrice}}" required></label>
+        <label>B 상품 가격 (원) <input type="number" name="priceB" value="8000" min="1" max="{{maxPrice}}" required></label>
+        <button type="submit">정산해 보기</button>
+    </form>
+    <p class="form-message dm-message" aria-live="polite"></p>
+    <p class="dm-deposit" id="dm-deposit" hidden></p>
+
+    <div class="dm-seg" role="tablist" aria-label="정산 경우">
+        <button type="button" role="tab" data-case="0" aria-selected="true"><strong>둘 다 옴</strong><span>각자 75% 환불 · 25% 가게</span></button>
+        <button type="button" role="tab" data-case="1" aria-selected="false"><strong>한쪽만 노쇼</strong><span>온 사람 100% 환불 · 안 온 사람 0%</span></button>
+        <button type="button" role="tab" data-case="2" aria-selected="false"><strong>둘 다 노쇼</strong><span>각자 50% 환불 · 50% 가게</span></button>
+    </div>
+
+    <div class="dm-case" id="dm-case"></div>
+
+    <details class="dm-help">
+        <summary>시연은 어떻게 진행되나요?</summary>
+        <ul>
+            <li>"정산해 보기"를 누르면 3가지 경우를 한 번에 실행하고, 위 버튼으로 경우를 골라 하나씩 봐요.</li>
+            <li>경우마다 임시 사용자·가게·상품을 만들고 실제 교환 흐름 그대로 진행해요. B 제안(B 보증금 결제) → A 수락(A 보증금 결제) → 가게 사장님 출석 체크 → 방문 기한을 지난 것으로 당김 → 기한 스케줄러(<code>ExchangeService.autoCloseExchangeEvent</code>)가 판정·환불·가게 정산.</li>
+            <li>화면의 금액은 결제 기록의 환불액과 가게 정산 기록에서 읽은 실제 값이에요. 정책으로 계산한 값과 같은지도 함께 확인해요. 끝나면 임시 데이터는 모두 지워져요.</li>
+        </ul>
+    </details>
+</section>
+
+<style>
+    .dm-policy { margin: 0 0 1.1rem; padding: 0.85rem 1rem; border-radius: 8px; background: var(--color-surface); font-size: 0.82rem; line-height: 1.65; color: var(--color-text-soft); word-break: keep-all; }
+    .dm-policy b { color: var(--color-text); }
+    .dm-policy > b:first-child { margin-right: 0.35rem; }
+    .dm-deposit { margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--color-text-soft); word-break: keep-all; }
+    .dm-deposit b { color: var(--color-text); }
+    .dm-seg { margin-top: 1.25rem; }
+
+    .dm-case { border: 1px solid var(--color-border); border-radius: 10px; overflow: hidden; }
+    .dm-case-head { padding: 0.95rem 1.15rem; border-bottom: 1px solid var(--color-border); }
+    .dm-case-head h2 { margin: 0; font-size: 1rem; font-weight: var(--fw-bold); }
+    .dm-case-head p { margin: 0.25rem 0 0; font-size: 0.8rem; line-height: 1.6; color: var(--color-text-soft); word-break: keep-all; }
+    .dm-people { display: grid; grid-template-columns: 1fr 1fr; }
+    .dm-person { padding: 1rem 1.15rem; }
+    .dm-person + .dm-person { border-left: 1px solid var(--color-border); }
+    .dm-person h3 { display: flex; align-items: center; gap: 0.45rem; margin: 0 0 0.7rem; font-size: 0.95rem; }
+    .dm-tag { padding: 0.05rem 0.5rem; border-radius: 999px; background: var(--color-dark); color: #fff; font-size: 0.68rem; font-weight: var(--fw-medium); }
+    .dm-tag.no { background: none; border: 1px solid #C0392B; color: #C0392B; }
+    .dm-bar { display: flex; height: 0.6rem; border-radius: 999px; overflow: hidden; background: var(--color-border); }
+    .dm-bar .refund { background: var(--color-dark); }
+    .dm-bar .shop { background: repeating-linear-gradient(45deg, var(--color-muted), var(--color-muted) 3px, var(--color-border) 3px, var(--color-border) 6px); }
+    .dm-person dl { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 0.75rem; margin: 0.8rem 0 0; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+    .dm-person dt { display: flex; align-items: center; gap: 0.35rem; color: var(--color-text-soft); }
+    .dm-person dd { margin: 0; text-align: right; font-weight: var(--fw-semibold); }
+    .dm-person dd small { margin-left: 0.3rem; font-weight: var(--fw-regular); color: var(--color-muted); }
+    .dm-dot { width: 0.55rem; height: 0.55rem; border-radius: 2px; background: var(--color-dark); }
+    .dm-dot.shop { background: var(--color-muted); }
+    .dm-case-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; padding: 0.8rem 1.15rem; border-top: 1px solid var(--color-border); background: var(--color-surface); font-size: 0.84rem; }
+    .dm-case-foot b { font-size: 0.95rem; }
+    .dm-case-foot .dm-ok { font-weight: var(--fw-semibold); }
+    .dm-empty { padding: 1rem 1.15rem; font-size: 0.82rem; color: var(--color-muted); }
+    @media (max-width: 560px) {
+        .dm-people { grid-template-columns: 1fr; }
+        .dm-person + .dm-person { border-left: 0; border-top: 1px solid var(--color-border); }
+    }
+</style>
+
+<script>
+(() => {
+    // 경우별 설명 (정책) — 실행 전에도 보여준다
+    const CASES = [
+        { title: '둘 다 옴 (교환 성공)', rule: '두 사람 모두 가게에 왔어요. 각자 보증금의 <b>75%</b>(상품가 20% 중 15%)를 돌려받고, <b>25%</b>는 가게 몫이에요.' },
+        { title: '한쪽만 노쇼 (B가 안 옴)', rule: '온 사람(A)은 보증금을 <b>100%</b> 돌려받아요. 안 온 사람(B)은 하나도 못 돌려받고 보증금 <b>100%</b>가 가게 몫이에요.' },
+        { title: '둘 다 노쇼', rule: '두 사람 모두 오지 않았어요. 각자 보증금의 <b>50%</b>(상품가 20% 중 10%)를 돌려받고, <b>50%</b>는 가게 몫이에요.' }
+    ];
+    const box = document.getElementById('dm-case');
+    const depositNote = document.getElementById('dm-deposit');
+    let data = null;
+    let selected = 0;
+    const pct = (part, whole) => whole ? Math.round(part * 100 / whole) : 0;
+
+    const person = (name, p) => {
+        const r = pct(p.refund, p.deposit), s = pct(p.shopFee, p.deposit);
+        return '<div class="dm-person"><h3>' + name + '<span class="dm-tag ' + (p.showed ? '' : 'no') + '">' + (p.showed ? '왔음' : '노쇼') + '</span></h3>'
+            + '<div class="dm-bar" aria-hidden="true"><span class="refund" style="width:' + r + '%"></span><span class="shop" style="width:' + s + '%"></span></div>'
+            + '<dl><dt>보증금</dt><dd>' + dmWon(p.deposit) + '</dd>'
+            + '<dt><i class="dm-dot"></i>돌려받음</dt><dd>' + dmWon(p.refund) + '<small>' + r + '%</small></dd>'
+            + '<dt><i class="dm-dot shop"></i>가게 몫</dt><dd>' + dmWon(p.shopFee) + '<small>' + s + '%</small></dd></dl></div>';
+    };
+
+    const render = () => {
+        document.querySelectorAll('.dm-seg [data-case]').forEach(b => b.setAttribute('aria-selected', String(Number(b.dataset.case) === selected)));
+        const info = CASES[selected];
+        const head = '<div class="dm-case-head"><h2>' + info.title + '</h2><p>' + info.rule + '</p></div>';
+        if (!data) {
+            box.innerHTML = head + '<p class="dm-empty">상품 가격을 넣고 "정산해 보기"를 누르면 실제 정산 금액이 나와요.</p>';
+            return;
+        }
+        const c = data.cases[selected];
+        box.innerHTML = head
+            + '<div class="dm-people">' + person('A', c.a) + person('B', c.b) + '</div>'
+            + '<div class="dm-case-foot"><span>가게 정산 합계 <b>' + dmWon(c.shopTotal) + '</b> · 처리 결과: ' + c.status + '</span>'
+            + '<span class="dm-ok ' + (c.matchesSpec ? '' : 'dm-bad') + '">' + (c.matchesSpec ? '✓ 정책대로 정산됐어요'
+                : '정책과 달라요 (기대 환불 A ' + dmWon(c.a.expectedRefund) + ', B ' + dmWon(c.b.expectedRefund) + ')') + '</span></div>';
+    };
+
+    document.querySelectorAll('.dm-seg [data-case]').forEach(b => b.addEventListener('click', () => { selected = Number(b.dataset.case); render(); }));
+    render();
+
+    dmRun(document.getElementById('dm-form'), '/demo/settlement/run', result => {
+        data = result;
+        const a = result.cases[0].a.deposit, b = result.cases[0].b.deposit;
+        const calc = (price, deposit) => dmWon(price) + ' × 20% = ' + dmWon(Math.round(price * 0.2))
+            + (deposit > Math.round(price * 0.2) ? ' → 최소 <b>' + dmWon(deposit) + '</b>' : ' → <b>' + dmWon(deposit) + '</b>');
+        depositNote.innerHTML = '<b>보증금</b> A: ' + calc(result.priceA, a) + ' · B: ' + calc(result.priceB, b);
+        depositNote.hidden = false;
+        render();
+    }, '실행 중이에요... 3가지 경우를 실제 교환 흐름으로 차례로 진행해요.');
+})();
+</script>
+
+{{> fragments/footer}}
