@@ -1,0 +1,58 @@
+# 배포용: 앱 + MySQL + HTTPS 프록시(Caddy). 서버에서 `docker compose -f docker-compose.prod.yml up -d --build`
+# DB 포트는 밖으로 열지 않는다. 바깥에 열리는 건 80/443(Caddy)뿐이다.
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    command:
+      - --default-time-zone=+09:00
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # env_file 에 무엇이 있든 컨테이너 안에서는 이 값이 우선한다
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      # Caddy 뒤에서 https 주소로 인식해야 로그인 리다이렉트·보안 쿠키가 맞게 동작한다
+      SERVER_FORWARD_HEADERS_STRATEGY: framework
+      APP_COOKIE_SECURE: "true"
+    volumes:
+      - uploads:/home/app/good_bridge_uploads
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+
+volumes:
+  mysql-data:
+  uploads:
+  caddy-data:
