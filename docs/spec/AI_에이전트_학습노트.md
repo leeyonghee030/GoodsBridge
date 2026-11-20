@@ -1,3 +1,27 @@
+---
+id: spec-ai-agent-notes
+title: AI 에이전트 학습 노트·POST /api/chat 동작
+category: spec
+summary: Spring AI와 Gemini로 만든 POST /api/chat이 어떻게 동작하는지 com.goodsbridge.chat 파일 지도, 핵심 개념, 직접 해 보기, 도구 추가 방법, 주의할 점으로 정리한 학습 노트
+keywords:
+- AI 에이전트
+- 챗봇
+- Spring AI
+- Gemini
+- '@Tool'
+- function calling
+- /api/chat
+- chat
+- '이슈 #13'
+related_files:
+- src/main/java/com/goodsbridge/chat/ChatController.java
+- src/main/java/com/goodsbridge/chat/ChatService.java
+- src/main/java/com/goodsbridge/chat/ChatConfig.java
+- src/main/java/com/goodsbridge/chat/InfoAgentTools.java
+- src/main/java/com/goodsbridge/chat/ExchangeAgentTools.java
+- src/main/resources/chat/service-guide.md
+last_updated: "2026-11-19"
+---
 # AI 에이전트 학습 노트 (이슈 #13)
 
 `POST /api/chat`이 어떻게 동작하는지 나중에 공부하려고 정리한 노트입니다. 코드에도 같은 설명을 주석으로 달아 두었어요.
