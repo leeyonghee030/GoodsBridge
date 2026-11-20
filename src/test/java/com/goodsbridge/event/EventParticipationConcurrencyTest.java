@@ -2,6 +2,7 @@ package com.goodsbridge.event;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.goodsbridge.event.dto.EventParticipationRequest;
+import com.goodsbridge.notification.Notification;
 import com.goodsbridge.item.Item;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.item.SaleType;
@@ -83,6 +84,7 @@ class EventParticipationConcurrencyTest {
     @Autowired private ShopEventRepository shopEventRepository;
     @Autowired private EventParticipationRepository eventParticipationRepository;
     @Autowired private ShopSubscriptionRepository shopSubscriptionRepository;
+    @Autowired private com.goodsbridge.notification.NotificationRepository notificationRepository;
 
     private Long createdEventId;
     private Long createdSubscriptionId;
@@ -187,6 +189,14 @@ class EventParticipationConcurrencyTest {
         ShopEvent updated = shopEventRepository.findById(shopEvent.getId()).orElseThrow();
         assertThat(updated.getCurrentCount()).isEqualTo(capacity);
         assertThat(updated.getStatus()).isEqualTo(ShopEventStatus.CLOSED);
+
+        // 가게의 '이벤트 새 참가' 묶음 알림: 동시에 참가해도 하나로 묶이고, 마지막 판매 수(5/5)가 남는다
+        List<Notification> shopNotifications = notificationRepository
+            .findByReceiverIdAndReadStatusOrderByCreatedAtDesc(owner.getId(), Notification.ReadStatus.UNREAD).stream()
+            .filter(n -> n.getType() == Notification.Type.EVENT_JOINED && n.getReferenceType() == Notification.ReferenceType.SHOP_EVENTS)
+            .toList();
+        assertThat(shopNotifications).hasSize(1);
+        assertThat(shopNotifications.get(0).getContent()).endsWith("(" + capacity + "/" + capacity + ")");
     }
 
     private EventParticipationRequest newRequest(String paymentId) throws Exception {

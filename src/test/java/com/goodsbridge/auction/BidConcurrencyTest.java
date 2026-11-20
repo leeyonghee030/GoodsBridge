@@ -86,7 +86,7 @@ class BidConcurrencyTest {
         when(paymentService.verify(anyString(), anyInt(), any(), anyLong()))
             .thenAnswer(invocation -> invocation.getArgument(0));
         bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
-            shopRepository, mock(ApplicationEventPublisher.class));
+            shopRepository, mock(ApplicationEventPublisher.class), tx, mock(com.goodsbridge.notification.NotificationService.class));
 
         auctionId = tx.execute(status -> auctionRepository.save(new Auction(
             shopRepository.findById(SHOP_ID).orElseThrow(),

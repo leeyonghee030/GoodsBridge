@@ -32,12 +32,18 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -55,6 +61,7 @@ public class ExchangeService {
     private final ExchangeCommentRepository exchangeCommentRepository;
     private final SettlementHistoryService settlementHistoryService;
     private final ApplicationEventPublisher publisher;
+    private final PlatformTransactionManager transactionManager;
 
     @Component
     @RequiredArgsConstructor
@@ -443,7 +450,7 @@ public class ExchangeService {
 
     @Transactional
     public void rejectExchange(Long exchangeRequestsId, Long userId) {
-        ExchangeRequest exchangeRequest = exchangeRequestRepository.findById(exchangeRequestsId)
+        ExchangeRequest exchangeRequest = exchangeRequestRepository.findByIdForUpdate(exchangeRequestsId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 제안입니다."));
 
         //1. 유저가 게시글 만든사람이 맞는가
@@ -475,7 +482,7 @@ public class ExchangeService {
     @Transactional
     public void cancelExchange(Long exchangeRequestsId, Long userId) {
         //게시글 존재하는지
-        ExchangeRequest exchangeRequest = exchangeRequestRepository.findById(exchangeRequestsId)
+        ExchangeRequest exchangeRequest = exchangeRequestRepository.findByIdForUpdate(exchangeRequestsId)
             .orElseThrow(() -> new NotFoundException("존재하지 않는 교환 제안입니다"));
         //유저가 교환신청한사람맞는지?
         if (!exchangeRequest.isProposer(userId)) {
@@ -512,7 +519,7 @@ public class ExchangeService {
     /// ------------- 교환수락 ----
     @Transactional
     public ExchangeRequestResponse accept(Long id, Long userId, ExchangeAcceptRequest request) {
-        ExchangeRequest exchangeRequest = exchangeRequestRepository.findById(id).orElseThrow(() -> {
+        ExchangeRequest exchangeRequest = exchangeRequestRepository.findByIdForUpdate(id).orElseThrow(() -> {
             throw new NotFoundException("교환 예약이 없습니다");
         });
         if (!exchangeRequest.isOwner(userId)) {
@@ -699,7 +706,7 @@ public class ExchangeService {
     @Transactional
     public ExchangeRequestResponse checkIn(Long id, Long userId, ExchangeCheckInRequest request) {
 
-        ExchangeRequest exchangeRequest = exchangeRequestRepository.findById(id).orElseThrow(() -> {
+        ExchangeRequest exchangeRequest = exchangeRequestRepository.findByIdForUpdate(id).orElseThrow(() -> {
             throw new NotFoundException("교환 신청내역을 찾을수없습니다");
         });
         if (!exchangeRequest.getShop().isOwner(userId)) {
@@ -724,40 +731,62 @@ public class ExchangeService {
     public static final int COMPLETE_GRACE_MINUTES = 5;
 
     @Scheduled(fixedDelay = 30000)
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void completeAfterGrace() {
-        for (ExchangeRequest e : exchangeRequestRepository.findReadyToComplete(LocalDateTime.now().minusMinutes(COMPLETE_GRACE_MINUTES))) {
-            e.updateStatus(ExchangeRequestStatus.COMPLETED);
-            settle(e);
+        LocalDateTime limit = LocalDateTime.now().minusMinutes(COMPLETE_GRACE_MINUTES);
+        for (ExchangeRequest found : exchangeRequestRepository.findReadyToComplete(limit)) {
+            processEach(found.getId(), "교환 완료 정산", e -> {
+                // 잠금을 기다리는 사이 다른 쪽이 처리했거나 체크가 해제됐으면 건너뛴다
+                if (e.getStatus() != ExchangeRequestStatus.CONFIRMED
+                    || e.getBothCheckedAt() == null || e.getBothCheckedAt().isAfter(limit)) {
+                    return;
+                }
+                e.updateStatus(ExchangeRequestStatus.COMPLETED);
+                settle(e);
+            });
         }
     }
 
     //---- 데스라인 스케줄러
     @Scheduled(fixedDelay = 60000)
-    @Transactional
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void autoCloseExchangeEvent() {
-        List<ExchangeRequest> exchangeRequestList = exchangeRequestRepository.findByStatusAndDeadlineBefore();
-        for (ExchangeRequest e : exchangeRequestList) {
-            if (e.getStatus() == ExchangeRequestStatus.PENDING) {
-                paymentService.refund(e.getPaymentIdB(), e.getDepositAmountB()
-                    , "제안 응답 기한 초과");
-                e.updateStatus(ExchangeRequestStatus.PROPOSAL_EXPIRED);
+        for (ExchangeRequest found : exchangeRequestRepository.findByStatusAndDeadlineBefore()) {
+            processEach(found.getId(), "교환 기한 처리", e -> {
+                if (e.getStatus() == ExchangeRequestStatus.PENDING) {
+                    paymentService.refund(e.getPaymentIdB(), e.getDepositAmountB()
+                        , "제안 응답 기한 초과");
+                    e.updateStatus(ExchangeRequestStatus.PROPOSAL_EXPIRED);
 
-                publisher.publishEvent(
-                    new NotificationEvent(
-                        e.getItemB().getSellerUserId(),
-                        Notification.Type.EXCHANGE_EXPIRED,
-                        "[교환 신청 만료]",
-                        "응답 기한이 지나 교환 신청이 취소됐습니다 보증금은 전액 환불됩니다",
-                        Notification.ReferenceType.EXCHANGE,
-                        e.getId()
-                    )
-                );
+                    publisher.publishEvent(
+                        new NotificationEvent(
+                            e.getItemB().getSellerUserId(),
+                            Notification.Type.EXCHANGE_EXPIRED,
+                            "[교환 신청 만료]",
+                            "응답 기한이 지나 교환 신청이 취소됐습니다 보증금은 전액 환불됩니다",
+                            Notification.ReferenceType.EXCHANGE,
+                            e.getId()
+                        )
+                    );
+                } else if (e.getStatus() == ExchangeRequestStatus.CONFIRMED) {
+                    e.isUserShowed();
+                    settle(e);
+                }
+                // 잠금을 기다리는 사이 다른 쪽이 이미 처리한 건(상태가 바뀐 건)은 건너뛴다
+            });
+        }
+    }
 
-            } else {
-                e.isUserShowed();
-                settle(e);
-            }
+    // 교환 한 건을 새 트랜잭션에서 행을 잠근 채 처리한다.
+    // - 같은 건을 두 쪽(스케줄러 둘, 또는 스케줄러와 시연 화면)이 동시에 잡아 보증금을 두 번 환불·정산하지 않게 한다
+    // - 한 건이 실패(결제 기록 없음, 환불 오류 등)해도 그 건만 되돌리고 나머지 건은 계속 처리한다 (다음 주기에 다시 시도)
+    private void processEach(Long id, String jobName, java.util.function.Consumer<ExchangeRequest> action) {
+        TransactionTemplate tx = new TransactionTemplate(transactionManager);
+        tx.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        try {
+            tx.executeWithoutResult(status -> exchangeRequestRepository.findByIdForUpdate(id).ifPresent(action));
+        } catch (RuntimeException ex) {
+            log.error("{} 실패 - exchangeRequestId={} (다음 주기에 다시 시도)", jobName, id, ex);
         }
     }
 
