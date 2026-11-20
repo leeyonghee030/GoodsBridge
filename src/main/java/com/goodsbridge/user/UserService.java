@@ -66,6 +66,11 @@ public class UserService {
             throw new BadRequestException("이미 존재하는 이메일입니다");
         });
 
+        // 닉네임은 DB에서 겹칠 수 없다. 미리 막지 않으면 저장할 때 제약 위반으로 500 오류가 난다.
+        if (userRepository.existsByNickname(joinDto.getNickname())) {
+            throw new BadRequestException("이미 사용 중인 닉네임입니다");
+        }
+
         String encodePassword = passwordEncoder.encode(joinDto.getPassword());
         User user = joinDto.toEntity(encodePassword);
         User savedUser = userRepository.save(user);
@@ -75,16 +80,34 @@ public class UserService {
     }
 
     private User joinKakaoUser(String email, UserResponse.KakaoUserInfo kakaoUserInfo) {
+        // 프로필 제공에 동의하지 않으면 properties 가 없다
+        UserResponse.KakaoUserInfo.Properties properties = kakaoUserInfo.getProperties();
         User newUser = User.builder()
             // 카카오 사용자는 비밀번호로 로그인하지 않으므로 아무도 알 수 없는 값을 넣음
             .password(passwordEncoder.encode(UUID.randomUUID().toString()))
             .email(email)
-            .nickname(NicknameGenerator.generate())
-            .profileImage(kakaoUserInfo.getProperties().getProfileImage())
+            .nickname(uniqueGeneratedNickname())
+            .profileImage(properties == null ? null : properties.getProfileImage())
             .loginType(LoginType.KAKAO)
             .build();
         return userRepository.save(newUser);
     }
+
+    // 기본 닉네임 생성기로 만든 닉네임이 이미 있으면 다시 만든다. 닉네임 컬럼은 unique 라 겹치면 저장할 때 500 오류가 난다.
+    // 몇 번 다시 만들어도 겹치면(거의 없음) 마지막 닉네임 뒤에 번호를 붙인다.
+    private String uniqueGeneratedNickname() {
+        String nickname = NicknameGenerator.generate();
+        for (int i = 0; i < NICKNAME_RETRY && userRepository.existsByNickname(nickname); i++) {
+            nickname = NicknameGenerator.generate();
+        }
+        String base = nickname;
+        for (int n = 1; userRepository.existsByNickname(nickname); n++) {
+            nickname = base + "_" + n;
+        }
+        return nickname;
+    }
+
+    private static final int NICKNAME_RETRY = 5;
 
     private User findById(Long id) {
         return userRepository.findById(id)
@@ -114,6 +137,10 @@ public class UserService {
         // 3. 같은 이름의 일반 회원이 있다면 카카오 사용자로 로그인 시키지 않음
         if (user.getLoginType() != LoginType.KAKAO) {
             throw new BadRequestException("이미 사용 중인 사용자명입니다");
+        }
+        // 예전에 닉네임 없이 가입된 카카오 회원은 이번 로그인 때 닉네임을 채운다 (닉네임이 비면 게시판 등에서 작성자를 못 보여준다)
+        if (user.getNickname() == null || user.getNickname().isBlank()) {
+            user.updateNickname(uniqueGeneratedNickname());
         }
         // 트랜잭션 안에서 SessionUserDto 생성
         return user;
@@ -157,8 +184,12 @@ public class UserService {
             user.updatePassword(passwordEncoder.encode(updateDto.getPassword()));
         }
 
+        // 지금 닉네임이 비어 있는 회원(예전 카카오 가입)도 바꿀 수 있게 null 쪽에서 비교하지 않는다
         if (updateDto.hasNickname()
-            && !user.getNickname().equals(updateDto.getNickname())) {
+            && !updateDto.getNickname().equals(user.getNickname())) {
+            if (userRepository.existsByNicknameAndIdNot(updateDto.getNickname(), userId)) {
+                throw new BadRequestException("이미 사용 중인 닉네임입니다");
+            }
             user.updateNickname(updateDto.getNickname());
             log.info("Nickname : {}", user.getNickname());
         }
