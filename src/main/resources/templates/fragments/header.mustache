@@ -228,13 +228,12 @@
             </p>
             <p id="signup-password-match-msg" class="form-message"></p>
             <p>
-                <label for="phoneNumber" class="sr-only">전화번호</label>
+                <label for="signup-phone" class="sr-only">전화번호</label>
                 <input type="tel"
-                       id="phoneNumber"
+                       id="signup-phone"
                        name="phoneNumber"
                        maxlength="13"
-                       placeholder="전화번호 (선택)"
-                       required>
+                       placeholder="전화번호 (선택)">
             </p>
             <button type="submit" id="signup-submit-btn">가입하기</button>
         </form>
@@ -405,7 +404,7 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
 
 
     (() => {
-        const input = document.getElementById('phoneNumber');
+        const input = document.getElementById('signup-phone');
 
         if (!input) return;
 
