@@ -67,6 +67,7 @@ public class UserService {
         });
 
         // 닉네임은 DB에서 겹칠 수 없다. 미리 막지 않으면 저장할 때 제약 위반으로 500 오류가 난다.
+        rejectReservedNickname(joinDto.getNickname());
         if (userRepository.existsByNickname(joinDto.getNickname())) {
             throw new BadRequestException("이미 사용 중인 닉네임입니다");
         }
@@ -108,6 +109,13 @@ public class UserService {
     }
 
     private static final int NICKNAME_RETRY = 5;
+
+    // 탈퇴하면 닉네임을 "탈퇴회원"+id 로 바꾼다(User.withdraw). 다른 회원이 그 이름을 먼저 쓰면 그 회원이 탈퇴할 때 unique 위반이 나므로 막는다.
+    private static void rejectReservedNickname(String nickname) {
+        if (nickname != null && nickname.trim().startsWith(User.WITHDRAWN_NICKNAME_PREFIX)) {
+            throw new BadRequestException("'" + User.WITHDRAWN_NICKNAME_PREFIX + "'(으)로 시작하는 닉네임은 사용할 수 없습니다");
+        }
+    }
 
     private User findById(Long id) {
         return userRepository.findById(id)
@@ -187,6 +195,7 @@ public class UserService {
         // 지금 닉네임이 비어 있는 회원(예전 카카오 가입)도 바꿀 수 있게 null 쪽에서 비교하지 않는다
         if (updateDto.hasNickname()
             && !updateDto.getNickname().equals(user.getNickname())) {
+            rejectReservedNickname(updateDto.getNickname());
             if (userRepository.existsByNicknameAndIdNot(updateDto.getNickname(), userId)) {
                 throw new BadRequestException("이미 사용 중인 닉네임입니다");
             }

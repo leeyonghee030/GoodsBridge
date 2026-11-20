@@ -129,6 +129,24 @@ class NicknameIntegrityTest {
     }
 
     @Test
+    void 탈퇴회원으로_시작하는_닉네임은_가입과_정보_수정에서_막는다() {
+        // 탈퇴할 때 닉네임을 "탈퇴회원"+id 로 바꾸므로, 다른 사람이 그 이름을 먼저 쓰면 그 회원이 탈퇴하지 못한다
+        UserRequest.JoinDto join = new UserRequest.JoinDto();
+        String email = "i-" + shortId() + "@test.com";
+        join.setEmail(email);
+        join.setPassword("password123");
+        join.setNickname("탈퇴회원123");
+        assertThatThrownBy(() -> userService.join(join, email))
+            .isInstanceOf(BadRequestException.class).hasMessageContaining("닉네임");
+
+        User me = track(userRepository.save(new User("j-" + shortId() + "@test.com", "pw", "나" + shortId(), LoginType.EMAIL, null)));
+        UserRequest.UpdateDto update = new UserRequest.UpdateDto();
+        update.setNickname("탈퇴회원" + (me.getId() + 1));
+        assertThatThrownBy(() -> userService.updateById(me.getId(), update))
+            .isInstanceOf(BadRequestException.class).hasMessageContaining("닉네임");
+    }
+
+    @Test
     void 닉네임이_비어_있는_회원도_내_정보에서_닉네임을_정할_수_있다() {
         User me = track(userRepository.save(new User("f-" + shortId() + "@kakao.com", "pw", null, LoginType.KAKAO, null)));
         String nickname = "새이름" + shortId();
