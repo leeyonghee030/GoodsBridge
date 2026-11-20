@@ -227,7 +227,7 @@ public class PurchaseService {
                     purchase.getUser().getId(),
                     Notification.Type.DELIVERY_STARTED,
                     "[배송중]",
-                    "'{" + purchase.getItem().getTitle() + "}' 상품이 배송을 시작했습니다 ( 송장 : "
+                    "'" + purchase.getItem().getTitle() + "' 상품이 배송을 시작했습니다 ( 송장 : "
                     + trackingNumber + ")",
                     Notification.ReferenceType.DELIVERY,
                     purchaseId
@@ -242,8 +242,8 @@ public class PurchaseService {
                 new NotificationEvent(
                     purchase.getUser().getId(),
                     Notification.Type.DELIVERY_COMPLETED,
-                    "[배송완료]",
-                    "'{" + purchase.getItem().getTitle() + "}' 상품이 배송 완료 되었습니다. 구매 확정을 눌러주세요",
+                    "[배송 완료]",
+                    "'" + purchase.getItem().getTitle() + "' 상품이 배송 완료 되었습니다. 구매 확정을 눌러주세요",
                     Notification.ReferenceType.DELIVERY,
                     purchaseId
                 )

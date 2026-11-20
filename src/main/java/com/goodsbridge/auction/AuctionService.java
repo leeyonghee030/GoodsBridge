@@ -1,5 +1,6 @@
 package com.goodsbridge.auction;
 
+import com.goodsbridge.notification.NotificationText;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -33,10 +34,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.text.NumberFormat;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
 
 @Slf4j
 @Service
@@ -71,10 +70,8 @@ public class AuctionService {
             return;
         }
 
-        String currentPrice = NumberFormat.getIntegerInstance(Locale.KOREA)
-            .format(auction.getCurrentPrice());
         String content = "'" + auction.getItem().getTitle()
-            + "' 경매가 1시간 뒤 마감돼요 (현재가 " + currentPrice + "원)";
+            + "' 경매가 1시간 뒤 마감돼요 (현재가 " + NotificationText.won(auction.getCurrentPrice()) + ")";
         for (Long bidderUserId : bidRepository.findBidderUserIds(auctionId)) {
             publisher.publishEvent(new NotificationEvent(
                 bidderUserId,
@@ -105,13 +102,12 @@ public class AuctionService {
             || auction.getBalanceDueAt().isAfter(now.plusHours(BALANCE_REMINDER_HOURS))) {
             return;
         }
-        String balance = NumberFormat.getIntegerInstance(Locale.KOREA).format(auction.getBalanceAmount());
         publisher.publishEvent(new NotificationEvent(
             auction.getCurrentWinner().getId(),
             Notification.Type.AUCTION_REMAINING_PAYMENT,
             "[잔금 결제 기한 임박]",
-            "'" + auction.getItem().getTitle() + "' 낙찰 잔금 " + balance + "원을 "
-                + auction.getBalanceDueAt().toLocalDate() + " " + auction.getBalanceDueAt().toLocalTime().withNano(0).withSecond(0)
+            "'" + auction.getItem().getTitle() + "' 낙찰 잔금 " + NotificationText.won(auction.getBalanceAmount()) + "을 "
+                + NotificationText.when(auction.getBalanceDueAt())
                 + "까지 결제해 주세요. 기한이 지나면 낙찰이 취소되고 보증금은 돌려받을 수 없어요",
             Notification.ReferenceType.AUCTION,
             auctionId
@@ -334,7 +330,7 @@ public class AuctionService {
                     bidderUserId,
                     Notification.Type.AUCTION_WIN,
                     "[경매 취소]",
-                    " '{" + auction.getItem().getTitle() + "}' 경매가 취소되었습니다. 보증금은 모두 환불됩니다",
+                    "'" + auction.getItem().getTitle() + "' 경매가 취소되었습니다. 보증금은 모두 환불됩니다",
                     Notification.ReferenceType.AUCTION,
                     auction.getId()
                 )
@@ -358,9 +354,9 @@ public class AuctionService {
         auction.end();
 
         String title = auction.getCurrentWinner() != null ? "[상품 낙찰]" : "[상품 유찰]";
-        String content = auction.getCurrentWinner() != null ? auction.getItem().getTitle() + " 경매가 " +
-            auction.getCurrentPrice() + "원에 낙찰되었습니다"
-            : auction.getItem().getTitle() + " 경매가 유찰되었습니다";
+        String content = auction.getCurrentWinner() != null ? "'" + auction.getItem().getTitle() + "' 경매가 " +
+            NotificationText.won(auction.getCurrentPrice()) + "에 낙찰되었습니다"
+            : "'" + auction.getItem().getTitle() + "' 경매가 유찰되었습니다";
 
         // 가게 주인
         publisher.publishEvent(
@@ -381,9 +377,9 @@ public class AuctionService {
                     auction.getCurrentWinner().getId(),
                     Notification.Type.AUCTION_WIN,
                     "[상품 낙찰]",
-                    auction.getItem().getTitle() + " 상품에 낙찰되셨습니다!\n" +
-                        auction.getBalanceDueAt() + "까지 잔여 결제 금액 " +
-                        auction.getBalanceAmount() + "원을 결제해 주세요.\n" +
+                    "'" + auction.getItem().getTitle() + "' 상품에 낙찰되셨습니다!\n" +
+                        NotificationText.when(auction.getBalanceDueAt()) + "까지 잔여 결제 금액 " +
+                        NotificationText.won(auction.getBalanceAmount()) + "을 결제해 주세요.\n" +
                         "기한 내 결제를 완료하면 상품을 수령할 수 있습니다.",
                     Notification.ReferenceType.AUCTION,
                     auction.getId()
@@ -454,8 +450,8 @@ public class AuctionService {
                 auction.getShop().getOwnerUserId(),
                 Notification.Type.AUCTION_PAID,
                 "[낙찰자 잔금 결제]",
-                "낙찰자가 " + auction.getItem().getTitle() +
-                    " 잔금을 결제했습니다. 배송을 준비해 주세요",
+                "낙찰자가 '" + auction.getItem().getTitle() +
+                    "' 잔금을 결제했습니다. 배송을 준비해 주세요",
                 Notification.ReferenceType.AUCTION,
                 auctionId
             )
@@ -581,8 +577,8 @@ public class AuctionService {
                 auction.getShop().getOwnerUserId(),
                 Notification.Type.AUCTION_FORFEITED,
                 "[낙찰 취소]",
-                "낙찰자가 기간 내에 잔금을 지급하지 않았으므로, '{" +
-                 auction.getItem().getTitle() + "}' 경매는 무효 처리 됩니다",
+                "낙찰자가 기간 내에 잔금을 지급하지 않았으므로, '" +
+                 auction.getItem().getTitle() + "' 경매는 무효 처리 됩니다",
                 Notification.ReferenceType.AUCTION,
                 auctionId
             )

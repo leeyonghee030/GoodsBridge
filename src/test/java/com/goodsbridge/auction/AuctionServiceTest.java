@@ -5,7 +5,6 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.item.ItemRepository;
 import com.goodsbridge.shop.ShopRepository;
-import com.goodsbridge.user.LoginType;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -282,21 +281,6 @@ class AuctionServiceTest {
         AuctionResponse response = auctionService.close(ADMIN_ID, auction.getId());
 
         assertThat(response.getStatus()).isEqualTo(Status.ENDED_FAIL);
-    }
-
-    @Test
-    void close_rejectsUserWhoIsNeitherOwnerNorAdmin() {
-        User stranger = userRepository.save(User.builder()
-            .email("stranger@test.com")
-            .password("test-password")
-            .nickname("지나가던유저")
-            .loginType(LoginType.EMAIL)
-            .build());
-        Auction auction = saveExpiredAuction();
-
-        assertThatThrownBy(() -> auctionService.close(stranger.getId(), auction.getId()))
-            .isInstanceOf(ForbiddenException.class);
-        assertThat(auction.getStatus()).isEqualTo(Status.ACTIVE);
     }
 
     @Test

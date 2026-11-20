@@ -151,19 +151,19 @@ public class BoardService {
             case PRODUCT_INQUIRY -> {
                 type = Notification.Type.BOARD_INQUIRY;
                 title = "[새 문의]";
-                content = "{" + board.getTitle() + "} 문의가 등록되었습니다";
+                content = "'" + board.getTitle() + "' 문의가 등록되었습니다";
                 receiverIds = sellerIdOf(board);
             }
             case CUSTOMER_SERVICE -> {
                 type = Notification.Type.BOARD_INQUIRY;
                 title = "[고객센터 문의]";
-                content = "{" + board.getTitle() + "} 문의가 등록되었습니다";
+                content = "'" + board.getTitle() + "' 문의가 등록되었습니다";
                 receiverIds = userRepository.findIdsByRole(Role.ADMIN);
             }
             case PRODUCT_REVIEW -> {
                 type = Notification.Type.BOARD_REVIEW;
                 title = "[새 리뷰]";
-                content = "{" + board.getTitle() + "} 리뷰가 등록되었습니다";
+                content = "'" + board.getTitle() + "' 리뷰가 등록되었습니다";
                 receiverIds = sellerIdOf(board);
             }
             default -> {
@@ -618,7 +618,7 @@ public class BoardService {
                     board.getAuthorId(),
                     Notification.Type.BOARD_REPLY,
                     "[새로운 댓글]",
-                    "{" + board.getTitle() + "}에 새로운 댓글이 달렸습니다",
+                    "'" + board.getTitle() + "'에 새로운 댓글이 달렸습니다",
                     Notification.ReferenceType.BOARD,
                     board.getId()
                 )
@@ -642,7 +642,7 @@ public class BoardService {
                         receiverId,
                         Notification.Type.BOARD_REPLY,
                         "[추가 질문]",
-                        "{" + board.getTitle() + "}에 추가 질문이 달렸습니다",
+                        "'" + board.getTitle() + "'에 추가 질문이 달렸습니다",
                         Notification.ReferenceType.BOARD,
                         board.getId()
                     )

@@ -5,6 +5,7 @@ import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.notification.Notification;
 import com.goodsbridge.notification.NotificationEvent;
+import com.goodsbridge.notification.NotificationText;
 import com.goodsbridge.payment.PaymentService;
 import com.goodsbridge.payment.PaymentPurpose;
 import com.goodsbridge.user.Role;
@@ -144,7 +145,7 @@ public class BidService {
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);
 
-        // 가게: 새 입찰
+        // 가게: 새 입찰. 같은 경매의 안 읽은 알림이 있으면 새로 쌓지 않고 그 알림을 최신 현재가·입찰 건수로 갱신한다
         Long ownerId = auction.getShop().getOwnerUserId();
         if (ownerId != null) {
             publisher.publishEvent(
@@ -152,8 +153,9 @@ public class BidService {
                     ownerId,
                     Notification.Type.AUCTION_BID,
                     "[새 입찰]",
-                    "'" + auction.getItem().getTitle() + "' 경매에 " + String.format("%,d", request.getBidAmount())
-                        + "원 입찰이 들어왔어요",
+                    "'" + auction.getItem().getTitle() + "' 경매에 새 입찰이 들어왔어요. 현재가 "
+                        + NotificationText.won(request.getBidAmount())
+                        + " (입찰 " + bidRepository.countByAuctionId(auctionId) + "건)",
                     Notification.ReferenceType.AUCTION,
                     auction.getId()
                 )

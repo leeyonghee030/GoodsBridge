@@ -185,6 +185,7 @@ class BidServiceTest {
         when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
         when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L)).thenReturn("payment-1");
         when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bidRepository.countByAuctionId(1L)).thenReturn(3L);
 
         bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1"));
 
@@ -193,7 +194,7 @@ class BidServiceTest {
         verify(eventPublisher).publishEvent(captor.capture());
         assertEquals(50L, captor.getValue().userId());
         assertEquals(com.goodsbridge.notification.Notification.Type.AUCTION_BID, captor.getValue().type());
-        assertEquals("'한정 포토카드' 경매에 12,000원 입찰이 들어왔어요", captor.getValue().content());
+        assertEquals("'한정 포토카드' 경매에 새 입찰이 들어왔어요. 현재가 12,000원 (입찰 3건)", captor.getValue().content());
     }
 
     // ===================== 거부 케이스 =====================
