@@ -5,6 +5,7 @@ import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -90,6 +92,39 @@ public class NotificationService {
         Notification.ReferenceType referenceType,
         Long referenceId
     ) {
+        saveAndSend(userId, type, title, content, referenceType, referenceId);
+    }
+
+    /**
+     * 호출한 쪽이 이미 연 트랜잭션 안에서 알림을 저장한다 (새 DB 연결을 받지 않는다).
+     * 묶음 알림(같은 건의 안 읽은 알림 하나를 갱신)을 호출한 쪽이 쥔 잠금 순서대로 갱신해야 할 때 쓴다.
+     * 예: 가게의 '이벤트 새 참가' 알림은 이벤트 행 잠금 안에서 갱신해야 동시에 참가해도 판매 수가 뒤바뀌거나 알림이 둘로 갈라지지 않는다.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void createNotificationInCurrentTransaction(
+        Long userId,
+        Notification.Type type,
+        String title,
+        String content,
+        Notification.ReferenceType referenceType,
+        Long referenceId
+    ) {
+        // 받을 사람이 없으면 예외를 던지지 않고 건너뛴다. 여기서 예외가 나면 호출한 쪽 업무(참가 등)까지 되돌려진다.
+        if (!userRepository.existsById(userId)) {
+            log.warn("알림 받을 사용자가 없어 건너뜀 - userId={}, type={}", userId, type);
+            return;
+        }
+        saveAndSend(userId, type, title, content, referenceType, referenceId);
+    }
+
+    private void saveAndSend(
+        Long userId,
+        Notification.Type type,
+        String title,
+        String content,
+        Notification.ReferenceType referenceType,
+        Long referenceId
+    ) {
         // 알림을 받을 사용자를 조회합니다.
         User receiver = userRepository.findById(userId)
             .orElseThrow(() -> new NotFoundException("사용자가 없습니다"));
@@ -130,7 +165,12 @@ public class NotificationService {
             new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    sseService.send(userId, notificationDto);
+                    // 실시간 전송은 덤이다. 실패해도(끊긴 연결 등) 이미 커밋된 알림·업무 처리를 실패로 만들지 않는다
+                    try {
+                        sseService.send(userId, notificationDto);
+                    } catch (RuntimeException e) {
+                        log.warn("알림 실시간 전송 실패 - userId={}", userId, e);
+                    }
                 }
             }
         );

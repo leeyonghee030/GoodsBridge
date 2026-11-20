@@ -82,6 +82,7 @@ class EventServiceTest {
     @Mock ShopSubscriptionService shopSubscriptionService;
     @Mock CategoryJpaRepository categoryRepository;
     @Mock ApplicationEventPublisher publisher;
+    @Mock com.goodsbridge.notification.NotificationService notificationService;
     @InjectMocks EventService eventService;
 
     private static final Long EVENT_ID = 1L;
@@ -683,17 +684,32 @@ class EventServiceTest {
 
         eventService.saveEventParticipation(EVENT_ID, USER_ID, req);
 
+        // 참가자 알림은 커밋 뒤 발행
         org.mockito.ArgumentCaptor<NotificationEvent> captor = org.mockito.ArgumentCaptor.forClass(NotificationEvent.class);
-        verify(publisher, times(2)).publishEvent(captor.capture());
-        NotificationEvent toUser = captor.getAllValues().get(0);
-        NotificationEvent toShop = captor.getAllValues().get(1);
+        verify(publisher).publishEvent(captor.capture());
+        NotificationEvent toUser = captor.getValue();
         assertEquals(USER_ID, toUser.userId());
         assertEquals(Notification.Type.EVENT_JOINED, toUser.type());
         assertTrue(toUser.content().contains("번호표 1번"), toUser.content());
         assertTrue(toUser.content().contains(shopEvent.getVisitUntil().toString()), toUser.content());
-        assertEquals(50L, toShop.userId());
-        assertEquals(Notification.ReferenceType.SHOP_EVENTS, toShop.referenceType());
-        assertTrue(toShop.content().contains("2개 참가") && toShop.content().contains("(2/10)"), toShop.content());
+        // 가게 알림은 묶음 알림이라 이벤트 잠금을 쥔 트랜잭션 안에서 갱신
+        org.mockito.ArgumentCaptor<String> shopContent = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(notificationService).createNotificationInCurrentTransaction(eq(50L), eq(Notification.Type.EVENT_JOINED),
+            eq("[이벤트 새 참가]"), shopContent.capture(), eq(Notification.ReferenceType.SHOP_EVENTS), eq(EVENT_ID));
+        assertTrue(shopContent.getValue().contains("2개 참가") && shopContent.getValue().contains("(2/10)"), shopContent.getValue());
+    }
+
+    @Test
+    @DisplayName("참가가 끝난 뒤 알림 발행이 실패해도 참가는 성공으로 끝나고 결제를 취소하지 않는다")
+    void join_succeedsEvenIfNotificationFails() {
+        ShopEvent shopEvent = eventOfShop(50L);
+        joinable(shopEvent);
+        when(paymentService.verify(anyString(), anyInt(), any(), anyLong())).thenReturn("pay-1");
+        org.mockito.Mockito.doThrow(new IllegalStateException("알림 저장 실패")).when(publisher).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
+
+        eventService.saveEventParticipation(EVENT_ID, USER_ID, request("pay-1"));
+
+        verify(paymentService, never()).cancelUnrecorded(any(), any());
     }
 
     @Test

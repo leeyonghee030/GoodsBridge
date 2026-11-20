@@ -13,6 +13,8 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.shop.ShopRepository;
 import com.goodsbridge.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import com.goodsbridge.notification.NotificationService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,6 +30,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -39,6 +42,7 @@ public class BidService {
     private final ShopRepository shopRepository;
     private final ApplicationEventPublisher publisher;
     private final TransactionTemplate transactionTemplate;
+    private final NotificationService notificationService;
 
     // 입찰 (서버가 거절하면 이미 승인된 보증금 PortOne 결제를 자동 취소한다)
     // 알림은 트랜잭션이 끝나 DB 연결을 돌려준 뒤에 발행한다. 트랜잭션 안에서 발행하면 커밋 직후 알림 저장(REQUIRES_NEW)이
@@ -59,7 +63,14 @@ public class BidService {
             }
             throw e;
         }
-        placed.notifications().forEach(publisher::publishEvent);
+        // 입찰은 이미 커밋·결제됐으므로 알림이 실패해도 입찰을 실패로 보이게 하지 않는다 (다시 입찰해 보증금을 또 내지 않게)
+        for (NotificationEvent notification : placed.notifications()) {
+            try {
+                publisher.publishEvent(notification);
+            } catch (RuntimeException e) {
+                log.warn("입찰 알림 발행 실패 - userId={}, type={}", notification.userId(), notification.type(), e);
+            }
+        }
         return placed.response();
     }
 
@@ -158,20 +169,20 @@ public class BidService {
         // 최초 입찰인지와 무관하게 현재 1등의 보증금으로 갱신
         auction.setWinningPaymentId(depositPaymentId);
 
-        // 가게: 새 입찰. 같은 경매의 안 읽은 알림이 있으면 새로 쌓지 않고 그 알림을 최신 현재가·입찰 건수로 갱신한다
+        // 가게: 새 입찰. 같은 경매의 안 읽은 알림이 있으면 새로 쌓지 않고 그 알림을 최신 현재가·입찰 건수로 갱신한다.
+        // 묶음 알림이라 커밋 뒤에 따로 발행하면 동시에 들어온 입찰끼리 갱신 순서가 뒤섞여 옛 현재가가 남거나 알림이 둘로 갈라진다.
+        // 그래서 경매 행 잠금을 쥔 이 트랜잭션 안에서 갱신한다 (새 DB 연결도 받지 않는다).
         Long ownerId = auction.getShop().getOwnerUserId();
         if (ownerId != null) {
-            notifications.add(
-                new NotificationEvent(
-                    ownerId,
-                    Notification.Type.AUCTION_BID,
-                    "[새 입찰]",
-                    "'" + auction.getItem().getTitle() + "' 경매에 새 입찰이 들어왔어요. 현재가 "
-                        + NotificationText.won(request.getBidAmount())
-                        + " (입찰 " + bidRepository.countByAuctionId(auctionId) + "건)",
-                    Notification.ReferenceType.AUCTION,
-                    auction.getId()
-                )
+            notificationService.createNotificationInCurrentTransaction(
+                ownerId,
+                Notification.Type.AUCTION_BID,
+                "[새 입찰]",
+                "'" + auction.getItem().getTitle() + "' 경매에 새 입찰이 들어왔어요. 현재가 "
+                    + NotificationText.won(request.getBidAmount())
+                    + " (입찰 " + bidRepository.countByAuctionId(auctionId) + "건)",
+                Notification.ReferenceType.AUCTION,
+                auction.getId()
             );
         }
         return new Placed(BidResponse.from(bid), notifications);

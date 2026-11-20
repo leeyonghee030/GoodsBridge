@@ -34,6 +34,8 @@ import com.goodsbridge.user.User;
 import com.goodsbridge.user.UserRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import com.goodsbridge.notification.NotificationService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -47,6 +49,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
@@ -65,6 +68,7 @@ public class EventService {
     private final ShopSubscriptionService shopSubscriptionService;
     private final CategoryJpaRepository categoryRepository;
     private final ApplicationEventPublisher publisher;
+    private final NotificationService notificationService;
 
     /// ---------EventParticipation service
 
@@ -81,8 +85,20 @@ public class EventService {
             paymentService.cancelUnrecorded(request.getPaymentId(), "이벤트 참가 실패로 인한 자동 취소");
             throw e;
         }
-        joined.notifications().forEach(publisher::publishEvent);
+        publishQuietly(joined.notifications());
         return joined.response();
+    }
+
+    // 참가는 이미 커밋·결제됐으므로 알림이 실패해도(연결 대기 초과 등) 신청을 실패로 보이게 하지 않는다.
+    // 실패로 보이면 사용자가 다시 신청해 참가비를 한 번 더 낼 수 있다.
+    private void publishQuietly(List<NotificationEvent> notifications) {
+        for (NotificationEvent notification : notifications) {
+            try {
+                publisher.publishEvent(notification);
+            } catch (RuntimeException e) {
+                log.warn("이벤트 참가 알림 발행 실패 - userId={}, type={}", notification.userId(), notification.type(), e);
+            }
+        }
     }
 
     private record Joined(EventParticipationResponse response, List<NotificationEvent> notifications) {}
@@ -182,10 +198,12 @@ public class EventService {
             Notification.ReferenceType.EVENT,
             shopEvent.getId()
         ));
-        // 가게: 새 참가
+        // 가게: 새 참가. 같은 이벤트의 안 읽은 알림 하나를 최신 판매 수로 갱신하는 묶음 알림이라,
+        // 커밋 뒤에 따로 발행하면 동시에 참가한 사람들의 갱신 순서가 뒤섞여(5/5 위에 4/5) 옛 숫자가 남거나 알림이 둘로 갈라진다.
+        // 그래서 이벤트 행 잠금을 쥔 이 트랜잭션 안에서 갱신한다 (새 DB 연결도 받지 않는다).
         Long ownerId = notifyInfo.ownerUserId();
         if (ownerId != null) {
-            notifications.add(new NotificationEvent(
+            notificationService.createNotificationInCurrentTransaction(
                 ownerId,
                 Notification.Type.EVENT_JOINED,
                 "[이벤트 새 참가]",
@@ -193,7 +211,7 @@ public class EventService {
                     + shopEvent.getCurrentCount() + "/" + shopEvent.getCapacity() + ")",
                 Notification.ReferenceType.SHOP_EVENTS,
                 shopEvent.getId()
-            ));
+            );
         }
         return new Joined(new EventParticipationResponse(eventParticipation), notifications);
     }

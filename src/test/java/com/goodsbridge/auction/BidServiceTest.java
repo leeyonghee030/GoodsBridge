@@ -46,6 +46,7 @@ class BidServiceTest {
     @Mock UserRepository userRepository;
     @Mock PaymentService paymentService;
     @Mock ApplicationEventPublisher eventPublisher;
+    @Mock com.goodsbridge.notification.NotificationService notificationService;
     @Mock com.goodsbridge.shop.ShopRepository shopRepository;
     @Mock Auction auction;
     @Mock Shop shop;
@@ -58,7 +59,7 @@ class BidServiceTest {
         // 트랜잭션 관리자는 목이라 TransactionTemplate 은 콜백만 그대로 실행한다
         bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
             shopRepository, eventPublisher, new org.springframework.transaction.support.TransactionTemplate(
-                mock(org.springframework.transaction.PlatformTransactionManager.class)));
+                mock(org.springframework.transaction.PlatformTransactionManager.class)), notificationService);
         lenient().when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
         lenient().when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         lenient().when(auction.getId()).thenReturn(1L);
@@ -191,12 +192,37 @@ class BidServiceTest {
 
         bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1"));
 
-        org.mockito.ArgumentCaptor<com.goodsbridge.notification.NotificationEvent> captor =
-            org.mockito.ArgumentCaptor.forClass(com.goodsbridge.notification.NotificationEvent.class);
-        verify(eventPublisher).publishEvent(captor.capture());
-        assertEquals(50L, captor.getValue().userId());
-        assertEquals(com.goodsbridge.notification.Notification.Type.AUCTION_BID, captor.getValue().type());
-        assertEquals("'한정 포토카드' 경매에 새 입찰이 들어왔어요. 현재가 12,000원 (입찰 3건)", captor.getValue().content());
+        // 가게의 새 입찰 알림은 묶음 알림이라 경매 잠금을 쥔 트랜잭션 안에서 갱신한다
+        verify(notificationService).createNotificationInCurrentTransaction(
+            50L,
+            com.goodsbridge.notification.Notification.Type.AUCTION_BID,
+            "[새 입찰]",
+            "'한정 포토카드' 경매에 새 입찰이 들어왔어요. 현재가 12,000원 (입찰 3건)",
+            com.goodsbridge.notification.Notification.ReferenceType.AUCTION,
+            1L);
+        verify(eventPublisher, never()).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
+    }
+
+    @Test
+    void placeBid_succeedsEvenIfOutbidNotificationFails() {
+        // 입찰은 이미 커밋·결제됐으므로, 밀려난 사람에게 보내는 알림이 실패해도 입찰은 성공으로 끝난다
+        User previousWinner = mock(User.class);
+        when(previousWinner.getId()).thenReturn(9L);
+        when(auction.getCurrentWinner()).thenReturn(previousWinner);
+        when(auction.getCurrentPrice()).thenReturn(10_000);
+        com.goodsbridge.item.Item item = mock(com.goodsbridge.item.Item.class);
+        when(item.getTitle()).thenReturn("한정 포토카드");
+        when(auction.getItem()).thenReturn(item);
+        when(bidRepository.existsByAuctionIdAndUserId(1L, 2L)).thenReturn(false);
+        when(paymentService.verify("payment-1", 1_000, PaymentPurpose.AUCTION_DEPOSIT, 2L)).thenReturn("payment-1");
+        when(bidRepository.save(any(Bid.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doThrow(new IllegalStateException("알림 저장 실패")).when(eventPublisher).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
+
+        BidResponse response = bidService.placeBid(1L, 2L, new BidRequest(12_000, "payment-1"));
+
+        assertEquals(12_000, response.getBidAmount());
+        verify(eventPublisher).publishEvent(any(com.goodsbridge.notification.NotificationEvent.class));
+        verify(paymentService, never()).cancelUnrecorded(any(), any());
     }
 
     // ===================== 거부 케이스 =====================
