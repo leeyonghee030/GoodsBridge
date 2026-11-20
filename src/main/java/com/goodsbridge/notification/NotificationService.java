@@ -95,8 +95,10 @@ public class NotificationService {
             .orElseThrow(() -> new NotFoundException("사용자가 없습니다"));
 
         Notification notification;
-        // 교환 메시지와 경매 새 입찰은 같은 건의 안 읽은 알림 하나를 계속 갱신한다 (알림이 줄줄이 쌓이지 않게)
-        if (type == Notification.Type.EXCHANGE_MESSAGE || type == Notification.Type.AUCTION_BID) {
+        // 교환 메시지, 경매 새 입찰, 가게의 이벤트 새 참가는 같은 건의 안 읽은 알림 하나를 계속 갱신한다 (알림이 줄줄이 쌓이지 않게)
+        // 이벤트 참가 알림 중 참가자 본인 것(참가 완료·번호표, ReferenceType.EVENT)은 구매 건마다 따로 남긴다.
+        boolean shopEventJoin = type == Notification.Type.EVENT_JOINED && referenceType == Notification.ReferenceType.SHOP_EVENTS;
+        if (type == Notification.Type.EXCHANGE_MESSAGE || type == Notification.Type.AUCTION_BID || shopEventJoin) {
             notification = notificationRepository
                 .findFirstByReceiverIdAndTypeAndReferenceTypeAndReferenceIdAndReadStatus(
                     userId,

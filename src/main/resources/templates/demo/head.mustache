@@ -1,0 +1,90 @@
+<nav class="dm-tabs" aria-label="기능 시연">
+    <a href="/demo/concurrency" class="{{#tabEvent}}active{{/tabEvent}}">선착순 이벤트</a>
+    <a href="/demo/auction" class="{{#tabAuction}}active{{/tabAuction}}">경매 입찰</a>
+    <a href="/demo/settlement" class="{{#tabSettlement}}active{{/tabSettlement}}">노쇼 정산</a>
+    <a href="/demo/timeline" class="{{#tabTimeline}}active{{/tabTimeline}}">시간 빨리감기</a>
+</nav>
+
+<style>
+    .dm-tabs { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; max-width: 700px; margin: 1rem auto 0; }
+    .dm-tabs a { padding: 0.45rem 0.95rem; border: 1px solid var(--color-border); border-radius: 999px; font-size: 0.82rem; color: var(--color-text-soft); text-decoration: none; }
+    .dm-tabs a:hover { border-color: var(--color-text); color: var(--color-text); }
+    .dm-tabs a.active { background: var(--color-dark); border-color: var(--color-dark); color: #fff; font-weight: var(--fw-semibold); }
+
+    /* 입력칸과 버튼을 같은 높이로 한 줄에 맞춘다 (버튼은 글자만큼만, 좁은 화면에서는 아래 줄로 꽉 차게) */
+    .dm-form { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
+    .dm-form label { flex: 1 1 160px; display: flex; flex-direction: column; gap: 0.35rem; margin: 0; font-size: 0.8rem; color: var(--color-muted); }
+    .dm-form input, .dm-form button { box-sizing: border-box; height: 2.75rem; margin: 0; }
+    .dm-form input {
+        width: 100%; padding: 0 0.8rem; border: 1px solid var(--color-border); border-radius: 4px;
+        font-family: var(--font-sans); font-size: 0.9rem; color: var(--color-text); background: var(--color-bg);
+    }
+    .dm-form input:focus { outline: none; border-color: var(--color-text); }
+    .dm-form button { flex: 0 0 auto; width: auto; padding: 0 1.4rem; white-space: nowrap; }
+    .dm-form button:disabled { background: var(--color-border); color: var(--color-muted); cursor: wait; }
+    @media (max-width: 560px) { .dm-form button { flex: 1 1 100%; } }
+    .dm-message { margin: 0.75rem 0 0; }
+
+    .dm-result[hidden] { display: none; }
+    .dm-result { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-top: 1.25rem; }
+    .dm-card { padding: 1.25rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+    .dm-card header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .dm-card h2 { margin: 0; font-size: 1rem; font-weight: var(--fw-bold); }
+    .dm-big { margin: 0; font-size: 0.95rem; color: var(--color-text-soft); }
+    .dm-big strong { font-size: 2rem; font-weight: var(--fw-bold); letter-spacing: -0.02em; color: var(--color-text); }
+    .dm-big > span { color: var(--color-muted); }
+    .dm-verdict { margin: 0.25rem 0 1rem; font-size: 0.82rem; font-weight: var(--fw-semibold); }
+    .dm-verdict.bad, .dm-bad { color: #C0392B; }
+    .dm-stats { display: grid; grid-template-columns: 1fr 1fr; row-gap: 0.85rem; padding-top: 1rem; border-top: 1px solid var(--color-border); }
+    .dm-stats .stat:nth-child(odd) { border-left: 0; padding-left: 0; }
+    .dm-stats .stat strong { font-size: 1.05rem; }
+    .dm-stats .stat strong span { font-size: inherit; color: inherit; }
+    .dm-why { margin: 1rem 0 0; padding: 0.75rem 0.85rem; border-radius: 6px; background: var(--color-bg); font-size: 0.8rem; line-height: 1.6; color: var(--color-text-soft); word-break: keep-all; }
+    .dm-why b { color: var(--color-text); }
+
+    /* 카테고리 선택 버튼 (빨리감기 시나리오, 노쇼 정산 경우) */
+    .dm-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; }
+    .dm-seg button[type="button"] {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem; width: 100%; padding: 0.8rem 1rem;
+        border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-bg); color: var(--color-text); text-align: left;
+    }
+    .dm-seg button[type="button"]:hover { border-color: var(--color-text); background: var(--color-bg); }
+    .dm-seg button[aria-selected="true"], .dm-seg button[aria-selected="true"]:hover { border-color: var(--color-dark); background: var(--color-dark); color: #fff; }
+    .dm-seg strong { font-size: 0.92rem; font-weight: var(--fw-bold); }
+    .dm-seg span { font-size: 0.74rem; font-weight: var(--fw-regular); opacity: 0.75; word-break: keep-all; }
+
+    .dm-help { margin-top: 1.25rem; font-size: 0.85rem; color: var(--color-text-soft); }
+    .dm-help summary { cursor: pointer; font-weight: var(--fw-semibold); color: var(--color-text); }
+    .dm-help li { margin-top: 0.4rem; line-height: 1.6; word-break: keep-all; }
+</style>
+
+<script>
+// 시연 폼 공통: 범위를 벗어난 숫자는 최소·최대값으로 맞추고, 제출하면 POST 로 실행해 결과를 render 에 넘긴다
+window.dmRun = (form, url, render, runningText) => {
+    const button = form.querySelector('button[type="submit"]');
+    const message = form.parentElement.querySelector('.dm-message');
+    form.querySelectorAll('input[type="number"]').forEach(input => input.addEventListener('change', () => {
+        const v = Math.round(Number(input.value));
+        input.value = Math.min(Number(input.max), Math.max(Number(input.min), Number.isFinite(v) ? v : Number(input.min)));
+    }));
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        button.disabled = true;
+        message.classList.remove('error');
+        message.textContent = runningText || '실행 중이에요...';
+        try {
+            const res = await fetch(url, { method: 'POST', body: new URLSearchParams(new FormData(form)), credentials: 'same-origin' });
+            const data = await res.json();
+            if (!res.ok) { message.classList.add('error'); message.textContent = data.message || '실행에 실패했습니다.'; return; }
+            render(data);
+            message.textContent = '';
+        } catch (err) {
+            message.classList.add('error');
+            message.textContent = '실행에 실패했습니다.';
+        } finally {
+            button.disabled = false;
+        }
+    });
+};
+window.dmWon = n => n.toLocaleString('ko-KR') + '원';
+</script>

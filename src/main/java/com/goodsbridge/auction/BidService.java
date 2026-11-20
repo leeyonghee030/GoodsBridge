@@ -17,9 +17,13 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -34,15 +38,19 @@ public class BidService {
     private final PaymentService paymentService;
     private final ShopRepository shopRepository;
     private final ApplicationEventPublisher publisher;
+    private final TransactionTemplate transactionTemplate;
 
     // 입찰 (서버가 거절하면 이미 승인된 보증금 PortOne 결제를 자동 취소한다)
-    @Transactional
+    // 알림은 트랜잭션이 끝나 DB 연결을 돌려준 뒤에 발행한다. 트랜잭션 안에서 발행하면 커밋 직후 알림 저장(REQUIRES_NEW)이
+    // 쓰던 연결을 쥔 채 연결을 하나 더 받아서, 연결 풀 크기보다 많이 동시에 입찰하면 풀이 바닥나 모두 멈춘다.
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public BidResponse placeBid(Long auctionId, Long userId, BidRequest request) {
         if (request == null) {
             throw new BadRequestException("입찰 요청이 필요합니다.");
         }
+        Placed placed;
         try {
-            return doPlaceBid(auctionId, userId, request);
+            placed = transactionTemplate.execute(status -> doPlaceBid(auctionId, userId, request));
         } catch (RuntimeException e) {
             // 어떤 사유로 거절되든 서버에 기록되지 않은 결제는 취소한다 (이미 기록된 결제는 취소되지 않는다)
             String paymentId = request.getPaymentId();
@@ -51,10 +59,15 @@ public class BidService {
             }
             throw e;
         }
+        placed.notifications().forEach(publisher::publishEvent);
+        return placed.response();
     }
 
+    private record Placed(BidResponse response, List<NotificationEvent> notifications) {}
+
     // 입찰 본 처리
-    private BidResponse doPlaceBid(Long auctionId, Long userId, BidRequest request) {
+    private Placed doPlaceBid(Long auctionId, Long userId, BidRequest request) {
+        List<NotificationEvent> notifications = new ArrayList<>();
         // 1. 비관적 락으로 경매 조회 (동시성 제어 지점)
         Auction auction = auctionRepository.findByIdLock(auctionId)
             .orElseThrow(() -> new NotFoundException("경매를 찾을 수 없습니다."));
@@ -129,7 +142,7 @@ public class BidService {
         User prevWinner = auction.getCurrentWinner();
         auction.updateCurrentBid(request.getBidAmount(), user);
         if (prevWinner != null && !prevWinner.getId().equals(userId)) {
-            publisher.publishEvent(
+            notifications.add(
                 new NotificationEvent(
                     prevWinner.getId(),
                     Notification.Type.AUCTION_OUTBID,
@@ -148,7 +161,7 @@ public class BidService {
         // 가게: 새 입찰. 같은 경매의 안 읽은 알림이 있으면 새로 쌓지 않고 그 알림을 최신 현재가·입찰 건수로 갱신한다
         Long ownerId = auction.getShop().getOwnerUserId();
         if (ownerId != null) {
-            publisher.publishEvent(
+            notifications.add(
                 new NotificationEvent(
                     ownerId,
                     Notification.Type.AUCTION_BID,
@@ -161,7 +174,7 @@ public class BidService {
                 )
             );
         }
-        return BidResponse.from(bid);
+        return new Placed(BidResponse.from(bid), notifications);
     }
 
     // 이 경매에 내가 입찰한 적이 있는지 (있으면 보증금을 이미 냈으므로 다음 입찰은 보증금 결제 없이 한다)

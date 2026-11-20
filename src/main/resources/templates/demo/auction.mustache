@@ -1,0 +1,88 @@
+{{> fragments/header}}
+{{> demo/head}}
+
+<section class="page-head">
+    <h1>경매 동시 입찰 시연</h1>
+    <p>입찰이 없는 경매에 여러 명이 같은 순간, 같은 금액(시작가 10,000원)으로 첫 입찰을 보내요. 정상이라면 1명만 최고 입찰자가 돼야 해요.</p>
+</section>
+
+<section class="panel">
+    <form id="dm-form" class="dm-form">
+        <label>동시 입찰 인원 (1~{{maxUsers}}명) <input type="number" name="users" value="20" min="1" max="{{maxUsers}}" required></label>
+        <button type="submit">동시에 입찰 보내기</button>
+    </form>
+    <p class="form-message dm-message" aria-live="polite"></p>
+
+    <div class="dm-result" id="dm-result" hidden>
+        <article class="dm-card" data-round="withoutLock">
+            <header>
+                <h2>락 없음</h2>
+                <span class="badge badge-outline">시연 전용 코드</span>
+            </header>
+            <p class="dm-big"><strong data-k="success"></strong>명이 "최고 입찰자" 응답</p>
+            <p class="dm-verdict" data-verdict></p>
+            <div class="dm-stats">
+                <div class="stat"><span>거절</span><strong><span data-k="fail"></span>명</strong></div>
+                <div class="stat"><span>DB에 저장된 입찰</span><strong><span data-k="bidCount"></span>건</strong></div>
+                <div class="stat"><span>걷힌 보증금</span><strong data-k="deposits"></strong></div>
+                <div class="stat"><span>걸린 시간</span><strong><span data-k="elapsedMillis"></span>ms</strong></div>
+            </div>
+            <p class="dm-why" id="dm-why" data-pool="{{dbPoolSize}}"></p>
+        </article>
+        <article class="dm-card" data-round="withLock">
+            <header>
+                <h2>락 있음</h2>
+                <span class="badge">실제 서비스 코드</span>
+            </header>
+            <p class="dm-big"><strong data-k="success"></strong>명이 "최고 입찰자" 응답</p>
+            <p class="dm-verdict" data-verdict></p>
+            <div class="dm-stats">
+                <div class="stat"><span>거절</span><strong><span data-k="fail"></span>명</strong></div>
+                <div class="stat"><span>DB에 저장된 입찰</span><strong><span data-k="bidCount"></span>건</strong></div>
+                <div class="stat"><span>걷힌 보증금</span><strong data-k="deposits"></strong></div>
+                <div class="stat"><span>걸린 시간</span><strong><span data-k="elapsedMillis"></span>ms</strong></div>
+            </div>
+        </article>
+    </div>
+
+    <details class="dm-help">
+        <summary>무슨 일이 일어나는 건가요?</summary>
+        <ul>
+            <li>누를 때마다 임시 가게·경매(시작가 10,000원, 보증금 1,000원)·입찰자를 만들고, 모든 입찰자가 준비되면 한꺼번에 시작가로 첫 입찰을 보내요. 끝나면 임시 데이터는 모두 지워져요.</li>
+            <li>규칙: 첫 입찰은 시작가 이상이면 되지만, 그다음부터는 현재가보다 높아야 해요. 그래서 같은 금액이면 먼저 처리된 1명만 성공해야 해요. 첫 입찰 때 보증금을 결제해요.</li>
+            <li><b>락 없음</b>: 모두가 "아직 입찰 없음"을 동시에 읽고 통과해요. 그래서 여러 명이 "최고 입찰자"라는 응답을 받고 보증금도 결제했지만, 경매에 기록되는 최고 입찰자는 마지막에 저장한 1명뿐이에요.
+                충돌이 잘 보이도록 현재가 확인과 저장 사이에 50ms 대기를 넣었어요.</li>
+            <li><b>락 있음</b>: 실제 입찰 코드(<code>BidService.placeBid</code>)를 그대로 불러요. 경매 행을 <code>SELECT ... FOR UPDATE</code>로 잠가서 한 명씩 처리하므로, 두 번째 사람부터는 바뀐 현재가를 보고 거절돼요.</li>
+        </ul>
+    </details>
+</section>
+
+<script>
+(() => {
+    const result = document.getElementById('dm-result');
+    dmRun(document.getElementById('dm-form'), '/demo/auction/run', data => {
+        result.querySelectorAll('[data-round]').forEach(card => {
+            const round = data[card.dataset.round];
+            const values = { ...round, deposits: dmWon(round.bidCount * data.deposit) };
+            card.querySelectorAll('[data-k]').forEach(el => { el.textContent = values[el.dataset.k]; });
+            const verdict = card.querySelector('[data-verdict]');
+            const bad = round.success > 1;
+            verdict.textContent = bad
+                ? '최고 입찰자가 ' + round.success + '명? 보증금 ' + (round.bidCount - 1) + '건을 더 걷었어요'
+                : '최고 입찰자는 1명뿐이에요';
+            verdict.classList.toggle('bad', bad);
+        });
+        const r = data.withoutLock;
+        const why = document.getElementById('dm-why');
+        const pool = Number(why.dataset.pool);
+        why.innerHTML = '<b>왜 ' + r.success + '명이 성공했을까?</b> 첫 입찰이 저장되기 전에 들어온 사람들이 모두 "아직 입찰 없음, 현재가 '
+            + dmWon(data.bidAmount) + '"을 읽어서 "시작가 이상이면 첫 입찰 성공" 조건을 다 같이 통과했어요. '
+            + (pool ? '(DB 연결이 ' + pool + '개라 대략 ' + pool + '명이 동시에 같은 값을 읽어요. 그 뒤에 들어온 사람은 바뀐 현재가를 보고 거절돼요.) ' : '')
+            + '입찰 기록과 보증금은 ' + r.bidCount + '건이 남았지만, 경매의 최고 입찰자 칸에는 마지막에 저장한 1명만 남아요. '
+            + '나머지 ' + Math.max(0, r.bidCount - 1) + '명은 최고 입찰자라고 믿고 보증금만 낸 셈이에요.';
+        result.hidden = false;
+    }, '실행 중이에요... 락 없음과 락 있음을 차례로 돌려요.');
+})();
+</script>
+
+{{> fragments/footer}}

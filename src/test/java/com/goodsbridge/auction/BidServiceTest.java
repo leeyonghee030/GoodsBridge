@@ -55,8 +55,10 @@ class BidServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 트랜잭션 관리자는 목이라 TransactionTemplate 은 콜백만 그대로 실행한다
         bidService = new BidService(bidRepository, auctionRepository, userRepository, paymentService,
-            shopRepository, eventPublisher);
+            shopRepository, eventPublisher, new org.springframework.transaction.support.TransactionTemplate(
+                mock(org.springframework.transaction.PlatformTransactionManager.class)));
         lenient().when(auctionRepository.findByIdLock(1L)).thenReturn(Optional.of(auction));
         lenient().when(userRepository.findById(2L)).thenReturn(Optional.of(user));
         lenient().when(auction.getId()).thenReturn(1L);

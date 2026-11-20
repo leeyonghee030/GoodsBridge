@@ -44,6 +44,7 @@ import com.goodsbridge.notification.NotificationEvent;
 import com.goodsbridge.notification.Notification;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -69,17 +70,24 @@ public class EventService {
 
     // 참가 신청. 유저는 이미 PortOne 결제를 마치고 오므로, 서버가 거절하면(정원초과/중복/마감 등) 결제를 자동 취소한다.
     // 참가 처리 트랜잭션(이벤트 행 잠금)을 먼저 끝낸 뒤 취소해야, PortOne 호출 동안 다른 신청자가 잠금을 기다리지 않는다.
+    // 알림은 트랜잭션이 끝나 DB 연결을 돌려준 뒤에 발행한다. 트랜잭션 안에서 발행하면 커밋 직후 알림 저장(REQUIRES_NEW)이
+    // 쓰던 연결을 쥔 채 연결을 하나 더 받아서, 연결 풀 크기보다 많이 동시에 신청하면 풀이 바닥나 모두 멈춘다.
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public EventParticipationResponse saveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
+        Joined joined;
         try {
-            return transactionTemplate.execute(status -> doSaveEventParticipation(id, userid, request));
+            joined = transactionTemplate.execute(status -> doSaveEventParticipation(id, userid, request));
         } catch (RuntimeException e) {
             paymentService.cancelUnrecorded(request.getPaymentId(), "이벤트 참가 실패로 인한 자동 취소");
             throw e;
         }
+        joined.notifications().forEach(publisher::publishEvent);
+        return joined.response();
     }
 
-    private EventParticipationResponse doSaveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
+    private record Joined(EventParticipationResponse response, List<NotificationEvent> notifications) {}
+
+    private Joined doSaveEventParticipation(Long id, Long userid, EventParticipationRequest request) {
         // 알림에 쓸 값은 잠금을 잡기 전에 읽는다 (선착순이 몰리는 구간이라 잠금 안에서 조회를 늘리지 않는다)
         EventNotifyInfo notifyInfo = shopEventRepository.findNotifyInfo(id).orElse(null);
         //조회
@@ -163,8 +171,9 @@ public class EventService {
         entityManager.refresh(eventParticipation);
 
         String itemTitle = notifyInfo.itemTitle();
+        List<NotificationEvent> notifications = new ArrayList<>();
         // 참가자: 참가 완료와 번호표, 수령(방문) 기한
-        publisher.publishEvent(new NotificationEvent(
+        notifications.add(new NotificationEvent(
             userid,
             Notification.Type.EVENT_JOINED,
             "[이벤트 참가 완료]",
@@ -176,7 +185,7 @@ public class EventService {
         // 가게: 새 참가
         Long ownerId = notifyInfo.ownerUserId();
         if (ownerId != null) {
-            publisher.publishEvent(new NotificationEvent(
+            notifications.add(new NotificationEvent(
                 ownerId,
                 Notification.Type.EVENT_JOINED,
                 "[이벤트 새 참가]",
@@ -186,7 +195,7 @@ public class EventService {
                 shopEvent.getId()
             ));
         }
-        return new EventParticipationResponse(eventParticipation);
+        return new Joined(new EventParticipationResponse(eventParticipation), notifications);
     }
 
     // 참가 취소: 구매 건(번호표에 쌓인 구매 1건) 단위로 취소/환불한다

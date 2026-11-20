@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -34,6 +35,9 @@ public class DemoController {
     private final UserRepository userRepository;
     private final AuthService authService;
     private final DemoDataService demoDataService;
+    private final DemoConcurrencyService demoConcurrencyService;
+    private final DemoSettlementService demoSettlementService;
+    private final DemoTimelineService demoTimelineService;
 
     // 헤더가 데모 모드인지 확인하는 용도
     @GetMapping("/status")
@@ -69,5 +73,31 @@ public class DemoController {
     @PostMapping("/reset")
     public void reset() {
         demoDataService.reset();
+    }
+
+    // 선착순 이벤트 동시성 시연: 락 없음/있음 두 번 돌려서 결과를 비교한다 (화면: /demo/concurrency)
+    @PostMapping("/concurrency/run")
+    public DemoConcurrencyService.Result runConcurrency(@RequestParam(defaultValue = "5") int capacity,
+                                                        @RequestParam(defaultValue = "20") int users) {
+        return demoConcurrencyService.run(capacity, users);
+    }
+
+    // 경매 동시 입찰 시연 (화면: /demo/auction)
+    @PostMapping("/auction/run")
+    public DemoConcurrencyService.AuctionResult runAuction(@RequestParam(defaultValue = "20") int users) {
+        return demoConcurrencyService.runAuction(users);
+    }
+
+    // 교환 노쇼 정산 3케이스 시연 (화면: /demo/settlement)
+    @PostMapping("/settlement/run")
+    public DemoSettlementService.Result runSettlement(@RequestParam(defaultValue = "30000") int priceA,
+                                                      @RequestParam(defaultValue = "8000") int priceB) {
+        return demoSettlementService.run(priceA, priceB);
+    }
+
+    // 마감 스케줄러 빨리감기 시연 (화면: /demo/timeline)
+    @PostMapping("/timeline/run")
+    public DemoTimelineService.Scenario runTimeline(@RequestParam(defaultValue = "auctionPaid") String scenario) {
+        return demoTimelineService.run(scenario);
     }
 }

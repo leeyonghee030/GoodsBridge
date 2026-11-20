@@ -1,0 +1,95 @@
+{{> fragments/header}}
+{{> demo/head}}
+
+<section class="page-head">
+    <h1>선착순 이벤트 동시성 시연</h1>
+    <p>정원이 정해진 이벤트에 여러 명이 같은 순간에 참가 신청을 보내요. 락이 없을 때와 있을 때 결과를 나란히 비교해요.</p>
+</section>
+
+<section class="panel">
+    <form id="dm-form" class="dm-form">
+        <label>정원 (1~{{maxCapacity}}명) <input type="number" name="capacity" value="5" min="1" max="{{maxCapacity}}" required></label>
+        <label>동시 신청 인원 (1~{{maxUsers}}명) <input type="number" name="users" value="20" min="1" max="{{maxUsers}}" required></label>
+        <button type="submit">동시에 신청 보내기</button>
+    </form>
+    <p class="form-message dm-message" aria-live="polite"></p>
+
+    <div class="dm-result" id="dm-result" hidden>
+        <article class="dm-card">
+            <header>
+                <h2>락 없음</h2>
+                <span class="badge badge-outline">시연 전용 코드</span>
+            </header>
+            <p class="dm-big"><strong data-k="withoutLock.success"></strong>명 성공 <span>/ 정원 <span data-k="capacity"></span>명</span></p>
+            <p class="dm-verdict" data-verdict="withoutLock"></p>
+            <div class="dm-stats">
+                <div class="stat"><span>실패</span><strong><span data-k="withoutLock.fail"></span>명</strong></div>
+                <div class="stat"><span>DB 판매 수</span><strong data-k="withoutLock.recordedCount"></strong></div>
+                <div class="stat"><span>이벤트 상태</span><strong data-k="withoutLock.status"></strong></div>
+                <div class="stat"><span>걸린 시간</span><strong><span data-k="withoutLock.elapsedMillis"></span>ms</strong></div>
+            </div>
+            {{#dbPoolSize}}
+            <p class="dm-why" id="dm-why" data-pool="{{dbPoolSize}}"></p>
+            {{/dbPoolSize}}
+        </article>
+        <article class="dm-card">
+            <header>
+                <h2>락 있음</h2>
+                <span class="badge">실제 서비스 코드</span>
+            </header>
+            <p class="dm-big"><strong data-k="withLock.success"></strong>명 성공 <span>/ 정원 <span data-k="capacity"></span>명</span></p>
+            <p class="dm-verdict" data-verdict="withLock"></p>
+            <div class="dm-stats">
+                <div class="stat"><span>실패</span><strong><span data-k="withLock.fail"></span>명</strong></div>
+                <div class="stat"><span>DB 판매 수</span><strong data-k="withLock.recordedCount"></strong></div>
+                <div class="stat"><span>이벤트 상태</span><strong data-k="withLock.status"></strong></div>
+                <div class="stat"><span>걸린 시간</span><strong><span data-k="withLock.elapsedMillis"></span>ms</strong></div>
+            </div>
+        </article>
+    </div>
+
+    <details class="dm-help">
+        <summary>무슨 일이 일어나는 건가요?</summary>
+        <ul>
+            <li>누를 때마다 임시 가게·이벤트·참가자를 만들고, 모든 참가자가 준비되면 한꺼번에 신청을 보내요. 끝나면 임시 데이터는 모두 지워져요.</li>
+            <li><b>락 없음</b>: 여러 명이 같은 "현재 판매 수"를 동시에 읽고 모두 "자리 있음"으로 통과해요. 그래서 정원보다 많은 사람이 성공하고, 서로 덮어써서 DB의 판매 수는 실제 성공 수보다 작게 남아요.
+                충돌이 잘 보이도록 정원 확인과 수량 증가 사이에 결제 확인 시간을 흉내 낸 50ms 대기를 넣었어요.</li>
+            <li><b>락 있음</b>: 실제 참가 신청 코드(<code>EventService.saveEventParticipation</code>)를 그대로 불러요. 이벤트 행을 <code>SELECT ... FOR UPDATE</code>(비관적 락)로 잠가서 한 명씩 차례로 처리하므로 정원만큼만 성공해요.</li>
+        </ul>
+    </details>
+</section>
+
+<script>
+(() => {
+    const result = document.getElementById('dm-result');
+    const STATUS = { OPEN: '모집 중', CLOSED: '마감' };
+    const verdict = (round, capacity) => {
+        if (round.success > capacity) return { text: '정원 ' + (round.success - capacity) + '명 초과 판매', bad: true };
+        if (round.recordedCount !== round.success) return { text: 'DB 판매 수가 실제 성공 수와 달라요', bad: true };
+        return { text: '정원을 지켰어요', bad: false };
+    };
+    dmRun(document.getElementById('dm-form'), '/demo/concurrency/run', data => {
+        result.querySelectorAll('[data-k]').forEach(el => {
+            const v = el.dataset.k.split('.').reduce((o, k) => o[k], data);
+            el.textContent = el.dataset.k.endsWith('.status') ? (STATUS[v] || v) : v;
+        });
+        result.querySelectorAll('[data-verdict]').forEach(el => {
+            const v = verdict(data[el.dataset.verdict], data.capacity);
+            el.textContent = v.text;
+            el.classList.toggle('bad', v.bad);
+        });
+        // 락 없음의 DB 판매 수가 왜 작은지: DB 연결 수만큼씩 같은 값을 읽고 덮어쓴다
+        const why = document.getElementById('dm-why');
+        if (why) {
+            const pool = Number(why.dataset.pool);
+            why.innerHTML = '<b>왜 판매 수가 ' + data.withoutLock.recordedCount + '일까?</b> 스레드는 ' + data.users + '개가 동시에 출발하지만 DB 연결은 '
+                + pool + '개뿐이에요. 그래서 ' + pool + '명씩 같은 판매 수를 읽고 똑같이 +1 해서 덮어써요. '
+                + data.users + '명 ÷ ' + pool + '개 ≈ ' + Math.ceil(data.users / pool) + '번만 올라가요.'
+                + (data.withoutLock.recordedCount < data.capacity ? ' 판매 수가 정원보다 작으니 마감도 안 돼요.' : '');
+        }
+        result.hidden = false;
+    }, '실행 중이에요... 락 없음과 락 있음을 차례로 돌려요.');
+})();
+</script>
+
+{{> fragments/footer}}
