@@ -74,7 +74,7 @@ public class ShopService {
                     adminId,
                     Notification.Type.SHOP_APPLIED,
                     "[입점 신청]",
-                    "새 입점 신청이 있습니다: {" + shop.getName() + "}",
+                    "새 입점 신청이 있습니다: " + shop.getName(),
                     Notification.ReferenceType.SHOP,
                     shop.getId()
                 )

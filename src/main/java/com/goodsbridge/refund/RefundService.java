@@ -1,5 +1,6 @@
 package com.goodsbridge.refund;
 
+import com.goodsbridge.notification.NotificationText;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -109,7 +110,7 @@ public class RefundService {
                     receiveId,
                     Notification.Type.REFUND_REQUESTED,
                     "[환불 요청]",
-                    "환불 요청이 왔습니다 {" + request.getRequestedAmount() + "}원",
+                    "환불 요청이 왔습니다 (" + NotificationText.won(request.getRequestedAmount()) + ")",
                     Notification.ReferenceType.REFUND,
                     refund.getId()
                 )
@@ -138,7 +139,7 @@ public class RefundService {
             new NotificationEvent(
                 refund.getUser().getId(),
                 Notification.Type.REFUND_REJECTED,
-                "[환불거절]",
+                "[환불 거절]",
                 rejectReason,
                 Notification.ReferenceType.REFUND,
                 refund.getId()
@@ -471,7 +472,7 @@ public class RefundService {
                 Notification.Type.PURCHASE_CANCELLED_BY_SHOP,
                 "[환불]",
                 "가게 사정으로 '" + purchase.getItem().getTitle()
-                    + "' 주문이 환불됐습니다 (" + refund.getRequestedAmount() + "원)",
+                    + "' 주문이 환불됐습니다 (" + NotificationText.won(refund.getRequestedAmount()) + ")",
                 Notification.ReferenceType.REFUND,
                 refund.getId()
             )

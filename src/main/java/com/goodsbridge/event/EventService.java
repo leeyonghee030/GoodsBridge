@@ -1,5 +1,6 @@
 package com.goodsbridge.event;
 
+import com.goodsbridge.notification.NotificationText;
 import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.ForbiddenException;
 import com.goodsbridge._core.exception.NotFoundException;
@@ -259,9 +260,9 @@ public class EventService {
                         participation.getUser().getId(),
                         Notification.Type.EVENT_CLOSED,
                         "[이벤트 인원 마감]",
-                        "'{" + shopEvent.getItem().getTitle() + "}' 이벤트의 모집이 마감되었습니다. 번호표" +
-                            participation.getTicketNumber() + "로 " +
-                            shopEvent.getShop().getName() +"에 방문해 주세요",
+                        "'" + shopEvent.getItem().getTitle() + "' 이벤트의 모집이 마감되었습니다. 번호표 " +
+                            participation.getTicketNumber() + "번으로 " +
+                            shopEvent.getShop().getName() + "에 방문해 주세요",
                         Notification.ReferenceType.EVENT,
                         shopEvent.getId()
                     )
@@ -274,8 +275,8 @@ public class EventService {
                     shopEvent.getShop().getOwnerUserId(),
                     Notification.Type.EVENT_CLOSED,
                     "[이벤트 인원 마감]",
-                    "'{" + shopEvent.getItem().getTitle() + "}' 이벤트의 모집이 마감되었습니다. (인원 : " +
-                        + shopEvent.getCapacity() +"명)",
+                    "'" + shopEvent.getItem().getTitle() + "' 이벤트의 모집이 마감되었습니다. (인원 : " +
+                        shopEvent.getCapacity() + "명)",
                     Notification.ReferenceType.EVENT,
                     shopEvent.getId()
                 )
@@ -452,8 +453,8 @@ public class EventService {
                     participation.getUser().getId(),
                     Notification.Type.EVENT_CANCELLED,
                     "[이벤트 취소]",
-                    "'{" + shopEvent.getItem().getTitle() + "}' 이벤트가 가게 사정으로 취소됐어요. 참가비 " +
-                        shopEvent.getFeeAmount() + "원은 환불돼요",
+                    "'" + shopEvent.getItem().getTitle() + "' 이벤트가 가게 사정으로 취소됐어요. 참가비 " +
+                        NotificationText.won(shopEvent.getFeeAmount()) + "은 환불돼요",
                     Notification.ReferenceType.EVENT,
 
                     shopEvent.getId()

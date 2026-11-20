@@ -95,7 +95,8 @@ public class NotificationService {
             .orElseThrow(() -> new NotFoundException("사용자가 없습니다"));
 
         Notification notification;
-        if (type == Notification.Type.EXCHANGE_MESSAGE) {
+        // 교환 메시지와 경매 새 입찰은 같은 건의 안 읽은 알림 하나를 계속 갱신한다 (알림이 줄줄이 쌓이지 않게)
+        if (type == Notification.Type.EXCHANGE_MESSAGE || type == Notification.Type.AUCTION_BID) {
             notification = notificationRepository
                 .findFirstByReceiverIdAndTypeAndReferenceTypeAndReferenceIdAndReadStatus(
                     userId,

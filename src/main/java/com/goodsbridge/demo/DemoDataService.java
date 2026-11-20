@@ -325,15 +325,15 @@ public class DemoDataService {
         Long refundRejected = firstId("select id from refund_tb where requester_user_id = ? and status = 'REJECTED' order by id desc limit 1", b);
 
         if (incoming != null) {
-            made.add(notification(userA, Notification.Type.EXCHANGE_REQUEST, "[교환신청]", "(테스트) 교환 게시글에 교환 신청이 들어왔습니다",
+            made.add(notification(userA, Notification.Type.EXCHANGE_REQUEST, "[교환 신청]", "(테스트) 교환 게시글에 교환 신청이 들어왔습니다",
                 Notification.ReferenceType.EXCHANGE, incoming));
         }
         if (confirmed != null) {
-            made.add(notification(userB, Notification.Type.EXCHANGE_APPROVED, "[교환승인]", "교환 신청이 수락되었습니다. 가게에서 만나 교환해 주세요.",
+            made.add(notification(userB, Notification.Type.EXCHANGE_APPROVED, "[교환 신청 승인]", "교환 신청이 수락되었습니다. 가게에서 만나 교환해 주세요.",
                 Notification.ReferenceType.EXCHANGE, confirmed));
         }
         if (rejected != null) {
-            made.add(notification(userB, Notification.Type.EXCHANGE_REJECTED, "[교환거절]", "교환 신청이 거절되었습니다",
+            made.add(notification(userB, Notification.Type.EXCHANGE_REJECTED, "[교환 거절]", "교환 신청이 거절되었습니다",
                 Notification.ReferenceType.EXCHANGE, rejected));
         }
         if (won != null) {
@@ -341,19 +341,19 @@ public class DemoDataService {
                 Notification.ReferenceType.AUCTION, won));
         }
         if (preparing != null) {
-            made.add(notification(userB, Notification.Type.PAYMENT_COMPLETED, "[배송준비중]", "(테스트) 상품이 구매가 완료되었습니다",
+            made.add(notification(userB, Notification.Type.PAYMENT_COMPLETED, "[배송 준비중]", "(테스트) 상품이 구매가 완료되었습니다",
                 Notification.ReferenceType.DELIVERY, preparing));
         }
         if (shipped != null) {
-            made.add(notification(userB, Notification.Type.DELIVERY_STARTED, "[배송시작]", "(테스트) 상품이 배송 중입니다",
+            made.add(notification(userB, Notification.Type.DELIVERY_STARTED, "[배송중]", "(테스트) 상품이 배송 중입니다",
                 Notification.ReferenceType.DELIVERY, shipped));
         }
         if (delivered != null) {
-            made.add(notification(userB, Notification.Type.DELIVERY_COMPLETED, "[배송완료]", "(테스트) 상품이 배송 완료되었습니다. 구매를 확정해 주세요.",
+            made.add(notification(userB, Notification.Type.DELIVERY_COMPLETED, "[배송 완료]", "(테스트) 상품이 배송 완료되었습니다. 구매를 확정해 주세요.",
                 Notification.ReferenceType.DELIVERY, delivered));
         }
         if (refundRejected != null) {
-            made.add(notification(userB, Notification.Type.REFUND_REJECTED, "[환불거절]", "환불 요청이 거절되었습니다",
+            made.add(notification(userB, Notification.Type.REFUND_REJECTED, "[환불 거절]", "환불 요청이 거절되었습니다",
                 Notification.ReferenceType.REFUND, refundRejected));
         }
 
@@ -361,7 +361,7 @@ public class DemoDataService {
         List<Long> booked = jdbcTemplate.queryForList(
             "select id from exchange_request_tb where shop_id = ? and status = 'CONFIRMED' order by id desc limit 2", Long.class, shop.getId());
         for (Long requestId : booked) {
-            made.add(notification(shopOwner, Notification.Type.EXCHANGE_BOOKED, "[교환예약]", "(테스트) 교환 예약 일정이 생겼습니다. 방문하면 출석을 확인해 주세요.",
+            made.add(notification(shopOwner, Notification.Type.EXCHANGE_BOOKED, "[교환 예약]", "(테스트) 교환 예약 일정이 생겼습니다. 방문하면 출석을 확인해 주세요.",
                 Notification.ReferenceType.SHOP_EXCHANGE, requestId));
         }
 

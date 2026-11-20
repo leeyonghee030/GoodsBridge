@@ -56,6 +56,9 @@ public interface BidRepository extends JpaRepository<Bid, Long> {
         """)
     List<String> findLoserDepositPaymentIds(@Param("auctionId") Long auctionId, @Param("winnerId") Long winnerId);
 
+    // 경매의 입찰 횟수 (가게의 [새 입찰] 알림에 쓴다)
+    long countByAuctionId(Long auctionId);
+
     @Query("select distinct b.user.id from Bid b where b.auction.id = :auctionId")
     List<Long> findBidderUserIds(@Param("auctionId") Long auctionId);
 
