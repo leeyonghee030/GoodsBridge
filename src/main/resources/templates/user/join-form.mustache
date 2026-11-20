@@ -73,8 +73,12 @@
     <p id="password-match-msg" class="form-message"></p>
 
     <p>
-        <label for="address">배송지 주소</label>
-        <input id="address" type="text">
+        <label for="phoneNumber">전화번호</label>
+        <input type="tel"
+               id="phoneNumber"
+               name="phoneNumber"
+               maxlength="13"
+               placeholder="전화번호 (선택)">
     </p>
 
     <button type="submit" id="join-submit-btn">가입하기</button>
@@ -84,6 +88,144 @@
 </div>
 
 <script>
+
+    (() => {
+        const input = document.getElementById('phoneNumber');
+
+        if (!input) return;
+
+        // 숫자만 추출
+        const getDigits = (value) => value.replace(/\D/g, '');
+
+        // 전화번호 포맷
+        const formatPhoneNumber = (digits) => {
+            digits = digits.slice(0, 11);
+
+            // 서울 지역번호 02
+            if (digits.startsWith('02')) {
+                if (digits.length <= 2) return digits;
+                if (digits.length <= 5) {
+                    return digits.slice(0, 2) + '-' + digits.slice(2);
+                }
+                if (digits.length <= 9) {
+                    return digits.slice(0, 2) + '-' +
+                        digits.slice(2, 5) + '-' +
+                        digits.slice(5);
+                }
+                return digits.slice(0, 2) + '-' +
+                    digits.slice(2, 6) + '-' +
+                    digits.slice(6);
+            }
+
+            // 휴대폰 및 기타 지역번호
+            if (digits.length <= 3) return digits;
+
+            if (digits.length <= 7) {
+                return digits.slice(0, 3) + '-' + digits.slice(3);
+            }
+
+            if (digits.length <= 10) {
+                return digits.slice(0, 3) + '-' +
+                    digits.slice(3, 6) + '-' +
+                    digits.slice(6);
+            }
+
+            return digits.slice(0, 3) + '-' +
+                digits.slice(3, 7) + '-' +
+                digits.slice(7);
+        };
+
+        // 커서 위치 보정
+        const restoreCursor = (element, digitCount) => {
+            let position = 0;
+            let count = 0;
+
+            // 커서 앞의 숫자 개수만큼 포맷된 문자열에서 이동
+            while (position < element.value.length && count < digitCount) {
+                if (/\d/.test(element.value[position])) {
+                    count++;
+                }
+                position++;
+            }
+
+            // 숫자를 모두 찾았으면 뒤에 하이픈이 있는 경우 넘김
+            if (element.value[position] === '-') {
+                position++;
+            }
+
+            element.setSelectionRange(position, position);
+        };
+
+        // 입력 및 붙여넣기 시 포맷
+        input.addEventListener('input', () => {
+            const cursor = input.selectionStart ?? input.value.length;
+
+            // 현재 커서 앞에 있는 숫자의 개수 저장
+            const digitCount = getDigits(input.value.slice(0, cursor)).length;
+
+            // 숫자만 추출 후 포맷
+            const digits = getDigits(input.value);
+            input.value = formatPhoneNumber(digits);
+
+            // 커서 복원
+            restoreCursor(input, digitCount);
+        });
+
+        // 하이픈 바로 앞/뒤 삭제 시 숫자가 자연스럽게 삭제되도록 처리
+        input.addEventListener('keydown', (event) => {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+
+            // 커서가 없거나 선택 영역이 있으면 기본 동작 유지
+            if (start === null || end === null || start !== end) return;
+
+            const value = input.value;
+
+            // Backspace: 커서 바로 앞이 하이픈인 경우
+            if (event.key === 'Backspace' && value[start - 1] === '-') {
+                event.preventDefault();
+
+                // 하이픈 앞의 숫자 삭제
+                const deleteIndex = start - 2;
+
+                if (deleteIndex >= 0) {
+                    input.value =
+                        value.slice(0, deleteIndex) +
+                        value.slice(deleteIndex + 1);
+
+                    // 삭제 후 포맷 적용
+                    const digits = getDigits(input.value);
+                    input.value = formatPhoneNumber(digits);
+
+                    // 커서 복원
+                    restoreCursor(input, getDigits(value.slice(0, deleteIndex)).length);
+                }
+            }
+
+            // Delete: 커서 바로 뒤가 하이픈인 경우
+            if (event.key === 'Delete' && value[start] === '-') {
+                event.preventDefault();
+
+                // 하이픈 뒤의 숫자 삭제
+                const deleteIndex = start + 1;
+
+                if (deleteIndex < value.length) {
+                    input.value =
+                        value.slice(0, deleteIndex) +
+                        value.slice(deleteIndex + 1);
+
+                    // 삭제 후 포맷 적용
+                    const digits = getDigits(input.value);
+                    input.value = formatPhoneNumber(digits);
+
+                    // 커서 복원
+                    restoreCursor(input, getDigits(value.slice(0, start)).length);
+                }
+            }
+        });
+    })();
+
+
     // 인증 완료 여부 (화면 안 내용, 실제 검사는 서버의 세션으로 함
     let isEmailVerified = false;
     let count = 5;
