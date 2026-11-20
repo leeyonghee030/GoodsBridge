@@ -17,6 +17,9 @@ import java.sql.Timestamp;
 @NoArgsConstructor
 public class User {
 
+    // 탈퇴하면 닉네임을 이 접두사 + id 로 바꾼다. 다른 회원은 이 접두사로 시작하는 닉네임을 쓸 수 없다.
+    public static final String WITHDRAWN_NICKNAME_PREFIX = "탈퇴회원";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -125,7 +128,7 @@ public class User {
     public void withdraw() {
         this.status = Status.WITHDRAWN;
         this.email = "withdrawn-" + this.id + "@withdrawn.invalid";
-        this.nickname = "탈퇴회원" + this.id;
+        this.nickname = WITHDRAWN_NICKNAME_PREFIX + this.id;
         this.profileImage = null;
     }
 
