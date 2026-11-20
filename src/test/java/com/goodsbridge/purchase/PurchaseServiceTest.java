@@ -451,6 +451,50 @@ class PurchaseServiceTest {
         assertEquals("TRACK-1", purchase.getTrackingNumber());
     }
 
+
+    @Test
+    void shipping_rejectsDuplicateTrackingNumber() {
+        // Given
+        Purchase purchase = purchaseOwnedBySeller(10L);
+        PurchaseRequest.ShippingDto dto = new PurchaseRequest.ShippingDto();
+        dto.setTrackingNumber("TRACK-1");
+
+        when(purchaseRepository.existsByTrackingNumberAndIdNotAndDeliveryStatusNot(
+            "TRACK-1", 1L, DeliveryStatus.DELIVERED
+        )).thenReturn(true);
+
+        // When & Then
+        BadRequestException e = assertThrows(BadRequestException.class,
+            () -> purchaseService.shipping(1L, 10L, dto));
+
+        assertEquals("이미 등록된 운송장 번호입니다.", e.getMessage());
+        assertEquals(DeliveryStatus.PREPARING, purchase.getDeliveryStatus());
+
+        verify(purchaseRepository).existsByTrackingNumberAndIdNotAndDeliveryStatusNot(
+            "TRACK-1", 1L, DeliveryStatus.DELIVERED
+        );
+    }
+
+    @Test
+    void shipping_allowsTrackingNumberUsedByDeliveredPurchase() {
+        // Given
+        Purchase purchase = purchaseOwnedBySeller(10L);
+        PurchaseRequest.ShippingDto dto = new PurchaseRequest.ShippingDto();
+        dto.setTrackingNumber("TRACK-1");
+
+        when(purchaseRepository.existsByTrackingNumberAndIdNotAndDeliveryStatusNot(
+            "TRACK-1", 1L, DeliveryStatus.DELIVERED
+        )).thenReturn(false);
+
+        // When
+        purchaseService.shipping(1L, 10L, dto);
+
+        // Then
+        assertEquals("TRACK-1", purchase.getTrackingNumber());
+        assertEquals(DeliveryStatus.SHIPPED, purchase.getDeliveryStatus());
+    }
+
+
     @Test
     void findByShop_allReturnsEveryDeliveryStatus() {
         Shop shop = mock(Shop.class);
