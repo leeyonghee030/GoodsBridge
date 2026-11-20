@@ -55,7 +55,7 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse.JoinDto join(UserRequest.JoinDto joinDto, String  verifiedEmail) {
+    public void join(UserRequest.JoinDto joinDto, String  verifiedEmail) {
 
         if (verifiedEmail == null || !verifiedEmail.equals(joinDto.getEmail())){
             throw new BadRequestException("이메일 인증을 먼저 완료해주세요");
@@ -77,7 +77,6 @@ public class UserService {
         User savedUser = userRepository.save(user);
 
         log.info("회원가입 서비스 처리 완료 - 이메일: {}, ID: {} ", joinDto.getEmail(), savedUser.getId());
-        return new UserResponse.JoinDto(savedUser);
     }
 
     private User joinKakaoUser(String email, UserResponse.KakaoUserInfo kakaoUserInfo) {

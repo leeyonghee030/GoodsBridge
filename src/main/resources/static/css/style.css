@@ -343,6 +343,7 @@ input[type="email"],
 input[type="password"],
 input[type="text"],
 input[type="file"],
+input[type="tel"],
 select,
 textarea {
     width: 100%;

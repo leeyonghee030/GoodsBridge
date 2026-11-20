@@ -4,18 +4,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 public class UserResponse {
-    // 카카오 액세스 토큰 응답 DTO
-
-    @Data
-    public static class JoinDto {
-        private Long id;
-        private String email;
-
-        public JoinDto(User user) {
-            this.id = user.getId();
-            this.email = user.getEmail();
-        }
-    }
 
     @Data
     public static class OauthToken {
@@ -56,7 +44,6 @@ public class UserResponse {
 
     @Data
     public static class UpdateFormDto {
-        private Long id;
         private String nickname;
         private String email;
         private String profileImage;
@@ -72,7 +59,6 @@ public class UserResponse {
         private String detailAddress;   // 상세 주소 (선택 입력)
 
         public UpdateFormDto(User user) {
-            this.id = user.getId();
             this.nickname = user.getNickname();
             this.email = user.getEmail();
             this.profileImage = user.getProfilePath();

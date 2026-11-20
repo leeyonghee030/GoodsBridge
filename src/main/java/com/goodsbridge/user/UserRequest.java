@@ -121,6 +121,8 @@ public class UserRequest {
         @NotBlank
         private String nickname;
 
+        private String phoneNumber;
+
         // 이메일 인증 확인 토큰
 //        @NotBlank
         private String verificationToken;
@@ -133,6 +135,7 @@ public class UserRequest {
                 .email(email)
                 .password(encodePassword)
                 .nickname(nickname)
+                .phoneNumber(phoneNumber)
                 .build();
         }
     }
