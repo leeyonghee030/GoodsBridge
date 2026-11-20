@@ -8,7 +8,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,12 +16,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RefundViewController {
     private final RefundService refundService;
-
-    @GetMapping("/test/refund")
-    public String index(Model model) {
-        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
-        return "refund/index";
-    }
 
     // 환불 요청
     @PostMapping("/api/refunds")

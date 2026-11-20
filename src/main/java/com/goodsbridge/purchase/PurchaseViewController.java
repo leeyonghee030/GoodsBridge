@@ -5,8 +5,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,20 +13,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PurchaseViewController {
     private final PurchaseService purchaseService;
-
-    @Value("${portone.store-id}")
-    private String storeId;
-
-    @Value("${portone.channel-key}")
-    private String channelKey;
-
-    @GetMapping("/test/purchase")
-    public String index(Model model) {
-        model.addAttribute("portoneStoreId", storeId);
-        model.addAttribute("portoneChannelKey", channelKey);
-        model.addAttribute("userId", SecurityUtil.getCurrentUserIdOrNull());
-        return "purchase/index";
-    }
 
     // 구매 요청 ( 배송지 입력 + paymentId 검증 -> 대금 HOLD)
     // http://localhost:8080/api/purchases/me
