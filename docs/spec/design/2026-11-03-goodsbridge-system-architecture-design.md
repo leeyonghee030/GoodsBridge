@@ -1,3 +1,20 @@
+---
+id: spec-design-system-architecture
+title: 시스템 아키텍처 설계 초안·모듈러 모놀리스
+category: spec
+summary: 모듈러 모놀리스 접근을 기준으로 시스템 컨텍스트, 애플리케이션 구조, 핵심 요청 흐름, 데이터 일관성, 배포·운영, 보안 기준, 성공 기준과 위험을 검토한 2026-11-03 설계 초안
+keywords:
+- 아키텍처
+- 설계
+- 모듈러 모놀리스
+- system architecture
+- 요청 흐름
+- 데이터 일관성
+- 보안
+- 배포
+related_files: []
+last_updated: "2026-11-03"
+---
 # GoodsBridge 시스템 아키텍처 설계 초안
 
 - 작성일: 2026-11-03

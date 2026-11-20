@@ -1,3 +1,20 @@
+---
+id: spec-design-exchange-propose-item-direct
+title: 교환 제안 플로우 재설계·ExchangeItem 대신 Item 직접 참조
+category: spec
+summary: 교환 제안(propose)에서 ExchangeRequest가 ExchangeItem 대신 Item을 직접 참조하도록 바꾼 결정과 ERD·엔티티·Repository·DTO·검증 변경, 문서·코드 영향 범위를 정리한 설계 문서
+keywords:
+- 교환 제안
+- propose
+- ExchangeRequest
+- ExchangeItem
+- Item
+- 교환 재설계
+- '이슈 #10'
+related_files:
+- src/main/java/com/goodsbridge/exchange/ExchangeRequest.java
+last_updated: "2026-11-04"
+---
 # 교환 제안(propose) 플로우 재설계 — ExchangeItem 대신 Item 직접 참조
 
 - 이슈: #10 (ExchangeItem/ExchangeRequest CRUD + 매칭)

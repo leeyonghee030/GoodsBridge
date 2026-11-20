@@ -1,3 +1,23 @@
+---
+id: ops-notification-db-column-fix
+title: 알림 DB 컬럼 수정 안내·기존 로컬 DB SQL 조치
+category: ops
+summary: 'PR #82 이후 기존 로컬 DB에서 새 알림이 저장되지 않는 증상과 원인, docs/sql의 SQL로 알림·경매 enum 칸을 고치는 방법과 확인법을 설명한다'
+keywords:
+- 알림 저장 안 됨
+- DB 컬럼
+- enum
+- notifications_tb
+- SQL 조치
+- fix_notifications_columns
+- fix_enum_columns
+- 'PR #82'
+related_files:
+- docs/sql/fix_notifications_columns.sql
+- docs/sql/fix_enum_columns.sql
+- src/main/java/com/goodsbridge/notification/Notification.java
+last_updated: "2026-11-13"
+---
 # 알림 DB 컬럼 수정 안내 (PR #82 이후)
 
 > 이미 로컬 DB를 만들어 둔 사람은 **SQL을 한 번** 실행해야 새 알림이 저장돼요.
@@ -53,7 +73,7 @@ docker exec -i goodsbridge-mysql mysql -uroot -p goodsbridge < docs/sql/fix_noti
 docker compose down -v
 docker compose up -d
 ```
-데이터가 모두 지워져요. 데모 데이터는 서버를 켜면 다시 만들어져요. (자세한 내용은 [데모 임시데이터 사용법](데모_임시데이터_사용법.md))
+데이터가 모두 지워져요. 데모 데이터는 서버를 켜면 다시 만들어져요. (자세한 내용은 [데모 임시데이터 사용법](../guide/데모_임시데이터_사용법.md))
 
 ## 잘 됐는지 확인하는 법
 1. 데모 막대에서 **B** 계정으로 바꿔요.
