@@ -162,7 +162,7 @@ public class Notification {
         SHOP(null),
         SHOP_UPDATE("/update"),                     // 가게 업데이트
         SHOP_ADMIN("/test/admin/shops"),            // 관리자 가게
-        SHOP_SALES("/shop/items?tab=SOLD"),         // 판매자: 판매 상품 관리의 판매완료 탭 (새 주문, 구매 확정)
+        SHOP_SALES("/shop/items?tab=SOLD&purchase={id}"), // 판매자: 판매 상품 관리의 판매완료 탭에서 그 주문 상세를 연다 (새 주문, 구매 확정)
         SHOP_EVENTS("/shop/events"),                // 가게: 이벤트 관리 (새 참가, 참가 취소)
         SUBSCRIPTION_SHOP(null),
         SUBSCRIPTION_ADMIN("/test/admin/subscriptions"), // 관리자 구독
