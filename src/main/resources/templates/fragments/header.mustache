@@ -237,22 +237,32 @@
 </div>
 
 
-<!-- 계정 부활: 6칸 분할 입력 -->
-<div id="restore-code-box" hidden>
-    <div class="verify-code-inputs">
-        <input type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" class="verify-digit">
-        <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
-        <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
-        <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
-        <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
-        <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
+<div class="modal-backdrop" id="restore-modal" hidden>
+    <div class="modal-card">
+        <button type="button" class="modal-close" id="restore-modal-close">✕</button>
+        <h1>탈퇴한 계정이에요</h1>
+
+        <div id="restore-step-confirm">
+            <p>탈퇴 처리된 계정입니다. 계정을 복구할까요?</p>
+            <button type="button" id="restore-yes">복구하기</button>
+            <button type="button" id="restore-no" class="link-button">취소</button>
+        </div>
+
+        <div id="restore-code-box" hidden>
+            <p>이메일로 보낸 인증번호 6자리를 입력해주세요.</p>
+            <div class="verify-code-inputs">
+                <input type="text" maxlength="1" inputmode="numeric" autocomplete="one-time-code" class="verify-digit">
+                <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
+                <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
+                <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
+                <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
+                <input type="text" maxlength="1" inputmode="numeric" class="verify-digit">
+            </div>
+            <button type="button" id="restore-verify-btn">인증 확인</button>
+        </div>
+        <p id="restore-msg" class="form-message"></p>
     </div>
-
-    <button type="button" id="restore-verify-btn">
-        인증 확인
-    </button>
 </div>
-
 
 {{/userId}}
 
@@ -326,93 +336,6 @@ fetch('/demo/status', { credentials: 'same-origin' })
 </script>
 
 {{#userId}}
-
-    <script>
-        // 6칸 인증 UI - 기존 이메일 인증 로직에 연결
-        const codeDigits = signupModal.querySelectorAll('.verify-digit');
-        const originalCodeInput = document.getElementById('signup-code');
-
-        function syncCodeInput() {
-            originalCodeInput.value = Array.from(codeDigits)
-                .map(input => input.value)
-                .join('');
-        }
-
-        function fillCode(code) {
-            const numbers = code.replace(/\D/g, '').slice(0, 6);
-
-            codeDigits.forEach((input, index) => {
-                input.value = numbers[index] || '';
-            });
-
-            syncCodeInput();
-
-            // 마지막 입력 칸 또는 첫 빈 칸으로 포커스
-            const nextIndex = Math.min(numbers.length, 5);
-            codeDigits[nextIndex].focus();
-
-            // 6자리 완성 시 기존 인증 버튼 실행
-            if (numbers.length === 6) {
-                originalCodeInput.value = numbers;
-                verifyBtn.click();
-            }
-        }
-
-        codeDigits.forEach((input, index) => {
-
-            // 한 자리 입력 시 다음 칸 이동
-            input.addEventListener('input', () => {
-                const value = input.value.replace(/\D/g, '');
-
-                // 모바일 자동완성 또는 여러 글자 입력 대응
-                if (value.length > 1) {
-                    fillCode(value);
-                    return;
-                }
-
-                input.value = value.slice(0, 1);
-                syncCodeInput();
-
-                if (input.value && codeDigits[index + 1]) {
-                    codeDigits[index + 1].focus();
-                }
-
-                // 6자리 입력 시 기존 인증 로직 자동 실행
-                if (originalCodeInput.value.length === 6) {
-                    verifyBtn.click();
-                }
-            });
-
-            // Backspace 시 이전 칸 이동
-            input.addEventListener('keydown', event => {
-                if (event.key === 'Backspace' && !input.value) {
-                    codeDigits[index - 1]?.focus();
-                }
-
-                if (event.key === 'ArrowLeft') {
-                    codeDigits[index - 1]?.focus();
-                }
-
-                if (event.key === 'ArrowRight') {
-                    codeDigits[index + 1]?.focus();
-                }
-            });
-
-            // 붙여넣기 시 6칸 채우기
-            input.addEventListener('paste', event => {
-                event.preventDefault();
-
-                const pastedCode = event.clipboardData
-                    .getData('text')
-                    .replace(/\D/g, '')
-                    .slice(0, 6);
-
-                if (pastedCode) {
-                    fillCode(pastedCode);
-                }
-            });
-        });
-    </script>
 
 <script>
 // 가게 사장님이면 내 정보 화면의 탭이 '가게 교환 관리 / 판매 상품 관리'로 바뀐다 (가게 계정에는 개인 교환/구매 내역이 없다)
@@ -840,508 +763,410 @@ fetch('/api/shops/me', { credentials: 'same-origin' })
 
 
     // ==================================================
-    // 로그인 / 회원가입
+    // 로그인 / 회원가입 / 계정 복구 (모달 전환은 showModal 한 곳)
     // ==================================================
     (() => {
         const loginTrigger = document.getElementById('nav-login');
-
         if (!loginTrigger) return;
 
-        const modal = document.getElementById('login-modal');
+        // ---------- 모달 전환 ----------
+        const modals = {
+            login:   document.getElementById('login-modal'),
+            signup:  document.getElementById('signup-modal'),
+            restore: document.getElementById('restore-modal'),
+        };
+        if (Object.values(modals).some(el => !el)) return;
+
+        function showModal(name) {   // 'login' | 'signup' | 'restore' | null
+            Object.entries(modals).forEach(([key, el]) => { el.hidden = key !== name; });
+        }
+
+        // 닫기: X 버튼, 배경 클릭
+        [['login', 'login-modal-close'], ['signup', 'signup-modal-close'], ['restore', 'restore-modal-close']]
+            .forEach(([name, closeId]) => {
+                document.getElementById(closeId).addEventListener('click', () => {
+                    if (name === 'restore') resetRestore();
+                    showModal(null);
+                });
+                modals[name].addEventListener('click', e => {
+                    if (e.target === modals[name]) {
+                        if (name === 'restore') resetRestore();
+                        showModal(null);
+                    }
+                });
+            });
+
+        // ---------- 로그인 ----------
         const form = document.getElementById('login-modal-form');
         const message = document.getElementById('login-modal-message');
 
-        if (!modal || !form || !message) return;
+        loginTrigger.addEventListener('click', () => showModal('login'));
 
-        // 로그인 모달 열기
-        loginTrigger.addEventListener('click', () => {
-            modal.hidden = false;
-        });
-
-        // login=open 쿼리로 진입한 경우 모달 자동 열기
         if (new URLSearchParams(location.search).get('login') === 'open') {
-            modal.hidden = false;
+            showModal('login');
             history.replaceState(null, '', location.pathname);
         }
 
         {{#loginError}}
-            // 로그인 실패 처리
             (async () => {
                 await alert(document.getElementById('login-error').dataset.message);
-
-                {{#kakaoRetry}}
-                    location.href = '/api/kakao-login?reselect=true';
+                {{#kakaoRetry}}location.href = '/api/kakao-login?reselect=true';
                 {{/kakaoRetry}}
-
-                {{^kakaoRetry}}
-                    modal.hidden = false;
-                {{/kakaoRetry}}
+                {{^kakaoRetry}}showModal('login');{{/kakaoRetry}}
             })();
         {{/loginError}}
 
-        // 로그인 모달 닫기
-        const loginClose = document.getElementById('login-modal-close');
-
-        if (loginClose) {
-            loginClose.addEventListener('click', () => {
-                modal.hidden = true;
-            });
-        }
-
-        modal.addEventListener('click', event => {
-            if (event.target === modal) {
-                modal.hidden = true;
-            }
-        });
-
-        // 로그인 요청
         form.addEventListener('submit', async event => {
             event.preventDefault();
-
             message.textContent = '';
             message.className = 'form-message';
-
             try {
                 const response = await fetch('/api/login', {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: new URLSearchParams(new FormData(form))
                 });
-
                 if (!response.ok) {
                     const error = await response.json().catch(() => null);
-
-                    await alert(
-                        (error && error.message) ||
-                        '이메일 또는 비밀번호를 확인해주세요.'
-                    );
+                    // 비밀번호까지 맞은 탈퇴 계정일 때만 서버가 WITHDRAWN을 내려줘야 안전
+                    if (error && error.code === 'WITHDRAWN') {
+                        restoreEmail = form.email.value.trim();
+                        resetRestore();
+                        restoreEmail = form.email.value.trim();   // reset이 비우므로 다시 세팅
+                        showModal('restore');
+                        return;
+                    }
+                    await alert((error && error.message) || '이메일 또는 비밀번호를 확인해주세요.');
                     return;
                 }
-
                 location.reload();
-
             } catch (e) {
                 message.textContent = '로그인 중 오류가 발생했습니다.';
                 message.className = 'form-message error';
             }
         });
 
-
-        // ----------------------------------------------
-        // 회원가입
-        // ----------------------------------------------
+        // ---------- 회원가입 ----------
         const openSignup = document.getElementById('open-signup');
-
-        if (!openSignup) return;
-
-        const signupModal = document.getElementById('signup-modal');
         const signupForm = document.getElementById('signup-modal-form');
-
-        if (!signupModal || !signupForm) return;
-
         const signupMessage = document.getElementById('signup-modal-message');
         const verifyMessage = document.getElementById('signup-verify-msg');
-
         const emailInput = document.getElementById('signup-email');
         const emailIdInput = document.getElementById('signup-email-id');
         const emailDomainInput = document.getElementById('signup-email-domain');
-
         const codeBox = document.getElementById('signup-code-box');
         const codeInput = document.getElementById('signup-code');
-
         const sendBtn = document.getElementById('signup-send-btn');
         const verifyBtn = document.getElementById('signup-verify-btn');
         const submitBtn = document.getElementById('signup-submit-btn');
-
         const passwordInput = document.getElementById('signup-password');
         const passwordConfirmInput = document.getElementById('signup-password-confirm');
         const passwordMatchMsg = document.getElementById('signup-password-match-msg');
-
         let isEmailVerified = false;
 
-        // 이메일 조합
         function updateEmailValue() {
-            const emailId = emailIdInput.value.trim();
+            const id = emailIdInput.value.trim();
             const domain = emailDomainInput.value.trim();
-
-            emailInput.value = emailId && domain
-                ? `${emailId}@${domain}`
-                : '';
+            emailInput.value = id && domain ? `${id}@${domain}` : '';
         }
-
         emailIdInput.addEventListener('input', updateEmailValue);
         emailDomainInput.addEventListener('input', updateEmailValue);
         updateEmailValue();
 
-
-        // 비밀번호 일치 여부
         function checkPasswordMatch() {
             if (!passwordConfirmInput.value) {
                 passwordMatchMsg.textContent = '';
                 passwordMatchMsg.className = 'form-message';
                 return;
             }
-
-            if (passwordInput.value === passwordConfirmInput.value) {
-                passwordMatchMsg.textContent = '비밀번호가 일치합니다.';
-                passwordMatchMsg.className = 'form-message';
-            } else {
-                passwordMatchMsg.textContent = '비밀번호가 일치하지 않습니다.';
-                passwordMatchMsg.className = 'form-message error';
-            }
+            const ok = passwordInput.value === passwordConfirmInput.value;
+            passwordMatchMsg.textContent = ok ? '비밀번호가 일치합니다.' : '비밀번호가 일치하지 않습니다.';
+            passwordMatchMsg.className = ok ? 'form-message' : 'form-message error';
         }
-
         passwordInput.addEventListener('input', checkPasswordMatch);
         passwordConfirmInput.addEventListener('input', checkPasswordMatch);
 
-
-        // 회원가입 폼 초기화
         function resetSignupForm() {
             signupForm.reset();
-
             isEmailVerified = false;
-
             codeBox.hidden = true;
             codeInput.value = '';
             codeInput.disabled = false;
-
             verifyMessage.textContent = '';
             verifyMessage.className = 'form-message';
-
             signupMessage.textContent = '';
             signupMessage.className = 'form-message';
-
             passwordMatchMsg.textContent = '';
             passwordMatchMsg.className = 'form-message';
-
             emailIdInput.disabled = false;
             emailDomainInput.disabled = false;
-
             sendBtn.disabled = false;
             sendBtn.textContent = '인증번호 전송';
-
             verifyBtn.disabled = false;
             submitBtn.disabled = false;
         }
 
+        openSignup.addEventListener('click', () => { resetSignupForm(); showModal('signup'); });
 
-        // 회원가입 모달 열기
-        openSignup.addEventListener('click', () => {
-            modal.hidden = true;
-            resetSignupForm();
-            signupModal.hidden = false;
-        });
-
-        // 회원가입 모달 닫기
-        const signupClose = document.getElementById('signup-modal-close');
-
-        if (signupClose) {
-            signupClose.addEventListener('click', () => {
-                signupModal.hidden = true;
-            });
-        }
-
-        signupModal.addEventListener('click', event => {
-            if (event.target === signupModal) {
-                signupModal.hidden = true;
-            }
-        });
-
-
-        // ----------------------------------------------
-        // 회원가입 이메일 인증번호 전송
-        // ----------------------------------------------
         sendBtn.addEventListener('click', async () => {
             if (sendBtn.disabled) return;
-
             updateEmailValue();
-
             const email = emailInput.value.trim();
-
             if (!email) {
                 verifyMessage.textContent = '이메일을 입력해주세요.';
                 verifyMessage.className = 'form-message error';
                 return;
             }
-
             sendBtn.disabled = true;
             sendBtn.textContent = '전송 중...';
-
             try {
                 const response = await fetch('/api/email/send', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email })
                 });
-
                 const result = await response.json().catch(() => ({}));
-
                 if (!response.ok) {
-                    verifyMessage.textContent =
-                        result.message || '인증번호 전송에 실패했습니다.';
+                    verifyMessage.textContent = result.message || '인증번호 전송에 실패했습니다.';
                     verifyMessage.className = 'form-message error';
                     return;
                 }
-
                 codeBox.hidden = false;
-
                 codeInput.value = '';
                 codeInput.disabled = false;
                 verifyBtn.disabled = false;
-
                 verifyMessage.textContent = '인증번호를 보냈습니다.';
                 verifyMessage.className = 'form-message';
-
                 codeInput.focus();
-
             } catch (e) {
                 verifyMessage.textContent = '서버와 통신하지 못했습니다.';
                 verifyMessage.className = 'form-message error';
-
             } finally {
                 sendBtn.disabled = false;
                 sendBtn.textContent = '인증번호 전송';
             }
         });
 
-
-        // ----------------------------------------------
-        // 회원가입 이메일 인증 확인 (단일 입력)
-        // ----------------------------------------------
         verifyBtn.addEventListener('click', async () => {
             if (verifyBtn.disabled) return;
-
             const email = emailInput.value.trim();
             const code = codeInput.value.trim();
-
             if (!/^\d{6}$/.test(code)) {
                 verifyMessage.textContent = '인증번호 6자리를 입력해주세요.';
                 verifyMessage.className = 'form-message error';
                 codeInput.focus();
                 return;
             }
-
             verifyBtn.disabled = true;
-
             try {
                 const response = await fetch('/api/email/verify', {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email, code })
                 });
-
                 const result = await response.json().catch(() => ({}));
-
                 if (response.ok) {
                     isEmailVerified = true;
-
                     verifyMessage.textContent = result.message || '인증되었습니다.';
                     verifyMessage.className = 'form-message';
-
                     emailIdInput.disabled = true;
                     emailDomainInput.disabled = true;
                     sendBtn.disabled = true;
                     codeInput.disabled = true;
-                    verifyBtn.disabled = true;
-
                 } else {
-                    verifyMessage.textContent =
-                        result.message || '인증번호가 일치하지 않습니다.';
+                    verifyMessage.textContent = result.message || '인증번호가 일치하지 않습니다.';
                     verifyMessage.className = 'form-message error';
-
                     if (response.status === 429) {
                         isEmailVerified = false;
                         codeBox.hidden = true;
                         codeInput.value = '';
-
                         emailIdInput.disabled = false;
                         emailDomainInput.disabled = false;
                         sendBtn.disabled = false;
                     }
                 }
-
             } catch (e) {
                 verifyMessage.textContent = '서버와 통신하지 못했습니다.';
                 verifyMessage.className = 'form-message error';
-
             } finally {
                 verifyBtn.disabled = isEmailVerified;
             }
         });
 
-
-        // ----------------------------------------------
-        // 회원가입 제출
-        // ----------------------------------------------
         signupForm.addEventListener('submit', async event => {
             event.preventDefault();
-
             if (submitBtn.disabled) return;
-
             signupMessage.textContent = '';
             signupMessage.className = 'form-message';
-
             if (!isEmailVerified) {
                 signupMessage.textContent = '이메일 인증을 먼저 해주세요.';
                 signupMessage.className = 'form-message error';
                 return;
             }
-
-            const password = passwordInput.value;
-            const passwordConfirm = passwordConfirmInput.value;
-
-            if (password !== passwordConfirm) {
+            if (passwordInput.value !== passwordConfirmInput.value) {
                 signupMessage.textContent = '비밀번호가 일치하지 않습니다.';
                 signupMessage.className = 'form-message error';
                 return;
             }
-
             submitBtn.disabled = true;
-
             try {
                 const response = await fetch('/api/join', {
-                    method: 'POST',
-                    credentials: 'same-origin',
+                    method: 'POST', credentials: 'same-origin',
                     body: new URLSearchParams(new FormData(signupForm))
                 });
-
                 if (!response.ok) {
                     const error = await response.json().catch(() => null);
-
-                    signupMessage.textContent =
-                        (error && error.message) || '회원가입에 실패했습니다.';
+                    signupMessage.textContent = (error && error.message) || '회원가입에 실패했습니다.';
                     signupMessage.className = 'form-message error';
                     return;
                 }
-
                 const verifiedEmail = emailInput.value.trim();
-
-                signupModal.hidden = true;
                 resetSignupForm();
-
                 document.getElementById('login-email').value = verifiedEmail;
-                modal.hidden = false;
-
+                showModal('login');
             } catch (e) {
                 signupMessage.textContent = '회원가입 중 오류가 발생했습니다.';
                 signupMessage.className = 'form-message error';
-
             } finally {
                 submitBtn.disabled = false;
             }
         });
-    })();
 
-
-    // ==================================================
-    // 계정 부활 인증번호 6칸 입력 UI
-    // 회원가입 인증과 별개로 동작
-    // ==================================================
-    (() => {
+        // ---------- 계정 복구 ----------
+        let restoreEmail = '';   // 복구 대상 이메일 (모달을 껐다 켜도 유지)
+        const restoreStepConfirm = document.getElementById('restore-step-confirm');
         const restoreCodeBox = document.getElementById('restore-code-box');
-
-        if (!restoreCodeBox) return;
-
-        const digits = restoreCodeBox.querySelectorAll('.verify-digit');
+        const restoreMsg = document.getElementById('restore-msg');
+        const restoreYes = document.getElementById('restore-yes');
+        const restoreNo = document.getElementById('restore-no');
         const restoreVerifyBtn = document.getElementById('restore-verify-btn');
+        const digits = restoreCodeBox.querySelectorAll('.verify-digit');
 
-        if (!restoreVerifyBtn || digits.length !== 6) return;
-
-        // 6칸의 인증번호를 하나의 문자열로 반환
-        function getRestoreCode() {
-            return Array.from(digits)
-                .map(input => input.value)
-                .join('');
+        function setRestoreMsg(text, isError) {
+            restoreMsg.textContent = text;
+            restoreMsg.className = isError ? 'form-message error' : 'form-message';
         }
 
-        // 여러 숫자 입력 및 붙여넣기 처리
+        function setRestoreStep(step) {   // 'confirm' | 'code'
+            restoreStepConfirm.hidden = step !== 'confirm';
+            restoreCodeBox.hidden = step !== 'code';
+        }
+
+        function getRestoreCode() {
+            return Array.from(digits).map(i => i.value).join('');
+        }
+
+        function clearDigits() {
+            digits.forEach(i => { i.value = ''; });
+        }
+
+        function resetRestore() {
+            restoreEmail = '';
+            clearDigits();
+            setRestoreMsg('', false);
+            setRestoreStep('confirm');
+            restoreYes.disabled = false;
+            restoreVerifyBtn.disabled = false;
+        }
+
         function fillCode(code) {
             const numbers = code.replace(/\D/g, '').slice(0, 6);
-
-            digits.forEach((input, index) => {
-                input.value = numbers[index] || '';
-            });
-
-            // 미완성 시 다음 빈 칸, 완성 시 마지막 칸
-            const focusIndex = Math.min(numbers.length, digits.length - 1);
-            digits[focusIndex]?.focus();
+            digits.forEach((input, index) => { input.value = numbers[index] || ''; });
+            digits[Math.min(numbers.length, digits.length - 1)].focus();
         }
 
-        // 각 칸 입력事件
         digits.forEach((input, index) => {
-
-            // 숫자 입력
             input.addEventListener('input', () => {
                 const value = input.value.replace(/\D/g, '');
-
-                // 자동완성 등 여러 글자가 들어온 경우
-                if (value.length > 1) {
-                    fillCode(value);
-                    return;
-                }
-
+                if (value.length > 1) { fillCode(value); return; }
                 input.value = value.slice(0, 1);
-
-                // 다음 칸으로 이동
-                if (input.value && digits[index + 1]) {
-                    digits[index + 1].focus();
-                }
+                if (input.value && digits[index + 1]) digits[index + 1].focus();
             });
-
-            // 키보드 이동
             input.addEventListener('keydown', event => {
-                if (event.key === 'Backspace' && !input.value) {
-                    digits[index - 1]?.focus();
-                }
-
-                if (event.key === 'ArrowLeft') {
-                    digits[index - 1]?.focus();
-                }
-
-                if (event.key === 'ArrowRight') {
-                    digits[index + 1]?.focus();
-                }
+                if (event.key === 'Backspace' && !input.value) digits[index - 1]?.focus();
+                if (event.key === 'ArrowLeft') digits[index - 1]?.focus();
+                if (event.key === 'ArrowRight') digits[index + 1]?.focus();
             });
-
-            // 붙여넣기
             input.addEventListener('paste', event => {
                 event.preventDefault();
-
-                const pastedCode = event.clipboardData
-                    .getData('text')
-                    .replace(/\D/g, '')
-                    .slice(0, 6);
-
-                if (pastedCode) {
-                    fillCode(pastedCode);
-                }
+                const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+                if (pasted) fillCode(pasted);
             });
         });
 
-        // 계정 부활 인증 확인
+        // 취소 → 로그인으로 돌아가기 (모달 닫았다 다시 여는 게 아니라 전환만)
+        restoreNo.addEventListener('click', () => {
+            resetRestore();
+            showModal('login');
+        });
+
+        // 복구하기 → 인증번호 발송 → 같은 모달에서 코드 입력 화면으로
+        restoreYes.addEventListener('click', async () => {
+            if (restoreYes.disabled || !restoreEmail) return;
+            restoreYes.disabled = true;
+            setRestoreMsg('', false);
+            try {
+                const response = await fetch('/api/email/send', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: restoreEmail })
+                });
+                const result = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                    setRestoreMsg(result.message || '인증번호 전송에 실패했습니다.', true);
+                    return;
+                }
+                clearDigits();
+                setRestoreStep('code');
+                setRestoreMsg('인증번호를 보냈습니다.', false);
+                digits[0].focus();
+            } catch (e) {
+                setRestoreMsg('서버와 통신하지 못했습니다.', true);
+            } finally {
+                restoreYes.disabled = false;
+            }
+        });
+
+        // 인증 확인 → 복구 API → 새로고침(로그인됨)
         restoreVerifyBtn.addEventListener('click', async () => {
+            if (restoreVerifyBtn.disabled) return;
             const code = getRestoreCode();
-
             if (!/^\d{6}$/.test(code)) {
-                alert('인증번호 6자리를 입력해주세요.');
-
-                const firstEmpty = Array.from(digits)
-                    .find(input => !input.value);
-
-                (firstEmpty || digits[0]).focus();
+                setRestoreMsg('인증번호 6자리를 입력해주세요.', true);
+                (Array.from(digits).find(i => !i.value) || digits[0]).focus();
                 return;
             }
+            restoreVerifyBtn.disabled = true;
+            try {
+                const verifyRes = await fetch('/api/email/verify', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: restoreEmail, code })
+                });
+                const verifyResult = await verifyRes.json().catch(() => ({}));
+                if (!verifyRes.ok) {
+                    setRestoreMsg(verifyResult.message || '인증번호가 일치하지 않습니다.', true);
+                    if (verifyRes.status === 429) { clearDigits(); setRestoreStep('confirm'); }
+                    return;
+                }
 
-            console.log('계정 부활 인증번호:', code);
-
-            // TODO:
-            // 계정 부활 인증 API 연결
+                // TODO: 복구 API 주소는 백엔드에 맞게 수정
+                const restoreRes = await fetch('/api/restore', {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: restoreEmail })
+                });
+                if (!restoreRes.ok) {
+                    const err = await restoreRes.json().catch(() => ({}));
+                    setRestoreMsg(err.message || '계정 복구에 실패했습니다.', true);
+                    return;
+                }
+                location.reload();
+            } catch (e) {
+                setRestoreMsg('서버와 통신하지 못했습니다.', true);
+            } finally {
+                restoreVerifyBtn.disabled = false;
+            }
         });
     })();
 

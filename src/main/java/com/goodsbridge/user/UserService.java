@@ -4,6 +4,7 @@ import com.goodsbridge._core.exception.BadRequestException;
 import com.goodsbridge._core.exception.NotFoundException;
 import com.goodsbridge._core.security.AuthService;
 import com.goodsbridge._core.util.FileUtil;
+import com.goodsbridge._core.util.NicknameGenerator;
 import com.goodsbridge.auction.AuctionRepository;
 import com.goodsbridge.event.EventParticipationRepository;
 import com.goodsbridge.exchange.ExchangeRequestRepository;
@@ -78,6 +79,7 @@ public class UserService {
             // 카카오 사용자는 비밀번호로 로그인하지 않으므로 아무도 알 수 없는 값을 넣음
             .password(passwordEncoder.encode(UUID.randomUUID().toString()))
             .email(email)
+            .nickname(NicknameGenerator.generate())
             .profileImage(kakaoUserInfo.getProperties().getProfileImage())
             .loginType(LoginType.KAKAO)
             .build();
@@ -234,5 +236,12 @@ public class UserService {
         authService.logout(userId);
         authService.clearAuthCookies(response);
 
+    }
+
+    public class WithdrawnAccountException extends RuntimeException {
+
+        public WithdrawnAccountException() {
+            super("탈퇴한 계정입니다. 계정 복구 인증이 필요합니다.");
+        }
     }
 }
