@@ -116,6 +116,7 @@ public class ExchangeChatService {
         if (userId.equals(request.getMeetingProposerId())) {
             throw new BadRequestException("상대방이 제안한 시간만 확정할 수 있습니다.");
         }
+        request.confirmMeeting();
 
         // 제안 대상에게 알림
         publisher.publishEvent(
