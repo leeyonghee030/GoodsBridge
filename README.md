@@ -143,6 +143,7 @@ A·B의 상품 가격을 넣고 누르면 "둘 다 옴 / 한쪽만 노쇼 / 둘 
 - 배포: [오라클 클라우드 배포](docs/guide/오라클_클라우드_배포.md)
 - 기획·설계: [기획서](docs/spec/기획서.md), [ERD](docs/spec/ERD.md), [API 명세](docs/spec/API_명세.md), [유저플로우](docs/spec/유저플로우.md), [이슈 전체 로직 정리](docs/spec/이슈_전체정리.md), [AI 에이전트 학습 노트](docs/spec/AI_에이전트_학습노트.md)
 - 운영: [알림 DB 컬럼 수정 안내](docs/ops/알림_DB_컬럼_수정_안내.md), [작업 분배](docs/ops/작업_분배.md)
+- 발표: [발표 자료 (PDF)](docs/ops/GoodsBridge_발표자료.pdf)
 - 전체 문서 목록: [INDEX.md](INDEX.md)
 
 ## 팀 구성
