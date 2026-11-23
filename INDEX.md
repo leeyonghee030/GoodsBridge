@@ -43,6 +43,24 @@ docs:
   - 시간 빨리감기
   - 데모
   - demo script
+- path: docs/guide/오라클_클라우드_배포.md
+  title: 오라클 클라우드 무료 서버에 배포하기·HTTPS 주소로 공개
+  summary: Oracle Cloud Always Free 서버에 Docker Compose로 앱·MySQL·HTTPS 프록시(Caddy)를 올려 누구나 주소로 들어와 확인하게 하는 순서와, 카카오·PortOne·시연
+    모드 설정, 업데이트와 자주 막히는 경우를 정리한다
+  keywords:
+  - 배포
+  - 오라클 클라우드
+  - Oracle Cloud
+  - Always Free
+  - 무료 서버
+  - Docker
+  - docker-compose.prod.yml
+  - Caddy
+  - HTTPS
+  - nip.io
+  - 도메인
+  - 카카오 Redirect URI
+  - deploy
 - path: docs/ops/알림_DB_컬럼_수정_안내.md
   title: 알림 DB 컬럼 수정 안내·기존 로컬 DB SQL 조치
   summary: 'PR #82 이후 기존 로컬 DB에서 새 알림이 저장되지 않는 증상과 원인, docs/sql의 SQL로 알림·경매 enum 칸을 고치는 방법과 확인법을 설명한다'
