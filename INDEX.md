@@ -98,6 +98,16 @@ docs:
   - /api/chat
   - chat
   - '이슈 #13'
+- path: docs/spec/API_명세.md
+  title: API 명세 (Tier 1)
+  summary: Tier 1 REST API 엔드포인트 목록(메서드·경로·설명)과 결제 액션·AI 에이전트 호출 규칙. 기획서에서 분리한 참조 문서
+  keywords:
+  - API
+  - 엔드포인트
+  - REST
+  - 명세
+  - paymentId
+  - /api/chat
 - path: docs/spec/design/2026-11-03-exchange-propose-item-direct-design.md
   title: 교환 제안 플로우 재설계·ExchangeItem 대신 Item 직접 참조
   summary: 교환 제안(propose)에서 ExchangeRequest가 ExchangeItem 대신 Item을 직접 참조하도록 바꾼 결정과 ERD·엔티티·Repository·DTO·검증 변경, 문서·코드 영향
@@ -122,15 +132,22 @@ docs:
   - 데이터 일관성
   - 보안
   - 배포
+- path: docs/spec/ERD.md
+  title: ERD·테이블 상세 스키마 (Tier 1)
+  summary: Tier 1 20개 테이블의 관계도(Mermaid ERD)와 컬럼별 상세 스키마. 기획서의 테이블 구조 절에서 분리한 참조 문서
+  keywords:
+  - ERD
+  - 테이블
+  - 스키마
+  - 컬럼
+  - Mermaid
+  - 엔티티
 - path: docs/spec/기획서.md
-  title: 기획서·비즈니스 모델·ERD·API 명세·유저플로우
-  summary: 가게 거점 안전 교환 플랫폼의 개요와 B2B SaaS 수익 모델, Tier 1 핵심 기능, 테이블 구조와 ERD, 기술 스택, 14일 일정, 관리자 페이지, API 명세, 유저플로우, 기술명세를 정리한
-    전체 기획 문서
+  title: 기획서·비즈니스 모델·핵심 기능·일정
+  summary: 가게 거점 안전 교환 플랫폼의 개요와 B2B SaaS 수익 모델, Tier 1 핵심 기능, 기술 스택, 14일 일정, 관리자 페이지, 기술명세를 정리한 기획 문서. ERD·API 명세·유저플로우는 별도
+    문서로 분리
   keywords:
   - 기획서
-  - ERD
-  - API 명세
-  - 유저플로우
   - 비즈니스 모델
   - B2B SaaS
   - 보증금
@@ -139,6 +156,15 @@ docs:
   - 경매
   - 이벤트
   - planning
+- path: docs/spec/유저플로우.md
+  title: 유저플로우
+  summary: 로그인·일반구매·가게 입점·교환·가게 이벤트·경매·AI 에이전트의 화면 흐름과 상태 전이 다이어그램. 기획서에서 분리한 문서
+  keywords:
+  - 유저플로우
+  - 화면흐름
+  - 시퀀스
+  - 상태
+  - 다이어그램
 - path: docs/spec/이슈_전체정리.md
   title: 이슈 전체 로직 정리·이슈별 ERD·API·권한·검증
   summary: '이슈 #4부터 #34까지 기능별 작업 내용, ERD, API 엔드포인트, 유효성 검사, 권한 체크, 주의사항을 LLM에게 질문하기 좋게 한 문서에 모은 정리본'
