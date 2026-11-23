@@ -2,7 +2,7 @@
 
 굿즈(포토카드 등) 교환/거래 플랫폼. 오프라인 굿즈샵을 거점으로 안전 교환(보증금+노쇼 페널티)을 중개하는 중고거래 플랫폼입니다. 4인/14일 팀프로젝트.
 
-전체 기획/ERD/API 명세/유저플로우는 [`docs/spec/기획서.md`](docs/spec/기획서.md) 참고.
+기획·설계는 `docs/spec/`에 문서별로 나뉘어 있습니다: [기획서](docs/spec/기획서.md)(개요·비즈니스 모델·핵심 기능·일정), [ERD](docs/spec/ERD.md), [API 명세](docs/spec/API_명세.md), [유저플로우](docs/spec/유저플로우.md).
 
 ## 시연 주소 (임시)
 **https://poking-stand-gainfully.ngrok-free.dev**
@@ -141,7 +141,7 @@ A·B의 상품 가격을 넣고 누르면 "둘 다 옴 / 한쪽만 노쇼 / 둘 
 ## 문서
 - 시작하기: [로컬 실행 가이드](docs/guide/로컬_실행_가이드.md), [데모 임시데이터 사용법](docs/guide/데모_임시데이터_사용법.md), [시연 순서](docs/guide/시연_순서.md)
 - 배포: [오라클 클라우드 배포](docs/guide/오라클_클라우드_배포.md)
-- 기획·설계: [기획서](docs/spec/기획서.md), [이슈 전체 로직 정리](docs/spec/이슈_전체정리.md), [AI 에이전트 학습 노트](docs/spec/AI_에이전트_학습노트.md)
+- 기획·설계: [기획서](docs/spec/기획서.md), [ERD](docs/spec/ERD.md), [API 명세](docs/spec/API_명세.md), [유저플로우](docs/spec/유저플로우.md), [이슈 전체 로직 정리](docs/spec/이슈_전체정리.md), [AI 에이전트 학습 노트](docs/spec/AI_에이전트_학습노트.md)
 - 운영: [알림 DB 컬럼 수정 안내](docs/ops/알림_DB_컬럼_수정_안내.md), [작업 분배](docs/ops/작업_분배.md)
 - 전체 문서 목록: [INDEX.md](INDEX.md)
 
