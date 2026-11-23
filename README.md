@@ -4,6 +4,13 @@
 
 전체 기획/ERD/API 명세/유저플로우는 [`docs/spec/기획서.md`](docs/spec/기획서.md) 참고.
 
+## 시연 주소 (임시)
+**https://poking-stand-gainfully.ngrok-free.dev**
+
+- 시연(데모) 모드로 켜 두어 가입·결제 없이 데모 계정(손님 A·B, 가게, 관리자)으로 바로 둘러볼 수 있습니다.
+- 개발자 PC에서 실행 중일 때만 접속됩니다. 서버(오라클 클라우드) 배포가 끝나면 주소가 바뀝니다.
+- 처음 접속하면 ngrok 안내 화면이 한 번 나올 수 있습니다. **Visit Site**를 누르면 됩니다.
+
 ## 핵심 기능
 - **가게 중개 안전 교환**: 교환이 확정되면 양쪽이 보증금을 내고, 가게가 현장 출석을 확인한 뒤 노쇼 여부에 따라 보증금을 정산합니다.
 - **상품 판매·구매**: 카드 결제(PortOne), 배송 단계 관리, 구매 확정, 부분 환불
@@ -133,6 +140,7 @@ A·B의 상품 가격을 넣고 누르면 "둘 다 옴 / 한쪽만 노쇼 / 둘 
 
 ## 문서
 - 시작하기: [로컬 실행 가이드](docs/guide/로컬_실행_가이드.md), [데모 임시데이터 사용법](docs/guide/데모_임시데이터_사용법.md), [시연 순서](docs/guide/시연_순서.md)
+- 배포: [오라클 클라우드 배포](docs/guide/오라클_클라우드_배포.md)
 - 기획·설계: [기획서](docs/spec/기획서.md), [이슈 전체 로직 정리](docs/spec/이슈_전체정리.md), [AI 에이전트 학습 노트](docs/spec/AI_에이전트_학습노트.md)
 - 운영: [알림 DB 컬럼 수정 안내](docs/ops/알림_DB_컬럼_수정_안내.md), [작업 분배](docs/ops/작업_분배.md)
 - 전체 문서 목록: [INDEX.md](INDEX.md)
@@ -142,7 +150,7 @@ A·B의 상품 가격을 넣고 누르면 "둘 다 옴 / 한쪽만 노쇼 / 둘 
 |---|---|---|
 | A | [@life-random](https://github.com/life-random) | 공통 예외처리, Security·JWT, 카카오·이메일 로그인, 회원정보, 인앱 알림, AI 에이전트 |
 | B | [@bito4165-creator](https://github.com/bito4165-creator) | 가게, 가게 구독(B2B), 상품·카테고리, 게시판·댓글 |
-| C | [@leeyonghee030](https://github.com/leeyonghee030) | 교환·교환 보증금 정산, 교환 댓글, 가게 이벤트·선착순 참가 |
+| C (팀장) | [@leeyonghee030](https://github.com/leeyonghee030) | 교환·교환 보증금 정산, 교환 댓글, 가게 이벤트·선착순 참가<br>기획서·README·이슈/PR 템플릿 작성과 이슈 생성·작업 분배, Mustache 화면 교체(#24), AI 에이전트 채팅 추가(#97), 기능 시연 화면, 서버 배포(오라클 클라우드·임시 주소) |
 | D | [@DevDash-boot](https://github.com/DevDash-boot) | 결제·구매(PortOne), 정산·환불, 경매·입찰, 관리자 대시보드 |
 
 자세한 분배와 이슈 번호는 [작업 분배](docs/ops/작업_분배.md)를 보세요.
