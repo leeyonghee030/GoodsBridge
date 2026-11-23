@@ -4,6 +4,39 @@
 
 ```yaml
 docs:
+- path: docs/guide/개발_환경.md
+  title: 개발 환경·기술 스택과 로컬 실행 전체 순서, .env, 테스트 실행
+  summary: 기술 스택 목록, git clone부터 bootRun까지 로컬 실행 전체 순서, .env 값 구분, 시연(데모) 모드, 테스트 실행 명령, 시크릿 관리 규칙을 정리한다
+  keywords:
+  - 기술 스택
+  - 빠른 시작
+  - 로컬 실행
+  - .env
+  - 환경변수
+  - docker compose
+  - gradlew
+  - bootRun
+  - 테스트 실행
+  - 시크릿
+  - Spring Boot
+  - MySQL
+  - PortOne
+  - Gemini
+- path: docs/guide/기능_시연_화면.md
+  title: 기능 시연 화면·화면 경로와 동시성·노쇼 정산 시연 버튼 쓰는 법
+  summary: Mustache 화면 경로(둘러보기·마이페이지·가게 관리·관리자)와 데모 모드에서만 열리는 기능 시연 화면 4종(이벤트 동시 참가·경매 동시 입찰·노쇼 정산·시간 빨리감기)의 사용법과 설명 포인트를
+    정리한다
+  keywords:
+  - 기능 시연
+  - 시연 화면
+  - 동시성 시연
+  - 이벤트 동시 참가
+  - 경매 동시 입찰
+  - 노쇼 정산
+  - 시간 빨리감기
+  - 화면 경로
+  - Mustache
+  - demo
 - path: docs/guide/데모_임시데이터_사용법.md
   title: 데모 임시데이터 사용법·데모 계정과 결제 생략
   summary: APP_DEMO_ENABLED로 데모 모드를 켜고 데모 막대로 손님·가게·관리자 계정을 바꾸며, 결제 생략 방식과 들어 있는 시연 데이터, 초기화 시점과 주의할 점을 설명한다
@@ -84,6 +117,20 @@ docs:
   - 일정
   - 이슈 번호
   - 팀원
+- path: docs/ops/협업_규칙.md
+  title: 협업 규칙·Git 전략과 이슈·커밋 규칙, 테스트 우선순위
+  summary: main·develop·feature 브랜치 전략, PR 리뷰·Squash merge 규칙, 이슈·작업 보드·커밋 규칙과 반드시 남길 자동화 테스트 우선순위를 정리한다
+  keywords:
+  - 협업 규칙
+  - Git 전략
+  - 브랜치
+  - PR
+  - Squash merge
+  - 커밋 규칙
+  - Conventional Commits
+  - 이슈 템플릿
+  - 작업 보드
+  - 테스트 우선순위
 - path: docs/spec/AI_에이전트_학습노트.md
   title: AI 에이전트 학습 노트·POST /api/chat 동작
   summary: Spring AI와 Gemini로 만든 POST /api/chat이 어떻게 동작하는지 com.goodsbridge.chat 파일 지도, 핵심 개념, 직접 해 보기, 도구 추가 방법, 주의할 점으로 정리한
