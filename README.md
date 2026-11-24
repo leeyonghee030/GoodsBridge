@@ -64,7 +64,7 @@ docker compose up -d     # 로컬 MySQL
 |---|---|---|
 | A | [@life-random](https://github.com/life-random) | 공통 예외처리, Security·JWT, 카카오·이메일 로그인, 회원정보, 인앱 알림, AI 에이전트 |
 | B | [@bito4165-creator](https://github.com/bito4165-creator) | 가게, 가게 구독(B2B), 상품·카테고리, 게시판·댓글 |
-| C (팀장) | [@leeyonghee030](https://github.com/leeyonghee030) | 교환·교환 보증금 정산, 교환 댓글, 가게 이벤트·선착순 참가<br>기획서·README·이슈/PR 템플릿 작성과 이슈 생성·작업 분배, Mustache 화면 교체(#24), AI 에이전트 채팅 추가(#97), 기능 시연 화면, 서버 배포(오라클 클라우드·임시 주소) |
+| C (팀장) | [@leeyonghee030](https://github.com/leeyonghee030) | 교환, 교환 댓글, 가게 이벤트·선착순 참가<br>기획서·README·이슈, AI 에이전트 채팅 추가(#97), 기능 시연 화면, 서버 배포(오라클 클라우드·임시 주소) |
 | D | [@DevDash-boot](https://github.com/DevDash-boot) | 결제·구매(PortOne), 정산·환불, 경매·입찰, 관리자 대시보드 |
 
 자세한 분배와 이슈 번호는 [작업 분배](docs/ops/작업_분배.md) 참고.
