@@ -5,7 +5,7 @@
 ## 현재 상태
 - 4인 팀 프로젝트, 개발 기간 2026-11-02 ~ 2026-11-23. 핵심 기능 구현, 시연(데모) 모드로 운영 중
 - [시연 영상](https://youtu.be/i1XuUx8sua8) · [발표 자료 (PDF)](docs/ops/GoodsBridge_발표자료.pdf)
-- 시연 주소(임시): **https://poking-stand-gainfully.ngrok-free.dev** — 개발자 PC가 켜져 있을 때만 접속, 오라클 클라우드 배포 후 주소 변경 예정. 처음 접속 시 ngrok 안내 화면에서 **Visit Site** 선택
+- [핵심 기능 간단 시연 (Notion)](https://app.notion.com/p/Goods-Bridge-7905b00d03be83dbabe181cbbf88cfc9?source=copy_link)
 
 ## 주요 기능
 - **가게 중개 안전 교환**: 양쪽 보증금 예치, 가게의 현장 출석 확인, 노쇼 여부에 따른 보증금 정산
